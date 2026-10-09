@@ -9,6 +9,7 @@ import {
   pinTelegramMessage,
   sendTelegramChannelPhoto,
   sendTelegramChannelText,
+  setTelegramChatDescription,
   telegramBotToken,
 } from "./telegramBotService.js";
 import {
@@ -96,6 +97,7 @@ export const processTelegramCatalogJob = async ({
   sendText = sendTelegramChannelText,
   editText = editTelegramMessageText,
   pinMessage = pinTelegramMessage,
+  setDescription = setTelegramChatDescription,
 } = {}) => {
   const tenantId = Number(job.tenant_id) || telegramCatalogTenantId();
   const payload = job.payload && typeof job.payload === "object" ? job.payload : {};
@@ -145,6 +147,12 @@ export const processTelegramCatalogJob = async ({
       // warning: the menu is posted either way.
       pinned = await pinMessage({ chatId, messageId });
     }
+    // The channel's own presentation, refreshed with its menu. Needs the
+    // "change info" right, so it is best effort: a refusal must not fail the
+    // menu that was just posted.
+    const describe = text(payload.description)
+      ? await setDescription({ chatId, description: payload.description })
+      : { updated: false, reason: "empty" };
     await recordTelegramChannelIndex({
       tenantId,
       channelId: job.channel_id,
@@ -152,7 +160,7 @@ export const processTelegramCatalogJob = async ({
       indexHash: text(payload.fingerprint),
       client,
     });
-    return { action: "index", message_id: messageId, pinned: pinned?.pinned ?? null, pin_error: pinned?.reason || "" };
+    return { action: "index", message_id: messageId, pinned: pinned?.pinned ?? null, pin_error: pinned?.reason || "", described: describe.updated, describe_error: describe.reason || "" };
   }
 
   // A one-line "it is back" with a link to the post, not a second copy of it.

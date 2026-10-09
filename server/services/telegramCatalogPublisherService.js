@@ -4,6 +4,7 @@ import { buildStorefrontColorCardsForAudience } from "../controllers/storefrontC
 import { resolvePublicProductImageUrl } from "./aiProductCards.js";
 import { storefrontBaseUrl } from "./storefrontProductUrlService.js";
 import { fetchProductClassificationOptions } from "./productClassificationsService.js";
+import { getSetting } from "./settingsService.js";
 import { telegramDeepLinkToken, telegramDeepLinkUrl } from "./telegramBotService.js";
 import {
   TELEGRAM_INDEX_CARD_ID,
@@ -22,6 +23,7 @@ import {
   TELEGRAM_MESSAGE_MAX,
   escapeTelegramHtml,
   telegramTagToken,
+  tidyTelegramText,
   formatTelegramPrice,
   renderTelegramCaption,
   sortTelegramSizes,
@@ -63,8 +65,8 @@ export const telegramCardFacts = (card = {}, { audience = "" } = {}) => {
     card_id: text(card.card_id),
     product_id: Number(card.parent_product_id || card.id) || null,
     color_key: text(card.color_key || card.display_color_key),
-    name: text(card.name),
-    color: text(card.display_color || card.color),
+    name: tidyTelegramText(card.name),
+    color: tidyTelegramText(card.display_color || card.color),
     price,
     compare_price: comparePrice > price ? comparePrice : 0,
     sizes,
@@ -299,6 +301,30 @@ export const buildTelegramChannelIndex = ({ cards = [], labels = {}, scopedTags 
  * button into it, scoped to the channel. One filter: tap a hashtag. More than
  * one: the button.
  */
+
+// The text under the channel name: what this channel is, how to order, where
+// the shop lives. Plain text -- Telegram does not parse a description -- and
+// clamped to the 255 characters it accepts.
+// The shop's public name, as the storefront and the invoices already say it.
+const shopDisplayName = async () => {
+  const [storeName, companyName] = await Promise.all([
+    getSetting("storefront.store_name", "").catch(() => ""),
+    getSetting("general.company_name", "").catch(() => ""),
+  ]);
+  return text(storeName) || text(companyName);
+};
+
+export const buildTelegramChannelDescription = ({ channel = {}, shopName = "", baseUrl = storefrontBaseUrl() } = {}) => {
+  const audiences = TELEGRAM_CATALOG_DEFAULTS.description_audiences;
+  const audience = audiences[text(channel.audience).toLowerCase()] || audiences[""];
+  const shop = tidyTelegramText(shopName) || tidyTelegramText(channel.title) || "متجرنا";
+  const body = TELEGRAM_CATALOG_DEFAULTS.description_template
+    .replace("{audience}", audience)
+    .replace("{shop}", shop)
+    .replace("{site}", text(baseUrl).replace(/^https?:\/\//i, ""));
+  return tidyTelegramText(body).slice(0, 255);
+};
+
 export const telegramIndexKeyboard = ({ audience = "", baseUrl = storefrontBaseUrl() } = {}) => {
   if (!baseUrl) return null;
   const params = new URLSearchParams({ utm_source: "telegram", utm_medium: "channel_index" });
@@ -511,6 +537,7 @@ export const syncTelegramChannel = async ({
   // Queued last, so the menu goes out after the posts it points at.
   const indexBody = buildTelegramChannelIndex({ cards, labels, scopedTags });
   const indexMarkup = telegramIndexKeyboard({ audience: channel.audience });
+  const description = buildTelegramChannelDescription({ channel, shopName: await shopDisplayName() });
   const indexHash = telegramIndexFingerprint(indexBody, indexMarkup);
   if (indexBody && indexHash !== text(channel.index_hash)) {
     await enqueue({
@@ -518,7 +545,7 @@ export const syncTelegramChannel = async ({
       channelId: channel.id,
       cardId: TELEGRAM_INDEX_CARD_ID,
       action: "index",
-      payload: { body: indexBody, reply_markup: indexMarkup, fingerprint: indexHash },
+      payload: { body: indexBody, reply_markup: indexMarkup, description, fingerprint: indexHash },
       client,
     });
     summary.index = 1;

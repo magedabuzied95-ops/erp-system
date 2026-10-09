@@ -228,6 +228,26 @@ export const editTelegramMessageText = async ({ chatId, messageId, messageText, 
 // Pinning needs its own channel right, which the other three do not imply. A
 // refusal here must not lose the index message that was just posted, so the
 // caller treats it as a warning rather than a failure.
+
+// The text under the channel name. Needs the "change info" admin right, which
+// posting does not imply, so a refusal is a warning and never loses the post
+// that was being written at the time.
+export const setTelegramChatDescription = async ({ chatId, description = "", token, fetchImpl } = {}) => {
+  const safeChatId = text(chatId);
+  const safeDescription = text(description).slice(0, 255);
+  if (!safeChatId || !safeDescription) return { updated: false, reason: "incomplete" };
+  try {
+    await telegramApiRequest("setChatDescription", { chat_id: safeChatId, description: safeDescription }, { token, fetchImpl });
+    return { updated: true };
+  } catch (error) {
+    // Telegram answers "chat description is not modified" when it already says
+    // this. That is the desired state, not a failure.
+    const message = text(error?.message).toLowerCase();
+    if (message.includes("not modified")) return { updated: false, reason: "unchanged" };
+    return { updated: false, reason: text(error?.message).slice(0, 200) };
+  }
+};
+
 export const pinTelegramMessage = async ({ chatId, messageId, token, fetchImpl } = {}) => {
   const safeChatId = text(chatId);
   const safeMessageId = text(messageId);

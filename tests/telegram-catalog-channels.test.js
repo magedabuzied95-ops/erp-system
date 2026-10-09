@@ -1190,3 +1190,67 @@ test("the digest is one message, and it closes out the events it reported", asyn
   assert.ok(client.queries.some((e) => /UPDATE telegram_catalog_events SET digested_at/i.test(e.sql)), "reported events are closed");
   assert.ok(client.queries.some((e) => /last_digest_day/i.test(e.sql)), "and the day is marked done");
 });
+
+// ---------------------------------------------------------------------------
+// Presentation: the things that make a channel read like a catalogue.
+// ---------------------------------------------------------------------------
+
+const { tidyTelegramText } = await import("../shared/telegramCatalogDefaults.js");
+const { buildTelegramChannelDescription } = await import("../server/services/telegramCatalogPublisherService.js");
+
+test("whatever spacing someone typed, the caption reads as one line", () => {
+  assert.equal(tidyTelegramText("Nike Air Force 1  Sneakers"), "Nike Air Force 1 Sneakers");
+  assert.equal(tidyTelegramText("  Adidas\tRun\n\nShoes  "), "Adidas Run Shoes");
+  assert.equal(tidyTelegramText(null), "");
+});
+
+test("a sloppily spaced product name is tidied in the post, not in the shop's data", () => {
+  const facts = telegramCardFacts({ card_id: "1:x", name: "Nike Air Force 1  Sneakers - White", display_color: "White  Ice", final_price: 100, sizes: ["42"] });
+  assert.equal(facts.name, "Nike Air Force 1 Sneakers - White");
+  assert.equal(facts.color, "White Ice");
+});
+
+test("the channel description says what it is, how to order and where the shop lives", () => {
+  const body = buildTelegramChannelDescription({
+    channel: { audience: "men", title: "M1 Store ( Men )" },
+    shopName: "M1 Store",
+    baseUrl: "https://m1store-egy.com",
+  });
+  assert.match(body, /رجالي/);
+  assert.match(body, /M1 Store/);
+  assert.match(body, /m1store-egy\.com/);
+  assert.ok(!body.includes("https://"), "a description is not a link, and the scheme only costs characters");
+  assert.ok(body.length <= 255, `Telegram's hard limit: ${body.length}`);
+});
+
+test("each audience gets its own wording, and an unscoped channel still reads", () => {
+  const of = (audience) => buildTelegramChannelDescription({ channel: { audience }, shopName: "M1", baseUrl: "https://x.com" });
+  assert.match(of("women"), /حريمي/);
+  assert.match(of("kids"), /أطفال/);
+  assert.match(of(""), /أحذية وشنط/);
+});
+
+test("a very long shop name cannot push the description past what Telegram accepts", () => {
+  const body = buildTelegramChannelDescription({ channel: { audience: "men" }, shopName: "م".repeat(400), baseUrl: "https://x.com" });
+  assert.ok(body.length <= 255);
+});
+
+test("the sweep sends the description along with the menu", async () => {
+  const { indexJobs } = await runSync({ cards: [CARD] });
+  assert.equal(indexJobs.length, 1);
+  assert.ok(indexJobs[0].payload.description, "the menu job carries the channel's description");
+});
+
+test("a channel whose description Telegram refuses still gets its menu", async () => {
+  const result = await processTelegramCatalogJob({
+    job: { tenant_id: 1, channel_id: 3, card_id: "__index__", action: "index", payload: { body: "menu", fingerprint: "f", description: "about" } },
+    channel: { ...CHANNEL, index_message_id: null },
+    client: stubClient(),
+    sendText: async () => ({ message_id: "9" }),
+    pinMessage: async () => ({ pinned: true }),
+    setDescription: async () => ({ updated: false, reason: "not enough rights" }),
+  });
+  assert.equal(result.message_id, "9");
+  assert.equal(result.described, false);
+  assert.match(result.describe_error, /not enough rights/);
+});

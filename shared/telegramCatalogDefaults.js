@@ -44,6 +44,10 @@ export const TELEGRAM_CATALOG_DEFAULTS = Object.freeze({
     sizes_added: "مقاسات جديدة",
   },
   digest_empty: "",
+  // Under the channel name. 255 characters is Telegram's hard limit, so this
+  // says the three things a first-time visitor needs and stops.
+  description_template: "{audience} من {shop}. كل موديل بصوره ومقاساته المتاحة، والمقاسات بتتحدث أول بأول. للطلب اضغط «اطلب الآن» تحت أي موديل. {site}",
+  description_audiences: { men: "أحذية وشنط رجالي", women: "أحذية وشنط حريمي", kids: "أحذية وشنط أطفال", "": "أحذية وشنط" },
   index_group_titles: {
     product_type: "النوع",
     grade: "الخامة",
@@ -68,6 +72,12 @@ const text = (value = "") => String(value ?? "").trim();
 // A hashtag is one token: Telegram ends the tag at the first space, so a label
 // like "ميرور اوريجينال" must be joined up or only the first word becomes the tag.
 const TAG_SEPARATORS = /[#\s]+/g;
+
+// Product names arrive from the ERP with whatever spacing someone typed:
+// "Nike Air Force 1  Sneakers" has a double space, and on a phone that reads as
+// a mistake rather than a catalogue. Collapsed for DISPLAY only -- the product
+// itself is not rewritten, because that is the shop's data to fix, not ours.
+export const tidyTelegramText = (value = "") => text(value).replace(/\s+/g, " ");
 
 const isNumericSize = (value = "") => /^\d+(\.\d+)?$/.test(text(value));
 
@@ -168,4 +178,5 @@ export default {
   sortTelegramSizes,
   telegramCatalogTags,
   telegramTagToken,
+  tidyTelegramText,
 };
