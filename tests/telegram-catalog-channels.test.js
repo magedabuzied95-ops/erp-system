@@ -968,3 +968,65 @@ test("the index fingerprint changes with the body and not otherwise", () => {
   assert.equal(telegramIndexFingerprint("a"), telegramIndexFingerprint("a"));
   assert.notEqual(telegramIndexFingerprint("a"), telegramIndexFingerprint("b"));
 });
+
+// ---------------------------------------------------------------------------
+// Combining filters. A channel cannot: tapping #Adidas shows every Adidas post
+// and there is no way to narrow it to mirror sneakers from inside Telegram.
+// ---------------------------------------------------------------------------
+
+const { telegramIndexKeyboard } = await import("../server/services/telegramCatalogPublisherService.js");
+
+test("the menu carries a button into the catalogue, where filters do stack", () => {
+  const markup = telegramIndexKeyboard({ audience: "men" });
+  const button = markup.inline_keyboard[0][0];
+  assert.match(button.url, /^https:\/\/shop\.example\.com\/products\?/);
+  assert.match(button.url, /gender=men/, "the button opens the channel's own audience");
+  assert.match(button.url, /utm_medium=channel_index/);
+  // A channel post cannot carry a mini app, so this is a plain URL.
+  assert.ok(!("web_app" in button));
+});
+
+test("an unscoped channel's button opens the whole catalogue", () => {
+  const markup = telegramIndexKeyboard({ audience: "" });
+  assert.ok(!markup.inline_keyboard[0][0].url.includes("gender="));
+});
+
+test("no storefront url configured means no button rather than a broken one", () => {
+  assert.equal(telegramIndexKeyboard({ audience: "men", baseUrl: "" }), null);
+  assert.equal(telegramIndexKeyboard({ audience: "men", baseUrl: "http://insecure.example.com" }), null);
+});
+
+test("the menu says out loud that a hashtag is one filter at a time", () => {
+  const body = buildTelegramChannelIndex({ cards: INDEX_CARDS, labels: SHOP_LABELS, scopedTags: ["gender"] });
+  assert.match(body, /حاجة واحدة بس/);
+});
+
+test("changing only the button re-sends the menu", () => {
+  const body = buildTelegramChannelIndex({ cards: INDEX_CARDS, labels: SHOP_LABELS, scopedTags: ["gender"] });
+  const men = telegramIndexFingerprint(body, telegramIndexKeyboard({ audience: "men" }));
+  const women = telegramIndexFingerprint(body, telegramIndexKeyboard({ audience: "women" }));
+  assert.notEqual(men, women, "the fingerprint has to cover the button, not just the text");
+  assert.equal(men, telegramIndexFingerprint(body, telegramIndexKeyboard({ audience: "men" })));
+});
+
+test("the worker sends the menu's button with it, on both the first post and an edit", async () => {
+  const markup = telegramIndexKeyboard({ audience: "men" });
+  const payload = { body: "menu", reply_markup: markup, fingerprint: "f1" };
+  let sentMarkup = null;
+  let editedMarkup = null;
+  await processTelegramCatalogJob({
+    job: { tenant_id: 1, channel_id: 3, card_id: "__index__", action: "index", payload },
+    channel: { ...CHANNEL, index_message_id: null },
+    client: stubClient(),
+    sendText: async (args) => { sentMarkup = args.replyMarkup; return { message_id: "5" }; },
+    pinMessage: async () => ({ pinned: true }),
+  });
+  await processTelegramCatalogJob({
+    job: { tenant_id: 1, channel_id: 3, card_id: "__index__", action: "index", payload },
+    channel: { ...CHANNEL, index_message_id: 5 },
+    client: stubClient(),
+    editText: async (args) => { editedMarkup = args.replyMarkup; return {}; },
+  });
+  assert.deepEqual(sentMarkup, markup);
+  assert.deepEqual(editedMarkup, markup);
+});

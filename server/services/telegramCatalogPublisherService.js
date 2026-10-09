@@ -281,13 +281,35 @@ export const buildTelegramChannelIndex = ({ cards = [], labels = {}, scopedTags 
   // worse than no menu, so the channel keeps whatever it already has.
   if (lines.length <= 2) return "";
 
-  lines.push("", escapeTelegramHtml(TELEGRAM_CATALOG_DEFAULTS.index_hint));
+  lines.push("", escapeTelegramHtml(TELEGRAM_CATALOG_DEFAULTS.index_filter_hint));
+  lines.push(escapeTelegramHtml(TELEGRAM_CATALOG_DEFAULTS.index_hint));
   const body = lines.join("\n");
   return body.length > TELEGRAM_MESSAGE_MAX ? body.slice(0, TELEGRAM_MESSAGE_MAX - 1) : body;
 };
 
-export const telegramIndexFingerprint = (body = "") =>
-  crypto.createHash("sha1").update(text(body)).digest("hex").slice(0, 20);
+
+/*
+ * Combining filters is the one thing a channel cannot do. Tapping #Adidas shows
+ * every Adidas post and there is no way to then narrow it to mirror sneakers:
+ * Telegram's hashtag search takes one tag, and its text search is not a boolean
+ * AND. A composite tag per combination (#Adidas_ميرور_Sneakers) would be
+ * hundreds of tags and an unreadable caption.
+ *
+ * The catalogue page already stacks these filters, so the pinned menu carries a
+ * button into it, scoped to the channel. One filter: tap a hashtag. More than
+ * one: the button.
+ */
+export const telegramIndexKeyboard = ({ audience = "", baseUrl = storefrontBaseUrl() } = {}) => {
+  if (!baseUrl) return null;
+  const params = new URLSearchParams({ utm_source: "telegram", utm_medium: "channel_index" });
+  if (text(audience)) params.set("gender", text(audience));
+  const url = `${baseUrl}/products?${params.toString()}`;
+  if (!/^https:\/\//i.test(url)) return null;
+  return { inline_keyboard: [[{ text: TELEGRAM_CATALOG_DEFAULTS.index_filter_button, url }]] };
+};
+
+export const telegramIndexFingerprint = (body = "", replyMarkup = null) =>
+  crypto.createHash("sha1").update(JSON.stringify({ body: text(body), replyMarkup })).digest("hex").slice(0, 20);
 
 export const syncTelegramChannel = async ({
   channel,
@@ -406,14 +428,15 @@ export const syncTelegramChannel = async ({
 
   // Queued last, so the menu goes out after the posts it points at.
   const indexBody = buildTelegramChannelIndex({ cards, labels, scopedTags });
-  const indexHash = telegramIndexFingerprint(indexBody);
+  const indexMarkup = telegramIndexKeyboard({ audience: channel.audience });
+  const indexHash = telegramIndexFingerprint(indexBody, indexMarkup);
   if (indexBody && indexHash !== text(channel.index_hash)) {
     await enqueue({
       tenantId,
       channelId: channel.id,
       cardId: TELEGRAM_INDEX_CARD_ID,
       action: "index",
-      payload: { body: indexBody, fingerprint: indexHash },
+      payload: { body: indexBody, reply_markup: indexMarkup, fingerprint: indexHash },
       client,
     });
     summary.index = 1;

@@ -33,6 +33,8 @@ export const TELEGRAM_CATALOG_DEFAULTS = Object.freeze({
   // inside the chat rather than as a list, so a shopper who does not know the
   // tags exist has no way to narrow 600 posts down.
   index_title: "🔎 دوّر على اللي يعجبك",
+  index_filter_button: "🎛 فلترة متقدمة (أكتر من فلتر مع بعض)",
+  index_filter_hint: "عايز تجمع أكتر من فلتر؟ هاشتاج تليجرام بيفلتر حاجة واحدة بس — اضغط الزرار تحت.",
   index_hint: "دوس على أي هاشتاج تحت عشان تشوف كل اللي فيه، أو اكتب اسم الموديل في بحث القناة.",
   index_group_titles: {
     product_type: "النوع",

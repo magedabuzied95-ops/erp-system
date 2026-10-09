@@ -89,11 +89,12 @@ export const processTelegramCatalogJob = async ({
   if (job.action === "index") {
     const body = text(payload.body);
     if (!body) return { action: "index", skipped: "empty" };
+    const indexMarkup = payload.reply_markup || null;
     const existing = channel.index_message_id ? String(channel.index_message_id) : "";
     let messageId = existing;
     if (existing) {
       try {
-        await editText({ chatId, messageId: existing, messageText: body, parseMode: TELEGRAM_PARSE_MODE_HTML });
+        await editText({ chatId, messageId: existing, messageText: body, replyMarkup: indexMarkup, parseMode: TELEGRAM_PARSE_MODE_HTML });
       } catch (error) {
         // The owner deleted it by hand. Post a fresh one rather than failing
         // for ever against a message that is gone.
@@ -103,7 +104,7 @@ export const processTelegramCatalogJob = async ({
     }
     let pinned = null;
     if (!messageId) {
-      const sent = await sendText({ chatId, messageText: body, parseMode: TELEGRAM_PARSE_MODE_HTML, disablePreview: true });
+      const sent = await sendText({ chatId, messageText: body, replyMarkup: indexMarkup, parseMode: TELEGRAM_PARSE_MODE_HTML, disablePreview: true });
       messageId = text(sent?.message_id);
       // Pinning needs a right the other three do not imply, so a refusal is a
       // warning: the menu is posted either way.
