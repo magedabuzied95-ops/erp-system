@@ -8,15 +8,19 @@ import {
   decorateConversationsWithPrivacy,
   getConversationPrivacy,
   hiddenKeysAreEmpty,
+  customerPhoneKeysForIdentifier,
   invalidateConversationPrivacyCache,
   isConversationVisibleToViewer,
+  isCustomerVisibleToViewer,
   loadHiddenKeysForViewer,
   resetConversationPrivacySchemaForTests,
+  resetCustomerPhoneColumnsForTests,
   setConversationPrivacy,
   tenantUsesConversationPrivacy,
 } from "../server/modules/aiInboxPrivacy/conversationPrivacy.js";
 import {
   conversationIdFromPath,
+  customerIdentifierFromPath,
   runAiInboxPrivacyBoundary,
 } from "../server/modules/aiInboxPrivacy/aiInboxPrivacyBoundary.js";
 import { notifyPortalInboxEmployees } from "../server/modules/aiInboxPortal/portalInboxPush.js";
@@ -272,4 +276,99 @@ test("mark-all-read cannot clear the unread badge on a thread it cannot see", ()
   assert.match(block, /excludeSessionIds/);
   assert.match(block, /AND NOT \(s\.session_id = ANY\(\$4::text\[\]\)\)/);
   assert.match(block, /safeExcludedPhoneKeys/);
+});
+
+// --- the second half: the customer behind the thread ---------------------------
+// Closing the conversation while leaving its customer open publishes the name, the
+// spend and the order history — most of what the thread would have shown.
+
+test("a bare phone where a session id goes resolves to the same customer", async () => {
+  // /ai-agent/conversations/<phone>/orders is a real route shape: the orders panel
+  // sends the phone when it has no session id.
+  const seen = [];
+  const client = {
+    query: async (sql, params = []) => {
+      seen.push({ sql, params });
+      if (sql.includes("FROM ai_conversation_privacy pr")) return { rows: [{ ...PRIVATE, employee_ids: [3] }] };
+      if (sql.includes("FROM ai_support_sessions s")) return { rows: [session()] };
+      return { rows: [] };
+    },
+  };
+  assert.equal(
+    await isConversationVisibleToViewer({ tenantId: 1, conversationId: "01068005338", employeeId: 9, client }),
+    false
+  );
+  const lookup = seen.find(({ sql }) => sql.includes("FROM ai_support_sessions s"));
+  assert.equal(lookup.params[2], "1068005338", "the phone is canonicalised before it reaches SQL");
+  assert.match(lookup.sql, /s\.session_id LIKE 'whatsapp:%'/);
+});
+
+test("a row id is not mistaken for a phone", async () => {
+  resetCustomerPhoneColumnsForTests();
+  const client = {
+    query: async (sql) => {
+      if (sql.includes("FROM ai_conversation_privacy pr")) return { rows: [{ ...PRIVATE, employee_ids: [3] }] };
+      if (sql.includes("information_schema.columns")) return { rows: [{ column_name: "phone" }] };
+      if (sql.includes("FROM customers")) return { rows: [{ phone: "" }] };
+      return { rows: [] };
+    },
+  };
+  const keys = await customerPhoneKeysForIdentifier({ tenantId: 1, identifier: "42", client });
+  assert.deepEqual(keys, [], "customer #42 is a row id, not the number 42");
+});
+
+test("the customer profile of a hidden thread is closed to the same people", async () => {
+  resetCustomerPhoneColumnsForTests();
+  const client = {
+    query: async (sql) => {
+      if (sql.includes("FROM ai_conversation_privacy pr")) return { rows: [{ ...PRIVATE, employee_ids: [3] }] };
+      if (sql.includes("information_schema.columns")) return { rows: [{ column_name: "phone" }, { column_name: "whatsapp" }] };
+      if (sql.includes("FROM customers")) return { rows: [{ phone: "01068005338", whatsapp: "" }] };
+      return { rows: [] };
+    },
+  };
+  // By row id, and by the phone itself.
+  assert.equal(await isCustomerVisibleToViewer({ tenantId: 1, identifier: "512", employeeId: 9, client }), false);
+  invalidateConversationPrivacyCache();
+  assert.equal(await isCustomerVisibleToViewer({ tenantId: 1, identifier: "+201068005338", employeeId: 9, client }), false);
+  invalidateConversationPrivacyCache();
+  assert.equal(await isCustomerVisibleToViewer({ tenantId: 1, identifier: "512", employeeId: 3, client }), true, "the named employee keeps it");
+  invalidateConversationPrivacyCache();
+  assert.equal(await isCustomerVisibleToViewer({ tenantId: 1, identifier: "512", isAdmin: true, client }), true);
+});
+
+test("an ordinary customer's profile is untouched", async () => {
+  resetCustomerPhoneColumnsForTests();
+  const client = {
+    query: async (sql) => {
+      if (sql.includes("FROM ai_conversation_privacy pr")) return { rows: [{ ...PRIVATE, employee_ids: [3] }] };
+      if (sql.includes("information_schema.columns")) return { rows: [{ column_name: "phone" }] };
+      if (sql.includes("FROM customers")) return { rows: [{ phone: "01111111111" }] };
+      return { rows: [] };
+    },
+  };
+  assert.equal(await isCustomerVisibleToViewer({ tenantId: 1, identifier: "900", employeeId: 9, client }), true);
+});
+
+test("the boundary reaches the customer profile route, and nothing else under /customers", () => {
+  assert.equal(customerIdentifierFromPath("/api/customers/512/profile"), "512");
+  assert.equal(customerIdentifierFromPath("/api/customers/%2B201068005338/profile?x=1"), "+201068005338");
+  assert.equal(customerIdentifierFromPath("/api/customers/512"), "", "the customers list and record stay operational");
+  assert.equal(customerIdentifierFromPath("/api/customers/512/orders"), "");
+  assert.equal(customerIdentifierFromPath("/api/orders/512/profile"), "");
+});
+
+test("the customer profile of a hidden thread answers 403 through the boundary", async () => {
+  const req = { headers: { authorization: "Bearer token" }, originalUrl: "/api/customers/512/profile", method: "GET", body: {} };
+  const result = { next: false, status: null, body: null };
+  const res = { status(code) { result.status = code; return this; }, json(body) { result.body = body; return this; } };
+  await runAiInboxPrivacyBoundary(req, res, () => { result.next = true; }, {
+    verify: () => ({ id: 1, tenant_id: 1 }),
+    usesPrivacy: async () => true,
+    resolveViewer: async () => ({ isAdmin: false, employeeId: 9 }),
+    isVisible: async () => { throw new Error("the conversation check must not run for a customer path"); },
+    isCustomerVisible: async () => false,
+  });
+  assert.equal(result.status, 403);
+  assert.equal(result.body.code, "CONVERSATION_PRIVATE");
 });

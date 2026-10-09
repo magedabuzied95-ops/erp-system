@@ -11,11 +11,13 @@ import { canonicalPhoneKey, canonicalPhoneSql } from "../../utils/phoneSearch.js
 //    a privacy row holds up to three identities (canonical phone, channel
 //    customer id, session id) and matching ANY of them hides the thread. That is
 //    why a new conversation from a hidden customer starts hidden too.
-// 2. Hiding is enforced in two places on purpose. The list query filters
-//    (loadAiInbox), and aiInboxPrivacyBoundary.js checks every conversation-scoped
+// 2. Hiding is enforced in several places on purpose. The list query filters
+//    (loadAiInbox); aiInboxPrivacyBoundary.js checks every conversation-scoped
 //    route — because targeted `sessionKeys` lookups deliberately skip the list
 //    filters so send/reply can still resolve an id, and because a URL typed by
-//    hand must not open the thread.
+//    hand must not open the thread; the portal push drops the recipients who may
+//    not read it; and the customer profile behind the thread is closed too, since
+//    the name, the spend and the order history are most of what the thread shows.
 //
 // Admins are never filtered. A viewer with no employee row is treated as nobody,
 // so an unexpected account sees LESS, never more.
@@ -71,6 +73,7 @@ export const ensureConversationPrivacySchema = async (client = db) => {
 
 export const resetConversationPrivacySchemaForTests = () => {
   schemaPromise = null;
+  customerPhoneColumnsPromise = null;
   privacyRowsCache.clear();
   hiddenKeysCache.clear();
   identityCache.clear();
@@ -152,6 +155,9 @@ export const resolveConversationIdentity = async ({ tenantId, conversationId, cl
   const cacheKey = `${tenant}:${key}`;
   const hit = cached(identityCache, cacheKey, IDENTITY_TTL_MS);
   if (hit !== undefined) return hit;
+  // Several inbox routes accept a BARE PHONE where a session id goes (the customer
+  // orders panel is one), so the phone is a third way in, not only the stored ids.
+  const phoneCandidate = canonicalPhoneKey(key);
   const result = await client.query(
     `SELECT
        s.session_id,
@@ -165,10 +171,22 @@ export const resolveConversationIdentity = async ({ tenantId, conversationId, cl
      LEFT JOIN ai_customer_profiles p
        ON p.id = c.customer_profile_id AND p.tenant_id = s.tenant_id
      WHERE s.tenant_id = $1::bigint
-       AND (s.session_id = $2::text OR c.external_conversation_id = $2::text OR c.external_customer_id = $2::text)
+       AND (
+         s.session_id = $2::text
+         OR c.external_conversation_id = $2::text
+         OR c.external_customer_id = $2::text
+         OR (
+           $3::text <> ''
+           AND (
+             ${canonicalPhoneSql("p.phone")} = $3::text
+             OR ${canonicalPhoneSql("c.external_customer_id")} = $3::text
+             OR (s.session_id LIKE 'whatsapp:%' AND ${canonicalPhoneSql("s.session_id")} = $3::text)
+           )
+         )
+       )
      ORDER BY s.updated_at DESC
      LIMIT 1`,
-    [tenant, key]
+    [tenant, key, phoneCandidate.length >= 7 ? phoneCandidate : ""]
   );
   const row = result.rows[0];
   if (!row) return remember(identityCache, cacheKey, null);
@@ -252,6 +270,83 @@ export const isConversationVisibleToViewer = async ({
   const employee = idOrNull(employeeId);
   const match = rows.find((row) => matchesIdentity(row, identity));
   if (!match) return true;
+  return Boolean(employee && match.employeeIds.includes(employee));
+};
+
+// The customer drawer reads /customers/:id/profile, and the employee portal's
+// inbox is allowed that route. Knowing a hidden customer's name, spend and order
+// history is knowing most of what the thread would have shown, so the identifier
+// is resolved to phone keys and checked against the same rules.
+let customerPhoneColumnsPromise = null;
+
+const customerPhoneColumns = async (client = db) => {
+  if (!customerPhoneColumnsPromise) {
+    customerPhoneColumnsPromise = client
+      .query(
+        `SELECT column_name FROM information_schema.columns
+         WHERE table_schema = current_schema()
+           AND table_name = 'customers'
+           AND column_name = ANY($1::text[])`,
+        [["phone", "phone_number", "mobile", "whatsapp", "whatsapp_number"]]
+      )
+      .then((result) => result.rows.map((row) => row.column_name))
+      .catch((error) => {
+        customerPhoneColumnsPromise = null;
+        throw error;
+      });
+  }
+  return customerPhoneColumnsPromise;
+};
+
+export const resetCustomerPhoneColumnsForTests = () => {
+  customerPhoneColumnsPromise = null;
+};
+
+export const customerPhoneKeysForIdentifier = async ({ tenantId, identifier, client = db } = {}) => {
+  const tenant = idOrNull(tenantId);
+  const raw = text(identifier);
+  if (!tenant || !raw) return [];
+  const keys = new Set();
+  // A phone can be the identifier itself. A short run of digits is a row id, not
+  // a number, and canonicalising it would only invent a key that matches nothing.
+  const direct = canonicalPhoneKey(raw);
+  if (direct.length >= 7) keys.add(direct);
+  if (/^\d+$/.test(raw)) {
+    const columns = await customerPhoneColumns(client).catch(() => []);
+    if (columns.length) {
+      const projection = columns.map((column) => `COALESCE(${column}::text, '')`).join(", ");
+      const result = await client
+        .query(
+          `SELECT ${projection} FROM customers WHERE id = $1::bigint LIMIT 1`,
+          [raw]
+        )
+        .catch(() => ({ rows: [] }));
+      for (const value of Object.values(result.rows[0] || {})) {
+        const key = canonicalPhoneKey(value);
+        if (key.length >= 7) keys.add(key);
+      }
+    }
+  }
+  return [...keys];
+};
+
+export const isCustomerVisibleToViewer = async ({
+  tenantId,
+  identifier,
+  employeeId = null,
+  isAdmin = false,
+  client = db,
+} = {}) => {
+  if (isAdmin) return true;
+  const tenant = idOrNull(tenantId);
+  if (!tenant) return true;
+  const rows = await loadPrivacyRows({ tenantId: tenant, client });
+  if (!rows.length) return true;
+  const keys = await customerPhoneKeysForIdentifier({ tenantId: tenant, identifier, client });
+  if (!keys.length) return true;
+  const match = rows.find((row) => row.phoneKey && keys.includes(row.phoneKey));
+  if (!match) return true;
+  const employee = idOrNull(employeeId);
   return Boolean(employee && match.employeeIds.includes(employee));
 };
 
@@ -387,6 +482,7 @@ export const decorateConversationsWithPrivacy = async ({ tenantId, conversations
 
 export default {
   ensureConversationPrivacySchema,
+  isCustomerVisibleToViewer,
   loadHiddenKeysForViewer,
   hiddenKeysAreEmpty,
   conversationPrivacyClauseSql,

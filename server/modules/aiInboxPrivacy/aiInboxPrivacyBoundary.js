@@ -2,6 +2,7 @@ import jwt from "jsonwebtoken";
 
 import {
   isConversationVisibleToViewer,
+  isCustomerVisibleToViewer,
   tenantUsesConversationPrivacy,
 } from "./conversationPrivacy.js";
 import { resolveInboxViewer } from "./inboxViewer.js";
@@ -48,6 +49,23 @@ export const conversationIdFromBody = (body = {}) => {
 
 const isInboxApiPath = (rawPath = "") => /^\/api\/ai-(?:inbox|agent)\//i.test(text(rawPath).split("?")[0]);
 
+// The customer drawer the inbox opens, and the one route about a customer that the
+// employee portal's messages app is allowed to call. Its payload is the name, the
+// phone, the spend and the order history — closing the thread while leaving this
+// open would hide the words and publish everything around them.
+const CUSTOMER_PROFILE_PATH = /^\/api\/customers\/([^/]+)\/profile$/i;
+
+export const customerIdentifierFromPath = (rawPath = "") => {
+  const path = text(rawPath).split("?")[0].replace(/\/+$/, "");
+  const match = CUSTOMER_PROFILE_PATH.exec(path);
+  if (!match) return "";
+  try {
+    return text(decodeURIComponent(match[1]));
+  } catch {
+    return text(match[1]);
+  }
+};
+
 /**
  * `deps` exists for the tests: Express only ever passes (req, res, next), so the
  * defaults are what runs in production.
@@ -57,13 +75,16 @@ export const runAiInboxPrivacyBoundary = async (req, res, next, deps = {}) => {
     usesPrivacy = tenantUsesConversationPrivacy,
     resolveViewer = resolveInboxViewer,
     isVisible = isConversationVisibleToViewer,
+    isCustomerVisible = isCustomerVisibleToViewer,
     verify = (token) => jwt.verify(token, process.env.JWT_SECRET || "SECRET_KEY"),
   } = deps;
   try {
     const rawPath = req.originalUrl || req.url || "";
-    if (!isInboxApiPath(rawPath)) return next();
-    const conversationId = conversationIdFromPath(rawPath) || conversationIdFromBody(req.body);
-    if (!conversationId) return next();
+    const customerIdentifier = customerIdentifierFromPath(rawPath);
+    const conversationId = isInboxApiPath(rawPath)
+      ? conversationIdFromPath(rawPath) || conversationIdFromBody(req.body)
+      : "";
+    if (!conversationId && !customerIdentifier) return next();
 
     const authorization = text(req.headers?.authorization);
     if (!authorization.startsWith("Bearer ")) return next();
@@ -79,12 +100,9 @@ export const runAiInboxPrivacyBoundary = async (req, res, next, deps = {}) => {
 
     const viewer = await resolveViewer({ decoded });
     if (viewer.isAdmin) return next();
-    const visible = await isVisible({
-      tenantId,
-      conversationId,
-      employeeId: viewer.employeeId,
-      isAdmin: false,
-    });
+    const visible = conversationId
+      ? await isVisible({ tenantId, conversationId, employeeId: viewer.employeeId, isAdmin: false })
+      : await isCustomerVisible({ tenantId, identifier: customerIdentifier, employeeId: viewer.employeeId, isAdmin: false });
     if (visible) return next();
     return res.status(403).json({
       success: false,
