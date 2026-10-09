@@ -1885,10 +1885,9 @@ const ConversationListItem = memo(function ConversationListItem({ item, active, 
                         platform: channel,
                       });
                     }}
-                    dir="auto"
-                    className="line-clamp-1 text-left text-[15px] font-black leading-5 text-white hover:underline"
+                    className="line-clamp-1 text-start text-[15px] font-black leading-5 text-white hover:underline"
                   >
-                    {customerName}
+                    <bdi>{customerName}</bdi>
                   </button>
                   <div className="mt-1 flex flex-wrap items-center gap-1.5">
                     <Pill tone={isSocialComment ? "blue" : isWhatsappChannel(channel) ? "emerald" : liveMeta ? "cyan" : "zinc"}>
@@ -1913,10 +1912,9 @@ const ConversationListItem = memo(function ConversationListItem({ item, active, 
                         platform: channel,
                       });
                     }}
-                    dir="auto"
-                    className="line-clamp-2 text-left text-[15px] font-black leading-5 text-white hover:underline"
+                    className="line-clamp-2 text-start text-[15px] font-black leading-5 text-white hover:underline"
                   >
-                    {customerName}
+                    <bdi>{customerName}</bdi>
                   </button>
                   <div className="mt-1 flex flex-wrap items-center gap-1.5">
                     <Pill tone={isSocialComment ? "blue" : isWhatsappChannel(channel) ? "emerald" : liveMeta ? "cyan" : "zinc"}>
@@ -2291,10 +2289,9 @@ const InboxConversationCard = memo(function InboxConversationCard({ item, active
                         platform: channel,
                       });
                     }}
-                    dir="auto"
-                    className="line-clamp-1 text-left text-[14px] font-black leading-5 text-white hover:underline"
+                    className="line-clamp-1 text-start text-[14px] font-black leading-5 text-white hover:underline"
                   >
-                    {customerName}
+                    <bdi>{customerName}</bdi>
                   </button>
                   <div className="mt-1 flex flex-wrap items-center gap-1.5">
                     <Pill tone={isSocialComment ? "blue" : isWhatsappChannel(channel) ? "emerald" : liveMeta ? "cyan" : "zinc"}>
@@ -2309,7 +2306,7 @@ const InboxConversationCard = memo(function InboxConversationCard({ item, active
                 </>
               ) : (
                 <>
-                  <div dir="auto" className="truncate text-left text-[14px] font-black leading-5 text-white">{customerName}</div>
+                  <div className="truncate text-start text-[14px] font-black leading-5 text-white"><bdi>{customerName}</bdi></div>
                   <div className="mt-1 flex flex-wrap items-center gap-1.5">
                     <Pill tone={isSocialComment ? "blue" : isWhatsappChannel(channel) ? "emerald" : liveMeta ? "cyan" : "zinc"}>
                       <span className="inline-flex items-center gap-1">
@@ -2521,9 +2518,9 @@ function InboxChatHeader({
                       platform: channel,
                     });
                   }}
-                  className="block truncate text-left text-sm font-black leading-5 text-white hover:underline"
+                  className="block truncate text-start text-sm font-black leading-5 text-white hover:underline"
                 >
-                  {name}
+                  <bdi>{name}</bdi>
                 </button>
                 {telegramUsername ? <div dir="ltr" className="truncate text-left text-[10px] font-semibold leading-4 text-sky-300">@{telegramUsername}</div> : null}
                 {showCustomerIdentifier ? <div dir="ltr" className="truncate text-left text-[10px] font-semibold leading-4 text-slate-400">{phone}</div> : null}
