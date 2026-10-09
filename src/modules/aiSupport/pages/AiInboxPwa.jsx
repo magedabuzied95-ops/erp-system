@@ -2300,7 +2300,7 @@ function ConversationListItem({ conversation, active, accountLabel = "", onSelec
           <div className="min-w-0">
             {inboxKind === "comment" ? (
               <>
-                <div className={`line-clamp-1 text-[14px] leading-5 ${unread && !active ? "font-bold" : "font-semibold"}`}>{commenterName}</div>
+                <div className={`line-clamp-1 text-start text-[14px] leading-5 ${unread && !active ? "font-bold" : "font-semibold"}`}><bdi>{commenterName}</bdi></div>
                 <div className="mt-1 flex flex-wrap items-center gap-1.5">
                   <span className={`inline-flex items-center gap-1 rounded-full px-2 py-0.5 text-[10px] font-semibold ${active ? "bg-white/10 text-white" : "bg-slate-100 text-slate-600"}`}>
                     <SourceIcon className={`h-3 w-3 ${active ? "text-white" : isSocialComment ? "text-blue-600" : channelMeta(conversation.channel || conversation.source).tone}`} />
@@ -2324,7 +2324,7 @@ function ConversationListItem({ conversation, active, accountLabel = "", onSelec
               </>
             ) : (
               <>
-                <div className={`line-clamp-2 text-[14px] leading-5 ${unread && !active ? "font-bold" : "font-semibold"}`}>{title}</div>
+                <div className={`line-clamp-2 text-start text-[14px] leading-5 ${unread && !active ? "font-bold" : "font-semibold"}`}><bdi>{title}</bdi></div>
                 <div className="mt-1 flex flex-wrap items-center gap-1.5">
                   <span className={`inline-flex items-center gap-1 rounded-full px-2 py-0.5 text-[10px] font-semibold ${active ? "bg-white/10 text-white" : "bg-slate-100 text-slate-600"}`}>
                     <SourceIcon className={`h-3 w-3 ${active ? "text-white" : isSocialComment ? "text-blue-600" : channelMeta(conversation.channel || conversation.source).tone}`} />
@@ -7642,6 +7642,14 @@ export default function AiInboxPwa({ portal = null } = {}) {
   const isRtlLayout =
     typeof document !== "undefined" &&
     ((document.documentElement.dir || document.body?.dir || "").toLowerCase() === "rtl");
+  // The thread header is laid out PHYSICALLY left-to-right in both languages, by
+  // owner decision: back at the top left corner, then the avatar and the name,
+  // with the ⋯ menu at the far right. A flex row follows the document's inline
+  // axis, so in Arabic that takes row-reverse — and it has to be on the identity
+  // group as well as the top row. With it on the top row alone the group went to
+  // the left edge but its own children still ran right-to-left, which parked the
+  // back button in the middle of the header, between the avatar and the ⋯.
+  const headerPhysicalRow = { flexDirection: isRtlLayout ? "row-reverse" : "row" };
 
   const renderSocialCommentsWorkspace = () => {
     const selectedPost = selectedSocialPost || null;
@@ -8148,8 +8156,8 @@ export default function AiInboxPwa({ portal = null } = {}) {
             ref={conversationHeaderRef}
             className="ai-pwa-fixed ai-pwa-conversation-header fixed inset-x-0 top-0 z-[60] mx-auto w-full border-b border-slate-200 bg-slate-50/95 px-2.5 pb-2 pt-[max(0.65rem,env(safe-area-inset-top))] backdrop-blur"
           >
-            <div className="ai-pwa-conversation-top flex items-center justify-between gap-3" style={{ flexDirection: isRtlLayout ? "row-reverse" : "row" }}>
-              <div className="ai-pwa-conversation-identity flex min-w-0 flex-1 items-center gap-2.5">
+            <div className="ai-pwa-conversation-top flex items-center justify-between gap-3" style={headerPhysicalRow}>
+              <div className="ai-pwa-conversation-identity flex min-w-0 flex-1 items-center gap-2.5" style={headerPhysicalRow}>
                 <button
                   type="button"
                   onClick={handleBackNavigation}
@@ -8210,9 +8218,9 @@ export default function AiInboxPwa({ portal = null } = {}) {
                         platform: clean(selectedConversation?.platform || selectedConversation?.channel || selectedConversation?.source || ""),
                       })
                     }
-                    className="truncate text-left text-[15px] font-semibold leading-5 text-slate-900 hover:underline"
+                    className="block w-full truncate text-start text-[15px] font-semibold leading-5 text-slate-900 hover:underline"
                   >
-                    {isCommentConversation(selectedConversation || {}) ? commentThreadCommenterName(selectedConversation || {}) : conversationName(selectedConversation)}
+                    <bdi>{isCommentConversation(selectedConversation || {}) ? commentThreadCommenterName(selectedConversation || {}) : conversationName(selectedConversation)}</bdi>
                   </button>
                   {/* The chip and its logo never shrink: in an overflowing row the svg
                       used to squeeze to 0px, leaving only the gap where the logo was. */}
