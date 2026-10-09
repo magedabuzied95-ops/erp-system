@@ -161,6 +161,10 @@
     "marketingVideos": {
       "label": "AI Marketing Videos",
       "description": "Autonomous video generation queue."
+    },
+    "telegramChannels": {
+      "label": "Telegram channels",
+      "description": "The catalogue in Telegram channels, with sizes kept current."
     }
   },
   "restock": {

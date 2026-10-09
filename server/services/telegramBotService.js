@@ -9,6 +9,11 @@ export const TELEGRAM_CHANNEL = "telegram";
 export const TELEGRAM_MAX_DOWNLOAD_BYTES = 20 * 1024 * 1024;
 const TELEGRAM_API_BASE = "https://api.telegram.org";
 const FETCH_TIMEOUT_MS = 10_000;
+// Telegram DOWNLOADS the photo itself before it answers, so a media call is not
+// a 10-second request. An abort here is the one way a catalog post can be
+// delivered without us recording its message id, which would let the next
+// attempt post the colour twice.
+const TELEGRAM_MEDIA_TIMEOUT_MS = Math.max(10_000, Number(process.env.TELEGRAM_MEDIA_TIMEOUT_MS || 30_000));
 
 const ALLOWED_MIME_PREFIXES = ["image/", "audio/", "video/"];
 const ALLOWED_DOCUMENT_MIMES = new Set([
@@ -58,9 +63,9 @@ export const validateTelegramWebhookSecret = ({ provided = "", expected = telegr
   return crypto.timingSafeEqual(supplied, configured);
 };
 
-const fetchWithTimeout = async (url, options = {}, fetchImpl = fetch) => {
+const fetchWithTimeout = async (url, options = {}, fetchImpl = fetch, timeoutMs = FETCH_TIMEOUT_MS) => {
   const controller = new AbortController();
-  const timer = setTimeout(() => controller.abort(), FETCH_TIMEOUT_MS);
+  const timer = setTimeout(() => controller.abort(), Math.max(1_000, Number(timeoutMs) || FETCH_TIMEOUT_MS));
   try {
     return await fetchImpl(url, { ...options, signal: controller.signal });
   } finally {
@@ -77,13 +82,13 @@ const classifyTelegramError = ({ status = 502, description = "", retryAfter = 0 
   return new TelegramApiError(description || "Telegram API request failed", { status: Number(status) >= 400 ? Number(status) : 502 });
 };
 
-export const telegramApiRequest = async (method, payload = {}, { token = telegramBotToken(), fetchImpl = fetch } = {}) => {
+export const telegramApiRequest = async (method, payload = {}, { token = telegramBotToken(), fetchImpl = fetch, timeoutMs = FETCH_TIMEOUT_MS } = {}) => {
   if (!token) throw new TelegramApiError("Telegram bot token is not configured", { status: 503, code: "TELEGRAM_CONFIG_MISSING" });
   const response = await fetchWithTimeout(`${TELEGRAM_API_BASE}/bot${token}/${encodeURIComponent(text(method))}`, {
     method: "POST",
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify(payload),
-  }, fetchImpl);
+  }, fetchImpl, timeoutMs);
   let body;
   try { body = await response.json(); } catch { body = {}; }
   if (!response.ok || body?.ok !== true) {
@@ -122,6 +127,184 @@ export const sendTelegramMedia = async ({ chatId, mediaUrl, mediaType = "documen
   const { method, field } = telegramMediaMethod(mediaType);
   const result = await telegramApiRequest(method, { chat_id: safeChatId, [field]: safeUrl, ...(text(caption) ? { caption: text(caption) } : {}) }, { token, fetchImpl });
   return { sent: true, delivery_status: "sent", message_id: text(result?.message_id), result };
+};
+
+// --------------------------------------------------------------------------
+// Channel posts (catalog channels).
+//
+// A channel post is written once with sendPhoto and from then on only edited:
+// editMessageCaption keeps the available sizes current without pushing a new
+// post, so the link, the view count and the forwards all survive a restock.
+// Telegram puts no expiry on a bot editing its own channel post.
+// --------------------------------------------------------------------------
+
+export const sendTelegramChannelPhoto = async ({ chatId, photoUrl, caption = "", replyMarkup = null, token, fetchImpl } = {}) => {
+  const safeChatId = text(chatId);
+  const safePhoto = text(photoUrl);
+  if (!safeChatId) throw new TelegramApiError("Telegram chat id is missing", { status: 409, code: "TELEGRAM_CHAT_ID_MISSING" });
+  if (!safePhoto) throw new TelegramApiError("Telegram photo url is missing", { status: 400, code: "TELEGRAM_PHOTO_REQUIRED" });
+  const result = await telegramApiRequest("sendPhoto", {
+    chat_id: safeChatId,
+    photo: safePhoto,
+    ...(text(caption) ? { caption: text(caption) } : {}),
+    ...(replyMarkup ? { reply_markup: replyMarkup } : {}),
+  }, { token, fetchImpl, timeoutMs: TELEGRAM_MEDIA_TIMEOUT_MS });
+  return { message_id: text(result?.message_id), result };
+};
+
+export const sendTelegramChannelText = async ({ chatId, messageText, replyMarkup = null, disablePreview = false, token, fetchImpl } = {}) => {
+  const safeChatId = text(chatId);
+  const safeMessage = text(messageText);
+  if (!safeChatId) throw new TelegramApiError("Telegram chat id is missing", { status: 409, code: "TELEGRAM_CHAT_ID_MISSING" });
+  if (!safeMessage) throw new TelegramApiError("Telegram message is empty", { status: 400, code: "TELEGRAM_MESSAGE_EMPTY" });
+  const result = await telegramApiRequest("sendMessage", {
+    chat_id: safeChatId,
+    text: safeMessage,
+    ...(disablePreview ? { link_preview_options: { is_disabled: true } } : {}),
+    ...(replyMarkup ? { reply_markup: replyMarkup } : {}),
+  }, { token, fetchImpl });
+  return { message_id: text(result?.message_id), result };
+};
+
+export const editTelegramMessageCaption = async ({ chatId, messageId, caption = "", replyMarkup = null, token, fetchImpl } = {}) => {
+  const safeChatId = text(chatId);
+  const safeMessageId = text(messageId);
+  if (!safeChatId || !safeMessageId) throw new TelegramApiError("Telegram edit target is incomplete", { status: 400, code: "TELEGRAM_EDIT_TARGET_REQUIRED" });
+  const result = await telegramApiRequest("editMessageCaption", {
+    chat_id: safeChatId,
+    message_id: Number(safeMessageId),
+    ...(text(caption) ? { caption: text(caption) } : {}),
+    ...(replyMarkup ? { reply_markup: replyMarkup } : {}),
+  }, { token, fetchImpl });
+  return { message_id: text(result?.message_id) || safeMessageId, result };
+};
+
+// Only reached when the colour's PHOTO changed. editMessageCaption cannot swap
+// the image, and a post showing last season's photo under this season's caption
+// is worse than a new post.
+export const editTelegramMessagePhoto = async ({ chatId, messageId, photoUrl, caption = "", replyMarkup = null, token, fetchImpl } = {}) => {
+  const safeChatId = text(chatId);
+  const safeMessageId = text(messageId);
+  const safePhoto = text(photoUrl);
+  if (!safeChatId || !safeMessageId || !safePhoto) throw new TelegramApiError("Telegram media edit target is incomplete", { status: 400, code: "TELEGRAM_MEDIA_EDIT_TARGET_REQUIRED" });
+  const result = await telegramApiRequest("editMessageMedia", {
+    chat_id: safeChatId,
+    message_id: Number(safeMessageId),
+    media: { type: "photo", media: safePhoto, ...(text(caption) ? { caption: text(caption) } : {}) },
+    ...(replyMarkup ? { reply_markup: replyMarkup } : {}),
+  }, { token, fetchImpl, timeoutMs: TELEGRAM_MEDIA_TIMEOUT_MS });
+  return { message_id: text(result?.message_id) || safeMessageId, result };
+};
+
+export const deleteTelegramMessage = async ({ chatId, messageId, token, fetchImpl } = {}) => {
+  const safeChatId = text(chatId);
+  const safeMessageId = text(messageId);
+  if (!safeChatId || !safeMessageId) throw new TelegramApiError("Telegram delete target is incomplete", { status: 400, code: "TELEGRAM_DELETE_TARGET_REQUIRED" });
+  await telegramApiRequest("deleteMessage", { chat_id: safeChatId, message_id: Number(safeMessageId) }, { token, fetchImpl });
+  return { deleted: true };
+};
+
+export const answerTelegramCallbackQuery = async ({ callbackQueryId, notice = "", token, fetchImpl } = {}) => {
+  const safeId = text(callbackQueryId);
+  if (!safeId) return { answered: false };
+  await telegramApiRequest("answerCallbackQuery", {
+    callback_query_id: safeId,
+    ...(text(notice) ? { text: text(notice) } : {}),
+  }, { token, fetchImpl }).catch(() => null);
+  return { answered: true };
+};
+
+// The chat's own button, so a shopper who opened the bot from any post can
+// browse the whole shop without going back to a channel.
+export const setTelegramChatMenuWebApp = async ({ label = "", url = "", token, fetchImpl } = {}) => {
+  const safeUrl = text(url);
+  if (!safeUrl) return { updated: false };
+  await telegramApiRequest("setChatMenuButton", {
+    menu_button: { type: "web_app", text: text(label) || "Shop", web_app: { url: safeUrl } },
+  }, { token, fetchImpl });
+  return { updated: true };
+};
+
+// --------------------------------------------------------------------------
+// Deep links.
+//
+// A channel post CANNOT carry a mini-app button: Telegram allows web_app
+// buttons only in a private chat with the bot. So the order button is a plain
+// URL into the bot (`t.me/<bot>?start=<payload>`), and the bot answers with the
+// mini app. The payload is limited to 64 characters of [A-Za-z0-9_-], which an
+// Arabic colour key would blow straight through -- hence an opaque token
+// derived from the card id and stored next to the post.
+// --------------------------------------------------------------------------
+
+export const TELEGRAM_DEEPLINK_PREFIX = "c";
+
+export const telegramDeepLinkToken = (cardId = "") => {
+  const safeCardId = text(cardId);
+  if (!safeCardId) return "";
+  return `${TELEGRAM_DEEPLINK_PREFIX}${crypto.createHash("sha1").update(safeCardId).digest("hex").slice(0, 12)}`;
+};
+
+export const telegramDeepLinkUrl = ({ botUsername = "", token = "" } = {}) => {
+  const bot = text(botUsername).replace(/^@+/, "");
+  const payload = text(token);
+  if (!bot || !payload) return "";
+  return `https://t.me/${bot}?start=${encodeURIComponent(payload)}`;
+};
+
+// "/start c1a2b3", "/start@shop_bot c1a2b3" and a bare "/start" all land here.
+export const telegramStartPayload = (messageText = "") => {
+  // The lookahead is what keeps an ordinary word starting with "/start"
+  // ("/started") from being read as the command and swallowing a real message.
+  const match = /^\/start(?:@[\w_]+)?(?=\s|$)(?:\s+(\S+))?/i.exec(text(messageText));
+  if (!match) return null;
+  return { command: "start", payload: text(match[1]) };
+};
+
+export const normalizeTelegramCallbackQuery = (update = {}) => {
+  const query = update?.callback_query;
+  if (!query || typeof query !== "object") return null;
+  const callbackQueryId = text(query.id);
+  const userId = text(query.from?.id);
+  const chatId = text(query.message?.chat?.id);
+  if (!callbackQueryId || !userId) return null;
+  const firstName = text(query.from?.first_name);
+  const lastName = text(query.from?.last_name);
+  const username = text(query.from?.username);
+  return {
+    update_id: Number(update.update_id),
+    channel: TELEGRAM_CHANNEL,
+    callback_query_id: callbackQueryId,
+    data: text(query.data),
+    chat_id: chatId,
+    user_id: userId,
+    // A callback from a CHANNEL post has no private chat to reply into: the bot
+    // can only answer the query itself until the shopper opens the bot.
+    is_private: text(query.message?.chat?.type) === "private",
+    session_id: chatId ? `telegram:${chatId}` : "",
+    customer_name: [firstName, lastName].filter(Boolean).join(" ") || (username ? `@${username}` : `Telegram ${userId}`),
+    first_name: firstName,
+    last_name: lastName,
+    username,
+  };
+};
+
+// Our own catalog posts, echoed back because the bot is an administrator of the
+// channel. They are NOT conversations and must never reach the inbox -- but the
+// chat id in them is the one thing that is otherwise awkward to find, so the
+// intake surfaces it once per channel instead of dropping the update silently.
+export const normalizeTelegramChannelPost = (update = {}) => {
+  const post = update?.channel_post || update?.edited_channel_post;
+  if (!post || typeof post !== "object") return null;
+  const chatId = text(post.chat?.id);
+  if (!chatId) return null;
+  return {
+    update_id: Number(update.update_id),
+    chat_id: chatId,
+    chat_title: text(post.chat?.title),
+    chat_username: text(post.chat?.username),
+    message_id: text(post.message_id),
+    edited: Boolean(update?.edited_channel_post),
+  };
 };
 
 const telegramMessage = (update = {}) => update?.message || update?.edited_message || null;

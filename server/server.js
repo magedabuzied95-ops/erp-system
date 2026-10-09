@@ -764,7 +764,13 @@ const { default: aiRegressionHarnessRoutes } = await import("./routes/aiRegressi
 const { default: aiSupportRoutes } = await import("./routes/aiSupport.js");
 const { default: aiAgentOrderRoutes } = await import("./routes/aiAgentOrders.js");
 const { default: telegramWebhookRoutes } = await import("./routes/telegramWebhook.js");
+const { default: telegramCatalogRoutes } = await import("./routes/telegramCatalog.js");
 const { ensureTelegramIntakeSchema, startTelegramIntakeWorker } = await import("./services/telegramIntakeService.js");
+const { ensureTelegramCatalogSchema, seedDefaultTelegramChannels } = await import("./services/telegramCatalogService.js");
+const {
+  startTelegramCatalogQueueWorker,
+  startTelegramCatalogSweepWorker,
+} = await import("./services/telegramCatalogWorkerService.js");
 const { default: tiktokRoutes } = await import("./routes/tiktok.js");
 const { default: tiktokWebhookRoutes } = await import("./routes/tiktokWebhook.js");
 const { ensureTikTokIntegrationSchema } = await import("./services/tiktokOAuthService.js");
@@ -2124,6 +2130,7 @@ app.use("/api/internal/ai-regression", aiRegressionHarnessRoutes);
 app.use("/api/ai-support", aiSupportRoutes);
 app.use("/api/ai-agent/channels/telegram/webhook", telegramWebhookRoutes);
 app.use("/api/webhooks/telegram", telegramWebhookRoutes);
+app.use("/api/telegram/catalog", telegramCatalogRoutes);
 app.use("/api/tiktok", tiktokRoutes);
 // Registered in the TikTok Developer Portal as the Webhook Callback URL.
 app.use("/api/webhooks/tiktok", tiktokWebhookRoutes);
@@ -2760,6 +2767,18 @@ const bootstrapStartup = async () => {
     await ensureTelegramIntakeSchema(db);
     startTelegramIntakeWorker();
     console.log("[server] Telegram durable intake ready");
+    // Telegram catalog channels. The schema and the three seed channel rows are
+    // created unconditionally so the settings screen has somewhere to paste a
+    // chat id, but NOTHING is posted until telegram.catalog_enabled is on and a
+    // channel has a chat id: both workers check the setting on every tick.
+    await ensureTelegramCatalogSchema(db)
+      .then(() => seedDefaultTelegramChannels({ client: db }))
+      .then(() => {
+        startTelegramCatalogQueueWorker();
+        startTelegramCatalogSweepWorker();
+        console.log("[server] Telegram catalog channels ready");
+      })
+      .catch((error) => console.error("[server] Telegram catalog schema failed (non-fatal)", error?.message || error));
     // Schema is ensured unconditionally so a later TIKTOK_ENABLED=true does not
     // need a restart-order dance; the worker only runs when TikTok is on.
     await ensureTikTokIntegrationSchema(db);

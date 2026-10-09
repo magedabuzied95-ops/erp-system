@@ -18,6 +18,7 @@ import {
   ArrowUpRight,
   Loader2,
   RefreshCw,
+  Send,
   Zap,
 } from "lucide-react";
 
@@ -180,6 +181,7 @@ const MODULE_GROUPS = [
       { id: "channels", labelKey: "aiStudio.modules.channels.label", descriptionKey: "aiStudio.modules.channels.description", to: "/admin/ai-inbox?integrations=overview", icon: Share2, permission: "settings.view", adminOnly: true },
       { id: "marketingAutomation", labelKey: "aiStudio.modules.marketingAutomation.label", descriptionKey: "aiStudio.modules.marketingAutomation.description", to: "/marketing/automation", icon: Zap, permission: "marketing.view" },
       { id: "socialComments", labelKey: "aiStudio.modules.socialComments.label", descriptionKey: "aiStudio.modules.socialComments.description", to: "/marketing/social-comments", icon: MessageSquare, permission: "marketing.view" },
+      { id: "telegramChannels", labelKey: "aiStudio.modules.telegramChannels.label", descriptionKey: "aiStudio.modules.telegramChannels.description", to: "/marketing/telegram-channels", icon: Send, permission: "marketing.view" },
     ],
   },
   {

@@ -3872,6 +3872,37 @@ const loadStorefrontProductSection = async (context) => {
   return build;
 };
 
+// The Telegram catalog channels must show exactly what the storefront shows:
+// the same product-level and size-level visibility, the same colour expansion
+// and the same canonical price. So they read the listing's OWN builder rather
+// than a second query of their own -- a copy would drift the first time a
+// visibility rule moved, and a channel post that offers a hidden colour is a
+// sale nobody can fulfil.
+//
+// Not cached: a sweep runs once every few minutes, and it must see the stock as
+// it is now rather than whatever the section cache was holding for shoppers.
+export const buildStorefrontColorCardsForAudience = async ({
+  tenantId = DEFAULT_TENANT_ID,
+  audience = "",
+  limit = 5000,
+} = {}) => {
+  const normalizedQuery = normalizeStorefrontProductsQuery({
+    gender: audience,
+    // Only what a shopper can actually buy today earns a post.
+    in_stock: 1,
+    sort: "newest",
+  });
+  const section = await buildStorefrontProductSection({
+    req: { query: {} },
+    tenantId,
+    normalizedQuery,
+    randomSeed: "",
+    perf: createPerfTrace("telegram_catalog"),
+  });
+  const cards = Array.isArray(section?.cards) ? section.cards : [];
+  return cards.slice(0, Math.max(1, Number(limit) || 5000));
+};
+
 // A page past the end comes back empty with the real total. It used to be
 // quietly swapped for the last page's cards while still reporting the page that
 // was asked for, so /men?page=40 showed page 2 again under "937-30 of 30" and

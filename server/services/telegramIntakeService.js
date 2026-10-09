@@ -5,17 +5,23 @@ import { logChannelEvent, upsertChannelConversationMapping } from "./aiChannelAd
 import { appendInboundAiSupportMessage } from "./aiSupportLogService.js";
 import {
   materializeTelegramFile,
+  normalizeTelegramCallbackQuery,
+  normalizeTelegramChannelPost,
   normalizeTelegramUpdate,
   TELEGRAM_CHANNEL,
   telegramAttachmentLabel,
   telegramBotToken,
+  telegramStartPayload,
 } from "./telegramBotService.js";
+import { handleTelegramCallbackQuery, handleTelegramStartCommand } from "./telegramShopBotService.js";
 
 const text = (value = "") => String(value ?? "").trim();
 const MAX_RETRIES = Math.max(1, Math.min(20, Number(process.env.TELEGRAM_WEBHOOK_MAX_RETRIES || 8)));
 const LOCK_TIMEOUT_MINUTES = 5;
 const POLL_INTERVAL_MS = Math.max(1_000, Number(process.env.TELEGRAM_WEBHOOK_POLL_MS || 10_000));
 const MAX_BATCH_SIZE = 10;
+// Process-local: one log line per channel, not one per post.
+const seenTelegramChannelChats = new Set();
 
 export const safeTelegramProcessingError = (error) => text(error?.code || error?.message || error || "telegram_processing_failed")
   .replace(/https:\/\/api\.telegram\.org\/bot[^/\s]+/gi, "[telegram-api]")
@@ -129,7 +135,36 @@ export const processTelegramUpdateRecord = async (record, {
   logEvent = logChannelEvent,
   emit = emitToRooms,
   intake = handleInboundMessageIntake,
+  onCallbackQuery = handleTelegramCallbackQuery,
+  onStartCommand = handleTelegramStartCommand,
 } = {}) => {
+  // A post in a channel the bot administers is our own catalog post coming back.
+  // It is not a conversation and must not land in the inbox. The chat id is
+  // printed once per channel because it is the one value the owner otherwise has
+  // to go hunting for when wiring a channel up.
+  const channelPost = normalizeTelegramChannelPost(record?.payload || {});
+  if (channelPost) {
+    if (!seenTelegramChannelChats.has(channelPost.chat_id)) {
+      seenTelegramChannelChats.add(channelPost.chat_id);
+      console.info("[telegram] channel post seen", {
+        chat_id: channelPost.chat_id,
+        chat_title: channelPost.chat_title,
+        chat_username: channelPost.chat_username,
+      });
+    }
+    return { processed: true, ignored: true, reason: "channel_post", chat_id: channelPost.chat_id };
+  }
+
+  // A tap on an inline button carries no message, so it never reaches the inbox
+  // transcript -- it is answered and done.
+  const callback = normalizeTelegramCallbackQuery(record?.payload || {});
+  if (callback) {
+    await onCallbackQuery({ tenantId: record.tenant_id, callback }).catch((error) => {
+      console.error("[telegram] callback query failed", safeTelegramProcessingError(error));
+    });
+    return { processed: true, callback_query_id: callback.callback_query_id };
+  }
+
   const normalized = normalizeTelegramUpdate(record?.payload || {});
   if (!normalized) return { ignored: true, reason: "unsupported_update" };
   const attachments = await materializeFile({ normalizedMessage: normalized, token: botToken });
@@ -194,6 +229,22 @@ export const processTelegramUpdateRecord = async (record, {
       at: new Date().toISOString(),
     });
   }
+  // "/start <token>" is a shopper arriving from a catalog post's order button.
+  // The bot answers with that exact colour and the checkout behind one button;
+  // the AI is not asked, because there is no question -- and letting it reply
+  // too would put two messages on top of each other.
+  const start = telegramStartPayload(normalized.text);
+  if (start) {
+    await onStartCommand({
+      tenantId: record.tenant_id,
+      chatId: normalized.chat_id,
+      messageText: normalized.text,
+    }).catch((error) => {
+      console.error("[telegram] start command failed", safeTelegramProcessingError(error));
+    });
+    return { processed: true, session_id: normalized.session_id, message_id: normalized.message_id, start_payload: start.payload };
+  }
+
   await intake({
     tenantId: record.tenant_id,
     channel: TELEGRAM_CHANNEL,

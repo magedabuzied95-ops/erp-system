@@ -1820,5 +1820,56 @@
       "disclosureSelectionRequired": "Indicate whether the content promotes yourself, a third party, or both.",
       "brandedContentSelfOnly": "Branded Content cannot be posted with \"Only me\" privacy."
     }
+  },
+  "telegramChannels": {
+    "title": "Telegram channels",
+    "subtitle": "The catalogue is mirrored into one channel per audience, one post per colour, and each post's available sizes are kept current.",
+    "disabled": "Catalog channels are switched off. Turn on telegram.catalog_enabled in Settings before anything is posted.",
+    "noBotToken": "TELEGRAM_BOT_TOKEN is not set on the server, so nothing can be posted.",
+    "botUsername": "Shop bot",
+    "orderMode": "Order path",
+    "loadFailed": "Failed to load the Telegram channel status",
+    "channel": {
+      "chatId": "Channel id",
+      "chatIdHint": "The numeric id (-100…) or @username. The bot must be an admin of the channel with permission to post.",
+      "title": "Channel title",
+      "audience": "Audience",
+      "inviteUrl": "Invite link",
+      "active": "Active",
+      "livePosts": "Live posts",
+      "soldOutPosts": "Sold out",
+      "queuedJobs": "Queued",
+      "lastSynced": "Last swept",
+      "save": "Save",
+      "saved": "Channel saved",
+      "saveFailed": "Failed to save the channel",
+      "syncNow": "Sweep this channel",
+      "synced": "Sweep queued",
+      "syncFailed": "The sweep failed",
+      "never": "Never"
+    },
+    "queue": {
+      "title": "Queue",
+      "pending": "Pending",
+      "failed": "Failing",
+      "processing": "Sending",
+      "dead": "Stopped"
+    },
+    "sync": {
+      "all": "Sweep every channel",
+      "running": "Sweeping…",
+      "summary": "{{created}} new · {{updated}} edited · {{soldOut}} sold out · {{unchanged}} unchanged"
+    },
+    "preview": {
+      "title": "Post preview",
+      "caption": "Caption",
+      "buttons": "Buttons",
+      "refresh": "Refresh preview"
+    },
+    "audiences": {
+      "men": "Men",
+      "women": "Women",
+      "kids": "Kids"
+    }
   }
 }

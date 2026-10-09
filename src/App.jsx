@@ -206,6 +206,7 @@ const SocialPosts = lazy(() => import("./modules/marketing/pages/SocialPosts"));
 const SocialMediaPublisher = lazy(() => import("./modules/marketing/pages/SocialMediaPublisher"));
 const SocialCalendar = lazy(() => import("./modules/marketing/pages/SocialCalendar"));
 const SocialCommentsCenter = lazy(() => import("./modules/marketing/pages/SocialCommentsCenter"));
+const TelegramChannels = lazy(() => import("./modules/marketing/pages/TelegramChannels"));
 const Campaigns = lazy(() => import("./modules/marketing/pages/Campaigns"));
 const PostTemplates = lazy(() => import("./modules/marketing/pages/PostTemplates"));
 const MarketingSettings = lazy(() => import("./modules/marketing/pages/MarketingSettings"));
@@ -1858,6 +1859,15 @@ function App() {
           element={
             <ProtectedRoute requiredPermissions={["marketing.view"]}>
               <SocialCommentsCenter />
+            </ProtectedRoute>
+          }
+        />
+
+        <Route
+          path="marketing/telegram-channels"
+          element={
+            <ProtectedRoute requiredPermissions={["marketing.view"]}>
+              <TelegramChannels />
             </ProtectedRoute>
           }
         />

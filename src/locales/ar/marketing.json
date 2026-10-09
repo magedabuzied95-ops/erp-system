@@ -1823,5 +1823,56 @@
       "disclosureSelectionRequired": "حدّد ما إذا كان المحتوى يروّج لك أو لطرف ثالث أو للاثنين.",
       "brandedContentSelfOnly": "لا يمكن نشر المحتوى البراندد بخصوصية «أنا فقط»."
     }
+  },
+  "telegramChannels": {
+    "title": "قنوات تليجرام",
+    "subtitle": "الكتالوج بيتنشر في قناة لكل فئة، بوست لكل لون، والمقاسات المتاحة بتتحدث في نفس البوست.",
+    "disabled": "قنوات الكتالوج مقفولة. شغّلها من الإعدادات (telegram.catalog_enabled) قبل أي نشر.",
+    "noBotToken": "مفيش TELEGRAM_BOT_TOKEN على السيرفر، فمفيش حاجة هتتنشر.",
+    "botUsername": "بوت المتجر",
+    "orderMode": "طريقة الطلب",
+    "loadFailed": "تعذّر تحميل حالة قنوات تليجرام",
+    "channel": {
+      "chatId": "معرّف القناة",
+      "chatIdHint": "خُد الـ ID الرقمي (-100…) أو @username، ولازم البوت يكون أدمن في القناة وله صلاحية النشر.",
+      "title": "اسم القناة",
+      "audience": "الفئة",
+      "inviteUrl": "رابط الدعوة",
+      "active": "مُفعّلة",
+      "livePosts": "بوستات منشورة",
+      "soldOutPosts": "خلصت مؤقتًا",
+      "queuedJobs": "في الطابور",
+      "lastSynced": "آخر مراجعة",
+      "save": "حفظ",
+      "saved": "تم حفظ القناة",
+      "saveFailed": "تعذّر حفظ القناة",
+      "syncNow": "راجع القناة دلوقتي",
+      "synced": "تمت المراجعة",
+      "syncFailed": "تعذّرت المراجعة",
+      "never": "لسه"
+    },
+    "queue": {
+      "title": "الطابور",
+      "pending": "منتظر",
+      "failed": "فيه خطأ",
+      "processing": "جارٍ الإرسال",
+      "dead": "متوقف"
+    },
+    "sync": {
+      "all": "راجع كل القنوات",
+      "running": "جارٍ المراجعة…",
+      "summary": "جديد {{created}} · تعديل {{updated}} · خلص {{soldOut}} · من غير تغيير {{unchanged}}"
+    },
+    "preview": {
+      "title": "معاينة البوست",
+      "caption": "نص البوست",
+      "buttons": "الأزرار",
+      "refresh": "تحديث المعاينة"
+    },
+    "audiences": {
+      "men": "رجالي",
+      "women": "حريمي",
+      "kids": "أطفالي"
+    }
   }
 }

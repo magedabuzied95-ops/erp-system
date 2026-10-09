@@ -1,0 +1,277 @@
+import crypto from "crypto";
+import db from "../database/db.js";
+import { buildStorefrontColorCardsForAudience } from "../controllers/storefrontController.js";
+import { resolvePublicProductImageUrl } from "./aiProductCards.js";
+import { storefrontBaseUrl } from "./storefrontProductUrlService.js";
+import { telegramDeepLinkToken, telegramDeepLinkUrl } from "./telegramBotService.js";
+import {
+  ensureTelegramCatalogSchema,
+  enqueueTelegramCatalogJob,
+  listTelegramCatalogPosts,
+  listTelegramChannels,
+  loadTelegramCatalogSettings,
+  markTelegramChannelSynced,
+  telegramCatalogTenantId,
+  upsertTelegramCatalogPost,
+} from "./telegramCatalogService.js";
+import {
+  TELEGRAM_CATALOG_DEFAULTS,
+  formatTelegramPrice,
+  renderTelegramCaption,
+  sortTelegramSizes,
+  telegramCatalogTags,
+} from "../../shared/telegramCatalogDefaults.js";
+
+/*
+ * What each Telegram channel SHOULD look like, and what therefore has to change.
+ *
+ * The desired state is read from the storefront's own listing builder, so a
+ * colour that the storefront hides is a colour this never offers. The diff is
+ * against telegram_catalog_posts, and it produces at most one queued job per
+ * colour:
+ *
+ *   in the catalogue, no post yet          -> create
+ *   in the catalogue, post text changed    -> update
+ *   in the catalogue, post text unchanged  -> nothing (this is the whole point)
+ *   gone from the catalogue, post is live  -> update, carrying the sold-out line
+ *
+ * Nothing is ever deleted by a sweep. A sold-out colour keeps its post, its
+ * link and its forwards, and the SAME post comes back to life when the colour
+ * is restocked -- which is also why the facts the caption was rendered from are
+ * stored on the row: once a colour sells out it is no longer in the catalogue
+ * to be read.
+ */
+
+const text = (value = "") => String(value ?? "").trim();
+
+export const telegramPostFingerprint = ({ caption = "", replyMarkup = null, imageUrl = "" } = {}) =>
+  crypto.createHash("sha1").update(JSON.stringify({ caption, replyMarkup, imageUrl })).digest("hex").slice(0, 20);
+
+// Nothing in a card is trusted to still be there: this runs over the slimmed
+// listing card, which is a different shape from the full product row.
+export const telegramCardFacts = (card = {}, { audience = "" } = {}) => {
+  const sizes = sortTelegramSizes(Array.isArray(card.sizes) ? card.sizes : []);
+  const price = Number(card.final_price ?? card.selling_price ?? card.price ?? 0);
+  const comparePrice = Number(card.compare_at_price ?? card.old_price ?? 0);
+  return {
+    card_id: text(card.card_id),
+    product_id: Number(card.parent_product_id || card.id) || null,
+    color_key: text(card.color_key || card.display_color_key),
+    name: text(card.name),
+    color: text(card.display_color || card.color),
+    price,
+    compare_price: comparePrice > price ? comparePrice : 0,
+    sizes,
+    slug: text(card.slug),
+    audience: text(audience),
+    product_type: text(card.product_type || card.productType),
+    brand: text(card.brand_name || card.brand),
+    code: text(card.article_code || card.code),
+  };
+};
+
+const audienceTag = (audience = "") => {
+  const map = { men: "رجالي", women: "حريمي", kids: "أطفالي" };
+  return map[text(audience).toLowerCase()] || "";
+};
+
+export const telegramProductUrl = (facts = {}, { baseUrl = storefrontBaseUrl() } = {}) => {
+  const identifier = text(facts.slug) || text(facts.product_id);
+  if (!identifier) return "";
+  const params = new URLSearchParams({ utm_source: "telegram", utm_medium: "channel" });
+  if (facts.color_key) params.set("color", facts.color_key);
+  const path = `/product/${encodeURIComponent(identifier)}?${params.toString()}`;
+  return baseUrl ? `${baseUrl}${path}` : path;
+};
+
+// A channel post cannot carry a mini-app button -- Telegram allows web_app
+// buttons only inside a private chat with the bot -- so "order" is either a
+// deep link into the bot or a plain link to the storefront, never a web_app
+// here. Getting this wrong is a 400 from Telegram on every single post.
+export const telegramPostButtons = ({ facts = {}, settings = {} } = {}) => {
+  const productUrl = telegramProductUrl(facts);
+  const botUrl = telegramDeepLinkUrl({
+    botUsername: settings.bot_username,
+    token: telegramDeepLinkToken(facts.card_id),
+  });
+  const rows = [];
+  const orderLabel = TELEGRAM_CATALOG_DEFAULTS.order_button_label;
+  const siteLabel = TELEGRAM_CATALOG_DEFAULTS.site_button_label;
+  const mode = text(settings.order_mode) || "both";
+
+  if (mode === "bot" && botUrl) rows.push([{ text: orderLabel, url: botUrl }]);
+  else if (mode === "mini_app" && productUrl) rows.push([{ text: orderLabel, url: productUrl }]);
+  else if (mode === "both") {
+    // The bot is the order path; the website is the second opinion. With no bot
+    // configured the website button takes the order label rather than leaving
+    // the post without a call to action.
+    if (botUrl) {
+      rows.push([{ text: orderLabel, url: botUrl }]);
+      if (productUrl) rows.push([{ text: siteLabel, url: productUrl }]);
+    } else if (productUrl) {
+      rows.push([{ text: orderLabel, url: productUrl }]);
+    }
+  } else if (productUrl) {
+    rows.push([{ text: orderLabel, url: productUrl }]);
+  }
+  return rows.length ? { inline_keyboard: rows } : null;
+};
+
+export const telegramPostCaption = ({ facts = {}, settings = {}, soldOut = false } = {}) => {
+  const sizes = sortTelegramSizes(facts.sizes || []);
+  return renderTelegramCaption(settings.caption_template || TELEGRAM_CATALOG_DEFAULTS.caption_template, {
+    name: facts.name,
+    color: facts.color,
+    code: facts.code,
+    price: formatTelegramPrice(facts.price),
+    old_price: facts.compare_price ? formatTelegramPrice(facts.compare_price) : "",
+    sizes: soldOut || !sizes.length ? "—" : sizes.join(" · "),
+    status: soldOut ? (settings.sold_out_label || TELEGRAM_CATALOG_DEFAULTS.sold_out_label) : "",
+    tags: telegramCatalogTags({
+      audience_tag: audienceTag(facts.audience),
+      product_type_tag: facts.product_type,
+      brand_tag: facts.brand,
+    }),
+  });
+};
+
+export const telegramCardImageUrl = (card = {}) =>
+  resolvePublicProductImageUrl(
+    card.image_url || card.product_image_url || (Array.isArray(card.gallery_images) ? card.gallery_images[0] : "")
+  );
+
+// The whole post, ready for the worker: it carries everything needed to send or
+// edit without reading the catalogue again, because by the time the queue drains
+// the catalogue may have moved on.
+export const buildTelegramPostPayload = ({ facts = {}, settings = {}, imageUrl = "", soldOut = false } = {}) => {
+  const caption = telegramPostCaption({ facts, settings, soldOut });
+  const replyMarkup = telegramPostButtons({ facts, settings });
+  return {
+    caption,
+    reply_markup: replyMarkup,
+    image_url: text(imageUrl),
+    sold_out: soldOut === true,
+    facts,
+    fingerprint: telegramPostFingerprint({ caption, replyMarkup, imageUrl }),
+  };
+};
+
+export const syncTelegramChannel = async ({
+  channel,
+  settings,
+  tenantId = telegramCatalogTenantId(),
+  client = db,
+  // Injected so the diff can be exercised without a catalogue or a database.
+  loadCards = buildStorefrontColorCardsForAudience,
+  listPosts = listTelegramCatalogPosts,
+  savePost = upsertTelegramCatalogPost,
+  enqueue = enqueueTelegramCatalogJob,
+  markSynced = markTelegramChannelSynced,
+} = {}) => {
+  const summary = { channel_id: channel?.id || null, created: 0, updated: 0, sold_out: 0, unchanged: 0, skipped: 0 };
+  if (!channel?.id || !text(channel.chat_id)) {
+    summary.skipped = 1;
+    return summary;
+  }
+  await ensureTelegramCatalogSchema(client);
+
+  const cards = await loadCards({ tenantId, audience: channel.audience || "" });
+  const existing = await listPosts({ tenantId, channelId: channel.id, client });
+  const existingByCard = new Map(existing.map((row) => [text(row.card_id), row]));
+  const seen = new Set();
+
+  for (const card of cards) {
+    const facts = telegramCardFacts(card, { audience: channel.audience });
+    if (!facts.card_id) continue;
+    // Two listing cards can collapse onto one colour key; the first wins rather
+    // than the two fighting over the same post for ever.
+    if (seen.has(facts.card_id)) continue;
+    seen.add(facts.card_id);
+
+    const imageUrl = telegramCardImageUrl(card);
+    const payload = buildTelegramPostPayload({ facts, settings, imageUrl, soldOut: false });
+    const row = existingByCard.get(facts.card_id);
+
+    if (!row) {
+      // A colour with no usable photo is skipped rather than posted as text:
+      // a channel of captions with no pictures is worse than a shorter channel.
+      if (!imageUrl) {
+        summary.skipped += 1;
+        continue;
+      }
+      await savePost({
+        tenantId,
+        channelId: channel.id,
+        cardId: facts.card_id,
+        productId: facts.product_id,
+        colorKey: facts.color_key,
+        imageUrl,
+        client,
+      });
+      await enqueue({ tenantId, channelId: channel.id, cardId: facts.card_id, action: "create", payload, client });
+      summary.created += 1;
+      continue;
+    }
+
+    if (row.caption_hash === payload.fingerprint && row.state === "live" && row.message_id) {
+      summary.unchanged += 1;
+      continue;
+    }
+    // A post that was never delivered has no message to edit: it goes back
+    // through create.
+    const action = row.message_id ? "update" : "create";
+    if (action === "create" && !imageUrl) {
+      summary.skipped += 1;
+      continue;
+    }
+    await enqueue({
+      tenantId,
+      channelId: channel.id,
+      cardId: facts.card_id,
+      action,
+      payload: { ...payload, replace_media: Boolean(row.message_id) && text(row.image_url) !== imageUrl },
+      client,
+    });
+    if (action === "create") summary.created += 1;
+    else summary.updated += 1;
+  }
+
+  // Everything still live in the channel that the catalogue no longer offers.
+  for (const row of existing) {
+    if (seen.has(text(row.card_id))) continue;
+    if (!row.message_id || row.state === "sold_out" || row.state === "removed") continue;
+    const facts = { ...(row.facts && typeof row.facts === "object" ? row.facts : {}), card_id: text(row.card_id) };
+    // Without the stored facts the sold-out caption would overwrite a real post
+    // with a nameless, priceless one. Leaving it as it is costs a shopper one
+    // "is this available?" message; rewriting it costs the post.
+    if (!text(facts.name)) {
+      summary.skipped += 1;
+      continue;
+    }
+    const payload = buildTelegramPostPayload({ facts, settings, imageUrl: row.image_url, soldOut: true });
+    if (row.caption_hash === payload.fingerprint) continue;
+    await enqueue({ tenantId, channelId: channel.id, cardId: row.card_id, action: "update", payload, client });
+    summary.sold_out += 1;
+  }
+
+  await markSynced({ tenantId, channelId: channel.id, client });
+  return summary;
+};
+
+export const syncAllTelegramChannels = async ({ tenantId = telegramCatalogTenantId(), client = db } = {}) => {
+  const settings = await loadTelegramCatalogSettings();
+  if (!settings.enabled) return { skipped: true, reason: "disabled" };
+  const channels = await listTelegramChannels({ tenantId, includeInactive: false, client });
+  const results = [];
+  for (const channel of channels) {
+    try {
+      results.push(await syncTelegramChannel({ channel, settings, tenantId, client }));
+    } catch (error) {
+      await markTelegramChannelSynced({ tenantId, channelId: channel.id, error: error?.message || String(error), client }).catch(() => {});
+      results.push({ channel_id: channel.id, error: text(error?.message || error).slice(0, 300) });
+    }
+  }
+  return { channels: results.length, results };
+};
+
+export default { syncAllTelegramChannels, syncTelegramChannel, buildTelegramPostPayload };

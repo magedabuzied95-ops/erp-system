@@ -13,6 +13,7 @@ import { installDayFirstDateInputs } from "./shared/utils/dateInputLocale";
 import { installNumericZeroSelect } from "./shared/utils/numericInputZero";
 import { installAppTimezoneDefaults } from "./shared/lib/appTimezone";
 import { lockPortalViewport } from "./shared/utils/portalViewportLock";
+import { initTelegramWebApp } from "./storefront/lib/telegramWebApp";
 import { ThemeProvider } from "./theme/ThemeProvider";
 
 import { BrowserRouter, Route, Routes } from "react-router-dom";
@@ -80,6 +81,10 @@ installStylesheetRecovery();
 installAppTimezoneDefaults();
 installDayFirstDateInputs();
 installNumericZeroSelect();
+// Opened from the Telegram shop bot, this page is a mini app: ask Telegram for
+// the full screen height. A no-op -- and not even a network request -- on every
+// other visit.
+initTelegramWebApp().catch(() => {});
 
 
 if (import.meta.env.DEV) {

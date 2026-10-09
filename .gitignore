@@ -243,3 +243,8 @@ server/data/backfill/
 !server/services/marketingBroadcastService.js
 !server/services/aiAgentKnowledgeService.js
 !server/services/aiInboxAnswerMiningService.js
+# Telegram: the AI Inbox channel plus the catalog channels. This file re-ignores
+# `server/services/*` further up, AFTER the first allowlist block, so the glob
+# has to live down here among the last patterns or every telegram service is
+# silently dropped from its commit.
+!server/services/telegram*.js
