@@ -3,6 +3,7 @@ import { appendChannelOutboundSupportReply } from "./aiSupportLogService.js";
 import { storefrontBaseUrl } from "./storefrontProductUrlService.js";
 import {
   TELEGRAM_CHANNEL,
+  TELEGRAM_PARSE_MODE_HTML,
   answerTelegramCallbackQuery,
   sendTelegramChannelPhoto,
   sendTelegramChannelText,
@@ -110,9 +111,9 @@ export const sendTelegramColourCard = async ({
   const replyMarkup = telegramShopKeyboard({ productUrl: soldOut ? "" : productUrl });
 
   if (text(post.image_url)) {
-    await sendTelegramChannelPhoto({ chatId, photoUrl: post.image_url, caption, replyMarkup });
+    await sendTelegramChannelPhoto({ chatId, photoUrl: post.image_url, caption, replyMarkup, parseMode: TELEGRAM_PARSE_MODE_HTML });
   } else {
-    await sendTelegramChannelText({ chatId, messageText: caption, replyMarkup });
+    await sendTelegramChannelText({ chatId, messageText: caption, replyMarkup, parseMode: TELEGRAM_PARSE_MODE_HTML });
   }
   await logOutbound({ tenantId, chatId, message: caption, messageType: "product_card" });
   return { sent: true, found: true, card_id: post.card_id, sold_out: soldOut };

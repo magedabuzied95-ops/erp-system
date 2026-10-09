@@ -1,6 +1,7 @@
 import db from "../database/db.js";
 import { onCacheInvalidatePattern } from "./cacheService.js";
 import {
+  TELEGRAM_PARSE_MODE_HTML,
   deleteTelegramMessage,
   editTelegramMessageCaption,
   editTelegramMessagePhoto,
@@ -76,7 +77,7 @@ export const processTelegramCatalogJob = async ({
   }
 
   if (job.action === "create") {
-    const sent = await sendPhoto({ chatId, photoUrl: imageUrl, caption, replyMarkup });
+    const sent = await sendPhoto({ chatId, photoUrl: imageUrl, caption, replyMarkup, parseMode: TELEGRAM_PARSE_MODE_HTML });
     await recordTelegramPostResult({
       tenantId,
       channelId: job.channel_id,
@@ -105,8 +106,8 @@ export const processTelegramCatalogJob = async ({
 
   const wantsNewPhoto = payload.replace_media === true && imageUrl && text(rows[0]?.image_url) !== imageUrl;
   try {
-    if (wantsNewPhoto) await editPhoto({ chatId, messageId, photoUrl: imageUrl, caption, replyMarkup });
-    else await editCaption({ chatId, messageId, caption, replyMarkup });
+    if (wantsNewPhoto) await editPhoto({ chatId, messageId, photoUrl: imageUrl, caption, replyMarkup, parseMode: TELEGRAM_PARSE_MODE_HTML });
+    else await editCaption({ chatId, messageId, caption, replyMarkup, parseMode: TELEGRAM_PARSE_MODE_HTML });
   } catch (error) {
     if (!isNotModified(error)) throw error;
   }

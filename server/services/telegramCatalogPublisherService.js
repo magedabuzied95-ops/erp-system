@@ -16,6 +16,7 @@ import {
   upsertTelegramCatalogPost,
 } from "./telegramCatalogService.js";
 import {
+  TELEGRAM_BOLD_PLACEHOLDERS,
   TELEGRAM_CATALOG_DEFAULTS,
   formatTelegramPrice,
   renderTelegramCaption,
@@ -180,7 +181,7 @@ export const telegramPostCaption = ({ facts = {}, settings = {}, soldOut = false
       grade_tag: scoped("grade") ? "" : classificationLabel(labels, "grade", facts.grade),
       brand_tag: scoped("brand") ? "" : facts.brand,
     }),
-  });
+  }, { html: true, bold: TELEGRAM_BOLD_PLACEHOLDERS });
 };
 
 // Telegram puts the FIRST post at the top of a channel and drops a visitor at

@@ -35,6 +35,11 @@ export const TELEGRAM_CATALOG_DEFAULTS = Object.freeze({
 // sendPhoto leaves the colour with no post at all), so the renderer clamps.
 export const TELEGRAM_CAPTION_MAX = 1024;
 
+// Rendered bold. The price is the one line a shopper scans for, and it is the
+// only markup in a post -- the template itself stays plain text the owner can
+// edit without knowing any markup exists.
+export const TELEGRAM_BOLD_PLACEHOLDERS = Object.freeze(["price"]);
+
 const text = (value = "") => String(value ?? "").trim();
 
 const isNumericSize = (value = "") => /^\d+(\.\d+)?$/.test(text(value));
@@ -74,11 +79,43 @@ export const telegramCatalogTags = (facts = {}) => {
     .join(" ");
 };
 
-export const renderTelegramCaption = (template = TELEGRAM_CATALOG_DEFAULTS.caption_template, facts = {}) => {
+// Telegram's HTML parse mode. Only these three characters change meaning, and
+// a product name really does contain them ("Black & White"), so EVERY value and
+// the owner's own template text are escaped. The only markup in the result is
+// what this file puts there, which is why the owner can type anything into the
+// caption template without being able to break the API call.
+const HTML_ESCAPES = { "&": "&amp;", "<": "&lt;", ">": "&gt;" };
+export const escapeTelegramHtml = (value = "") => text(value).replace(/[&<>]/g, (char) => HTML_ESCAPES[char]);
+
+// Cutting a caption at the limit can land in the middle of "<b>" or leave the
+// bold open, and Telegram refuses the whole post for malformed HTML -- so the
+// colour would end up with no post at all rather than a shortened one.
+const clampTelegramCaption = (value = "", { html = false } = {}) => {
+  if (value.length <= TELEGRAM_CAPTION_MAX) return value;
+  let cut = value.slice(0, TELEGRAM_CAPTION_MAX - 1).trimEnd();
+  if (html) {
+    cut = cut.replace(/<[^>]*$/, "");
+    const opened = (cut.match(/<b>/g) || []).length;
+    const closed = (cut.match(/<\/b>/g) || []).length;
+    if (opened > closed) cut += "</b>";
+  }
+  return `${cut}…`;
+};
+
+export const renderTelegramCaption = (
+  template = TELEGRAM_CATALOG_DEFAULTS.caption_template,
+  facts = {},
+  { html = false, bold = [] } = {}
+) => {
   const safeTemplate = text(template) || TELEGRAM_CATALOG_DEFAULTS.caption_template;
-  const rendered = safeTemplate.replace(/\{(\w+)\}/g, (match, key) =>
-    TELEGRAM_CAPTION_PLACEHOLDERS.includes(key) ? text(facts[key]) : match
-  );
+  const prepared = html ? escapeTelegramHtml(safeTemplate) : safeTemplate;
+  const emphasised = Array.isArray(bold) ? bold : [];
+  const rendered = prepared.replace(/\{(\w+)\}/g, (match, key) => {
+    if (!TELEGRAM_CAPTION_PLACEHOLDERS.includes(key)) return match;
+    const value = html ? escapeTelegramHtml(facts[key]) : text(facts[key]);
+    if (!value) return "";
+    return html && emphasised.includes(key) ? `<b>${value}</b>` : value;
+  });
   // A blank placeholder (nothing sold out, no tags) must not leave a run of
   // empty lines behind: at most one blank line separates two blocks.
   const collapsed = rendered
@@ -87,9 +124,7 @@ export const renderTelegramCaption = (template = TELEGRAM_CATALOG_DEFAULTS.capti
     .join("\n")
     .replace(/\n{3,}/g, "\n\n")
     .trim();
-  return collapsed.length > TELEGRAM_CAPTION_MAX
-    ? `${collapsed.slice(0, TELEGRAM_CAPTION_MAX - 1).trimEnd()}…`
-    : collapsed;
+  return clampTelegramCaption(collapsed, { html });
 };
 
 export default {
@@ -97,6 +132,7 @@ export default {
   TELEGRAM_CATALOG_DEFAULTS,
   TELEGRAM_CAPTION_PLACEHOLDERS,
   TELEGRAM_CAPTION_MAX,
+  escapeTelegramHtml,
   formatTelegramPrice,
   renderTelegramCaption,
   sortTelegramSizes,

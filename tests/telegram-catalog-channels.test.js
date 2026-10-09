@@ -731,3 +731,88 @@ test("the sync drops the audience tag for a gender channel", async () => {
   assert.match(jobs[0].payload.caption, /#ميرور_اوريجينال/);
   __resetTelegramClassificationLabels();
 });
+
+// ---------------------------------------------------------------------------
+// HTML. The price is bold, which means every caption is now parsed by Telegram
+// rather than taken literally -- and a caption Telegram refuses leaves the
+// colour with no post at all.
+// ---------------------------------------------------------------------------
+
+const { escapeTelegramHtml, TELEGRAM_BOLD_PLACEHOLDERS } = await import("../shared/telegramCatalogDefaults.js");
+
+test("the price is bold and nothing else is", () => {
+  const caption = telegramPostCaption({ facts: FACTS, settings: SETTINGS, labels: SHOP_LABELS });
+  assert.match(caption, /<b>1,250 ج\.م<\/b>/);
+  assert.equal((caption.match(/<b>/g) || []).length, 1);
+  assert.equal((caption.match(/<\/b>/g) || []).length, 1);
+});
+
+test("a product name with an ampersand survives instead of being refused", () => {
+  const caption = telegramPostCaption({
+    facts: { ...FACTS, name: "Nike Air <Max> - Black & White" },
+    settings: SETTINGS,
+    labels: SHOP_LABELS,
+  });
+  assert.match(caption, /Nike Air &lt;Max&gt; - Black &amp; White/);
+  assert.ok(!/<Max>/.test(caption), "an unescaped tag would be eaten by the parser");
+});
+
+test("markup typed into the caption template is shown, not executed", () => {
+  const caption = telegramPostCaption({
+    facts: FACTS,
+    settings: { ...SETTINGS, caption_template: "<b>{name}</b> <a href='x'>link</a>" },
+    labels: SHOP_LABELS,
+  });
+  assert.match(caption, /&lt;b&gt;/);
+  assert.ok(!/<a href/.test(caption), "the owner cannot break the API call from a settings textarea");
+});
+
+test("the escaper leaves ordinary Arabic and emoji alone", () => {
+  assert.equal(escapeTelegramHtml("المقاسات المتاحة: 40 · 41 💰"), "المقاسات المتاحة: 40 · 41 💰");
+  assert.equal(escapeTelegramHtml("a&b<c>d"), "a&amp;b&lt;c&gt;d");
+  assert.equal(escapeTelegramHtml(null), "");
+});
+
+test("a clamped caption never ends inside a tag or leaves the bold open", () => {
+  const caption = renderTelegramCaption("{name} {price}", {
+    name: "ا".repeat(TELEGRAM_CAPTION_MAX),
+    price: "1,250 ج.م",
+  }, { html: true, bold: TELEGRAM_BOLD_PLACEHOLDERS });
+  assert.ok(caption.length <= TELEGRAM_CAPTION_MAX);
+  assert.ok(!/<[^>]*$/.test(caption.replace(/…$/, "")), "no half-written tag at the end");
+  assert.equal((caption.match(/<b>/g) || []).length, (caption.match(/<\/b>/g) || []).length);
+});
+
+test("an open bold is closed when the cut lands inside it", () => {
+  const caption = renderTelegramCaption("{price}", { price: "9".repeat(TELEGRAM_CAPTION_MAX + 50) }, { html: true, bold: ["price"] });
+  assert.match(caption, /<b>9+<\/b>…$/);
+});
+
+test("plain mode is untouched, so nothing outside the catalogue starts emitting markup", () => {
+  const caption = renderTelegramCaption("{name} {price}", { name: "A & B", price: "10" });
+  assert.equal(caption, "A & B 10");
+});
+
+test("the worker tells Telegram the caption is HTML on every path", async () => {
+  const payload = buildTelegramPostPayload({ facts: FACTS, settings: SETTINGS, imageUrl: "https://api.example.com/a.jpg", labels: SHOP_LABELS });
+  const modes = [];
+  await processTelegramCatalogJob({
+    job: { tenant_id: 1, channel_id: 3, card_id: FACTS.card_id, action: "create", payload },
+    channel: CHANNEL,
+    client: stubClient(),
+    sendPhoto: async (args) => { modes.push(["create", args.parseMode]); return { message_id: "1" }; },
+  });
+  await processTelegramCatalogJob({
+    job: { tenant_id: 1, channel_id: 3, card_id: FACTS.card_id, action: "update", payload },
+    channel: CHANNEL,
+    client: stubClient([{ message_id: "1", image_url: "https://api.example.com/a.jpg" }]),
+    editCaption: async (args) => { modes.push(["edit", args.parseMode]); return {}; },
+  });
+  await processTelegramCatalogJob({
+    job: { tenant_id: 1, channel_id: 3, card_id: FACTS.card_id, action: "update", payload: { ...payload, image_url: "https://api.example.com/b.jpg", replace_media: true } },
+    channel: CHANNEL,
+    client: stubClient([{ message_id: "1", image_url: "https://api.example.com/a.jpg" }]),
+    editPhoto: async (args) => { modes.push(["media", args.parseMode]); return {}; },
+  });
+  assert.deepEqual(modes, [["create", "HTML"], ["edit", "HTML"], ["media", "HTML"]]);
+});

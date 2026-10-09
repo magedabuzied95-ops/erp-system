@@ -141,7 +141,11 @@ export const sendTelegramMedia = async ({ chatId, mediaUrl, mediaType = "documen
 // Telegram puts no expiry on a bot editing its own channel post.
 // --------------------------------------------------------------------------
 
-export const sendTelegramChannelPhoto = async ({ chatId, photoUrl, caption = "", replyMarkup = null, token, fetchImpl } = {}) => {
+// parse_mode is opt-in per call, never a default: the AI Inbox sends whatever a
+// member of staff typed, and an unescaped "<" in their reply would be refused by
+// Telegram or silently eat the rest of the message. Only the catalog senders,
+// whose text this codebase builds and escapes itself, pass "HTML".
+export const sendTelegramChannelPhoto = async ({ chatId, photoUrl, caption = "", replyMarkup = null, parseMode = "", token, fetchImpl } = {}) => {
   const safeChatId = text(chatId);
   const safePhoto = text(photoUrl);
   if (!safeChatId) throw new TelegramApiError("Telegram chat id is missing", { status: 409, code: "TELEGRAM_CHAT_ID_MISSING" });
@@ -150,12 +154,13 @@ export const sendTelegramChannelPhoto = async ({ chatId, photoUrl, caption = "",
     chat_id: safeChatId,
     photo: safePhoto,
     ...(text(caption) ? { caption: text(caption) } : {}),
+    ...(text(parseMode) ? { parse_mode: text(parseMode) } : {}),
     ...(replyMarkup ? { reply_markup: replyMarkup } : {}),
   }, { token, fetchImpl, timeoutMs: TELEGRAM_MEDIA_TIMEOUT_MS });
   return { message_id: text(result?.message_id), result };
 };
 
-export const sendTelegramChannelText = async ({ chatId, messageText, replyMarkup = null, disablePreview = false, token, fetchImpl } = {}) => {
+export const sendTelegramChannelText = async ({ chatId, messageText, replyMarkup = null, disablePreview = false, parseMode = "", token, fetchImpl } = {}) => {
   const safeChatId = text(chatId);
   const safeMessage = text(messageText);
   if (!safeChatId) throw new TelegramApiError("Telegram chat id is missing", { status: 409, code: "TELEGRAM_CHAT_ID_MISSING" });
@@ -164,12 +169,13 @@ export const sendTelegramChannelText = async ({ chatId, messageText, replyMarkup
     chat_id: safeChatId,
     text: safeMessage,
     ...(disablePreview ? { link_preview_options: { is_disabled: true } } : {}),
+    ...(text(parseMode) ? { parse_mode: text(parseMode) } : {}),
     ...(replyMarkup ? { reply_markup: replyMarkup } : {}),
   }, { token, fetchImpl });
   return { message_id: text(result?.message_id), result };
 };
 
-export const editTelegramMessageCaption = async ({ chatId, messageId, caption = "", replyMarkup = null, token, fetchImpl } = {}) => {
+export const editTelegramMessageCaption = async ({ chatId, messageId, caption = "", replyMarkup = null, parseMode = "", token, fetchImpl } = {}) => {
   const safeChatId = text(chatId);
   const safeMessageId = text(messageId);
   if (!safeChatId || !safeMessageId) throw new TelegramApiError("Telegram edit target is incomplete", { status: 400, code: "TELEGRAM_EDIT_TARGET_REQUIRED" });
@@ -177,6 +183,7 @@ export const editTelegramMessageCaption = async ({ chatId, messageId, caption = 
     chat_id: safeChatId,
     message_id: Number(safeMessageId),
     ...(text(caption) ? { caption: text(caption) } : {}),
+    ...(text(parseMode) ? { parse_mode: text(parseMode) } : {}),
     ...(replyMarkup ? { reply_markup: replyMarkup } : {}),
   }, { token, fetchImpl });
   return { message_id: text(result?.message_id) || safeMessageId, result };
@@ -185,7 +192,7 @@ export const editTelegramMessageCaption = async ({ chatId, messageId, caption = 
 // Only reached when the colour's PHOTO changed. editMessageCaption cannot swap
 // the image, and a post showing last season's photo under this season's caption
 // is worse than a new post.
-export const editTelegramMessagePhoto = async ({ chatId, messageId, photoUrl, caption = "", replyMarkup = null, token, fetchImpl } = {}) => {
+export const editTelegramMessagePhoto = async ({ chatId, messageId, photoUrl, caption = "", replyMarkup = null, parseMode = "", token, fetchImpl } = {}) => {
   const safeChatId = text(chatId);
   const safeMessageId = text(messageId);
   const safePhoto = text(photoUrl);
@@ -193,7 +200,7 @@ export const editTelegramMessagePhoto = async ({ chatId, messageId, photoUrl, ca
   const result = await telegramApiRequest("editMessageMedia", {
     chat_id: safeChatId,
     message_id: Number(safeMessageId),
-    media: { type: "photo", media: safePhoto, ...(text(caption) ? { caption: text(caption) } : {}) },
+    media: { type: "photo", media: safePhoto, ...(text(caption) ? { caption: text(caption) } : {}), ...(text(parseMode) ? { parse_mode: text(parseMode) } : {}) },
     ...(replyMarkup ? { reply_markup: replyMarkup } : {}),
   }, { token, fetchImpl, timeoutMs: TELEGRAM_MEDIA_TIMEOUT_MS });
   return { message_id: text(result?.message_id) || safeMessageId, result };
@@ -238,6 +245,8 @@ export const setTelegramChatMenuWebApp = async ({ label = "", url = "", token, f
 // Arabic colour key would blow straight through -- hence an opaque token
 // derived from the card id and stored next to the post.
 // --------------------------------------------------------------------------
+
+export const TELEGRAM_PARSE_MODE_HTML = "HTML";
 
 export const TELEGRAM_DEEPLINK_PREFIX = "c";
 
