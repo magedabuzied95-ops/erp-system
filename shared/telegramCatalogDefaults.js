@@ -36,6 +36,14 @@ export const TELEGRAM_CATALOG_DEFAULTS = Object.freeze({
   index_filter_button: "🎛 فلترة متقدمة (أكتر من فلتر مع بعض)",
   index_filter_hint: "عايز تجمع أكتر من فلتر؟ هاشتاج تليجرام بيفلتر حاجة واحدة بس — اضغط الزرار تحت.",
   index_hint: "دوس على أي هاشتاج تحت عشان تشوف كل اللي فيه، أو اكتب اسم الموديل في بحث القناة.",
+  restock_announcement: "🔔 رجع تاني",
+  digest_title: "🆕 جديد النهارده",
+  digest_sections: {
+    new: "وصل جديد",
+    restocked: "رجع تاني",
+    sizes_added: "مقاسات جديدة",
+  },
+  digest_empty: "",
   index_group_titles: {
     product_type: "النوع",
     grade: "الخامة",

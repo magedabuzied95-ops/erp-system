@@ -311,6 +311,84 @@ export const telegramIndexKeyboard = ({ audience = "", baseUrl = storefrontBaseU
 export const telegramIndexFingerprint = (body = "", replyMarkup = null) =>
   crypto.createHash("sha1").update(JSON.stringify({ body: text(body), replyMarkup })).digest("hex").slice(0, 20);
 
+
+/*
+ * What a change is worth telling a subscriber about.
+ *
+ * A post is edited in place when its sizes move, which keeps it accurate and
+ * keeps its link, its views and its forwards -- but nobody is notified. So the
+ * CHANGE is recorded as an event, and the announcement is a separate message:
+ * the shop gets the notification without reposting the model and without
+ * killing the link people already have.
+ *
+ * Note a brand new COLOUR needs none of this. It is a new card, so it is a new
+ * post at the bottom of the channel with a notification of its own; it is
+ * recorded only so the daily digest can name it.
+ */
+export const classifyTelegramChange = ({ row = null, facts = {}, soldOut = false } = {}) => {
+  if (soldOut) return "";
+  const sizes = Array.isArray(facts.sizes) ? facts.sizes : [];
+  if (!row || !row.message_id) return "new";
+  const previous = Array.isArray(row.facts?.sizes) ? row.facts.sizes : [];
+  // Gone and back: the only change strong enough to interrupt a subscriber.
+  if (row.state === "sold_out" && sizes.length) return "restocked";
+  const before = new Set(previous.map((size) => text(size)));
+  const gained = sizes.filter((size) => !before.has(text(size)));
+  return gained.length ? "sizes_added" : "";
+};
+
+const eventLine = ({ event = {}, channel = {} }) => {
+  const facts = event.facts && typeof event.facts === "object" ? event.facts : {};
+  const name = escapeTelegramHtml(facts.name || "");
+  if (!name) return "";
+  const sizes = sortTelegramSizes(facts.sizes || []);
+  const tail = sizes.length ? ` — ${escapeTelegramHtml(sizes.join(" · "))}` : "";
+  const link = telegramPostLink({ channel, messageId: event.message_id });
+  return link ? `• <a href="${link}">${name}</a>${tail}` : `• ${name}${tail}`;
+};
+
+// A public channel's post has a t.me/<username>/<id> address; a private one's
+// does not, so the digest simply names the model instead of linking it.
+export const telegramPostLink = ({ channel = {}, messageId = null } = {}) => {
+  const id = text(messageId);
+  if (!id) return "";
+  const match = /t\.me\/([A-Za-z0-9_]+)\/?$/.exec(text(channel.invite_url));
+  const username = match ? match[1] : "";
+  return username ? `https://t.me/${username}/${id}` : "";
+};
+
+export const buildTelegramDigest = ({ events = [], channel = {} } = {}) => {
+  const groups = { new: [], restocked: [], sizes_added: [] };
+  for (const event of Array.isArray(events) ? events : []) {
+    if (groups[event?.kind]) groups[event.kind].push(event);
+  }
+  const titles = TELEGRAM_CATALOG_DEFAULTS.digest_sections;
+  const lines = [];
+  for (const kind of ["new", "restocked", "sizes_added"]) {
+    const rendered = groups[kind].map((event) => eventLine({ event, channel })).filter(Boolean);
+    if (!rendered.length) continue;
+    lines.push(`<b>${escapeTelegramHtml(titles[kind])}</b>`, ...rendered, "");
+  }
+  // Nothing happened today: a digest that says nothing is a notification the
+  // shop spent for no reason.
+  if (!lines.length) return "";
+  const body = [`<b>${escapeTelegramHtml(TELEGRAM_CATALOG_DEFAULTS.digest_title)}</b>`, "", ...lines].join("\n").trim();
+  return body.length > TELEGRAM_MESSAGE_MAX ? `${body.slice(0, TELEGRAM_MESSAGE_MAX - 2)}…` : body;
+};
+
+export const buildTelegramRestockAnnouncement = ({ facts = {}, channel = {}, messageId = null } = {}) => {
+  const name = escapeTelegramHtml(facts.name || "");
+  if (!name) return "";
+  const sizes = sortTelegramSizes(facts.sizes || []);
+  const link = telegramPostLink({ channel, messageId });
+  const head = `<b>${escapeTelegramHtml(TELEGRAM_CATALOG_DEFAULTS.restock_announcement)}</b>`;
+  const line = link ? `<a href="${link}">${name}</a>` : name;
+  const sizeLine = sizes.length ? `
+📏 ${escapeTelegramHtml(sizes.join(" · "))}` : "";
+  return `${head}
+${line}${sizeLine}`;
+};
+
 export const syncTelegramChannel = async ({
   channel,
   settings,
@@ -380,7 +458,7 @@ export const syncTelegramChannel = async ({
         imageUrl,
         client,
       });
-      await enqueue({ tenantId, channelId: channel.id, cardId: facts.card_id, action: "create", payload, client });
+      await enqueue({ tenantId, channelId: channel.id, cardId: facts.card_id, action: "create", payload: { ...payload, event: "new" }, client });
       summary.created += 1;
       continue;
     }
@@ -401,7 +479,11 @@ export const syncTelegramChannel = async ({
       channelId: channel.id,
       cardId: facts.card_id,
       action,
-      payload: { ...payload, replace_media: Boolean(row.message_id) && text(row.image_url) !== imageUrl },
+      payload: {
+        ...payload,
+        replace_media: Boolean(row.message_id) && text(row.image_url) !== imageUrl,
+        event: classifyTelegramChange({ row, facts, soldOut: false }),
+      },
       client,
     });
     if (action === "create") summary.created += 1;

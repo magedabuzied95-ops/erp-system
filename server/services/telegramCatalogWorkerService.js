@@ -16,13 +16,24 @@ import {
   completeTelegramCatalogJob,
   failTelegramCatalogJob,
   forgetTelegramCatalogPost,
+  TELEGRAM_DIGEST_CARD_ID,
+  enqueueTelegramCatalogJob,
+  listPendingTelegramDigestEvents,
   listTelegramChannels,
   loadTelegramCatalogSettings,
+  markTelegramChannelDigested,
+  markTelegramDigestEventsSent,
+  recordTelegramCatalogEvent,
   recordTelegramChannelIndex,
   recordTelegramPostResult,
   telegramCatalogTenantId,
 } from "./telegramCatalogService.js";
-import { syncAllTelegramChannels } from "./telegramCatalogPublisherService.js";
+import {
+  buildTelegramDigest,
+  buildTelegramRestockAnnouncement,
+  syncAllTelegramChannels,
+} from "./telegramCatalogPublisherService.js";
+import { todayInAppTimeZone, zonedParts } from "../utils/appTimezone.js";
 
 /*
  * The paced drain.
@@ -48,6 +59,30 @@ const isNotModified = (error) => text(error?.message).toLowerCase().includes("no
 const channelById = async ({ tenantId, client }) => {
   const channels = await listTelegramChannels({ tenantId, includeInactive: true, client });
   return new Map(channels.map((channel) => [Number(channel.id), channel]));
+};
+
+
+/*
+ * An announcement is a SEPARATE message. The post itself is still edited in
+ * place, so its link, its views and its forwards survive -- what the shop gains
+ * here is the notification it would otherwise only get by deleting the post and
+ * putting it back, which kills all three and teaches subscribers to mute.
+ *
+ * Recorded only after Telegram accepted the change, because an announcement for
+ * something that never reached the channel is a lie.
+ */
+const noteTelegramChange = async ({ job, payload, messageId, tenantId, client }) => {
+  const kind = text(payload.event);
+  if (!kind) return null;
+  return recordTelegramCatalogEvent({
+    tenantId,
+    channelId: job.channel_id,
+    cardId: job.card_id,
+    kind,
+    facts: payload.facts || {},
+    messageId,
+    client,
+  }).catch(() => null);
 };
 
 export const processTelegramCatalogJob = async ({
@@ -120,6 +155,24 @@ export const processTelegramCatalogJob = async ({
     return { action: "index", message_id: messageId, pinned: pinned?.pinned ?? null, pin_error: pinned?.reason || "" };
   }
 
+  // A one-line "it is back" with a link to the post, not a second copy of it.
+  if (job.action === "announce") {
+    const body = text(payload.body);
+    if (!body) return { action: "announce", skipped: "empty" };
+    const sent = await sendText({ chatId, messageText: body, parseMode: TELEGRAM_PARSE_MODE_HTML, disablePreview: true });
+    return { action: "announce", message_id: sent?.message_id || null };
+  }
+
+  // One message for the whole day, instead of a notification per size.
+  if (job.action === "digest") {
+    const body = text(payload.body);
+    if (!body) return { action: "digest", skipped: "empty" };
+    const sent = await sendText({ chatId, messageText: body, parseMode: TELEGRAM_PARSE_MODE_HTML, disablePreview: true });
+    await markTelegramDigestEventsSent({ ids: Array.isArray(payload.event_ids) ? payload.event_ids : [], client });
+    await markTelegramChannelDigested({ tenantId, channelId: job.channel_id, dayKey: text(payload.day_key), client });
+    return { action: "digest", message_id: sent?.message_id || null, events: (payload.event_ids || []).length };
+  }
+
   if (job.action === "create") {
     const sent = await sendPhoto({ chatId, photoUrl: imageUrl, caption, replyMarkup, parseMode: TELEGRAM_PARSE_MODE_HTML });
     await recordTelegramPostResult({
@@ -133,6 +186,7 @@ export const processTelegramCatalogJob = async ({
       facts: payload.facts || null,
       client,
     });
+    await noteTelegramChange({ job, payload, messageId: sent?.message_id || null, tenantId, client });
     return { action: "create", card_id: job.card_id, message_id: sent?.message_id || null };
   }
 
@@ -166,6 +220,7 @@ export const processTelegramCatalogJob = async ({
     facts: payload.facts || null,
     client,
   });
+  await noteTelegramChange({ job, payload, messageId, tenantId, client });
   return { action: "update", card_id: job.card_id, message_id: messageId };
 };
 
@@ -210,6 +265,87 @@ export const runTelegramCatalogQueueBatch = async ({ client = db, settings = nul
   return { processed, failed };
 };
 
+
+// ---------------------------------------------------------------------------
+// Turning events into the two messages the owner asked for.
+//
+// Both are OFF by default. A shop that announces every restock the moment it
+// happens is a shop people mute, so the instant announcement is reserved for a
+// colour that was GONE and came back, and everything else waits for one digest
+// a day.
+// ---------------------------------------------------------------------------
+
+export const queueTelegramRestockAnnouncements = async ({ client = db, settings = null } = {}) => {
+  const config = settings || (await loadTelegramCatalogSettings());
+  if (!config.enabled || !config.restock_announcement) return { skipped: true, reason: "disabled" };
+  const channels = await listTelegramChannels({ includeInactive: false, client });
+  let queued = 0;
+  for (const channel of channels) {
+    if (!text(channel.chat_id)) continue;
+    const { rows } = await client.query(
+      `SELECT * FROM telegram_catalog_events
+        WHERE channel_id = $1 AND kind = 'restocked' AND announced_at IS NULL
+        ORDER BY created_at ASC LIMIT 20`,
+      [Number(channel.id)]
+    );
+    for (const event of rows) {
+      const body = buildTelegramRestockAnnouncement({
+        facts: event.facts || {},
+        channel,
+        messageId: event.message_id,
+      });
+      // Claim it first: a crash between queueing and marking would announce the
+      // same restock twice, which is worse than missing one.
+      await client.query(`UPDATE telegram_catalog_events SET announced_at = CURRENT_TIMESTAMP WHERE id = $1`, [event.id]);
+      if (!body) continue;
+      await enqueueTelegramCatalogJob({
+        tenantId: Number(event.tenant_id),
+        channelId: channel.id,
+        cardId: `announce:${event.id}`,
+        action: "announce",
+        payload: { body },
+        client,
+      });
+      queued += 1;
+    }
+  }
+  return { queued };
+};
+
+export const queueTelegramDailyDigest = async ({ client = db, settings = null, now = new Date() } = {}) => {
+  const config = settings || (await loadTelegramCatalogSettings());
+  if (!config.enabled || !config.daily_digest) return { skipped: true, reason: "disabled" };
+  // The shop's clock, not the server's: "today" has to mean today in Cairo.
+  const parts = zonedParts(now);
+  if (!parts || parts.hour < Number(config.digest_hour)) return { skipped: true, reason: "too_early" };
+  const dayKey = todayInAppTimeZone();
+
+  const channels = await listTelegramChannels({ includeInactive: false, client });
+  let queued = 0;
+  for (const channel of channels) {
+    if (!text(channel.chat_id)) continue;
+    if (text(channel.last_digest_day) === dayKey) continue;
+    const events = await listPendingTelegramDigestEvents({ tenantId: Number(channel.tenant_id), channelId: channel.id, client });
+    const body = buildTelegramDigest({ events, channel });
+    if (!body) {
+      // Nothing happened. Mark the day done anyway so this is not retried every
+      // tick until midnight.
+      await markTelegramChannelDigested({ tenantId: Number(channel.tenant_id), channelId: channel.id, dayKey, client });
+      continue;
+    }
+    await enqueueTelegramCatalogJob({
+      tenantId: Number(channel.tenant_id),
+      channelId: channel.id,
+      cardId: TELEGRAM_DIGEST_CARD_ID,
+      action: "digest",
+      payload: { body, day_key: dayKey, event_ids: events.map((event) => Number(event.id)) },
+      client,
+    });
+    queued += 1;
+  }
+  return { queued };
+};
+
 let queueTimer = null;
 let queueRunning = false;
 
@@ -219,6 +355,8 @@ export const startTelegramCatalogQueueWorker = () => {
     if (queueRunning) return;
     queueRunning = true;
     runTelegramCatalogQueueBatch()
+      .then(() => queueTelegramRestockAnnouncements())
+      .then(() => queueTelegramDailyDigest())
       .catch((error) => console.error("[telegram-catalog] queue tick failed", error?.message || error))
       .finally(() => { queueRunning = false; });
   }, TICK_INTERVAL_MS);
@@ -307,6 +445,8 @@ export const stopTelegramCatalogSweepWorker = () => {
 
 export default {
   processTelegramCatalogJob,
+  queueTelegramDailyDigest,
+  queueTelegramRestockAnnouncements,
   runTelegramCatalogQueueBatch,
   runTelegramCatalogSweep,
   startTelegramCatalogQueueWorker,

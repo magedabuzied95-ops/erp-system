@@ -1030,3 +1030,163 @@ test("the worker sends the menu's button with it, on both the first post and an 
   assert.deepEqual(sentMarkup, markup);
   assert.deepEqual(editedMarkup, markup);
 });
+
+// ---------------------------------------------------------------------------
+// Telling subscribers something changed, WITHOUT deleting and re-posting the
+// model -- which would kill its link, its views and its forwards.
+// ---------------------------------------------------------------------------
+
+const {
+  classifyTelegramChange,
+  buildTelegramDigest,
+  buildTelegramRestockAnnouncement,
+  telegramPostLink,
+} = await import("../server/services/telegramCatalogPublisherService.js");
+
+const PUBLIC_CHANNEL = { ...CHANNEL, invite_url: "https://t.me/m1store_men" };
+
+test("a colour that was gone and came back is the one change worth interrupting someone for", () => {
+  assert.equal(
+    classifyTelegramChange({ row: { message_id: "5", state: "sold_out", facts: { sizes: [] } }, facts: { sizes: ["42", "43"] } }),
+    "restocked"
+  );
+});
+
+test("a size added to an available colour is a digest line, not an interruption", () => {
+  assert.equal(
+    classifyTelegramChange({ row: { message_id: "5", state: "live", facts: { sizes: ["42"] } }, facts: { sizes: ["42", "43"] } }),
+    "sizes_added"
+  );
+});
+
+test("a size SELLING is not news at all", () => {
+  assert.equal(
+    classifyTelegramChange({ row: { message_id: "5", state: "live", facts: { sizes: ["42", "43"] } }, facts: { sizes: ["42"] } }),
+    ""
+  );
+  assert.equal(
+    classifyTelegramChange({ row: { message_id: "5", state: "live", facts: { sizes: ["42"] } }, facts: { sizes: ["42"] } }),
+    ""
+  );
+});
+
+test("a colour selling out is never announced as news", () => {
+  assert.equal(classifyTelegramChange({ row: { message_id: "5", state: "live", facts: { sizes: ["42"] } }, facts: { sizes: [] }, soldOut: true }), "");
+  // The discriminating case: the stored facts still carry the sizes the colour
+  // HAD, so without the sold-out guard this reads as a restock and announces
+  // "it is back" at the exact moment it ran out.
+  assert.equal(
+    classifyTelegramChange({ row: { message_id: "5", state: "sold_out", facts: { sizes: [] } }, facts: { sizes: ["42", "43"] }, soldOut: true }),
+    ""
+  );
+});
+
+test("a brand new colour is recorded as new - it already posts itself", () => {
+  assert.equal(classifyTelegramChange({ row: null, facts: { sizes: ["42"] } }), "new");
+  assert.equal(classifyTelegramChange({ row: { message_id: null, state: "pending" }, facts: { sizes: ["42"] } }), "new");
+});
+
+test("a post in a public channel is linkable, a private one is not", () => {
+  assert.equal(telegramPostLink({ channel: PUBLIC_CHANNEL, messageId: 53 }), "https://t.me/m1store_men/53");
+  assert.equal(telegramPostLink({ channel: { invite_url: "" }, messageId: 53 }), "");
+  assert.equal(telegramPostLink({ channel: PUBLIC_CHANNEL, messageId: null }), "");
+});
+
+test("the restock announcement links to the post instead of repeating it", () => {
+  const body = buildTelegramRestockAnnouncement({
+    facts: { name: "SKECHERS - Grey", sizes: ["43", "41"] },
+    channel: PUBLIC_CHANNEL,
+    messageId: 53,
+  });
+  assert.match(body, /رجع تاني/);
+  assert.match(body, /<a href="https:\/\/t\.me\/m1store_men\/53">SKECHERS - Grey<\/a>/);
+  assert.match(body, /41 · 43/, "sizes read in order");
+  assert.ok(!body.includes("<b>SKECHERS"), "it is a line, not a second product card");
+});
+
+test("an announcement with no name is not sent at all", () => {
+  assert.equal(buildTelegramRestockAnnouncement({ facts: {}, channel: PUBLIC_CHANNEL, messageId: 53 }), "");
+});
+
+test("the digest groups the day into arrived / back / new sizes", () => {
+  const body = buildTelegramDigest({
+    channel: PUBLIC_CHANNEL,
+    events: [
+      { kind: "new", message_id: 60, facts: { name: "Nike Air", sizes: ["42"] } },
+      { kind: "restocked", message_id: 61, facts: { name: "Adidas Run", sizes: ["43", "44"] } },
+      { kind: "sizes_added", message_id: 62, facts: { name: "Puma X", sizes: ["40"] } },
+    ],
+  });
+  assert.match(body, /جديد النهارده/);
+  assert.match(body, /وصل جديد[\s\S]*Nike Air/);
+  assert.match(body, /رجع تاني[\s\S]*Adidas Run/);
+  assert.match(body, /مقاسات جديدة[\s\S]*Puma X/);
+  assert.match(body, /https:\/\/t\.me\/m1store_men\/61/);
+});
+
+test("a quiet day produces no digest, so the shop does not spend a notification on nothing", () => {
+  assert.equal(buildTelegramDigest({ channel: PUBLIC_CHANNEL, events: [] }), "");
+  assert.equal(buildTelegramDigest({ channel: PUBLIC_CHANNEL, events: [{ kind: "new", facts: {} }] }), "");
+});
+
+test("a model name with markup cannot break the digest", () => {
+  const body = buildTelegramDigest({
+    channel: PUBLIC_CHANNEL,
+    events: [{ kind: "new", message_id: 60, facts: { name: "A & B <b>", sizes: [] } }],
+  });
+  assert.match(body, /A &amp; B &lt;b&gt;/);
+});
+
+test("the sweep labels each queued change, so the worker knows what to record", async () => {
+  const { jobs } = await runSync({ cards: [CARD] });
+  assert.equal(jobs[0].payload.event, "new");
+
+  const restocked = await runSync({
+    cards: [CARD],
+    posts: [liveRowFor(CARD, { state: "sold_out", caption_hash: "stale", facts: { ...telegramCardFacts(CARD, { audience: "men" }), sizes: [] } })],
+  });
+  assert.equal(restocked.jobs[0].payload.event, "restocked");
+});
+
+test("the event is recorded only after Telegram accepted the post", async () => {
+  const payload = { ...buildTelegramPostPayload({ facts: FACTS, settings: SETTINGS, imageUrl: "https://api.example.com/a.jpg" }), event: "restocked" };
+  const client = stubClient();
+  await processTelegramCatalogJob({
+    job: { tenant_id: 1, channel_id: 3, card_id: FACTS.card_id, action: "create", payload },
+    channel: CHANNEL,
+    client,
+    sendPhoto: async () => ({ message_id: "5150" }),
+  });
+  const inserted = client.queries.find((entry) => /INSERT INTO telegram_catalog_events/i.test(entry.sql));
+  assert.ok(inserted, "the event row is written");
+  assert.ok(inserted.params.includes("restocked"));
+  assert.ok(inserted.params.includes(5150), "and it points at the post that was actually created");
+});
+
+test("a change worth no announcement writes no event", async () => {
+  const payload = { ...buildTelegramPostPayload({ facts: FACTS, settings: SETTINGS, imageUrl: "https://api.example.com/a.jpg" }), event: "" };
+  const client = stubClient();
+  await processTelegramCatalogJob({
+    job: { tenant_id: 1, channel_id: 3, card_id: FACTS.card_id, action: "create", payload },
+    channel: CHANNEL,
+    client,
+    sendPhoto: async () => ({ message_id: "1" }),
+  });
+  assert.ok(!client.queries.some((entry) => /INSERT INTO telegram_catalog_events/i.test(entry.sql)));
+});
+
+test("the digest is one message, and it closes out the events it reported", async () => {
+  const client = stubClient();
+  const sent = [];
+  const result = await processTelegramCatalogJob({
+    job: { tenant_id: 1, channel_id: 3, card_id: "__digest__", action: "digest", payload: { body: "<b>today</b>", day_key: "2026-10-10", event_ids: [1, 2, 3] } },
+    channel: PUBLIC_CHANNEL,
+    client,
+    sendText: async (args) => { sent.push(args); return { message_id: "70" }; },
+  });
+  assert.equal(sent.length, 1);
+  assert.equal(sent[0].parseMode, "HTML");
+  assert.equal(result.events, 3);
+  assert.ok(client.queries.some((e) => /UPDATE telegram_catalog_events SET digested_at/i.test(e.sql)), "reported events are closed");
+  assert.ok(client.queries.some((e) => /last_digest_day/i.test(e.sql)), "and the day is marked done");
+});

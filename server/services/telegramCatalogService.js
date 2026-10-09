@@ -31,6 +31,9 @@ export const TELEGRAM_CATALOG_SETTING_KEYS = Object.freeze({
   postsPerMinute: "telegram.catalog_posts_per_minute",
   captionTemplate: "telegram.catalog_caption_template",
   soldOutLabel: "telegram.catalog_sold_out_label",
+  restockAnnounce: "telegram.catalog_restock_announcement",
+  digestEnabled: "telegram.catalog_daily_digest",
+  digestHour: "telegram.catalog_digest_hour",
 });
 
 export const TELEGRAM_POST_STATES = Object.freeze(["pending", "live", "sold_out", "failed", "removed"]);
@@ -39,6 +42,9 @@ export const TELEGRAM_POST_STATES = Object.freeze(["pending", "live", "sold_out"
 // reserved card id below because the queue is keyed on (channel, card, action).
 export const TELEGRAM_JOB_ACTIONS = Object.freeze(["create", "update", "delete", "index"]);
 export const TELEGRAM_INDEX_CARD_ID = "__index__";
+export const TELEGRAM_DIGEST_CARD_ID = "__digest__";
+// What happened to a colour, worth telling a subscriber about.
+export const TELEGRAM_EVENT_KINDS = Object.freeze(["new", "restocked", "sizes_added"]);
 export const TELEGRAM_JOB_MAX_ATTEMPTS = Math.max(1, Math.min(20, Number(process.env.TELEGRAM_CATALOG_MAX_ATTEMPTS || 6)));
 
 export const telegramCatalogTenantId = () => telegramTenantId() || 1;
@@ -106,6 +112,25 @@ export const ensureTelegramCatalogSchema = async (client = db) => {
         WHERE deeplink_token <> ''
       `);
       await client.query(`
+        CREATE TABLE IF NOT EXISTS telegram_catalog_events (
+          id BIGSERIAL PRIMARY KEY,
+          tenant_id BIGINT NOT NULL,
+          channel_id BIGINT NOT NULL REFERENCES telegram_channels(id) ON DELETE CASCADE,
+          card_id TEXT NOT NULL,
+          kind TEXT NOT NULL,
+          facts JSONB NOT NULL DEFAULT '{}'::jsonb,
+          message_id BIGINT NULL,
+          announced_at TIMESTAMPTZ NULL,
+          digested_at TIMESTAMPTZ NULL,
+          created_at TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP
+        )
+      `);
+      await client.query(`
+        CREATE INDEX IF NOT EXISTS idx_telegram_catalog_events_pending
+        ON telegram_catalog_events (tenant_id, channel_id, digested_at, created_at)
+      `);
+      await client.query(`ALTER TABLE telegram_channels ADD COLUMN IF NOT EXISTS last_digest_day TEXT NOT NULL DEFAULT ''`);
+      await client.query(`
         CREATE TABLE IF NOT EXISTS telegram_catalog_jobs (
           id BIGSERIAL PRIMARY KEY,
           tenant_id BIGINT NOT NULL,
@@ -152,7 +177,7 @@ const asNumber = (value, fallback, { min, max } = {}) => {
 };
 
 export const loadTelegramCatalogSettings = async () => {
-  const [enabled, botUsername, orderMode, syncMinutes, postsPerMinute, captionTemplate, soldOutLabel] = await Promise.all([
+  const [enabled, botUsername, orderMode, syncMinutes, postsPerMinute, captionTemplate, soldOutLabel, restockAnnounce, digestEnabled, digestHour] = await Promise.all([
     getSetting(TELEGRAM_CATALOG_SETTING_KEYS.enabled, false),
     getSetting(TELEGRAM_CATALOG_SETTING_KEYS.botUsername, ""),
     getSetting(TELEGRAM_CATALOG_SETTING_KEYS.orderMode, "both"),
@@ -160,6 +185,9 @@ export const loadTelegramCatalogSettings = async () => {
     getSetting(TELEGRAM_CATALOG_SETTING_KEYS.postsPerMinute, 12),
     getSetting(TELEGRAM_CATALOG_SETTING_KEYS.captionTemplate, TELEGRAM_CATALOG_DEFAULTS.caption_template),
     getSetting(TELEGRAM_CATALOG_SETTING_KEYS.soldOutLabel, TELEGRAM_CATALOG_DEFAULTS.sold_out_label),
+    getSetting(TELEGRAM_CATALOG_SETTING_KEYS.restockAnnounce, false),
+    getSetting(TELEGRAM_CATALOG_SETTING_KEYS.digestEnabled, false),
+    getSetting(TELEGRAM_CATALOG_SETTING_KEYS.digestHour, 21),
   ]);
   const mode = text(orderMode).toLowerCase();
   return {
@@ -170,6 +198,9 @@ export const loadTelegramCatalogSettings = async () => {
     posts_per_minute: asNumber(postsPerMinute, 12, { min: 1, max: 20 }),
     caption_template: text(captionTemplate) || TELEGRAM_CATALOG_DEFAULTS.caption_template,
     sold_out_label: text(soldOutLabel) || TELEGRAM_CATALOG_DEFAULTS.sold_out_label,
+    restock_announcement: restockAnnounce === true || text(restockAnnounce).toLowerCase() === "true",
+    daily_digest: digestEnabled === true || text(digestEnabled).toLowerCase() === "true",
+    digest_hour: asNumber(digestHour, 21, { min: 0, max: 23 }),
   };
 };
 
@@ -478,6 +509,54 @@ export const recordTelegramChannelIndex = async ({
   return rows[0] || null;
 };
 
+// Written by the WORKER, after Telegram has actually accepted the change: an
+// announcement for something that never reached the channel would be a lie.
+export const recordTelegramCatalogEvent = async ({
+  tenantId = telegramCatalogTenantId(),
+  channelId,
+  cardId,
+  kind,
+  facts = {},
+  messageId = null,
+  client = db,
+} = {}) => {
+  if (!TELEGRAM_EVENT_KINDS.includes(kind)) return null;
+  const { rows } = await client.query(
+    `INSERT INTO telegram_catalog_events (tenant_id, channel_id, card_id, kind, facts, message_id)
+     VALUES ($1, $2, $3, $4, $5::jsonb, $6::bigint)
+     RETURNING *`,
+    [tenantId, Number(channelId), text(cardId), kind, JSON.stringify(facts || {}), messageId === null || messageId === "" ? null : Number(messageId)]
+  );
+  return rows[0] || null;
+};
+
+export const listPendingTelegramDigestEvents = async ({ tenantId = telegramCatalogTenantId(), channelId, client = db } = {}) => {
+  const { rows } = await client.query(
+    `SELECT * FROM telegram_catalog_events
+      WHERE tenant_id = $1 AND channel_id = $2 AND digested_at IS NULL
+      ORDER BY created_at ASC`,
+    [tenantId, Number(channelId)]
+  );
+  return rows;
+};
+
+export const markTelegramDigestEventsSent = async ({ ids = [], client = db } = {}) => {
+  const safe = ids.map((id) => Number(id)).filter(Number.isSafeInteger);
+  if (!safe.length) return 0;
+  const { rowCount } = await client.query(
+    `UPDATE telegram_catalog_events SET digested_at = CURRENT_TIMESTAMP WHERE id = ANY($1::bigint[])`,
+    [safe]
+  );
+  return rowCount;
+};
+
+export const markTelegramChannelDigested = async ({ tenantId = telegramCatalogTenantId(), channelId, dayKey = "", client = db } = {}) => {
+  await client.query(
+    `UPDATE telegram_channels SET last_digest_day = $3, updated_at = CURRENT_TIMESTAMP WHERE tenant_id = $1 AND id = $2`,
+    [tenantId, Number(channelId), text(dayKey)]
+  );
+};
+
 export const telegramCatalogQueueDepth = async ({ tenantId = telegramCatalogTenantId(), client = db } = {}) => {
   await ensureTelegramCatalogSchema(client);
   const { rows } = await client.query(
@@ -505,6 +584,10 @@ export default {
   resolveTelegramCatalogPostByToken,
   enqueueTelegramCatalogJob,
   recordTelegramChannelIndex,
+  recordTelegramCatalogEvent,
+  listPendingTelegramDigestEvents,
+  markTelegramDigestEventsSent,
+  markTelegramChannelDigested,
   claimTelegramCatalogJobs,
   completeTelegramCatalogJob,
   failTelegramCatalogJob,
