@@ -40,6 +40,7 @@ import {
   outboxToItems,
   queueCountedQuantity,
   settleOutbox,
+  variantKeyOf,
 } from "../services/employeeDrafts/inventoryCountSync.js";
 import usePortalCatalog from "../hooks/usePortalCatalog";
 import CountProductSearch from "../components/CountProductSearch";
@@ -786,7 +787,25 @@ export default function EmployeePortalInventory() {
           // rows (server owns system_quantity + which variants exist). Only
           // rows the employee actually edited on this device win.
           const localRows = draftRows.filter((row) => Number(row.local_updated_at) > 0);
-          const merged = reconcileInventoryRows({ localRows, serverRows: serverItems })
+          // A size the employee only PUT ON THE SHEET carries no edit stamp, so
+          // it used to be left out of the merge entirely — and if its write had
+          // not reached the server yet, it vanished from the sheet on reopen.
+          // A whole colour could go that way, because none of its sizes had a
+          // quantity typed into them. It is still owed (its outbox entry came
+          // back with the draft), so it belongs on the sheet; it carries no
+          // counted value, so it is added beside the server rows, never over
+          // them.
+          const serverIds = new Set(serverItems.map(variantKeyOf));
+          const unsentRows = draftRows.filter(
+            (row) => !serverIds.has(variantKeyOf(row)) && restoredOutbox[variantKeyOf(row)]
+          );
+          const merged = reconcileInventoryRows({
+            localRows: [...localRows, ...unsentRows],
+            serverRows: serverItems,
+            // The default falls back to `id`, which on a server row is the
+            // count-item id, not a variant: two id spaces keyed as one.
+            keyOf: variantKeyOf,
+          })
             .map((row) => {
               const system = toNumber(row.system_quantity, 0);
               const counted = toNumber(row.counted_quantity, 0);
@@ -1446,8 +1465,19 @@ export default function EmployeePortalInventory() {
       if (response?.session) {
         setSession(response.session);
       }
+      const removedIds = new Set((group?.variants || []).map(variantKeyOf).filter(Boolean));
       if (Array.isArray(response?.items)) {
         setItems(response.items);
+      }
+      // The deleted colour's sizes may still be owed to the server. Leaving
+      // them in the outbox would have the next flush put the colour straight
+      // back on the sheet — and a restored draft would re-add it on reopen.
+      if (removedIds.size) {
+        setOutbox((current) => {
+          const next = { ...current };
+          for (const id of removedIds) delete next[id];
+          return next;
+        });
       }
       await refreshCurrentSession();
       toast.success(tt("employeePortal.stockCount.colorDeleted"));

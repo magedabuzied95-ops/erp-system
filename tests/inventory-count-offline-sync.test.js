@@ -119,3 +119,98 @@ test("the offline catalogue is cached per employee, not per session", async () =
   // A different employee on the same device never reads it.
   assert.equal(await store.loadInventoryCatalog({ ...IDENTITY, employeeId: 6 }), null);
 });
+
+// ---- A colour that is only ON THE SHEET is still part of the count ---------
+
+/**
+ * Rebuilds the merge the screen does on reopen: the server's rows, plus the
+ * draft, plus whatever the outbox still owes. Mirrors loadSession so the
+ * precedence can be exercised without React.
+ */
+const mergeOnReopen = ({ draftRows, serverRows, outbox }) => {
+  const localRows = draftRows.filter((row) => Number(row.local_updated_at) > 0);
+  const serverIds = new Set(serverRows.map(sync.variantKeyOf));
+  const unsentRows = draftRows.filter(
+    (row) => !serverIds.has(sync.variantKeyOf(row)) && outbox[sync.variantKeyOf(row)]
+  );
+  return store.reconcileInventoryRows({
+    localRows: [...localRows, ...unsentRows],
+    serverRows,
+    keyOf: sync.variantKeyOf,
+  });
+};
+
+const sheetRow = (id, counted = 0, editedAt = 0) => ({
+  product_variant_id: id,
+  variant_id: id,
+  counted_quantity: counted,
+  system_quantity: 2,
+  local_updated_at: editedAt,
+});
+
+test("a size put on the sheet but not yet counted survives a reopen", () => {
+  // The write never landed (weak line, app closed): the server has nothing, the
+  // draft has the whole colour, one size has a quantity typed into it.
+  const draftRows = [sheetRow(1, 7, Date.now()), sheetRow(2), sheetRow(3)];
+  let outbox = {};
+  for (const id of [1, 2, 3]) outbox = sync.queueCountedQuantity(outbox, { variantId: id, countedQuantity: id === 1 ? 7 : 0, systemQuantity: 2, counted: id === 1 });
+
+  const merged = mergeOnReopen({ draftRows, serverRows: [], outbox });
+  assert.deepEqual(merged.map(sync.variantKeyOf).sort(), ["1", "2", "3"], "the sizes with no quantity are part of the count too");
+  assert.equal(merged.find((row) => sync.variantKeyOf(row) === "1").counted_quantity, 7);
+});
+
+test("a colour nobody typed a single quantity into is not dropped", () => {
+  const draftRows = [sheetRow(10), sheetRow(11), sheetRow(12)];
+  let outbox = {};
+  for (const id of [10, 11, 12]) outbox = sync.queueCountedQuantity(outbox, { variantId: id, countedQuantity: 0, systemQuantity: 2, counted: false });
+  const merged = mergeOnReopen({ draftRows, serverRows: [], outbox });
+  assert.equal(merged.length, 3, "no edit stamp anywhere, so the whole colour used to vanish");
+});
+
+test("the server still owns the rows it has", () => {
+  const draftRows = [sheetRow(1, 4), sheetRow(2)];
+  const serverRows = [{ ...sheetRow(1, 9), system_quantity: 5, updated_at: Date.now() }];
+  let outbox = sync.queueCountedQuantity({}, { variantId: 2, countedQuantity: 0, systemQuantity: 2, counted: false });
+  const merged = mergeOnReopen({ draftRows, serverRows, outbox });
+  const fromServer = merged.find((row) => sync.variantKeyOf(row) === "1");
+  assert.equal(fromServer.counted_quantity, 9, "an unedited draft row never overwrites the server");
+  assert.equal(fromServer.system_quantity, 5);
+  assert.equal(merged.length, 2);
+});
+
+test("a row the outbox no longer owes is not resurrected", () => {
+  // Deleting a colour clears its outbox entries, so a stale draft row cannot
+  // put the colour back on the sheet.
+  const draftRows = [sheetRow(20), sheetRow(21)];
+  const merged = mergeOnReopen({ draftRows, serverRows: [], outbox: {} });
+  assert.deepEqual(merged, [], "nothing owed, nothing on the server, nothing on the sheet");
+});
+
+test("rows are keyed by variant, never by the count-item id", () => {
+  // A server row's `id` is its inventory_count_items id. Keying on it would
+  // make the same size look like two different rows.
+  const serverRows = [{ id: 9001, product_variant_id: 1, variant_id: 1, counted_quantity: 3, system_quantity: 2 }];
+  const draftRows = [sheetRow(1, 5, Date.now())];
+  const merged = mergeOnReopen({ draftRows, serverRows, outbox: {} });
+  assert.equal(merged.length, 1, "one size, one row");
+  assert.equal(merged[0].counted_quantity, 5, "the newer local edit wins on the same key");
+});
+
+// ---- The screen must actually do the merge above ---------------------------
+// mergeOnReopen is a reimplementation; without these the unit tests above
+// would keep passing while the page went back to dropping rows.
+
+const { readFileSync } = await import("node:fs");
+const page = readFileSync(new URL("../src/modules/employees/pages/EmployeePortalInventory.jsx", import.meta.url), "utf8");
+
+test("the screen restores the rows the server has not been told about", () => {
+  assert.match(page, /const unsentRows = draftRows\.filter\(\s*\n?\s*\(row\) => !serverIds\.has\(variantKeyOf\(row\)\) && restoredOutbox\[variantKeyOf\(row\)\]/);
+  assert.match(page, /localRows: \[\.\.\.localRows, \.\.\.unsentRows\]/, "edited rows alone were not the whole sheet");
+  assert.match(page, /keyOf: variantKeyOf/, "the default keyOf falls back to the count-item id");
+});
+
+test("deleting a colour takes its sizes out of the outbox", () => {
+  assert.match(page, /const removedIds = new Set\(\(group\?\.variants \|\| \[\]\)\.map\(variantKeyOf\)\.filter\(Boolean\)\);/);
+  assert.match(page, /for \(const id of removedIds\) delete next\[id\];/, "a pending flush would put the colour straight back");
+});
