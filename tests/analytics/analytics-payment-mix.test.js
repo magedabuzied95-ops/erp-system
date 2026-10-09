@@ -10,7 +10,7 @@ import { readFile } from "node:fs/promises";
 
 import { assemblePaymentMix, assembleOverview } from "../../server/services/analytics/analyticsOverviewService.js";
 import { WARNING_CODES, WarningCollector } from "../../server/services/analytics/analyticsComparison.js";
-import { paymentMethodSettlement } from "../../shared/paymentMethods.js";
+import { paymentMethodSettlement, paymentReportingKey } from "../../shared/paymentMethods.js";
 
 const read = (relative) => readFile(new URL(relative, import.meta.url), "utf8");
 
@@ -34,6 +34,18 @@ test("one method spelled two ways lands on one row", () => {
   assert.equal(mix.rows.length, 1, "visa and card are the same rail and must not read as two");
   assert.equal(byMethod(mix, "card").amount, 1500);
   assert.equal(byMethod(mix, "card").orders, 6);
+});
+
+test("cod and cash_on_delivery are one method, not two rows", () => {
+  // Both spellings are live in production: the POS and the storefront write `cod`, the
+  // AI inbox and the Meta flows write `cash_on_delivery`. Grouped on the raw key the card
+  // showed "الدفع عند الاستلام" twice with two different amounts.
+  const mix = assemblePaymentMix({ rows: [row("cod", 23850, 17), row("cash_on_delivery", 11350, 8)] });
+
+  assert.equal(mix.rows.length, 1);
+  assert.equal(byMethod(mix, "cod").amount, 35200);
+  assert.equal(byMethod(mix, "cod").orders, 25);
+  assert.equal(byMethod(mix, "cod").settlement, "pending");
 });
 
 test("every stored spelling normalises through the shared normaliser", () => {
@@ -89,6 +101,17 @@ test("a method that moves no money is never counted as collected", () => {
   for (const method of ["cash", "card", "visa", "instapay", "vodafone_cash", "bank_transfer", "apple_pay"]) {
     assert.equal(paymentMethodSettlement(method), "collected", `${method} is real money in`);
   }
+});
+
+test("the grouping key folds synonyms only, never two different things", () => {
+  assert.equal(paymentReportingKey("cash_on_delivery"), "cod");
+  assert.equal(paymentReportingKey("unpaid"), "pending");
+  assert.equal(paymentReportingKey("visa"), "card");
+
+  // A digital wallet rail and store credit are not the same money and must stay apart.
+  assert.notEqual(paymentReportingKey("wallet"), paymentReportingKey("customer_wallet"));
+  // Wallet rails ride on a card token but are reported separately on purpose.
+  assert.notEqual(paymentReportingKey("apple_pay"), paymentReportingKey("card"));
 });
 
 test("the settlement totals account for every row, with nothing counted twice", () => {
@@ -224,7 +247,7 @@ test("normalisation never happens in SQL, so it cannot drift from the shared rul
   for (const spelling of ["'visa'", "'insta_pay'", "'vodafone'"]) {
     assert.ok(!query.includes(spelling), `${spelling} is mapped in shared/paymentMethods.js; a second copy in SQL will drift`);
   }
-  assert.match(source, /normalizePaymentMethodKey/, "the shared normaliser is the one used");
+  assert.match(source, /paymentReportingKey/, "the shared grouping key is the one used");
 });
 
 test("every settlement class the service can emit has copy in both locales", async () => {

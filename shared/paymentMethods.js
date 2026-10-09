@@ -24,10 +24,39 @@ const PENDING_METHODS = new Set(["cod", "cash_on_delivery", "shipping_confirmati
 const CREDIT_METHODS = new Set([...NON_COLLECTED_METHODS, "customer_wallet", "personal"]);
 
 export const paymentMethodSettlement = (method = "") => {
-  const key = normalizePaymentMethodKey(method);
+  const key = paymentReportingKey(method);
   if (CREDIT_METHODS.has(key)) return "credit";
   if (PENDING_METHODS.has(key)) return "pending";
   return "collected";
+};
+
+/**
+ * Spellings that are ONE method, folded for grouping and display only.
+ *
+ * `cod` and `cash_on_delivery` are the same thing written by different callers — the POS
+ * and the storefront write one, the AI inbox and the Meta flows write the other, and the
+ * rest of the codebase already treats them as a pair (`["cod", "cash_on_delivery"]`
+ * appears at half a dozen call sites). A report that groups on the raw key shows the same
+ * payment method twice, which is how it shipped and what this fixes.
+ *
+ * This is deliberately NOT folded into normalizePaymentMethodKey. That function decides
+ * what gets STORED on the order and which financial account a payment resolves to
+ * (`resolveFinancialAccountForPayment` looks the key up in payment_method_mappings), so
+ * folding there would quietly reroute live COD money to a different account. Grouping
+ * carries no such risk.
+ *
+ * Only true synonyms belong here. `wallet` and `customer_wallet` are different things —
+ * a digital wallet rail versus store credit — and must stay two rows.
+ */
+const REPORTING_ALIASES = Object.freeze({
+  cash_on_delivery: "cod",
+  unpaid: "pending",
+  awaiting_payment: "pending",
+});
+
+export const paymentReportingKey = (method = "") => {
+  const key = normalizePaymentMethodKey(method);
+  return REPORTING_ALIASES[key] || key;
 };
 
 export const normalizePaymentMethodKey = (value = "") => {

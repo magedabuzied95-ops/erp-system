@@ -189,9 +189,13 @@ reconciles against. `orders.payment_method` is a FALLBACK used only for an invoi
 because a split sale stores the single word `mixed` in that column — grouping by it buckets every split sale under a
 label that is not a payment method.
 
-Method strings are normalised in JS by `normalizePaymentMethodKey` (`shared/paymentMethods.js`), never in SQL, so
-`visa`/`card` cannot drift into two rows. Each row carries a **settlement class**, and the three are never summed into
-one headline:
+Method strings are normalised in JS by `paymentReportingKey` (`shared/paymentMethods.js`), never in SQL, so
+`visa`/`card` cannot drift into two rows. That key wraps the storage normaliser and additionally folds true synonyms
+that different callers write for one method — `cash_on_delivery` → `cod`, `unpaid`/`awaiting_payment` → `pending`.
+The fold is **grouping only**: `normalizePaymentMethodKey` decides what is stored on the order and which account
+`resolveFinancialAccountForPayment` resolves, so folding there would reroute live COD money.
+
+Each row carries a **settlement class**, and the three are never summed into one headline:
 
 | Class | Meaning | Methods |
 |---|---|---|

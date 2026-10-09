@@ -27,7 +27,7 @@ import {
   toFiniteNumber,
   toMoney,
 } from "./analyticsComparison.js";
-import { normalizePaymentMethodKey, paymentMethodSettlement } from "../../../shared/paymentMethods.js";
+import { paymentMethodSettlement, paymentReportingKey } from "../../../shared/paymentMethods.js";
 import {
   CONTRACT_VERSION,
   buildCostContext,
@@ -630,7 +630,7 @@ export const assemblePaymentMix = ({ rows = [], netSales = null, collector = new
 
   for (const row of rows) {
     unusableRows += Number(row?.unusable || 0);
-    const key = normalizePaymentMethodKey(row?.method) || "unknown";
+    const key = paymentReportingKey(row?.method) || "unknown";
     const amount = toFiniteNumber(row?.amount);
     if (amount === null) {
       // The SUM itself is unreadable: count it rather than contributing a zero that
