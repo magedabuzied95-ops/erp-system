@@ -361,7 +361,7 @@ export default function InventoryApprovalsPage() {
                           <span className="inline-flex items-center gap-1"><Store className="h-3.5 w-3.5" /> {text(session.warehouse_name, tt("managerPortal.stockCount.unknownWarehouse"))}</span>
                         </div>
                         <div className="mt-1 flex flex-wrap gap-2 text-xs text-text-muted">
-                          <span className="inline-flex items-center gap-1"><Users className="h-3.5 w-3.5" /> {text(session.created_by_name, tt("managerPortal.common.unknown"))}</span>
+                          <span className="inline-flex items-center gap-1"><Users className="h-3.5 w-3.5" /> {text(session.created_by_employee_name || session.created_by_name, tt("managerPortal.common.unknown"))}</span>
                           <span className="inline-flex items-center gap-1"><CalendarDays className="h-3.5 w-3.5" /> {formatDateTime(session.created_at)}</span>
                         </div>
                       </div>
@@ -411,7 +411,7 @@ export default function InventoryApprovalsPage() {
                     <div className="mt-2 flex flex-wrap gap-2 text-sm text-text-muted">
                       <span className="inline-flex items-center gap-1"><Building2 className="h-4 w-4" /> {text(selectedSession.branch_name, tt("managerPortal.stockCount.unknownBranch"))}</span>
                       <span className="inline-flex items-center gap-1"><Store className="h-4 w-4" /> {text(selectedSession.warehouse_name, tt("managerPortal.stockCount.unknownWarehouse"))}</span>
-                      <span className="inline-flex items-center gap-1"><Users className="h-4 w-4" /> {text(selectedSession.created_by_name, tt("managerPortal.common.unknown"))}</span>
+                      <span className="inline-flex items-center gap-1"><Users className="h-4 w-4" /> {text(selectedSession.created_by_employee_name || selectedSession.created_by_name, tt("managerPortal.common.unknown"))}</span>
                       <span className="inline-flex items-center gap-1"><CalendarDays className="h-4 w-4" /> {formatDateTime(selectedSession.created_at)}</span>
                     </div>
                   </div>

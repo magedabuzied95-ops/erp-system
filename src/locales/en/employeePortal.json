@@ -278,7 +278,7 @@
     "filterHint": "Draft, in progress, under review, and rejected.",
     "loading": "Loading the stock count...",
     "pickOrCreate": "Pick a stock count or create a new one",
-    "scopeHint": "Only your branch's stock counts appear here, and completed ones show only under the Completed filter.",
+    "scopeHint": "Only the stock counts you started appear here, and completed ones show only under the Completed filter.",
     "rejectionReason": "Rejection reason",
     "noReasonGiven": "No reason was given.",
     "name": "Stock count name",

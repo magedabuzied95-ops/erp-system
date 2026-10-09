@@ -26,6 +26,7 @@ import {
   bulkUpsertInventoryCountItems,
   createInventoryCountSession,
   getInventoryCountSession,
+  inventoryCountSessionOwnerEmployeeId,
   listInventoryCountSessions,
   loadInventoryCountCatalogSnapshot,
   loadInventoryCountCatalogVersion,
@@ -454,6 +455,15 @@ const loadEmployeeInventorySession = async (req, res) => {
     return null;
   }
   if (normalizeId(result.session.branch_id) !== normalizeId(employee.branch_id)) {
+    res.status(404).json({ success: false, code: "inventory_count_not_found", message: "Inventory count session not found" });
+    return null;
+  }
+  // A count belongs to the employee who started it. Branch alone was not a
+  // scope: it let one phone open — and write into — a colleague's sheet, which
+  // is how the same models turned up in two different counts. A session nobody
+  // owns (created in the ERP, before this column existed) stays reachable.
+  const ownerEmployeeId = inventoryCountSessionOwnerEmployeeId(result.session);
+  if (ownerEmployeeId !== null && ownerEmployeeId !== undefined && normalizeId(ownerEmployeeId) !== normalizeId(employee.id)) {
     res.status(404).json({ success: false, code: "inventory_count_not_found", message: "Inventory count session not found" });
     return null;
   }
@@ -905,6 +915,10 @@ router.get("/:token/inventory/sessions", async (req, res) => {
     const result = await listInventoryCountSessions(db, {
       tenantId: employee.tenant_id ?? null,
       branchId: employee.branch_id,
+      // A phone lists the counts ITS employee started. The branch used to be
+      // the only scope, so the screen opened whichever count the branch had
+      // open — a colleague's — and two people counted into one sheet.
+      createdByEmployeeId: employee.id ?? null,
       search: req.query?.search || "",
       status: req.query?.status || "",
       page: req.query?.page || 1,
@@ -933,7 +947,12 @@ router.post("/:token/inventory/sessions", async (req, res) => {
       warehouseId: req.body?.warehouseId ?? req.body?.warehouse_id ?? null,
       title: req.body?.title || req.body?.session_title || "جرد جديد",
       notes: req.body?.notes || "",
-      createdBy: employee.id || null,
+      // NOT `createdBy`: that column references users(id), and an employee id
+      // is a different person's number in that table — it put a stranger's
+      // name on the count in the manager's approval screen (and on a database
+      // that still carries the foreign key, the insert fails outright).
+      createdBy: null,
+      createdByEmployeeId: employee.id || null,
     });
 
     return res.status(201).json({ success: true, session });

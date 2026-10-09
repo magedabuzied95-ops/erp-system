@@ -519,6 +519,12 @@ const ensureInventoryCountItemsCompatibility = async (client) => {
   await ensureColumn(client, "inventory_count_sessions", "completed_at TIMESTAMPTZ NULL");
   await ensureColumn(client, "inventory_count_sessions", "cancelled_at TIMESTAMPTZ NULL");
   await ensureColumn(client, "inventory_count_sessions", "created_by BIGINT NULL");
+  // WHO OWNS THE COUNT. `created_by` references users(id), but a count started
+  // from the employee portal is started by an EMPLOYEE, and the portal wrote
+  // the employees id into it — a value that means a different person in the
+  // users table. Portal counts record the employee here instead, so "my count"
+  // is answerable without guessing which id space a number belongs to.
+  await ensureColumn(client, "inventory_count_sessions", "created_by_employee_id BIGINT NULL");
   await ensureColumn(client, "inventory_count_sessions", "opened_by BIGINT NULL");
   await ensureColumn(client, "inventory_count_sessions", "completed_by BIGINT NULL");
   await ensureColumn(client, "inventory_count_sessions", "cancelled_by BIGINT NULL");
@@ -615,6 +621,7 @@ const ensureInventoryCountItemsCompatibility = async (client) => {
   await ensureIndex(client, "CREATE INDEX IF NOT EXISTS idx_inventory_count_sessions_status ON inventory_count_sessions (status, created_at DESC, id DESC)");
   await ensureIndex(client, "CREATE INDEX IF NOT EXISTS idx_inventory_count_sessions_branch_id ON inventory_count_sessions (branch_id)");
   await ensureIndex(client, "CREATE INDEX IF NOT EXISTS idx_inventory_count_sessions_warehouse_id ON inventory_count_sessions (warehouse_id)");
+  await ensureIndex(client, "CREATE INDEX IF NOT EXISTS idx_inventory_count_sessions_created_by_employee_id ON inventory_count_sessions (created_by_employee_id)");
   await ensureIndex(client, "CREATE INDEX IF NOT EXISTS idx_inventory_count_items_session_id ON inventory_count_items (inventory_count_session_id)");
   await ensureIndex(client, "CREATE INDEX IF NOT EXISTS idx_inventory_count_items_variant_id ON inventory_count_items (product_variant_id)");
   await ensureIndex(client, "CREATE INDEX IF NOT EXISTS idx_inventory_count_items_inventory_count_id ON inventory_count_items (inventory_count_id)");
@@ -709,6 +716,7 @@ const fetchSessionRow = async (clientOrPool, { tenantId, sessionId, lock = false
       b.name AS branch_name,
       w.name AS warehouse_name,
       uc.name AS created_by_name,
+      ce.full_name AS created_by_employee_name,
       uo.name AS opened_by_name,
       uu.name AS completed_by_name,
       ux.name AS cancelled_by_name,
@@ -719,6 +727,7 @@ const fetchSessionRow = async (clientOrPool, { tenantId, sessionId, lock = false
     LEFT JOIN branches b ON b.id = s.branch_id
     LEFT JOIN warehouses w ON w.id = s.warehouse_id
     LEFT JOIN users uc ON uc.id = s.created_by
+    LEFT JOIN employees ce ON ce.id = s.created_by_employee_id
     LEFT JOIN users uo ON uo.id = s.opened_by
     LEFT JOIN users uu ON uu.id = s.completed_by
     LEFT JOIN users ux ON ux.id = s.cancelled_by
@@ -812,8 +821,7 @@ const fetchSessionItems = async (clientOrPool, { tenantId, sessionId, lock = fal
     LEFT JOIN product_variants v ON v.id = COALESCE(i.product_variant_id, i.variant_id)
     LEFT JOIN products p ON p.id = COALESCE(i.product_id, v.product_id)
     LEFT JOIN users cb ON cb.id = i.counted_by
-    WHERE i.inventory_count_session_id = $1
-       OR i.inventory_count_id = $1
+    WHERE (i.inventory_count_session_id = $1 OR i.inventory_count_id = $1)
       ${tenantClause}
     ORDER BY i.created_at ASC, i.id ASC
     `,
@@ -864,7 +872,27 @@ const fetchVariantForSession = async (clientOrPool, { tenantId, productVariantId
   });
 };
 
-export const listInventoryCountSessions = async (clientOrPool, { tenantId = null, search = "", status = "", branchId = null, warehouseId = null, page = 1, limit = 25 } = {}) => {
+/**
+ * Which employee a count belongs to, for a caller that only knows employee ids.
+ *
+ * New portal counts carry `created_by_employee_id`. Counts created before that
+ * column existed carry the same employee id in `created_by` — the portal wrote
+ * it there — so a legacy row is matched on `created_by` ONLY while the new
+ * column is still null. Without that second arm, every count in flight on the
+ * day this ships would vanish from the phone that is counting it.
+ */
+const ownedByEmployeeClause = (alias, placeholder) =>
+  `(${alias}.created_by_employee_id = ${placeholder}::bigint
+    OR (${alias}.created_by_employee_id IS NULL AND ${alias}.created_by = ${placeholder}::bigint))`;
+
+/** The employee id a session belongs to, or null when nobody owns it. */
+export const inventoryCountSessionOwnerEmployeeId = (session = {}) => {
+  const owned = normalizeNullableId(session.created_by_employee_id ?? session.createdByEmployeeId);
+  if (owned !== null && owned !== undefined) return owned;
+  return normalizeNullableId(session.created_by ?? session.createdBy);
+};
+
+export const listInventoryCountSessions = async (clientOrPool, { tenantId = null, search = "", status = "", branchId = null, warehouseId = null, createdByEmployeeId = null, page = 1, limit = 25 } = {}) => {
   await ensureInventoryCountSchema();
   const dbClient = queryable(clientOrPool);
   const params = [];
@@ -878,6 +906,12 @@ export const listInventoryCountSessions = async (clientOrPool, { tenantId = null
   if (status) clauses.push(`s.status = ${push(normalizeStatus(status))}`);
   if (branchId) clauses.push(`s.branch_id = ${push(branchId)}`);
   if (warehouseId) clauses.push(`s.warehouse_id = ${push(warehouseId)}`);
+  // The employee portal passes this: a phone lists the counts that phone's
+  // employee started, never a colleague's. The ERP and the manager portal pass
+  // nothing and keep seeing the whole branch.
+  if (createdByEmployeeId !== null && createdByEmployeeId !== undefined && createdByEmployeeId !== "") {
+    clauses.push(ownedByEmployeeClause("s", push(createdByEmployeeId)));
+  }
   if (search) {
     const like = `%${normalizeText(search)}%`;
     clauses.push(
@@ -904,6 +938,7 @@ export const listInventoryCountSessions = async (clientOrPool, { tenantId = null
       LEFT JOIN branches b ON b.id = s.branch_id
       LEFT JOIN warehouses w ON w.id = s.warehouse_id
       LEFT JOIN users uc ON uc.id = s.created_by
+      LEFT JOIN employees ce ON ce.id = s.created_by_employee_id
       ${whereClause}
       `,
       params
@@ -915,6 +950,7 @@ export const listInventoryCountSessions = async (clientOrPool, { tenantId = null
         b.name AS branch_name,
         w.name AS warehouse_name,
         uc.name AS created_by_name,
+        ce.full_name AS created_by_employee_name,
         us.name AS submitted_by_name,
         ua.name AS approved_by_name,
         ur.name AS rejected_by_name,
@@ -925,6 +961,7 @@ export const listInventoryCountSessions = async (clientOrPool, { tenantId = null
       LEFT JOIN branches b ON b.id = s.branch_id
       LEFT JOIN warehouses w ON w.id = s.warehouse_id
       LEFT JOIN users uc ON uc.id = s.created_by
+      LEFT JOIN employees ce ON ce.id = s.created_by_employee_id
       LEFT JOIN users us ON us.id = s.submitted_by
       LEFT JOIN users ua ON ua.id = s.approved_by
       LEFT JOIN users ur ON ur.id = s.rejected_by
@@ -957,6 +994,9 @@ export const listInventoryCountSessions = async (clientOrPool, { tenantId = null
 };
 
 export const createInventoryCountSession = async (clientOrPool, data = {}) => {
+  // The INSERT names created_by_employee_id, so the column has to exist even
+  // when a create is the very first inventory call this process serves.
+  await ensureInventoryCountSchema();
   return withTransaction(clientOrPool, async (dbClient) => {
   const readOnlyResult = await dbClient.query(`SELECT current_setting('transaction_read_only') AS transaction_read_only`);
   console.log("[inventory-count:create:tx]", JSON.stringify({
@@ -972,10 +1012,11 @@ export const createInventoryCountSession = async (clientOrPool, data = {}) => {
       status,
       notes,
       created_by,
+      created_by_employee_id,
       created_at,
       updated_at
     )
-    VALUES ($1,$2,$3,$4,$5,$6,$7,NOW(),NOW())
+    VALUES ($1,$2,$3,$4,$5,$6,$7,$8,NOW(),NOW())
     RETURNING *
     `,
     [
@@ -986,6 +1027,7 @@ export const createInventoryCountSession = async (clientOrPool, data = {}) => {
       normalizeStatus(data.status || "draft"),
       normalizeText(data.notes || ""),
       data.createdBy ?? data.created_by ?? null,
+      normalizeNullableId(data.createdByEmployeeId ?? data.created_by_employee_id),
     ]
   );
   return applyRowAliases(result.rows[0]);
