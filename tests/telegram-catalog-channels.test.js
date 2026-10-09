@@ -506,3 +506,25 @@ test("two listing cards collapsing onto one colour produce one post, not two", a
   assert.equal(summary.created, 1);
   assert.equal(jobs.length, 1);
 });
+
+// ---------------------------------------------------------------------------
+// The webhook subscription. A handler for an update type Telegram was never
+// asked to send is dead code that looks alive -- which is exactly what
+// callback_query and my_chat_member were until this was fixed.
+// ---------------------------------------------------------------------------
+
+const { readFileSync } = await import("node:fs");
+
+test("the webhook registers every update type the intake actually handles", () => {
+  const script = readFileSync(new URL("../server/scripts/configureTelegramWebhook.mjs", import.meta.url), "utf8");
+  const match = /allowed_updates:\s*(\[[^\]]*\])/.exec(script);
+  assert.ok(match, "allowed_updates is declared");
+  const allowed = JSON.parse(match[1].replace(/'/g, '"'));
+  for (const type of ["message", "edited_message", "callback_query", "my_chat_member"]) {
+    assert.ok(allowed.includes(type), `${type} must be subscribed or its handler never runs`);
+  }
+  // channel_post is deliberately excluded: the bot administers the catalog
+  // channels, so subscribing echoes every post and every size edit back into
+  // telegram_webhook_updates.
+  assert.ok(!allowed.includes("channel_post"), "channel_post would echo our own catalogue back at us");
+});

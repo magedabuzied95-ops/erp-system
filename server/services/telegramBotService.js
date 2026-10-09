@@ -310,6 +310,33 @@ export const normalizeTelegramChannelPost = (update = {}) => {
   };
 };
 
+// The bot being added to, promoted in, demoted from or removed from a chat.
+// Two jobs: it is how a catalog channel's chat id is discovered during setup,
+// and it is the only warning we get when someone strips the bot's rights and a
+// channel quietly stops updating its sizes.
+export const normalizeTelegramMembershipChange = (update = {}) => {
+  const change = update?.my_chat_member;
+  if (!change || typeof change !== "object") return null;
+  const chatId = text(change.chat?.id);
+  if (!chatId) return null;
+  const status = text(change.new_chat_member?.status);
+  const rights = change.new_chat_member || {};
+  return {
+    update_id: Number(update.update_id),
+    chat_id: chatId,
+    chat_title: text(change.chat?.title),
+    chat_type: text(change.chat?.type),
+    chat_username: text(change.chat?.username),
+    status,
+    // Posting is the one right the catalogue cannot work without; editing is
+    // what keeps the sizes current after the post exists.
+    can_post: rights.can_post_messages === true,
+    can_edit: rights.can_edit_messages === true,
+    can_delete: rights.can_delete_messages === true,
+    lost_access: ["left", "kicked", "restricted"].includes(status),
+  };
+};
+
 const telegramMessage = (update = {}) => update?.message || update?.edited_message || null;
 
 const chooseTelegramFile = (message = {}) => {

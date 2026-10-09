@@ -95,3 +95,31 @@ test("an update shape we do not handle is ignored rather than crashing the worke
   assert.equal(result.ignored, true);
   assert.equal(result.reason, "unsupported_update");
 });
+
+test("the bot being made an admin of a channel is reported, never treated as a message", async () => {
+  const { calls, deps } = stubs();
+  const result = await processTelegramUpdateRecord(
+    record({
+      update_id: 7,
+      my_chat_member: {
+        chat: { id: -1002222222222, title: "M1 Store ( Men )", type: "channel", username: "m1store_men" },
+        new_chat_member: { status: "administrator", can_post_messages: true, can_edit_messages: true, can_delete_messages: true },
+      },
+    }),
+    deps
+  );
+  assert.equal(result.reason, "my_chat_member");
+  assert.equal(result.chat_id, "-1002222222222");
+  assert.equal(result.status, "administrator");
+  assert.deepEqual(calls.inbound, []);
+  assert.deepEqual(calls.intake, []);
+});
+
+test("the bot being removed from a channel is surfaced, because the channel silently stops updating", async () => {
+  const { deps } = stubs();
+  const result = await processTelegramUpdateRecord(
+    record({ update_id: 8, my_chat_member: { chat: { id: -1002222222222, type: "channel" }, new_chat_member: { status: "kicked" } } }),
+    deps
+  );
+  assert.equal(result.status, "kicked");
+});

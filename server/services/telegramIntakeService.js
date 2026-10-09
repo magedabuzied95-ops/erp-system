@@ -7,6 +7,7 @@ import {
   materializeTelegramFile,
   normalizeTelegramCallbackQuery,
   normalizeTelegramChannelPost,
+  normalizeTelegramMembershipChange,
   normalizeTelegramUpdate,
   TELEGRAM_CHANNEL,
   telegramAttachmentLabel,
@@ -138,6 +139,26 @@ export const processTelegramUpdateRecord = async (record, {
   onCallbackQuery = handleTelegramCallbackQuery,
   onStartCommand = handleTelegramStartCommand,
 } = {}) => {
+  // The bot's own membership changing. Never a conversation: it is how a
+  // channel's chat id is found during setup, and the only notice we get that a
+  // channel has stopped working because the bot was demoted or removed.
+  const membership = normalizeTelegramMembershipChange(record?.payload || {});
+  if (membership) {
+    const line = {
+      chat_id: membership.chat_id,
+      chat_title: membership.chat_title,
+      chat_type: membership.chat_type,
+      chat_username: membership.chat_username,
+      status: membership.status,
+      can_post: membership.can_post,
+      can_edit: membership.can_edit,
+      can_delete: membership.can_delete,
+    };
+    if (membership.lost_access) console.error("[telegram] bot lost access to a chat", line);
+    else console.info("[telegram] bot membership changed", line);
+    return { processed: true, ignored: true, reason: "my_chat_member", chat_id: membership.chat_id, status: membership.status };
+  }
+
   // A post in a channel the bot administers is our own catalog post coming back.
   // It is not a conversation and must not land in the inbox. The chat id is
   // printed once per channel because it is the one value the owner otherwise has
