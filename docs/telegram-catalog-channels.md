@@ -154,3 +154,39 @@ safety net, not the trigger.
 - **Telegram has no discovery.** Unlike a Meta catalogue, a channel brings no
   audience of its own: it has to be advertised from Instagram, WhatsApp and the
   invoices.
+
+---
+
+## Where the channel link goes, when the channels are ready
+
+Telegram has no discovery: a channel brings no audience of its own, so the link
+has to travel on things the shop already sends. These two were applied on
+2026-10-09 and **taken back off the same night**, because the channels still
+held only trial posts and every invoice would have pointed a customer at them.
+
+Put them back once the real backfill is done. Both live in fields the owner can
+edit from the UI (Invoice Studio, and the gear in the Shipping Center), so this
+is a data change, not a deploy.
+
+**Invoice** — default template, `config.footer.thank_you_ar` (it was empty):
+
+```
+شكراً لثقتك في M1 Store 🤍
+جديدنا أول بأول على تليجرام: رجالي t.me/m1store_men · حريمي t.me/m1store_women · أطفالي t.me/m1store_kids
+```
+
+**WhatsApp** — `orders.shipment_notifications` → `delivered.template`, appended
+after the existing Google-review line. The delivered message is chosen because
+it is free text; the order confirmation is a Meta-APPROVED template
+(`order_confirmation_cod`) whose body cannot change without re-submitting it for
+review.
+
+```
+📣 جديدنا أول بأول على تليجرام:
+رجالي https://t.me/m1store_men
+حريمي https://t.me/m1store_women
+أطفالي https://t.me/m1store_kids
+```
+
+Worth adding at the same time, outside this codebase: the Instagram bio, the
+storefront footer, and the shop's printed material.
