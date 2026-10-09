@@ -382,6 +382,11 @@ const CARD = {
   product_type: "سنيكرز",
 };
 
+// Pinned so the helper below and the sync under test render the SAME caption.
+// The real loader answers from the shop's classification options, which would
+// otherwise translate the tags in one place and not the other.
+const NO_LABELS = {};
+
 const runSync = async ({ cards = [], posts = [], channel = CHANNEL } = {}) => {
   const jobs = [];
   const saved = [];
@@ -395,13 +400,14 @@ const runSync = async ({ cards = [], posts = [], channel = CHANNEL } = {}) => {
     savePost: async (args) => { saved.push(args); },
     enqueue: async (args) => { jobs.push(args); },
     markSynced: async () => {},
+    loadLabels: async () => NO_LABELS,
   });
   return { summary, jobs, saved };
 };
 
 const liveRowFor = (card, overrides = {}) => {
   const facts = telegramCardFacts(card, { audience: "men" });
-  const payload = buildTelegramPostPayload({ facts, settings: SETTINGS, imageUrl: card.image_url });
+  const payload = buildTelegramPostPayload({ facts, settings: SETTINGS, imageUrl: card.image_url, labels: NO_LABELS });
   return {
     card_id: card.card_id,
     message_id: "900",
@@ -580,4 +586,103 @@ test("the sync queues the creates oldest first", async () => {
     ],
   });
   assert.deepEqual(jobs.map((j) => j.cardId), ["7:old", "8:mid", "9:new"]);
+});
+
+// ---------------------------------------------------------------------------
+// Hashtags. The only filter a Telegram channel gives a shopper: tapping one
+// shows every post in that channel carrying it.
+// ---------------------------------------------------------------------------
+
+const { loadTelegramClassificationLabels, __resetTelegramClassificationLabels } =
+  await import("../server/services/telegramCatalogPublisherService.js");
+
+const SHOP_LABELS = {
+  gender: { men: "رجالي", women: "حريمي", kids: "أطفال" },
+  product_type: { sneakers: "Sneakers", crocs: "Crocs", slippers: "سليبرز", bags: "Bags" },
+  grade: { mirror_original: "ميرور اوريجينال", local: "محلي", imported_from_vietnam: "مستورد فيتنامي" },
+};
+
+test("a post is tagged by audience, type, grade and brand - the four things a shopper filters by", () => {
+  const caption = telegramPostCaption({
+    facts: { ...FACTS, product_type: "sneakers", grade: "mirror_original", brand: "SKECHERS" },
+    settings: SETTINGS,
+    labels: SHOP_LABELS,
+  });
+  assert.match(caption, /#رجالي/);
+  assert.match(caption, /#Sneakers/);
+  assert.match(caption, /#ميرور_اوريجينال/, "a two-word grade must become ONE tag");
+  assert.match(caption, /#SKECHERS/);
+});
+
+test("a grade label with a space becomes one tag, or Telegram keeps only the first word", () => {
+  const caption = telegramPostCaption({
+    facts: { ...FACTS, grade: "imported_from_vietnam", product_type: "", brand: "" },
+    settings: SETTINGS,
+    labels: SHOP_LABELS,
+  });
+  assert.match(caption, /#مستورد_فيتنامي/);
+  assert.ok(!/#مستورد\s/.test(caption));
+});
+
+test("an unlabelled value still produces a tag rather than disappearing", () => {
+  const caption = telegramPostCaption({
+    facts: { ...FACTS, grade: "brand_new_grade", product_type: "", brand: "" },
+    settings: SETTINGS,
+    labels: SHOP_LABELS,
+  });
+  assert.match(caption, /#brand_new_grade/);
+});
+
+test("a colour with no grade or type is tagged by what it does have, with no empty tags", () => {
+  const caption = telegramPostCaption({
+    facts: { ...FACTS, product_type: "", grade: "", brand: "Nike" },
+    settings: SETTINGS,
+    labels: SHOP_LABELS,
+  });
+  assert.match(caption, /#رجالي #Nike/);
+  assert.ok(!/##/.test(caption));
+});
+
+test("changing a grade's Arabic name in the ERP changes the tag, and therefore the post", () => {
+  const facts = { ...FACTS, grade: "mirror_original", product_type: "", brand: "" };
+  const before = buildTelegramPostPayload({ facts, settings: SETTINGS, imageUrl: "https://api.example.com/a.jpg", labels: SHOP_LABELS });
+  const after = buildTelegramPostPayload({
+    facts,
+    settings: SETTINGS,
+    imageUrl: "https://api.example.com/a.jpg",
+    labels: { ...SHOP_LABELS, grade: { ...SHOP_LABELS.grade, mirror_original: "ميرور" } },
+  });
+  assert.notEqual(before.fingerprint, after.fingerprint, "the sweep has to notice and edit the posts");
+  assert.match(after.caption, /#ميرور(?!_)/);
+});
+
+test("the label map is read once and cached, not once per colour", async () => {
+  __resetTelegramClassificationLabels();
+  let reads = 0;
+  const fetchOptions = async (group) => {
+    reads += 1;
+    return Object.entries(SHOP_LABELS[group] || {}).map(([value, label_ar]) => ({ value, label_ar }));
+  };
+  const first = await loadTelegramClassificationLabels({ fetchOptions, now: 1_000 });
+  assert.equal(first.grade.mirror_original, "ميرور اوريجينال");
+  assert.equal(reads, 3, "one read per tagged group");
+  await loadTelegramClassificationLabels({ fetchOptions, now: 2_000 });
+  assert.equal(reads, 3, "served from cache");
+  await loadTelegramClassificationLabels({ fetchOptions, now: 1_000 + 6 * 60_000 });
+  assert.equal(reads, 6, "re-read once the cache expires");
+  __resetTelegramClassificationLabels();
+});
+
+test("a classification group the ERP cannot answer for leaves the other tags intact", async () => {
+  __resetTelegramClassificationLabels();
+  const labels = await loadTelegramClassificationLabels({
+    fetchOptions: async (group) => {
+      if (group === "grade") throw new Error("db down");
+      return Object.entries(SHOP_LABELS[group] || {}).map(([value, label_ar]) => ({ value, label_ar }));
+    },
+    now: 10_000,
+  });
+  assert.deepEqual(labels.grade, {});
+  assert.equal(labels.gender.men, "رجالي");
+  __resetTelegramClassificationLabels();
 });

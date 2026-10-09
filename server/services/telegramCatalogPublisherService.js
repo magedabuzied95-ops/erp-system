@@ -3,6 +3,7 @@ import db from "../database/db.js";
 import { buildStorefrontColorCardsForAudience } from "../controllers/storefrontController.js";
 import { resolvePublicProductImageUrl } from "./aiProductCards.js";
 import { storefrontBaseUrl } from "./storefrontProductUrlService.js";
+import { fetchProductClassificationOptions } from "./productClassificationsService.js";
 import { telegramDeepLinkToken, telegramDeepLinkUrl } from "./telegramBotService.js";
 import {
   ensureTelegramCatalogSchema,
@@ -65,14 +66,54 @@ export const telegramCardFacts = (card = {}, { audience = "" } = {}) => {
     slug: text(card.slug),
     audience: text(audience),
     product_type: text(card.product_type || card.productType),
+    grade: text(card.grade),
     brand: text(card.brand_name || card.brand),
     code: text(card.article_code || card.code),
   };
 };
 
-const audienceTag = (audience = "") => {
-  const map = { men: "رجالي", women: "حريمي", kids: "أطفالي" };
-  return map[text(audience).toLowerCase()] || "";
+/*
+ * Hashtags are the only filter a Telegram channel gives a shopper. Tapping
+ * #ميرور_اوريجينال inside the channel shows every post carrying it, so the tags
+ * ARE the catalogue's filters: audience, product type, grade and brand.
+ *
+ * The Arabic wording comes from the shop's own classification options, not from
+ * a map in this file -- the owner renames "ميرور اوريجينال" in the ERP and the
+ * channel follows. Renaming one DOES rewrite every caption carrying it, which
+ * the caption fingerprint turns into one edit per affected post.
+ */
+const TAGGED_CLASSIFICATION_GROUPS = Object.freeze(["gender", "product_type", "grade"]);
+
+let classificationLabelCache = { at: 0, labels: null };
+const CLASSIFICATION_LABEL_TTL_MS = 5 * 60_000;
+
+export const loadTelegramClassificationLabels = async ({
+  fetchOptions = fetchProductClassificationOptions,
+  now = Date.now(),
+} = {}) => {
+  if (classificationLabelCache.labels && now - classificationLabelCache.at < CLASSIFICATION_LABEL_TTL_MS) {
+    return classificationLabelCache.labels;
+  }
+  const labels = {};
+  for (const group of TAGGED_CLASSIFICATION_GROUPS) {
+    labels[group] = {};
+    const options = await fetchOptions(group, { includeInactive: true }).catch(() => []);
+    for (const option of Array.isArray(options) ? options : []) {
+      const value = text(option?.value).toLowerCase();
+      if (!value) continue;
+      labels[group][value] = text(option?.label_ar) || text(option?.label_en) || value;
+    }
+  }
+  classificationLabelCache = { at: now, labels };
+  return labels;
+};
+
+export const __resetTelegramClassificationLabels = () => { classificationLabelCache = { at: 0, labels: null }; };
+
+const classificationLabel = (labels = {}, group = "", value = "") => {
+  const key = text(value).toLowerCase();
+  if (!key) return "";
+  return text(labels?.[group]?.[key]) || text(value);
 };
 
 export const telegramProductUrl = (facts = {}, { baseUrl = storefrontBaseUrl() } = {}) => {
@@ -117,7 +158,7 @@ export const telegramPostButtons = ({ facts = {}, settings = {} } = {}) => {
   return rows.length ? { inline_keyboard: rows } : null;
 };
 
-export const telegramPostCaption = ({ facts = {}, settings = {}, soldOut = false } = {}) => {
+export const telegramPostCaption = ({ facts = {}, settings = {}, soldOut = false, labels = {} } = {}) => {
   const sizes = sortTelegramSizes(facts.sizes || []);
   return renderTelegramCaption(settings.caption_template || TELEGRAM_CATALOG_DEFAULTS.caption_template, {
     name: facts.name,
@@ -128,8 +169,9 @@ export const telegramPostCaption = ({ facts = {}, settings = {}, soldOut = false
     sizes: soldOut || !sizes.length ? "—" : sizes.join(" · "),
     status: soldOut ? (settings.sold_out_label || TELEGRAM_CATALOG_DEFAULTS.sold_out_label) : "",
     tags: telegramCatalogTags({
-      audience_tag: audienceTag(facts.audience),
-      product_type_tag: facts.product_type,
+      audience_tag: classificationLabel(labels, "gender", facts.audience),
+      product_type_tag: classificationLabel(labels, "product_type", facts.product_type),
+      grade_tag: classificationLabel(labels, "grade", facts.grade),
       brand_tag: facts.brand,
     }),
   });
@@ -161,8 +203,8 @@ export const telegramCardImageUrl = (card = {}) =>
 // The whole post, ready for the worker: it carries everything needed to send or
 // edit without reading the catalogue again, because by the time the queue drains
 // the catalogue may have moved on.
-export const buildTelegramPostPayload = ({ facts = {}, settings = {}, imageUrl = "", soldOut = false } = {}) => {
-  const caption = telegramPostCaption({ facts, settings, soldOut });
+export const buildTelegramPostPayload = ({ facts = {}, settings = {}, imageUrl = "", soldOut = false, labels = {} } = {}) => {
+  const caption = telegramPostCaption({ facts, settings, soldOut, labels });
   const replyMarkup = telegramPostButtons({ facts, settings });
   return {
     caption,
@@ -185,6 +227,7 @@ export const syncTelegramChannel = async ({
   savePost = upsertTelegramCatalogPost,
   enqueue = enqueueTelegramCatalogJob,
   markSynced = markTelegramChannelSynced,
+  loadLabels = loadTelegramClassificationLabels,
 } = {}) => {
   const summary = { channel_id: channel?.id || null, created: 0, updated: 0, sold_out: 0, unchanged: 0, skipped: 0 };
   if (!channel?.id || !text(channel.chat_id)) {
@@ -192,6 +235,8 @@ export const syncTelegramChannel = async ({
     return summary;
   }
   await ensureTelegramCatalogSchema(client);
+  // One read per channel sweep, not one per colour.
+  const labels = await loadLabels();
 
   // Oldest first: see orderCardsOldestFirst -- the last post is the first thing
   // a visitor sees, so the newest model has to be the last one in.
@@ -219,7 +264,7 @@ export const syncTelegramChannel = async ({
     }
 
     const imageUrl = telegramCardImageUrl(card);
-    const payload = buildTelegramPostPayload({ facts, settings, imageUrl, soldOut: false });
+    const payload = buildTelegramPostPayload({ facts, settings, imageUrl, soldOut: false, labels });
     const row = existingByCard.get(facts.card_id);
 
     if (!row) {
@@ -278,7 +323,7 @@ export const syncTelegramChannel = async ({
       summary.skipped += 1;
       continue;
     }
-    const payload = buildTelegramPostPayload({ facts, settings, imageUrl: row.image_url, soldOut: true });
+    const payload = buildTelegramPostPayload({ facts, settings, imageUrl: row.image_url, soldOut: true, labels });
     if (row.caption_hash === payload.fingerprint) continue;
     await enqueue({ tenantId, channelId: channel.id, cardId: row.card_id, action: "update", payload, client });
     summary.sold_out += 1;

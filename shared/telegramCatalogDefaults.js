@@ -59,10 +59,14 @@ export const formatTelegramPrice = (value, currencyLabel = TELEGRAM_CATALOG_DEFA
   return `${fraction ? `${grouped}.${fraction}` : grouped} ${text(currencyLabel)}`.trim();
 };
 
-// A channel hashtag is the only search Telegram gives a shopper inside a
-// channel, so the audience and the product type are worth spending two lines on.
+// A hashtag is the ONLY filter Telegram gives a shopper inside a channel:
+// tapping one shows every post in the channel carrying it. So the tags are the
+// catalogue's filters -- audience, product type, grade (mirror / local /
+// imported) and brand. A label with a space ('ميرور اوريجينال') has to become
+// one token or Telegram reads only the first word as the tag.
 export const telegramCatalogTags = (facts = {}) => {
-  const raw = [facts.audience_tag, facts.product_type_tag, facts.brand_tag];
+  // Order matters: the broadest filter first, the narrowest last.
+  const raw = [facts.audience_tag, facts.product_type_tag, facts.grade_tag, facts.brand_tag];
   return raw
     .map((value) => text(value).replace(/[#\s]+/g, "_").replace(/^_+|_+$/g, ""))
     .filter(Boolean)
