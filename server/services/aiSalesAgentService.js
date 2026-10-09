@@ -43,6 +43,7 @@ import { inferLegacyCtaTranscript } from "../utils/whatsappCtaTranscript.js";
 import { buildReplyCorrectionContextSource, searchRelevantCorrections, ensureCorrectionMemorySchema, getTenantStyleProfile } from "./aiCorrectionMemoryService.js";
 import { normalizeWhatsappSessionId } from "../utils/whatsappIdentity.js";
 import { getPhoneSearchVariants, phoneSqlDigits } from "../utils/phoneSearch.js";
+import { conversationPrivacyClauseSql, hiddenKeysAreEmpty } from "../modules/aiInboxPrivacy/conversationPrivacy.js";
 import { arabicSearchContainsSql, arabicSearchSql } from "../utils/arabicSearch.js";
 import {
   aiProductSqlExclusionClause,
@@ -2589,7 +2590,7 @@ const inboxCursorClauseSql = (activityExpression, activityIdx, sessionIdx) => `(
     OR (${activityExpression} = ${activityIdx}::timestamp AND s.session_id < ${sessionIdx}::text)
   )`;
 
-export const loadAiInbox = async ({ tenantId, filter = "all", channelFilter = "", limit = 200, search = "", messageLimit = 30, summaryOnly = false, readFilter = "", favoriteOnly = false, beforeActivityAt = "", beforeSessionId = "", sessionKeys = [] } = {}) => {
+export const loadAiInbox = async ({ tenantId, filter = "all", channelFilter = "", limit = 200, search = "", messageLimit = 30, summaryOnly = false, readFilter = "", favoriteOnly = false, beforeActivityAt = "", beforeSessionId = "", sessionKeys = [], hiddenKeys = null } = {}) => {
   const loadAiInboxStartedAt = Date.now();
   await ensureAiSalesAgentSchema();
   await ensureAiConversationMemorySchema();
@@ -2707,6 +2708,19 @@ export const loadAiInbox = async ({ tenantId, filter = "all", channelFilter = ""
   const deletedConversationClauseSql = (latestMessageAtSql) => (sessionKeyList.length
     ? ""
     : `(s.deleted_at IS NULL OR COALESCE(${latestMessageAtSql}, c.last_message_at) > s.deleted_at)`);
+
+  // Conversation privacy. Unlike the deleted_at rule above this one is NOT skipped
+  // for targeted sessionKeys lookups: a viewer who may not see the thread must not
+  // reach it by id either. Internal callers pass no hiddenKeys and are unaffected.
+  if (!hiddenKeysAreEmpty(hiddenKeys)) {
+    params.push(hiddenKeys.phones || []);
+    const phonesIdx = `$${params.length}`;
+    params.push(hiddenKeys.externals || []);
+    const externalsIdx = `$${params.length}`;
+    params.push(hiddenKeys.sessions || []);
+    const sessionsIdx = `$${params.length}`;
+    clauses.push(conversationPrivacyClauseSql({ phonesIdx, externalsIdx, sessionsIdx }));
+  }
 
   const summaryActivitySql = "COALESCE(m.latest_message_created_at, c.last_message_at, s.updated_at)";
   const cursorActivityAt = text(beforeActivityAt);

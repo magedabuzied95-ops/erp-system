@@ -653,6 +653,7 @@ const { default: authRoutes } = await import("./routes/auth.js");
 const { default: metaReviewerInboxRoutes } = await import("./routes/metaReviewerInbox.js");
 const { default: metaReviewerApiBoundary } = await import("./middleware/metaReviewerBoundary.js");
 const { default: portalInboxApiBoundary } = await import("./modules/aiInboxPortal/portalInboxBoundary.js");
+const { default: aiInboxPrivacyBoundary } = await import("./modules/aiInboxPrivacy/aiInboxPrivacyBoundary.js");
 const { default: productsRoutes } = await import("./routes/products.js");
 const { default: productReviewsRoutes } = await import("./routes/productReviews.js");
 const { default: ordersRoutes } = await import("./routes/orders.js");
@@ -1927,6 +1928,9 @@ app.use("/uploads", express.static(path.join(currentDir, "..", "uploads"), uploa
 
 app.use(metaReviewerApiBoundary);
 app.use(portalInboxApiBoundary);
+// Conversation privacy: a thread the owner made private must not open for anyone
+// else, on ANY of the ~50 conversation routes — see aiInboxPrivacyBoundary.js.
+app.use(aiInboxPrivacyBoundary);
 app.use("/api/auth", authRoutes);
 app.use("/api/meta-reviewer/inbox", metaReviewerInboxRoutes);
 app.use("/api/products", productsRoutes);

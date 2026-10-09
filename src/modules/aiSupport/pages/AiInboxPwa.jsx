@@ -16,6 +16,8 @@ import {
   Image,
   Layers3,
   Loader2,
+  Lock,
+  LockOpen,
   Maximize2,
   MessageCircleMore,
   MessageSquareText,
@@ -84,6 +86,8 @@ import InboxControlCenter from "../components/controlCenter/lazyInboxControlCent
 import AiSuggestionCard from "../components/AiSuggestionCard";
 import ReplyCorrectionModal, { buildReplyCorrectionDraft } from "../components/ReplyCorrectionModal";
 import ConversationLabelsModal, { conversationLabelClass } from "../components/ConversationLabelsModal";
+import ConversationPrivacyModal from "../components/ConversationPrivacyModal";
+import { canManageConversationPrivacy, conversationIsPrivate } from "../services/conversationPrivacyApi";
 import { aiInboxLabelsFromConversation, normalizeAiInboxConversationLabels } from "../../../../shared/aiInboxConversationLabels.js";
 import { isProductCardMessageType, messageProductCards } from "../lib/conversationHelpers";
 import { attachmentFilesFromTransfer, attachmentKindOf, attachmentProblem, prepareOutboundImage } from "../utils/outboundAttachment.js";
@@ -2216,7 +2220,7 @@ const reportDeadAvatar = (conversation, url) => {
   api.post(aiInboxConversationEndpoint(target, "/refresh-avatar"), { channel }).catch(() => {});
 };
 
-function ConversationListItem({ conversation, active, accountLabel = "", onSelect, onToggleFavorite, onToggleRead, onDelete }) {
+function ConversationListItem({ conversation, active, accountLabel = "", onSelect, onToggleFavorite, onToggleRead, onDelete, onEditPrivacy }) {
   const { t, i18n } = useTranslation();
   const [, forceAvatarFallback] = useState(0);
   const isSocialComment = isSocialCommentThread(conversation);
@@ -2310,6 +2314,12 @@ function ConversationListItem({ conversation, active, accountLabel = "", onSelec
                       {t("aiSupport.inbox.ui.needsHuman")}
                     </span>
                   ) : null}
+                  {conversationIsPrivate(conversation) ? (
+                    <span className={`inline-flex items-center gap-1 rounded-full px-2 py-0.5 text-[10px] font-semibold ${active ? "bg-amber-300/20 text-amber-100" : "bg-amber-50 text-amber-700"}`}>
+                      <Lock className="h-3 w-3" />
+                      {t("aiSupport.inbox.ui.privacyBadge")}
+                    </span>
+                  ) : null}
                 </div>
               </>
             ) : (
@@ -2330,6 +2340,12 @@ function ConversationListItem({ conversation, active, accountLabel = "", onSelec
                   {needsHumanAttention(conversation) ? (
                     <span className={`rounded-full px-2 py-0.5 text-[10px] font-semibold ${active ? "bg-amber-300/20 text-amber-100" : "bg-amber-50 text-amber-700"}`}>
                       {t("aiSupport.inbox.ui.needsHuman")}
+                    </span>
+                  ) : null}
+                  {conversationIsPrivate(conversation) ? (
+                    <span className={`inline-flex items-center gap-1 rounded-full px-2 py-0.5 text-[10px] font-semibold ${active ? "bg-amber-300/20 text-amber-100" : "bg-amber-50 text-amber-700"}`}>
+                      <Lock className="h-3 w-3" />
+                      {t("aiSupport.inbox.ui.privacyBadge")}
                     </span>
                   ) : null}
                 </div>
@@ -2371,6 +2387,24 @@ function ConversationListItem({ conversation, active, accountLabel = "", onSelec
                   title={isFavorite ? t("aiSupport.inbox.pwa.removeFavorite") : t("aiSupport.inbox.pwa.addFavorite")}
                 >
                   <Star className={`h-4 w-4 ${isFavorite ? "fill-current" : ""}`} />
+                </button>
+              ) : null}
+              {onEditPrivacy ? (
+                <button
+                  type="button"
+                  onClick={(event) => {
+                    event.stopPropagation();
+                    onEditPrivacy(conversation);
+                  }}
+                  className={`inline-flex h-7 w-7 items-center justify-center rounded-full transition ${
+                    conversationIsPrivate(conversation)
+                      ? "text-amber-500 hover:bg-amber-50"
+                      : active ? "text-slate-300 hover:bg-white/10" : "text-slate-400 hover:bg-amber-50 hover:text-amber-600"
+                  }`}
+                  aria-label={t("aiSupport.inbox.ui.privacyEdit")}
+                  title={conversationIsPrivate(conversation) ? t("aiSupport.inbox.ui.privacyBadge") : t("aiSupport.inbox.ui.privacyEdit")}
+                >
+                  {conversationIsPrivate(conversation) ? <Lock className="h-4 w-4" /> : <LockOpen className="h-4 w-4" />}
                 </button>
               ) : null}
               {onDelete ? (
@@ -3865,6 +3899,23 @@ export default function AiInboxPwa({ portal = null } = {}) {
   // Delete from the inbox. The server keeps the rows (the syncs would rebuild them)
   // and hides the thread until the customer writes again; the cached window is
   // dropped too, or it would be merged back into that next thread.
+  // Conversation privacy: an owner-only control, and never drawn inside the
+  // employee portal — a portal session is not an admin and the server refuses it.
+  const canManagePrivacy = useMemo(
+    () => !portalMode && canManageConversationPrivacy(getCurrentUser?.() || {}),
+    [portalMode]
+  );
+  const [privacyTarget, setPrivacyTarget] = useState(null);
+  const openConversationPrivacy = useCallback((item) => setPrivacyTarget(item || null), []);
+  const applyConversationPrivacy = useCallback(({ conversationId, mode }) => {
+    const target = clean(conversationId);
+    setConversations((current) => current.map((conversation) => (
+      clean(conversationIdentifiers(conversation).sessionId) === target || clean(conversation?.session_id) === target
+        ? { ...conversation, privacy_mode: mode }
+        : conversation
+    )));
+    toast.success(t("aiSupport.inbox.ui.privacySaved"));
+  }, [t]);
   const deleteConversation = useCallback(async (item) => {
     const identifiers = conversationIdentifiers(item || {});
     const sessionId = clean(identifiers.sessionId || item?.session_id || "");
@@ -8504,6 +8555,7 @@ export default function AiInboxPwa({ portal = null } = {}) {
                         onToggleFavorite={toggleConversationFavorite}
                         onToggleRead={toggleConversationRead}
                         onDelete={canReply ? deleteConversation : undefined}
+                        onEditPrivacy={canManagePrivacy ? openConversationPrivacy : undefined}
                       />
                     </div>
                   );
@@ -8749,6 +8801,13 @@ export default function AiInboxPwa({ portal = null } = {}) {
             />
           </Suspense>
         ) : null}
+        <ConversationPrivacyModal
+          open={Boolean(privacyTarget)}
+          conversationId={clean(conversationIdentifiers(privacyTarget || {}).sessionId || privacyTarget?.session_id)}
+          customerName={privacyTarget ? conversationName(privacyTarget) : ""}
+          onClose={() => setPrivacyTarget(null)}
+          onSaved={applyConversationPrivacy}
+        />
         <ConversationLabelsModal
           open={labelsOpen}
           labels={conversationLabels}

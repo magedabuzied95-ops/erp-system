@@ -4,6 +4,7 @@ import { logAIPersistentEvent } from "./aiPersistentEventLogService.js";
 import { repairCorruptedArabicValue } from "../utils/arabicTextRepair.js";
 import { normalizeWhatsappPhone, normalizeWhatsappSessionId as normalizeCanonicalWhatsappSessionId } from "../utils/whatsappIdentity.js";
 import { pruneWeakConversationChannels, writableConversationChannel } from "../utils/inboxChannelIdentity.js";
+import { canonicalPhoneSql } from "../utils/phoneSearch.js";
 
 let schemaReadyPromise = null;
 
@@ -1904,6 +1905,8 @@ export const markAiSupportMessageDeleted = async ({
 export const markAllAiSupportConversationsRead = async ({
   tenantId,
   channel = "",
+  excludeSessionIds = [],
+  excludePhoneKeys = [],
 } = {}) => {
   const safeTenantId = numberOrNull(tenantId);
   const safeChannel = normalizeConversationChannel(channel);
@@ -1912,6 +1915,11 @@ export const markAllAiSupportConversationsRead = async ({
   }
   await ensureAiSupportLogSchema();
   const readAt = new Date().toISOString();
+  const cleanKeyList = (value) => [
+    ...new Set((Array.isArray(value) ? value : []).map((entry) => String(entry ?? "").trim()).filter(Boolean)),
+  ];
+  const safeExcludedSessionIds = cleanKeyList(excludeSessionIds);
+  const safeExcludedPhoneKeys = cleanKeyList(excludePhoneKeys);
 
   // The channel filter has to reach BOTH tables. It used to constrain only
   // ai_channel_conversations below, so "mark all WhatsApp read" still cleared
@@ -1947,9 +1955,14 @@ export const markAllAiSupportConversationsRead = async ({
              s.source
            ) = $3::text
       )
+      -- Conversation privacy: a thread this viewer cannot see is not theirs to
+      -- mark read, or the owner's unread badge on a private conversation would be
+      -- cleared by someone who never opened it.
+      AND NOT (s.session_id = ANY($4::text[]))
+      AND NOT (s.session_id LIKE 'whatsapp:%' AND ${canonicalPhoneSql("s.session_id")} = ANY($5::text[]))
     RETURNING s.session_id
     `,
-    [safeTenantId, readAt, safeChannel || ""]
+    [safeTenantId, readAt, safeChannel || "", safeExcludedSessionIds, safeExcludedPhoneKeys]
   ).catch((error) => {
     logSqlError("markAllAiSupportConversationsRead.session", error, { tenantId: safeTenantId, channel: safeChannel });
     return { rows: [], rowCount: 0 };

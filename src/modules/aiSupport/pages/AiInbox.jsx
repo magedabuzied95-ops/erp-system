@@ -29,7 +29,9 @@ import {
   Info as InfoIcon,
   Link2,
   Loader2,
+  Lock,
   LockKeyhole,
+  LockOpen,
   MapPin,
   Image as ImageIcon,
   Maximize2,
@@ -107,6 +109,8 @@ import { ForwardConversationSheet, QuickMediaCard, useQuickMedia } from "../comp
 import ReplyCorrectionModal, { buildReplyCorrectionDraft } from "../components/ReplyCorrectionModal";
 // Conversation labels are shared with the PWA — see components/ConversationLabelsModal.jsx.
 import ConversationLabelsModal, { conversationLabelClass } from "../components/ConversationLabelsModal";
+import ConversationPrivacyModal from "../components/ConversationPrivacyModal";
+import { canManageConversationPrivacy } from "../services/conversationPrivacyApi";
 import {
   MAX_BATCH_PRODUCTS, SELECTION_MODES, selectionModeFromSemantics, productSelectionKey, toggleProductSelection,
   summarizeSendResults, selectedCountText, assistedSendButtonText,
@@ -720,6 +724,9 @@ const shortText = (value = "", limit = 140) => {
 const isMetaChannel = (value = "") => ["facebook_messenger", "instagram"].includes(clean(value).toLowerCase());
 const isFacebookMessengerChannel = (value = "") => ["facebook_messenger", "facebook", "messenger"].includes(clean(value).toLowerCase());
 const isWhatsappChannel = (value = "") => clean(value).toLowerCase() === "whatsapp";
+// Conversation privacy: the list tags a restricted thread for the owner, so the
+// lock on the card reads "already hidden" rather than "click to hide".
+const isPrivateConversation = (conversation = {}) => clean(conversation?.privacy_mode).toLowerCase() === "restricted";
 const socialCommentsDebugEnabled = () =>
   import.meta.env.DEV ||
   ["1", "true", "yes", "on"].includes(String(import.meta.env.VITE_AI_SUPPORT_SOCIAL_COMMENTS_DEBUG || import.meta.env.VITE_AI_SUPPORT_DEBUG || "").toLowerCase());
@@ -1775,7 +1782,7 @@ function ProductCards({ products = [] }) {
   );
 }
 
-const ConversationListItem = memo(function ConversationListItem({ item, active, unseen, presence = "", onSelect, onOpenCustomer360, onToggleFavorite, onToggleRead, onDelete }) {
+const ConversationListItem = memo(function ConversationListItem({ item, active, unseen, presence = "", onSelect, onOpenCustomer360, onToggleFavorite, onToggleRead, onDelete, onEditPrivacy }) {
   const { t } = useTranslation();
   const channel = item.channel || item.source || "web_chat";
   const liveMeta = item.is_live_meta === true || isMetaChannel(channel);
@@ -1918,6 +1925,7 @@ const ConversationListItem = memo(function ConversationListItem({ item, active, 
                         {sourceLabel}
                       </span>
                     </Pill>
+                    {isPrivateConversation(item) ? <Pill tone="amber"><span className="inline-flex items-center gap-1"><Lock className="h-3 w-3" />{t("aiSupport.inbox.ui.privacyBadge")}</span></Pill> : null}
                   </div>
                 </>
               )}
@@ -1948,6 +1956,20 @@ const ConversationListItem = memo(function ConversationListItem({ item, active, 
               >
                 <Star className={`h-3.5 w-3.5 ${isFavorite ? "fill-current text-amber-300" : "text-slate-500"}`} />
               </button>
+              {onEditPrivacy ? (
+                <button
+                  type="button"
+                  onClick={(event) => {
+                    event.stopPropagation();
+                    onEditPrivacy(item);
+                  }}
+                  className={`inline-flex h-5 items-center justify-center rounded-md px-1 transition hover:bg-white/10 hover:text-amber-300 ${isPrivateConversation(item) ? "text-amber-300" : "text-slate-500"}`}
+                  aria-label={t("aiSupport.inbox.ui.privacyEdit")}
+                  title={isPrivateConversation(item) ? t("aiSupport.inbox.ui.privacyBadge") : t("aiSupport.inbox.ui.privacyEdit")}
+                >
+                  {isPrivateConversation(item) ? <Lock className="h-3.5 w-3.5" /> : <LockOpen className="h-3.5 w-3.5" />}
+                </button>
+              ) : null}
               {onDelete ? (
                 <button
                   type="button"
@@ -2180,7 +2202,7 @@ function InboxChannelSidebar({
   );
 }
 
-const InboxConversationCard = memo(function InboxConversationCard({ item, active, unseen, presence = "", accountLabel = "", onSelect, onOpenCustomer360, onToggleFavorite, onToggleRead, onDelete }) {
+const InboxConversationCard = memo(function InboxConversationCard({ item, active, unseen, presence = "", accountLabel = "", onSelect, onOpenCustomer360, onToggleFavorite, onToggleRead, onDelete, onEditPrivacy }) {
   const { t } = useTranslation();
   const channel = item.channel || item.source || "web_chat";
   const liveMeta = item.is_live_meta === true || isMetaChannel(channel);
@@ -2296,6 +2318,7 @@ const InboxConversationCard = memo(function InboxConversationCard({ item, active
                       </span>
                     </Pill>
                     {accountLabel ? <Pill tone="zinc"><span dir="auto" className="max-w-[9rem] truncate">{accountLabel}</span></Pill> : null}
+                    {isPrivateConversation(item) ? <Pill tone="amber"><span className="inline-flex items-center gap-1"><Lock className="h-3 w-3" />{t("aiSupport.inbox.ui.privacyBadge")}</span></Pill> : null}
                   </div>
                 </>
               )}
@@ -2326,6 +2349,20 @@ const InboxConversationCard = memo(function InboxConversationCard({ item, active
               >
                 <Star className={`h-3.5 w-3.5 ${isFavorite ? "fill-current text-amber-300" : "text-slate-500"}`} />
               </button>
+              {onEditPrivacy ? (
+                <button
+                  type="button"
+                  onClick={(event) => {
+                    event.stopPropagation();
+                    onEditPrivacy(item);
+                  }}
+                  className={`inline-flex h-5 items-center justify-center rounded-md px-1 transition hover:bg-white/10 hover:text-amber-300 ${isPrivateConversation(item) ? "text-amber-300" : "text-slate-500"}`}
+                  aria-label={t("aiSupport.inbox.ui.privacyEdit")}
+                  title={isPrivateConversation(item) ? t("aiSupport.inbox.ui.privacyBadge") : t("aiSupport.inbox.ui.privacyEdit")}
+                >
+                  {isPrivateConversation(item) ? <Lock className="h-3.5 w-3.5" /> : <LockOpen className="h-3.5 w-3.5" />}
+                </button>
+              ) : null}
               {onDelete ? (
                 <button
                   type="button"
@@ -6245,6 +6282,23 @@ export default function AiInbox({ reviewerMode = false }) {
       setToast({ tone: "rose", text: err?.message || "فشل تحديد المحادثة كغير مقروءة." });
     }
   }, [api, headers, patchConversation, setToast, tenantId]);
+  // Conversation privacy is an ownership decision, not an inbox permission: only
+  // an admin account draws the control, and the server refuses it for anyone else.
+  const canManagePrivacy = useMemo(() => canManageConversationPrivacy(getCurrentUser?.() || {}), []);
+  const [privacyTarget, setPrivacyTarget] = useState(null);
+  const openConversationPrivacy = useCallback((item) => setPrivacyTarget(item || null), []);
+  const applyConversationPrivacy = useCallback(({ conversationId, mode }) => {
+    const target = clean(conversationId);
+    setInbox((current) => ({
+      ...current,
+      conversations: asArray(current.conversations).map((conversation) => (
+        clean(conversation?.session_id) === target || clean(conversation?.conversation_id) === target
+          ? { ...conversation, privacy_mode: mode }
+          : conversation
+      )),
+    }));
+    setToast({ tone: "emerald", text: t("aiSupport.inbox.ui.privacySaved") });
+  }, [setToast, t]);
   // Delete from the inbox. The server keeps the rows (the syncs would rebuild them)
   // and hides the thread until the customer writes again; the cached window is
   // dropped too, or it would be merged back into that next thread.
@@ -9379,6 +9433,13 @@ export default function AiInbox({ reviewerMode = false }) {
         mode="desktopInbox"
         portalTarget={fullscreenOverlayTarget}
       />
+      <ConversationPrivacyModal
+        open={Boolean(privacyTarget)}
+        conversationId={clean(privacyTarget?.session_id || privacyTarget?.conversation_id)}
+        customerName={privacyTarget ? customerDisplayName(privacyTarget) : ""}
+        onClose={() => setPrivacyTarget(null)}
+        onSaved={applyConversationPrivacy}
+      />
       <ReplyCorrectionModal
         open={correctionModal.open}
         draft={correctionModal.draft}
@@ -9605,6 +9666,7 @@ export default function AiInbox({ reviewerMode = false }) {
 	                            onToggleFavorite={toggleConversationFavorite}
 	                            onToggleRead={toggleConversationRead}
 	                            onDelete={canReply ? deleteConversation : undefined}
+	                            onEditPrivacy={canManagePrivacy ? openConversationPrivacy : undefined}
 	                          />
 	                        );
 	                      })}
@@ -10493,6 +10555,7 @@ export default function AiInbox({ reviewerMode = false }) {
 	                              onToggleFavorite={toggleConversationFavorite}
 	                              onToggleRead={toggleConversationRead}
 	                              onDelete={canReply ? deleteConversation : undefined}
+	                              onEditPrivacy={canManagePrivacy ? openConversationPrivacy : undefined}
 	                            />
                         );
                       })}

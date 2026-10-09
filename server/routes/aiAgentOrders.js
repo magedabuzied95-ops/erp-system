@@ -3,8 +3,15 @@ import { unlink } from "node:fs/promises";
 
 import db from "../database/db.js";
 
-import { protect } from "../middleware/authMiddleware.js";
+import { protect, requireAdmin } from "../middleware/authMiddleware.js";
 import permit from "../middleware/permissionMiddleware.js";
+import {
+  decorateConversationsWithPrivacy,
+  getConversationPrivacy,
+  loadHiddenKeysForViewer,
+  setConversationPrivacy,
+} from "../modules/aiInboxPrivacy/conversationPrivacy.js";
+import { resolveInboxViewer } from "../modules/aiInboxPrivacy/inboxViewer.js";
 import inboxAttachmentUpload, {
   INBOX_ATTACHMENT_IMAGE_MAX_BYTES,
   INBOX_ATTACHMENT_URL_PREFIX,
@@ -2955,6 +2962,20 @@ const EVOLUTION_INBOX_SYNC_MAX_WAIT_MS = 1200;
 // channels per refresh), so each page load paid for five Evolution sweeps.
 const EVOLUTION_INBOX_SYNC_COOLDOWN_MS = 60 * 1000;
 const evolutionInboxSyncLastRun = new Map();
+// Conversation privacy for the inbox LIST. The per-conversation routes are
+// guarded by aiInboxPrivacyBoundary; this is the half that keeps a private thread
+// out of the queue in the first place. An admin gets empty keys, so their query is
+// the one it always was.
+const inboxPrivacyContext = async (req, tenantId) => {
+  const viewer = await resolveInboxViewer({ user: req.user });
+  const hiddenKeys = await loadHiddenKeysForViewer({
+    tenantId,
+    employeeId: viewer.employeeId,
+    isAdmin: viewer.isAdmin,
+  });
+  return { viewer, hiddenKeys };
+};
+
 const kickEvolutionInboxSync = (tenantId) => {
   const lastRun = Number(evolutionInboxSyncLastRun.get(tenantId) || 0);
   if (Date.now() - lastRun < EVOLUTION_INBOX_SYNC_COOLDOWN_MS) return Promise.resolve();
@@ -2972,6 +2993,7 @@ router.get("/inbox", protect, inboxView(), async (req, res) => {
   try {
     const tenantId = toTenantId(req);
     await kickEvolutionInboxSync(tenantId);
+    const { viewer, hiddenKeys } = await inboxPrivacyContext(req, tenantId);
     const inbox = await loadAiInbox({
       tenantId,
       filter: String(req.query?.filter || "all"),
@@ -2979,8 +3001,10 @@ router.get("/inbox", protect, inboxView(), async (req, res) => {
       search: String(req.query?.search || ""),
       limit: req.query?.limit,
       messageLimit: req.query?.message_limit,
+      hiddenKeys,
     });
-    return res.json({ success: true, ...inbox });
+    if (viewer.isAdmin) await decorateConversationsWithPrivacy({ tenantId, conversations: inbox.conversations });
+    return res.json({ success: true, can_manage_privacy: viewer.isAdmin, ...inbox });
   } catch (error) {
     return sendError(res, error, "Failed to load AI inbox");
   }
@@ -3090,6 +3114,7 @@ router.get("/conversations", protect, inboxView(), async (req, res) => {
     const tenantId = toTenantId(req);
     await kickEvolutionInboxSync(tenantId);
     kickMetaHistorySyncIfEmpty(tenantId);
+    const { viewer, hiddenKeys } = await inboxPrivacyContext(req, tenantId);
     const inbox = await loadAiInbox({
       tenantId,
       filter: String(req.query?.filter || "all"),
@@ -3106,9 +3131,11 @@ router.get("/conversations", protect, inboxView(), async (req, res) => {
       favoriteOnly: ["1", "true", "yes"].includes(String(req.query?.favorite_only || "").toLowerCase()),
       beforeActivityAt: String(req.query?.before_activity_at || ""),
       beforeSessionId: String(req.query?.before_session_id || ""),
+      hiddenKeys,
     });
     scheduleMissingWhatsappProfileSync({ tenantId, conversations: inbox.conversations });
-    return res.json({ success: true, ...inbox });
+    if (viewer.isAdmin) await decorateConversationsWithPrivacy({ tenantId, conversations: inbox.conversations });
+    return res.json({ success: true, can_manage_privacy: viewer.isAdmin, ...inbox });
   } catch (error) {
     return sendError(res, error, "Failed to load AI inbox conversations");
   }
@@ -4406,7 +4433,16 @@ const handleMarkAllConversationsRead = async (req, res) => {
   try {
     const tenantId = toTenantId(req);
     const channel = req.body?.channel || req.query?.channel || "";
-    const result = await markAllAiSupportConversationsRead({ tenantId, channel });
+    // "Mark all read" must not touch the threads this viewer cannot see, or the
+    // owner's unread badge on a private conversation would be cleared by someone
+    // who never read it.
+    const { hiddenKeys } = await inboxPrivacyContext(req, tenantId);
+    const result = await markAllAiSupportConversationsRead({
+      tenantId,
+      channel,
+      excludeSessionIds: hiddenKeys.sessions,
+      excludePhoneKeys: hiddenKeys.phones,
+    });
     console.log("[ai-inbox][mark-all-read] success", {
       tenant_id: tenantId,
       channel,
@@ -4451,6 +4487,85 @@ router.delete("/conversations/:conversationId", protect, inboxReply(), async (re
     return res.json({ success: true, ...result });
   } catch (error) {
     return sendError(res, error, "Failed to delete conversation");
+  }
+});
+
+// Conversation privacy, owner side. Admin only: reading or changing who may see a
+// thread is not an inbox permission, it is an ownership decision — and the portal
+// inbox boundary denies these paths outright as well.
+router.get("/conversation-privacy/employees", protect, requireAdmin, async (req, res) => {
+  try {
+    const tenantId = toTenantId(req);
+    const result = await db.query(
+      `SELECT
+         e.id,
+         COALESCE(e.full_name, '') AS full_name,
+         COALESCE(e.job_title, '') AS job_title,
+         COALESCE(e.photo_url, '') AS photo_url,
+         COALESCE(e.portal_inbox_enabled, FALSE) AS portal_inbox_enabled
+       FROM employees e
+       WHERE e.tenant_id = $1::bigint
+         AND COALESCE(e.is_deleted, FALSE) = FALSE
+         AND LOWER(COALESCE(e.status, 'active')) = 'active'
+       ORDER BY COALESCE(e.portal_inbox_enabled, FALSE) DESC, e.full_name`,
+      [tenantId]
+    );
+    return res.json({ success: true, employees: result.rows });
+  } catch (error) {
+    // The portal inbox switch creates its column on first use, so a tenant that
+    // never opened the portal has no column to read.
+    if (String(error?.code || "") === "42703") {
+      const fallback = await db.query(
+        `SELECT e.id, COALESCE(e.full_name, '') AS full_name, COALESCE(e.job_title, '') AS job_title,
+         COALESCE(e.photo_url, '') AS photo_url, FALSE AS portal_inbox_enabled
+         FROM employees e
+         WHERE e.tenant_id = $1::bigint
+           AND COALESCE(e.is_deleted, FALSE) = FALSE
+           AND LOWER(COALESCE(e.status, 'active')) = 'active'
+         ORDER BY e.full_name`,
+        [toTenantId(req)]
+      ).catch(() => ({ rows: [] }));
+      return res.json({ success: true, employees: fallback.rows });
+    }
+    return sendError(res, error, "Failed to load employees");
+  }
+});
+
+router.get("/conversations/:conversationId/privacy", protect, requireAdmin, async (req, res) => {
+  try {
+    const tenantId = toTenantId(req);
+    const conversationId = decodeRouteId(envText(req.params.conversationId));
+    const privacy = await getConversationPrivacy({ tenantId, conversationId });
+    return res.json({ success: true, ...privacy });
+  } catch (error) {
+    return sendError(res, error, "Failed to load conversation privacy");
+  }
+});
+
+router.put("/conversations/:conversationId/privacy", protect, requireAdmin, async (req, res) => {
+  try {
+    const tenantId = toTenantId(req);
+    const conversationId = decodeRouteId(envText(req.params.conversationId));
+    const privacy = await setConversationPrivacy({
+      tenantId,
+      conversationId,
+      mode: req.body?.mode,
+      employeeIds: req.body?.employee_ids || req.body?.employeeIds || [],
+      userId: req.user?.id || null,
+    });
+    console.log("[ai-inbox][conversation-privacy]", {
+      tenant_id: tenantId,
+      conversation_id: conversationId,
+      mode: privacy.mode,
+      viewers: privacy.employee_ids.length,
+      user_id: req.user?.id || null,
+    });
+    // Every open inbox reloads: the thread has to leave the employees' list now,
+    // not on their next refresh.
+    emitToRooms([`tenant:${tenantId}`], "ai_inbox:refresh", { reason: "conversation_privacy" });
+    return res.json({ success: true, ...privacy });
+  } catch (error) {
+    return sendError(res, error, "Failed to update conversation privacy");
   }
 });
 

@@ -1,6 +1,7 @@
 import crypto from "node:crypto";
 
 import db from "../../database/db.js";
+import { isConversationVisibleToViewer, tenantUsesConversationPrivacy } from "../aiInboxPrivacy/conversationPrivacy.js";
 import { sendEmployeePortalPush } from "../../services/employeePortalPushService.js";
 
 // الرسائل push: a new customer MESSAGE reaches every employee whose messages switch
@@ -118,8 +119,25 @@ export const notifyPortalInboxEmployees = async ({
   if (isCommentThreadMessage({ sessionId, message, channel })) return { sent: 0, skipped: true, reason: "comment" };
   const employees = await cachedEnabledEmployees({ tenantId: tenant, client });
   if (!employees.length) return { sent: 0, skipped: true, reason: "nobody-enabled" };
+  // A private conversation must not ring on a phone that may not open it — the
+  // notification carries the customer's name and the message text.
+  const conversationId = text(sessionId || message.session_id || message.conversation_id);
+  const privacyInUse = conversationId && (await tenantUsesConversationPrivacy({ tenantId: tenant, client }).catch(() => false));
   let sent = 0;
+  let blocked = 0;
   for (const employee of employees) {
+    if (privacyInUse) {
+      const visible = await isConversationVisibleToViewer({
+        tenantId: tenant,
+        conversationId,
+        employeeId: Number(employee.id),
+        client,
+      }).catch(() => true);
+      if (!visible) {
+        blocked += 1;
+        continue;
+      }
+    }
     const push = buildPortalInboxPush({ employee, sessionId, message, channel });
     const result = await send({
       tenantId: tenant,
@@ -133,6 +151,7 @@ export const notifyPortalInboxEmployees = async ({
     });
     sent += Number(result?.sent || 0);
   }
-  return { sent, recipients: employees.length, skipped: false };
+  if (blocked && blocked === employees.length) return { sent: 0, recipients: 0, blocked, skipped: true, reason: "private-conversation" };
+  return { sent, recipients: employees.length - blocked, blocked, skipped: false };
 };
 
