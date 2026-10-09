@@ -6,6 +6,7 @@ import { storefrontBaseUrl } from "./storefrontProductUrlService.js";
 import { fetchProductClassificationOptions } from "./productClassificationsService.js";
 import { telegramDeepLinkToken, telegramDeepLinkUrl } from "./telegramBotService.js";
 import {
+  TELEGRAM_INDEX_CARD_ID,
   ensureTelegramCatalogSchema,
   enqueueTelegramCatalogJob,
   listTelegramCatalogPosts,
@@ -18,6 +19,9 @@ import {
 import {
   TELEGRAM_BOLD_PLACEHOLDERS,
   TELEGRAM_CATALOG_DEFAULTS,
+  TELEGRAM_MESSAGE_MAX,
+  escapeTelegramHtml,
+  telegramTagToken,
   formatTelegramPrice,
   renderTelegramCaption,
   sortTelegramSizes,
@@ -223,6 +227,68 @@ export const buildTelegramPostPayload = ({ facts = {}, settings = {}, imageUrl =
   };
 };
 
+
+/*
+ * The pinned index: the menu of hashtags a shopper filters the channel by.
+ *
+ * Telegram's in-channel search shows a match INSIDE the chat with its
+ * neighbours around it, not as a list, so someone who types "Nike" sees Nike
+ * posts next to posts that are not Nike and concludes the filter is broken.
+ * The index is the fix a channel can actually have: one pinned message, always
+ * at the top, listing every tag that exists in THIS channel.
+ *
+ * Built from the channel's own cards, so a tag is only ever offered when
+ * tapping it would find something. The dimension the channel is already scoped
+ * to is left out for the same reason it is left off the posts.
+ */
+const INDEX_BRAND_LIMIT = 14;
+
+const countBy = (cards, pick) => {
+  const counts = new Map();
+  for (const card of cards) {
+    const value = text(pick(card));
+    if (!value) continue;
+    counts.set(value, (counts.get(value) || 0) + 1);
+  }
+  return [...counts.entries()].sort((a, b) => b[1] - a[1] || a[0].localeCompare(b[0], "en"));
+};
+
+export const buildTelegramChannelIndex = ({ cards = [], labels = {}, scopedTags = [] } = {}) => {
+  const scoped = (group) => (Array.isArray(scopedTags) ? scopedTags : []).includes(group);
+  const titles = TELEGRAM_CATALOG_DEFAULTS.index_group_titles;
+  const lines = [`<b>${escapeTelegramHtml(TELEGRAM_CATALOG_DEFAULTS.index_title)}</b>`, ""];
+
+  const section = (title, entries) => {
+    const tags = entries.map(([value]) => `#${escapeTelegramHtml(telegramTagToken(value))}`);
+    if (!tags.length) return;
+    lines.push(`<b>${escapeTelegramHtml(title)}</b>  ${tags.join("  ")}`);
+  };
+
+  if (!scoped("product_type")) {
+    section(titles.product_type, countBy(cards, (c) => classificationLabel(labels, "product_type", c.product_type || c.productType)));
+  }
+  if (!scoped("grade")) {
+    section(titles.grade, countBy(cards, (c) => classificationLabel(labels, "grade", c.grade)));
+  }
+  if (!scoped("brand")) {
+    section(titles.brand, countBy(cards, (c) => c.brand_name || c.brand).slice(0, INDEX_BRAND_LIMIT));
+  }
+  if (!scoped("gender")) {
+    section(titles.gender, countBy(cards, (c) => classificationLabel(labels, "gender", c.gender)));
+  }
+
+  // Only the heading and a hint would be left: a menu with nothing on it is
+  // worse than no menu, so the channel keeps whatever it already has.
+  if (lines.length <= 2) return "";
+
+  lines.push("", escapeTelegramHtml(TELEGRAM_CATALOG_DEFAULTS.index_hint));
+  const body = lines.join("\n");
+  return body.length > TELEGRAM_MESSAGE_MAX ? body.slice(0, TELEGRAM_MESSAGE_MAX - 1) : body;
+};
+
+export const telegramIndexFingerprint = (body = "") =>
+  crypto.createHash("sha1").update(text(body)).digest("hex").slice(0, 20);
+
 export const syncTelegramChannel = async ({
   channel,
   settings,
@@ -336,6 +402,21 @@ export const syncTelegramChannel = async ({
     if (row.caption_hash === payload.fingerprint) continue;
     await enqueue({ tenantId, channelId: channel.id, cardId: row.card_id, action: "update", payload, client });
     summary.sold_out += 1;
+  }
+
+  // Queued last, so the menu goes out after the posts it points at.
+  const indexBody = buildTelegramChannelIndex({ cards, labels, scopedTags });
+  const indexHash = telegramIndexFingerprint(indexBody);
+  if (indexBody && indexHash !== text(channel.index_hash)) {
+    await enqueue({
+      tenantId,
+      channelId: channel.id,
+      cardId: TELEGRAM_INDEX_CARD_ID,
+      action: "index",
+      payload: { body: indexBody, fingerprint: indexHash },
+      client,
+    });
+    summary.index = 1;
   }
 
   await markSynced({ tenantId, channelId: channel.id, client });

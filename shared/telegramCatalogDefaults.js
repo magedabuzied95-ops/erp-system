@@ -29,11 +29,24 @@ export const TELEGRAM_CATALOG_DEFAULTS = Object.freeze({
   order_button_label: "🛒 اطلب الآن",
   site_button_label: "🔗 شوفه على الموقع",
   currency_label: "ج.م",
+  // The pinned menu of hashtags. Telegram's in-channel search shows a match
+  // inside the chat rather than as a list, so a shopper who does not know the
+  // tags exist has no way to narrow 600 posts down.
+  index_title: "🔎 دوّر على اللي يعجبك",
+  index_hint: "دوس على أي هاشتاج تحت عشان تشوف كل اللي فيه، أو اكتب اسم الموديل في بحث القناة.",
+  index_group_titles: {
+    product_type: "النوع",
+    grade: "الخامة",
+    brand: "الماركة",
+    gender: "الفئة",
+  },
 });
 
 // Telegram rejects a caption over 1024 characters outright (and a rejected
 // sendPhoto leaves the colour with no post at all), so the renderer clamps.
 export const TELEGRAM_CAPTION_MAX = 1024;
+// A plain message, not a caption, so it gets the larger limit.
+export const TELEGRAM_MESSAGE_MAX = 4096;
 
 // Rendered bold. The price is the one line a shopper scans for, and it is the
 // only markup in a post -- the template itself stays plain text the owner can
@@ -41,6 +54,10 @@ export const TELEGRAM_CAPTION_MAX = 1024;
 export const TELEGRAM_BOLD_PLACEHOLDERS = Object.freeze(["price"]);
 
 const text = (value = "") => String(value ?? "").trim();
+
+// A hashtag is one token: Telegram ends the tag at the first space, so a label
+// like "ميرور اوريجينال" must be joined up or only the first word becomes the tag.
+const TAG_SEPARATORS = /[#\s]+/g;
 
 const isNumericSize = (value = "") => /^\d+(\.\d+)?$/.test(text(value));
 
@@ -69,11 +86,14 @@ export const formatTelegramPrice = (value, currencyLabel = TELEGRAM_CATALOG_DEFA
 // catalogue's filters -- audience, product type, grade (mirror / local /
 // imported) and brand. A label with a space ('ميرور اوريجينال') has to become
 // one token or Telegram reads only the first word as the tag.
+export const telegramTagToken = (value = "") =>
+  text(value).replace(TAG_SEPARATORS, "_").replace(/^_+|_+$/g, "");
+
 export const telegramCatalogTags = (facts = {}) => {
   // Order matters: the broadest filter first, the narrowest last.
   const raw = [facts.audience_tag, facts.product_type_tag, facts.grade_tag, facts.brand_tag];
   return raw
-    .map((value) => text(value).replace(/[#\s]+/g, "_").replace(/^_+|_+$/g, ""))
+    .map((value) => telegramTagToken(value))
     .filter(Boolean)
     .map((value) => `#${value}`)
     .join(" ");
@@ -137,4 +157,5 @@ export default {
   renderTelegramCaption,
   sortTelegramSizes,
   telegramCatalogTags,
+  telegramTagToken,
 };

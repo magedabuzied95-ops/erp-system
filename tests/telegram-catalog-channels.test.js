@@ -389,6 +389,7 @@ const NO_LABELS = {};
 
 const runSync = async ({ cards = [], posts = [], channel = CHANNEL } = {}) => {
   const jobs = [];
+  const indexJobs = [];
   const saved = [];
   const summary = await syncTelegramChannel({
     channel,
@@ -398,11 +399,13 @@ const runSync = async ({ cards = [], posts = [], channel = CHANNEL } = {}) => {
     loadCards: async () => cards,
     listPosts: async () => posts,
     savePost: async (args) => { saved.push(args); },
-    enqueue: async (args) => { jobs.push(args); },
+    // The pinned menu is queued by the same sweep but is not a post; the diff
+    // assertions below are about posts, so it is kept apart.
+    enqueue: async (args) => { (args.action === "index" ? indexJobs : jobs).push(args); },
     markSynced: async () => {},
     loadLabels: async () => NO_LABELS,
   });
-  return { summary, jobs, saved };
+  return { summary, jobs, indexJobs, saved };
 };
 
 const liveRowFor = (card, overrides = {}) => {
@@ -726,9 +729,10 @@ test("the sync drops the audience tag for a gender channel", async () => {
     markSynced: async () => {},
     loadLabels: async () => SHOP_LABELS,
   });
-  assert.equal(jobs.length, 1);
-  assert.ok(!jobs[0].payload.caption.includes("#رجالي"));
-  assert.match(jobs[0].payload.caption, /#ميرور_اوريجينال/);
+  const posts = jobs.filter((j) => j.action !== "index");
+  assert.equal(posts.length, 1);
+  assert.ok(!posts[0].payload.caption.includes("#رجالي"));
+  assert.match(posts[0].payload.caption, /#ميرور_اوريجينال/);
   __resetTelegramClassificationLabels();
 });
 
@@ -815,4 +819,152 @@ test("the worker tells Telegram the caption is HTML on every path", async () => 
     editPhoto: async (args) => { modes.push(["media", args.parseMode]); return {}; },
   });
   assert.deepEqual(modes, [["create", "HTML"], ["edit", "HTML"], ["media", "HTML"]]);
+});
+
+// ---------------------------------------------------------------------------
+// The pinned index. Telegram's in-channel search shows a match with its
+// neighbours around it rather than as a list, so a shopper who does not know
+// the tags exist cannot narrow 600 posts down at all.
+// ---------------------------------------------------------------------------
+
+const { buildTelegramChannelIndex, telegramIndexFingerprint } =
+  await import("../server/services/telegramCatalogPublisherService.js");
+
+const INDEX_CARDS = [
+  { product_type: "sneakers", grade: "mirror_original", brand: "SKECHERS" },
+  { product_type: "sneakers", grade: "local", brand: "Nike" },
+  { product_type: "sneakers", grade: "local", brand: "Nike" },
+  { product_type: "slippers", grade: "imported_from_vietnam", brand: "new balance" },
+  { product_type: "crocs", grade: "local", brand: "crocs" },
+];
+
+test("the index lists every tag that exists in the channel, grouped", () => {
+  const body = buildTelegramChannelIndex({ cards: INDEX_CARDS, labels: SHOP_LABELS, scopedTags: ["gender"] });
+  assert.match(body, /#Sneakers/);
+  assert.match(body, /#سليبرز/);
+  assert.match(body, /#Crocs/);
+  assert.match(body, /#ميرور_اوريجينال/);
+  assert.match(body, /#محلي/);
+  assert.match(body, /#مستورد_فيتنامي/);
+  assert.match(body, /#SKECHERS/);
+  assert.match(body, /#new_balance/, "a brand with a space is one token");
+});
+
+test("the index offers nothing the channel does not contain", () => {
+  const body = buildTelegramChannelIndex({ cards: INDEX_CARDS, labels: SHOP_LABELS, scopedTags: ["gender"] });
+  assert.ok(!body.includes("#Bags"), "tapping a tag with no posts behind it looks broken");
+  assert.ok(!body.includes("#رجالي"), "the channel's own scope is not offered as a filter");
+});
+
+test("the commonest tag is listed first", () => {
+  const body = buildTelegramChannelIndex({ cards: INDEX_CARDS, labels: SHOP_LABELS, scopedTags: ["gender"] });
+  const brands = body.split("\n").find((line) => line.includes("#Nike"));
+  assert.ok(brands.indexOf("#Nike") < brands.indexOf("#SKECHERS"), "Nike has two cards, SKECHERS one");
+});
+
+test("an empty channel gets no menu rather than an empty one", () => {
+  assert.equal(buildTelegramChannelIndex({ cards: [], labels: SHOP_LABELS, scopedTags: ["gender"] }), "");
+});
+
+test("a brand name with markup in it cannot break the pinned message", () => {
+  const body = buildTelegramChannelIndex({
+    cards: [{ product_type: "sneakers", brand: "A&B <x>" }],
+    labels: SHOP_LABELS,
+    scopedTags: ["gender"],
+  });
+  assert.ok(!/<x>/.test(body));
+  assert.match(body, /&amp;/);
+});
+
+test("the index is only re-sent when it actually changes", async () => {
+  const jobs = [];
+  const run = (channel, cards) => syncTelegramChannel({
+    channel,
+    settings: SETTINGS,
+    tenantId: 1,
+    client: { query: async () => ({ rows: [] }) },
+    loadCards: async () => cards,
+    listPosts: async () => [],
+    savePost: async () => {},
+    enqueue: async (args) => { jobs.push(args); },
+    markSynced: async () => {},
+    loadLabels: async () => SHOP_LABELS,
+  });
+  const cards = [{ ...CARD, product_type: "sneakers", grade: "local", brand: "Nike" }];
+  await run(CHANNEL, cards);
+  const indexJob = jobs.find((j) => j.action === "index");
+  assert.ok(indexJob, "a channel with no index yet gets one");
+  assert.equal(indexJob.cardId, "__index__");
+
+  // Same catalogue, and the channel now remembers that exact menu.
+  jobs.length = 0;
+  await run({ ...CHANNEL, index_hash: indexJob.payload.fingerprint }, cards);
+  assert.ok(!jobs.some((j) => j.action === "index"), "an unchanged menu is not re-sent");
+
+  // A new brand appears: the menu has to change.
+  jobs.length = 0;
+  await run({ ...CHANNEL, index_hash: indexJob.payload.fingerprint }, [...cards, { ...CARD, card_id: "9:x", brand: "PUMA", product_type: "sneakers", grade: "local" }]);
+  assert.ok(jobs.some((j) => j.action === "index"));
+});
+
+test("the index is posted and pinned the first time, then only edited", async () => {
+  const payload = { body: "<b>menu</b>", fingerprint: "abc123" };
+  const sent = [];
+  const edited = [];
+  const pinned = [];
+  const first = await processTelegramCatalogJob({
+    job: { tenant_id: 1, channel_id: 3, card_id: "__index__", action: "index", payload },
+    channel: { ...CHANNEL, index_message_id: null },
+    client: stubClient(),
+    sendText: async (args) => { sent.push(args); return { message_id: "77" }; },
+    pinMessage: async (args) => { pinned.push(args); return { pinned: true }; },
+  });
+  assert.equal(sent.length, 1);
+  assert.equal(sent[0].parseMode, "HTML");
+  assert.equal(pinned[0].messageId, "77");
+  assert.equal(first.message_id, "77");
+
+  const second = await processTelegramCatalogJob({
+    job: { tenant_id: 1, channel_id: 3, card_id: "__index__", action: "index", payload },
+    channel: { ...CHANNEL, index_message_id: 77 },
+    client: stubClient(),
+    sendText: async () => { throw new Error("must not post a second menu"); },
+    editText: async (args) => { edited.push(args); return {}; },
+    pinMessage: async () => { throw new Error("must not re-pin"); },
+  });
+  assert.equal(edited.length, 1);
+  assert.equal(edited[0].messageId, "77");
+  assert.equal(second.message_id, "77");
+});
+
+test("a menu the owner deleted by hand is replaced, not retried for ever", async () => {
+  const sent = [];
+  const result = await processTelegramCatalogJob({
+    job: { tenant_id: 1, channel_id: 3, card_id: "__index__", action: "index", payload: { body: "menu", fingerprint: "f" } },
+    channel: { ...CHANNEL, index_message_id: 77 },
+    client: stubClient(),
+    editText: async () => { throw new Error("Bad Request: message to edit not found"); },
+    sendText: async (args) => { sent.push(args); return { message_id: "99" }; },
+    pinMessage: async () => ({ pinned: true }),
+  });
+  assert.equal(sent.length, 1);
+  assert.equal(result.message_id, "99");
+});
+
+test("a bot without the pin right still gets its menu posted", async () => {
+  const result = await processTelegramCatalogJob({
+    job: { tenant_id: 1, channel_id: 3, card_id: "__index__", action: "index", payload: { body: "menu", fingerprint: "f" } },
+    channel: { ...CHANNEL, index_message_id: null },
+    client: stubClient(),
+    sendText: async () => ({ message_id: "100" }),
+    pinMessage: async () => ({ pinned: false, reason: "not enough rights" }),
+  });
+  assert.equal(result.message_id, "100");
+  assert.equal(result.pinned, false);
+  assert.match(result.pin_error, /not enough rights/);
+});
+
+test("the index fingerprint changes with the body and not otherwise", () => {
+  assert.equal(telegramIndexFingerprint("a"), telegramIndexFingerprint("a"));
+  assert.notEqual(telegramIndexFingerprint("a"), telegramIndexFingerprint("b"));
 });

@@ -34,7 +34,11 @@ export const TELEGRAM_CATALOG_SETTING_KEYS = Object.freeze({
 });
 
 export const TELEGRAM_POST_STATES = Object.freeze(["pending", "live", "sold_out", "failed", "removed"]);
-export const TELEGRAM_JOB_ACTIONS = Object.freeze(["create", "update", "delete"]);
+// "index" is the channel's one pinned message - the menu of hashtags a shopper
+// filters by. It goes through the same paced queue as the posts, and carries the
+// reserved card id below because the queue is keyed on (channel, card, action).
+export const TELEGRAM_JOB_ACTIONS = Object.freeze(["create", "update", "delete", "index"]);
+export const TELEGRAM_INDEX_CARD_ID = "__index__";
 export const TELEGRAM_JOB_MAX_ATTEMPTS = Math.max(1, Math.min(20, Number(process.env.TELEGRAM_CATALOG_MAX_ATTEMPTS || 6)));
 
 export const telegramCatalogTenantId = () => telegramTenantId() || 1;
@@ -56,6 +60,8 @@ export const ensureTelegramCatalogSchema = async (client = db) => {
           sort_order INTEGER NOT NULL DEFAULT 0,
           last_synced_at TIMESTAMPTZ NULL,
           last_error TEXT NOT NULL DEFAULT '',
+          index_message_id BIGINT NULL,
+          index_hash TEXT NOT NULL DEFAULT '',
           created_at TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP,
           updated_at TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP,
           UNIQUE (tenant_id, channel_key)
@@ -86,6 +92,8 @@ export const ensureTelegramCatalogSchema = async (client = db) => {
       // Columns added after the table first shipped. Harmless on a fresh
       // install, and the only thing that repairs a database created by an
       // earlier build of this same feature.
+      await client.query(`ALTER TABLE telegram_channels ADD COLUMN IF NOT EXISTS index_message_id BIGINT NULL`);
+      await client.query(`ALTER TABLE telegram_channels ADD COLUMN IF NOT EXISTS index_hash TEXT NOT NULL DEFAULT ''`);
       await client.query(`ALTER TABLE telegram_catalog_posts ADD COLUMN IF NOT EXISTS deeplink_token TEXT NOT NULL DEFAULT ''`);
       await client.query(`ALTER TABLE telegram_catalog_posts ADD COLUMN IF NOT EXISTS facts JSONB NOT NULL DEFAULT '{}'::jsonb`);
       await client.query(`
@@ -451,6 +459,25 @@ export const failTelegramCatalogJob = async ({ id, error = "", retryAfterSeconds
   return rows[0] || null;
 };
 
+export const recordTelegramChannelIndex = async ({
+  tenantId = telegramCatalogTenantId(),
+  channelId,
+  messageId = null,
+  indexHash = "",
+  client = db,
+} = {}) => {
+  const { rows } = await client.query(
+    `UPDATE telegram_channels
+        SET index_message_id = COALESCE($3::bigint, index_message_id),
+            index_hash = $4,
+            updated_at = CURRENT_TIMESTAMP
+      WHERE tenant_id = $1 AND id = $2
+      RETURNING *`,
+    [tenantId, Number(channelId), messageId === null || messageId === "" ? null : Number(messageId), text(indexHash)]
+  );
+  return rows[0] || null;
+};
+
 export const telegramCatalogQueueDepth = async ({ tenantId = telegramCatalogTenantId(), client = db } = {}) => {
   await ensureTelegramCatalogSchema(client);
   const { rows } = await client.query(
@@ -477,6 +504,7 @@ export default {
   forgetTelegramCatalogPost,
   resolveTelegramCatalogPostByToken,
   enqueueTelegramCatalogJob,
+  recordTelegramChannelIndex,
   claimTelegramCatalogJobs,
   completeTelegramCatalogJob,
   failTelegramCatalogJob,

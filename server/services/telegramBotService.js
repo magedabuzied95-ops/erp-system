@@ -206,6 +206,44 @@ export const editTelegramMessagePhoto = async ({ chatId, messageId, photoUrl, ca
   return { message_id: text(result?.message_id) || safeMessageId, result };
 };
 
+
+// The pinned index is a TEXT message, not a photo caption, so it needs its own
+// edit call: editMessageCaption refuses a message that has no caption.
+export const editTelegramMessageText = async ({ chatId, messageId, messageText, replyMarkup = null, parseMode = "", disablePreview = true, token, fetchImpl } = {}) => {
+  const safeChatId = text(chatId);
+  const safeMessageId = text(messageId);
+  const safeMessage = text(messageText);
+  if (!safeChatId || !safeMessageId || !safeMessage) throw new TelegramApiError("Telegram text edit target is incomplete", { status: 400, code: "TELEGRAM_TEXT_EDIT_TARGET_REQUIRED" });
+  const result = await telegramApiRequest("editMessageText", {
+    chat_id: safeChatId,
+    message_id: Number(safeMessageId),
+    text: safeMessage,
+    ...(text(parseMode) ? { parse_mode: text(parseMode) } : {}),
+    ...(disablePreview ? { link_preview_options: { is_disabled: true } } : {}),
+    ...(replyMarkup ? { reply_markup: replyMarkup } : {}),
+  }, { token, fetchImpl });
+  return { message_id: text(result?.message_id) || safeMessageId, result };
+};
+
+// Pinning needs its own channel right, which the other three do not imply. A
+// refusal here must not lose the index message that was just posted, so the
+// caller treats it as a warning rather than a failure.
+export const pinTelegramMessage = async ({ chatId, messageId, token, fetchImpl } = {}) => {
+  const safeChatId = text(chatId);
+  const safeMessageId = text(messageId);
+  if (!safeChatId || !safeMessageId) return { pinned: false, reason: "incomplete_target" };
+  try {
+    await telegramApiRequest("pinChatMessage", {
+      chat_id: safeChatId,
+      message_id: Number(safeMessageId),
+      disable_notification: true,
+    }, { token, fetchImpl });
+    return { pinned: true };
+  } catch (error) {
+    return { pinned: false, reason: text(error?.message).slice(0, 200) };
+  }
+};
+
 export const deleteTelegramMessage = async ({ chatId, messageId, token, fetchImpl } = {}) => {
   const safeChatId = text(chatId);
   const safeMessageId = text(messageId);

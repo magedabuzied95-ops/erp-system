@@ -5,7 +5,10 @@ import {
   deleteTelegramMessage,
   editTelegramMessageCaption,
   editTelegramMessagePhoto,
+  editTelegramMessageText,
+  pinTelegramMessage,
   sendTelegramChannelPhoto,
+  sendTelegramChannelText,
   telegramBotToken,
 } from "./telegramBotService.js";
 import {
@@ -15,6 +18,7 @@ import {
   forgetTelegramCatalogPost,
   listTelegramChannels,
   loadTelegramCatalogSettings,
+  recordTelegramChannelIndex,
   recordTelegramPostResult,
   telegramCatalogTenantId,
 } from "./telegramCatalogService.js";
@@ -54,6 +58,9 @@ export const processTelegramCatalogJob = async ({
   editCaption = editTelegramMessageCaption,
   editPhoto = editTelegramMessagePhoto,
   deleteMessage = deleteTelegramMessage,
+  sendText = sendTelegramChannelText,
+  editText = editTelegramMessageText,
+  pinMessage = pinTelegramMessage,
 } = {}) => {
   const tenantId = Number(job.tenant_id) || telegramCatalogTenantId();
   const payload = job.payload && typeof job.payload === "object" ? job.payload : {};
@@ -74,6 +81,42 @@ export const processTelegramCatalogJob = async ({
     }
     await forgetTelegramCatalogPost({ tenantId, channelId: job.channel_id, cardId: job.card_id, client });
     return { action: "delete", card_id: job.card_id };
+  }
+
+  // The channel's one pinned message: the menu of hashtags. Written once and
+  // then edited, like every other message here, so the pin survives and the
+  // channel never collects a pile of stale menus.
+  if (job.action === "index") {
+    const body = text(payload.body);
+    if (!body) return { action: "index", skipped: "empty" };
+    const existing = channel.index_message_id ? String(channel.index_message_id) : "";
+    let messageId = existing;
+    if (existing) {
+      try {
+        await editText({ chatId, messageId: existing, messageText: body, parseMode: TELEGRAM_PARSE_MODE_HTML });
+      } catch (error) {
+        // The owner deleted it by hand. Post a fresh one rather than failing
+        // for ever against a message that is gone.
+        if (!text(error?.message).toLowerCase().includes("not found")) throw error;
+        messageId = "";
+      }
+    }
+    let pinned = null;
+    if (!messageId) {
+      const sent = await sendText({ chatId, messageText: body, parseMode: TELEGRAM_PARSE_MODE_HTML, disablePreview: true });
+      messageId = text(sent?.message_id);
+      // Pinning needs a right the other three do not imply, so a refusal is a
+      // warning: the menu is posted either way.
+      pinned = await pinMessage({ chatId, messageId });
+    }
+    await recordTelegramChannelIndex({
+      tenantId,
+      channelId: job.channel_id,
+      messageId: messageId || null,
+      indexHash: text(payload.fingerprint),
+      client,
+    });
+    return { action: "index", message_id: messageId, pinned: pinned?.pinned ?? null, pin_error: pinned?.reason || "" };
   }
 
   if (job.action === "create") {
