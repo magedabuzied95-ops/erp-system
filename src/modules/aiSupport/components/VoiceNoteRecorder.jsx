@@ -15,11 +15,16 @@ import { useCallback, useEffect, useRef, useState } from "react";
 import { useTranslation } from "react-i18next";
 import { Mic, Send, Square, Trash2 } from "lucide-react";
 
+import { normalizeVoiceNote } from "../utils/voiceNoteEncoding";
+
 const MIME_CANDIDATES = [
+  // mp4/aac first: it is the only container Safari and iOS can play back, and a
+  // note nobody in the shop can replay is a note that may as well not be stored.
+  // Chrome falls through to webm and the recording is re-encoded before upload.
+  "audio/mp4",
   "audio/webm;codecs=opus",
   "audio/webm",
   "audio/ogg;codecs=opus",
-  "audio/mp4",
 ];
 
 export const pickRecorderMimeType = (isSupported) => {
@@ -137,8 +142,10 @@ function VoiceNoteRecorder({
       if (!keep || !chunks.length) return;
       const blob = new Blob(chunks, { type });
       if (!blob.size) return;
-      const file = new File([blob], voiceNoteFileName(type), { type, lastModified: Date.now() });
-      onSend?.(file);
+      const recorded = new File([blob], voiceNoteFileName(type), { type, lastModified: Date.now() });
+      // Re-encoded only when the container cannot be played back on iOS. The
+      // promise is never rejected — the original is returned on any failure.
+      void normalizeVoiceNote(recorded).then((file) => onSend?.(file || recorded));
     };
     recorder.start();
     setRecording(true);

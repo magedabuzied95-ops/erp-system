@@ -7433,7 +7433,13 @@ router.post(
           chatId: recipientId,
           // Telegram fetches the file itself and has no idea whose "/uploads" this is.
           mediaUrl: absolutePublicUploadUrl(relativeUrl) || relativeUrl,
-          mediaType: attachmentKind === "video" ? "video" : attachmentKind === "audio" ? "voice" : "photo",
+          mediaType: attachmentKind === "video"
+            ? "video"
+            // sendVoice only renders a voice bubble for OGG/OPUS; everything else
+            // has to travel as audio or Telegram refuses it outright.
+            : attachmentKind === "audio"
+              ? (/ogg|opus/i.test(req.file.mimetype || "") ? "voice" : "audio")
+              : "photo",
           caption,
         }).catch((error) => ({
           sent: false,

@@ -113,7 +113,10 @@ export const sendTelegramText = async ({ chatId, messageText, token, fetchImpl }
 const telegramMediaMethod = (type = "") => {
   const normalized = text(type).toLowerCase();
   if (["photo", "image", "sticker"].includes(normalized)) return { method: "sendPhoto", field: "photo" };
-  if (["voice", "audio", "ptt"].includes(normalized)) return { method: "sendVoice", field: "voice" };
+  if (["voice", "ptt"].includes(normalized)) return { method: "sendVoice", field: "voice" };
+  // sendVoice is OGG/OPUS only. A Safari m4a or a re-encoded wav is still audio,
+  // so it goes through sendAudio rather than being refused by the API.
+  if (["audio", "music", "sound"].includes(normalized)) return { method: "sendAudio", field: "audio" };
   // Without this a clip fell through to sendDocument and arrived as a file the
   // customer had to download rather than a player they could tap.
   if (["video", "clip", "animation"].includes(normalized)) return { method: "sendVideo", field: "video" };
