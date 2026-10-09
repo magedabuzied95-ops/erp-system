@@ -62,11 +62,15 @@
   max-width: 1000px;
 }
 
-.ai-pwa-composer > div:not(.ai-pwa-quick-media-slot) {
-  background: color-mix(in srgb, var(--surface) 96%, transparent) !important;
+/* The reply bar is an OPAQUE surface. It used to be 96% surface over an 18px
+   backdrop blur, so on a phone it picked up the page behind it and read as a grey
+   slab instead of a clean bar — and the blur is work the GPU does on every scroll
+   for an effect nobody can see behind a near-opaque fill. The shadow is lighter
+   for the same reason: it was darkening the chat around the bar. */
+.ai-pwa-composer-bar {
+  background: var(--surface) !important;
   border-color: var(--border) !important;
-  box-shadow: 0 20px 55px color-mix(in srgb, var(--shadow) 90%, transparent) !important;
-  backdrop-filter: blur(18px);
+  box-shadow: 0 10px 30px color-mix(in srgb, var(--shadow) 55%, transparent) !important;
 }
 
 .ai-pwa-reply-editor:empty::before {
@@ -599,7 +603,7 @@ html[data-theme="dark"] .ai-pwa-product-sheet option {
     padding-inline: 18px !important;
   }
 
-  .ai-pwa-composer > div:not(.ai-pwa-quick-media-slot) {
+  .ai-pwa-composer-bar {
     padding: 12px !important;
   }
 }

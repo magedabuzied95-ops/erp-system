@@ -2138,7 +2138,12 @@ const PwaComposerBar = memo(function PwaComposerBar({
                 onClick={() => setAttachOpen(false)}
                 className="fixed inset-0 z-30 cursor-default bg-slate-900/10"
               />
-              <div className="absolute bottom-14 left-0 z-40 min-w-[11rem] overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-[0_18px_44px_rgba(15,23,42,0.2)]">
+              {/* The menu opens INWARD: start-0 pins it to the button's inline
+                  start, so in Arabic — where the + sits at the right edge of the
+                  composer — it grows leftwards instead of off the screen. With
+                  left-0 it was anchored to the physical left of the button and
+                  ran past the right edge of the phone. */}
+              <div className="absolute bottom-14 start-0 z-40 min-w-[11rem] overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-[0_18px_44px_rgba(15,23,42,0.2)]">
                 <button
                   type="button"
                   onClick={() => { setAttachOpen(false); onPickImage?.(); }}
@@ -2165,7 +2170,7 @@ const PwaComposerBar = memo(function PwaComposerBar({
           <button
             type="button"
             onClick={() => setAttachOpen((current) => !current)}
-            className={`inline-flex h-12 w-12 items-center justify-center rounded-2xl ring-1 transition ${attachOpen ? "bg-slate-900 text-white ring-slate-900" : "bg-slate-100 text-slate-600 ring-slate-200"}`}
+            className={`inline-flex h-12 w-12 items-center justify-center rounded-2xl ring-1 transition ${attachOpen ? "bg-slate-900 text-slate-50 ring-slate-900" : "bg-slate-100 text-slate-600 ring-slate-200"}`}
             aria-label={t("aiSupport.inbox.pwa.attachImage")}
             aria-expanded={attachOpen}
           >
@@ -8634,7 +8639,7 @@ export default function AiInboxPwa({ portal = null } = {}) {
               onPick={(item) => void forwardQuickMedia(item)}
               onClose={() => setForwardSheetOpen(false)}
             />
-            <div className="rounded-[24px] border border-slate-200 bg-white p-2.5 shadow-[0_18px_40px_rgba(15,23,42,0.14)]">
+            <div className="ai-pwa-composer-bar rounded-[24px] border border-slate-200 bg-white p-2.5 shadow-[0_18px_40px_rgba(15,23,42,0.14)]">
               {composerMode === "note" ? (
                 <div className="mb-2 flex items-center gap-2 text-xs font-medium text-amber-700">
                   <Sparkles className="h-3.5 w-3.5" />
