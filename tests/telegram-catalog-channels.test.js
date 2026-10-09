@@ -528,3 +528,20 @@ test("the webhook registers every update type the intake actually handles", () =
   // telegram_webhook_updates.
   assert.ok(!allowed.includes("channel_post"), "channel_post would echo our own catalogue back at us");
 });
+
+test("a colour the catalogue cannot price is skipped, not posted with an empty price line", async () => {
+  const { summary, jobs } = await runSync({ cards: [{ ...CARD, final_price: 0, selling_price: 0, price: 0 }] });
+  assert.equal(summary.skipped, 1);
+  assert.equal(summary.created, 0);
+  assert.deepEqual(jobs, [], "a bare 💰 earns a \"how much?\" message, not a sale");
+});
+
+test("a live post whose price goes missing keeps its caption instead of being marked sold out", async () => {
+  const { summary, jobs } = await runSync({
+    cards: [{ ...CARD, final_price: 0, selling_price: 0, price: 0 }],
+    posts: [liveRowFor(CARD)],
+  });
+  assert.equal(summary.sold_out, 0, "a missing price is a data fault, not a sold-out colour");
+  assert.equal(summary.skipped, 1);
+  assert.deepEqual(jobs, []);
+});

@@ -188,6 +188,16 @@ export const syncTelegramChannel = async ({
     if (seen.has(facts.card_id)) continue;
     seen.add(facts.card_id);
 
+    // A colour the catalogue cannot price is not posted: the caption would carry
+    // a bare "💰" with nothing after it, which reads as broken and earns a
+    // "بكام؟" message instead of a sale. It is already in `seen`, so an existing
+    // post keeps its last good caption rather than being rewritten as sold out
+    // over what is really a missing price.
+    if (!(Number(facts.price) > 0)) {
+      summary.skipped += 1;
+      continue;
+    }
+
     const imageUrl = telegramCardImageUrl(card);
     const payload = buildTelegramPostPayload({ facts, settings, imageUrl, soldOut: false });
     const row = existingByCard.get(facts.card_id);
