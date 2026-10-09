@@ -170,10 +170,14 @@ const rankGroup = (group, query, tokens) => {
  * Search the index. Filters narrow the result; an exact code is exempt from
  * them, because a code read off the box in the employee's hand names THE
  * product — hiding it behind a forgotten filter chip reads as "not found".
+ *
+ * `groups` is the capped page the list shows; `all` is every match in rank
+ * order. "Add every colour of this model" has to work off `all`, or it would
+ * silently add only the colours that happened to fit on the visible page.
  */
 export const searchCountIndex = (index, rawQuery, { filters = {}, size = "all", limit = 30 } = {}) => {
   const query = foldSearchText(rawQuery);
-  if (!query || !Array.isArray(index) || !index.length) return { groups: [], total: 0, exact: false };
+  if (!query || !Array.isArray(index) || !index.length) return { groups: [], all: [], total: 0, exact: false };
   const tokens = query.split(" ").filter(Boolean);
   const wanted = {
     brand: isAll(filters.brand) ? "" : foldSearchText(filters.brand),
@@ -193,7 +197,7 @@ export const searchCountIndex = (index, rawQuery, { filters = {}, size = "all", 
     if (!passesFilters(group, wanted)) continue;
     ranked.push({ group, rank });
   }
-  if (exact.length) return { groups: exact.slice(0, limit), total: exact.length, exact: true };
+  if (exact.length) return { groups: exact.slice(0, limit), all: exact, total: exact.length, exact: true };
 
   ranked.sort((a, b) =>
     (a.rank - b.rank) ||
@@ -201,7 +205,8 @@ export const searchCountIndex = (index, rawQuery, { filters = {}, size = "all", 
     a.group.product_name.localeCompare(b.group.product_name, "ar") ||
     a.group.color.localeCompare(b.group.color, "ar")
   );
-  return { groups: ranked.slice(0, limit).map((entry) => entry.group), total: ranked.length, exact: false };
+  const all = ranked.map((entry) => entry.group);
+  return { groups: all.slice(0, limit), all, total: all.length, exact: false };
 };
 
 /** The one group an exact code names — what a barcode scan resolves to. */

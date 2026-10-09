@@ -1219,7 +1219,10 @@ export default function EmployeePortalInventory() {
 
   // Bring a colour's card into view and flash it: the answer to "where did the
   // thing I just added go" on a sheet that can be fifty colours long.
-  const revealGroup = useCallback((variantLike) => {
+  // `scroll: false` flashes the card without jumping to it — for an add made
+  // from a search list that stays open, where scrolling the sheet would carry
+  // the results out from under the employee's thumb mid-model.
+  const revealGroup = useCallback((variantLike, { scroll = true } = {}) => {
     const variantId = String(variantLike?.product_variant_id ?? variantLike?.variant_id ?? variantLike?.variantIds?.[0] ?? variantLike?.id ?? "");
     if (!variantId || typeof window === "undefined") return;
     // A timer, not requestAnimationFrame: rAF never fires while the tab is in the
@@ -1227,7 +1230,7 @@ export default function EmployeePortalInventory() {
     window.setTimeout(() => {
       const node = document.querySelector(`[data-count-variant~="v${variantId}"]`);
       if (!node) return;
-      node.scrollIntoView({ behavior: "smooth", block: "center" });
+      if (scroll) node.scrollIntoView({ behavior: "smooth", block: "center" });
       const key = node.getAttribute("data-count-group") || "";
       setFlashGroupKey(key);
       window.setTimeout(() => setFlashGroupKey((current) => (current === key ? "" : current)), 1600);
@@ -1243,7 +1246,7 @@ export default function EmployeePortalInventory() {
    * has only listed the colour, and the product history must not claim they
    * counted a size they have not touched.
    */
-  const addColorGroup = useCallback(async (group) => {
+  const addColorGroup = useCallback(async (group, { scroll = true } = {}) => {
     if (!group?.variants?.length || !session?.id || !isEditable) return;
     const startedAt = typeof performance !== "undefined" ? performance.now() : Date.now();
     let completeGroup = group;
@@ -1312,7 +1315,7 @@ export default function EmployeePortalInventory() {
       counted: false,
     }), current));
     logDevDuration("add color group", startedAt, { groupKey: group.key, variantCount: completeGroup.variants.length, added: added.length });
-    revealGroup(added[0]);
+    revealGroup(added[0], { scroll });
   }, [isEditable, online, revealGroup, session?.id, token]);
 
   const serverGroupsFor = useCallback(async (query, limit) => {

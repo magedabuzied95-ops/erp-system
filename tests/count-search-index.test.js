@@ -133,3 +133,38 @@ test("a session link opened cold loads its session", () => {
   assert.match(page, /const \[selectedSessionId, setSelectedSessionId\] = useState\(""\);/);
   assert.doesNotMatch(page, /useState\(routeSessionId \|\| ""\)/);
 });
+
+test("every match is reachable even when the visible list is capped", () => {
+  const manyColours = idx.getCountSearchIndex({ variants: [0, 1, 2, 3, 4].map((n) => row({
+    product_id: 7, product_variant_id: 700 + n, product_name: "Nike Air Force 1", color: `C${n}`,
+    sku: `AF-${n}`, barcode: `70${n}`, article_code: `AF-${n}`, qr_token: "", product_code: "", product_sku: "",
+  })) });
+  const result = idx.searchCountIndex(manyColours, "air force", { limit: 2 });
+  assert.equal(result.groups.length, 2, "the list stays capped");
+  assert.equal(result.all.length, 5, "`all` holds the model's whole colour run — what 'add all colours' adds");
+  assert.equal(result.total, 5);
+  // An exact code answers with one colour, and `all` must agree with it.
+  const exact = idx.searchCountIndex(manyColours, "703", { limit: 2 });
+  assert.equal(exact.exact, true);
+  assert.deepEqual(exact.all.map((group) => group.color), ["C3"]);
+  assert.deepEqual(idx.searchCountIndex(manyColours, "").all, []);
+});
+
+test("adding a colour leaves the result list open; only a commit empties the box", () => {
+  // The employee counts a model colour by colour: the list closing itself after
+  // each add was the bug — they had to retype the model every time.
+  assert.match(search, /const pick = useCallback\(async \(group, state, commit = false\)/);
+  assert.match(search, /\{ scroll: commit \}\);\s*if \(commit\) setQuery\(""\);/, "the box empties only on a commit");
+  assert.match(search, /closeResults/, "closing the list is the employee's own button");
+  // …and the sheet must not scroll out from under the open list.
+  assert.match(page, /const revealGroup = useCallback\(\(variantLike, \{ scroll = true \} = \{\}\)/);
+  assert.match(page, /if \(scroll\) node\.scrollIntoView/);
+  assert.match(page, /revealGroup\(added\[0\], \{ scroll \}\)/);
+});
+
+test("one tap adds a model's whole colour run, including colours below the cap", () => {
+  assert.match(search, /const allMatches = local\.groups\.length \? local\.all : groups;/);
+  assert.match(search, /for \(const group of model\.groups\)/, "add-all walks the model's full run");
+  assert.match(search, /addAllColors/);
+  assert.doesNotMatch(search, /for \(const group of model\.rows\)[\s\S]{0,200}onAdd/, "rows are the capped page, not the run");
+});

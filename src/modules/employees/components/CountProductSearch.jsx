@@ -1,5 +1,5 @@
 import { memo, useCallback, useDeferredValue, useEffect, useMemo, useRef, useState } from "react";
-import { Camera, Check, Filter, Loader2, Package2, Plus, Search, X } from "lucide-react";
+import { Camera, Check, Filter, Layers, Loader2, Package2, Plus, Search, X } from "lucide-react";
 
 import i18n from "../../../i18n/i18n";
 import { resolveProductImageUrl } from "../../../shared/lib/imageUrls";
@@ -11,6 +11,7 @@ const tt = (key, options) => i18n.t(key, options);
 const RESULT_LIMIT = 30;
 const SERVER_FALLBACK_DELAY_MS = 450;
 const SERVER_FALLBACK_TIMEOUT_MS = 8000;
+const EMPTY_GROUPS = [];
 
 function ResultThumb({ src }) {
   const [failed, setFailed] = useState(false);
@@ -171,7 +172,13 @@ function CountProductSearch({
     };
   }, [needsServer, sessionId, token, trimmed]);
 
-  const groups = local.groups.length ? local.groups : remote.query === trimmed ? remote.groups : [];
+  // Memoised so the banding below is not rebuilt on every unrelated render:
+  // the empty branch would hand it a brand-new array each time.
+  const groups = useMemo(
+    () => (local.groups.length ? local.groups : remote.query === trimmed ? remote.groups : EMPTY_GROUPS),
+    [local.groups, remote.groups, remote.query, trimmed]
+  );
+  const allMatches = local.groups.length ? local.all : groups;
   const total = local.groups.length ? local.total : groups.length;
   const searching = needsServer && (remote.loading || remote.query !== trimmed);
 
@@ -183,7 +190,21 @@ function CountProductSearch({
     return present >= group.variantIds.length ? "added" : "partial";
   }, [sheetVariantIds]);
 
-  const pick = useCallback(async (group, state) => {
+  const closePanel = useCallback(() => {
+    setQuery("");
+    inputRef.current?.blur();
+  }, []);
+
+  /**
+   * Add a colour, or jump to one already on the sheet.
+   *
+   * A tap keeps the query: one model is several colours, and the employee is
+   * counting the ones in front of them — the list has to stay up, with the
+   * added colours flipped to "on the sheet", until THEY close it. Only a commit
+   * (Enter on an exact code) empties the box, because the next scan types over
+   * it and the sheet is where the employee is then looking.
+   */
+  const pick = useCallback(async (group, state, commit = false) => {
     if (state === "added") {
       onJump?.(group);
       setQuery("");
@@ -191,25 +212,65 @@ function CountProductSearch({
     }
     setBusyKey(group.key);
     try {
-      await onAdd?.({ ...group, complete: group.complete !== false });
-      // Ready for the next product: the box empties and keeps the keyboard.
-      setQuery("");
+      // Keeping the list open means NOT scrolling the sheet away under it: the
+      // new colour only flashes, and the results stay under the thumb.
+      await onAdd?.({ ...group, complete: group.complete !== false }, { scroll: commit });
+      if (commit) setQuery("");
       inputRef.current?.focus();
     } finally {
       setBusyKey("");
     }
   }, [onAdd, onJump]);
 
+  /**
+   * Add every colour of one model in a single tap.
+   *
+   * The run is taken from `allMatches`, not from the visible rows: the list is
+   * capped at 30, and "all the colours" that quietly skipped the ones below the
+   * cap would be a hole in the count nobody notices until the sheet is short.
+   * Colours already on the sheet are left alone — the screen's add is idempotent
+   * per variant, so a second pass costs nothing and adds nothing twice.
+   */
+  const addModel = useCallback(async (model) => {
+    setBusyKey(`model:${model.key}`);
+    try {
+      for (const group of model.groups) {
+        await onAdd?.({ ...group, complete: group.complete !== false }, { scroll: false });
+      }
+      inputRef.current?.focus();
+    } finally {
+      setBusyKey("");
+    }
+  }, [onAdd]);
+
+  // The results are a flat colour list, but the employee counts a MODEL: the
+  // rows are banded per product so one header can take its whole colour run.
+  const models = useMemo(() => {
+    const byModel = new Map();
+    const bucket = (group) => {
+      const key = String(group.product_id ?? group.product_name ?? group.key);
+      let model = byModel.get(key);
+      if (!model) {
+        model = { key, name: group.product_name, groups: [], rows: [] };
+        byModel.set(key, model);
+      }
+      return model;
+    };
+    for (const group of allMatches) bucket(group).groups.push(group);
+    for (const group of groups) bucket(group).rows.push(group);
+    return [...byModel.values()].filter((model) => model.rows.length);
+  }, [allMatches, groups]);
+
   const onKeyDown = (event) => {
     if (event.key === "Escape") {
-      setQuery("");
+      closePanel();
       return;
     }
     if (event.key !== "Enter") return;
     event.preventDefault();
     // Enter commits only an unambiguous answer: a scanned/typed exact code, or
     // the single product left on the list.
-    if (groups.length === 1 || (local.exact && groups.length)) void pick(groups[0], stateOf(groups[0]));
+    if (groups.length === 1 || (local.exact && groups.length)) void pick(groups[0], stateOf(groups[0]), true);
   };
 
   const showPanel = Boolean(trimmed);
@@ -284,22 +345,69 @@ function CountProductSearch({
                   ? tt("employeePortal.stockCount.resultsCapped", { shown: groups.length, total })
                   : tt("employeePortal.stockCount.resultsCount", { count: total })}
             </span>
-            {searching ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : null}
+            <span className="flex shrink-0 items-center gap-2">
+              {searching ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : null}
+              {/* The list no longer closes itself after an add, so closing it is
+                  a button the employee can see, not only the box's clear icon. */}
+              <button
+                type="button"
+                onClick={closePanel}
+                className="inline-flex items-center gap-1 rounded-full border border-slate-200 bg-white px-2 py-1 text-[11px] font-black text-slate-600"
+              >
+                <X className="h-3 w-3" />
+                {tt("employeePortal.stockCount.closeResults")}
+              </button>
+            </span>
           </div>
           {groups.length ? (
             // Its own scroller with a height cap: results never push the count
             // sheet around while the employee types.
             <ul className="max-h-[min(46vh,22rem)] divide-y divide-slate-100 overflow-y-auto overscroll-contain" style={{ WebkitOverflowScrolling: "touch" }}>
-              {groups.map((group) => (
-                <ResultRow
-                  key={group.key}
-                  group={group}
-                  query={deferredQuery}
-                  state={stateOf(group)}
-                  busy={busyKey === group.key}
-                  onPick={pick}
-                />
-              ))}
+              {models.map((model) => {
+                const pending = model.groups.filter((entry) => stateOf(entry) !== "added");
+                return (
+                  <li key={model.key}>
+                    {/* A model with one colour needs no band: the row IS the model. */}
+                    {model.groups.length > 1 ? (
+                      <div className="sticky top-0 z-10 flex items-center justify-between gap-2 border-b border-slate-100 bg-slate-50/95 px-2.5 py-1.5 backdrop-blur">
+                        <span dir="auto" className="min-w-0 flex-1 truncate text-start text-[11px] font-black text-slate-500">
+                          {model.name} · {tt("employeePortal.stockCount.colorCount", { count: model.groups.length })}
+                        </span>
+                        {pending.length ? (
+                          <button
+                            type="button"
+                            onClick={() => addModel({ ...model, groups: pending })}
+                            disabled={busyKey === `model:${model.key}`}
+                            className="inline-flex shrink-0 items-center gap-1 rounded-full border border-primary/30 bg-primary/10 px-2.5 py-1 text-[11px] font-black text-primary disabled:opacity-60"
+                          >
+                            {busyKey === `model:${model.key}`
+                              ? <Loader2 className="h-3 w-3 animate-spin" />
+                              : <Layers className="h-3 w-3" />}
+                            {tt("employeePortal.stockCount.addAllColors", { count: pending.length })}
+                          </button>
+                        ) : (
+                          <span className="inline-flex shrink-0 items-center gap-1 rounded-full border border-emerald-200 bg-emerald-50 px-2 py-1 text-[11px] font-black text-emerald-700">
+                            <Check className="h-3 w-3" />
+                            {tt("employeePortal.stockCount.allColorsOnSheet")}
+                          </span>
+                        )}
+                      </div>
+                    ) : null}
+                    <ul className="divide-y divide-slate-100">
+                      {model.rows.map((group) => (
+                        <ResultRow
+                          key={group.key}
+                          group={group}
+                          query={deferredQuery}
+                          state={stateOf(group)}
+                          busy={busyKey === group.key || busyKey === `model:${model.key}`}
+                          onPick={pick}
+                        />
+                      ))}
+                    </ul>
+                  </li>
+                );
+              })}
             </ul>
           ) : !searching ? (
             <div className="px-3 py-4 text-center">
