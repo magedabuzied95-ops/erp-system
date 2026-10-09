@@ -23,6 +23,7 @@ import {
   WarningCollector,
   applyCogsCoveragePolicy,
   buildDelta,
+  densifyParams,
   safeRatio,
   toFiniteNumber,
   toMoney,
@@ -577,13 +578,23 @@ export const getExecutiveOverview = async ({ filters, permissions = {}, client =
   const paymentMixSql = buildPaymentMixQuery({ scope, orderColumns });
 
   const timings = {};
-  // Postgres rejects a bind that supplies more parameters than the statement's highest
-  // $N. The three queries share one binder but reference different subsets (the category
-  // query never touches the comparison window), so each gets exactly the prefix it uses.
+  /*
+   * The four queries share one binder but reference different subsets of it: the
+   * category and payment-mix queries never touch the comparison window.
+   *
+   * This used to pass the parameter list cut down to the highest index the statement
+   * mentioned, which is only correct when the referenced indexes form an unbroken
+   * prefix. With ANY order filter bound (branch,
+   * channel, payment method, shift, salesperson) the filter lands after the comparison
+   * window, so the slice carried $4 and $5 into a statement that never mentions them and
+   * Postgres refused the whole request: "could not determine data type of parameter $5".
+   * Every filtered overview that also had a comparison period — the default — was a 500.
+   * densifyParams renumbers instead of slicing, so the hole cannot exist.
+   */
   const timed = async (name, sql) => {
-    const highest = Math.max(0, ...[...sql.matchAll(/\$(\d+)/g)].map((match) => Number(match[1])));
+    const bound = densifyParams(sql, params);
     const startedAt = Date.now();
-    const result = await client.query(sql, params.slice(0, highest));
+    const result = await client.query(bound.sql, bound.params);
     timings[name] = Date.now() - startedAt;
     return result;
   };

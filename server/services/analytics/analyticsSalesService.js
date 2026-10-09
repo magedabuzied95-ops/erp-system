@@ -23,6 +23,7 @@ import {
   WarningCollector,
   applyCogsCoveragePolicy,
   buildDelta,
+  densifyParams,
   safeRatio,
   toMoney,
 } from "./analyticsComparison.js";
@@ -522,23 +523,11 @@ const loadColumns = async (client) => {
 const num = (value) => (value === null || value === undefined ? null : Number(value));
 
 /**
- * Bind only the parameters a statement actually uses, renumbered densely.
- *
- * These queries share one parameter list but reference different subsets — the trend
- * query uses the tenant, the current window and the product filter, but not the
- * comparison window. Slicing to the highest index leaves a hole, and Postgres rejects a
- * statement containing a parameter it can neither reference nor type
- * ("could not determine data type of parameter $5"). Renumbering closes the hole.
+ * Re-exported, not redefined. R2 hit the identical Postgres failure and the fix living
+ * only here is why: the helper now sits in analyticsComparison.js and both screens bind
+ * their parameters through the same code.
  */
-export const densifyParams = (sql, params) => {
-  const used = [...new Set([...sql.matchAll(/\$(\d+)/g)].map((match) => Number(match[1])))].sort((a, b) => a - b);
-  if (!used.length) return { sql, params: [] };
-  const remap = new Map(used.map((index, position) => [index, position + 1]));
-  return {
-    sql: sql.replace(/\$(\d+)/g, (_match, index) => "$" + remap.get(Number(index))),
-    params: used.map((index) => params[index - 1]),
-  };
-};
+export { densifyParams };
 
 const runTimed = async (client, sql, params, timings, name) => {
   const bound = densifyParams(sql, params);

@@ -3,6 +3,7 @@
 // Skips when no database is reachable.
 import test from "node:test";
 import assert from "node:assert/strict";
+import { readFile } from "node:fs/promises";
 
 const reachable = async () => {
   try {
@@ -213,4 +214,35 @@ test("live: the unreversed-cost warning tracks orphan exchanges, not every excha
   } finally {
     await pool.end().catch(() => {});
   }
+});
+
+/*
+ * R2 bound its four queries by slicing the shared parameter list to the highest index
+ * each statement referenced. That is only correct while the referenced indexes form an
+ * unbroken prefix. Any order filter binds AFTER the comparison window, so the category
+ * and payment-mix queries — which never mention the comparison — were handed $4 and $5
+ * and Postgres refused the request outright: "could not determine data type of
+ * parameter $5". Every filtered overview with a comparison period, which is the UI's
+ * default, was a 500. This is the regression test for that, and it needs a database:
+ * the failure is in the bind, so no amount of pure-function testing can see it.
+ */
+test("live: a filtered overview with a comparison period still answers", async (t) => {
+  if (!(await reachable())) return t.skip("no database reachable");
+  const { parseAnalyticsFilters, getExecutiveOverview } = await load();
+
+  for (const filter of [{ branchId: 5 }, { channel: "pos" }, { paymentMethod: "cash" }, { channel: "pos", paymentMethod: "cash" }]) {
+    const filters = parseAnalyticsFilters({
+      query: { ...WIDE, ...filter, compare: "previous_period" },
+      user: { tenant_id: 1 },
+    });
+    const payload = await getExecutiveOverview({ filters, permissions: FULL });
+    assert.equal(typeof payload.data.kpis.netSales.current, "number", `${JSON.stringify(filter)} must return a figure`);
+    assert.ok(payload.data.paymentMix, `${JSON.stringify(filter)} must return a payment mix`);
+  }
+});
+
+test("the parameter binder renumbers rather than slicing", async () => {
+  const source = await readFile(new URL("../../server/services/analytics/analyticsOverviewService.js", import.meta.url), "utf8");
+  assert.match(source, /densifyParams\(sql, params\)/, "the shared binder is the one used");
+  assert.ok(!/params\.slice\(0, highest\)/.test(source), "slicing leaves the hole this bug was made of");
 });

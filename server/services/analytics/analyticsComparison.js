@@ -177,3 +177,27 @@ export const buildEnvelope = ({ data, filters, collector, contractVersion = "1.1
   },
   warnings: collector ? collector.list() : [],
 });
+
+/**
+ * Bind only the parameters a statement actually uses, renumbered densely.
+ *
+ * Several v2 screens build their queries from ONE shared parameter list and then run
+ * statements that reference different subsets of it — the category and payment-mix
+ * queries use the tenant, the current window and the order filters, but never the
+ * comparison window. Passing the list sliced to the highest referenced index leaves a
+ * hole, and Postgres rejects a statement carrying a parameter it can neither reference
+ * nor type: "could not determine data type of parameter $5". Renumbering closes it.
+ *
+ * Lives here rather than in one service because R2 and R3 both need it, and the copy
+ * that only existed in R3 is exactly why the Executive Overview returned a 500 for every
+ * filtered request that also had a comparison period.
+ */
+export const densifyParams = (sql, params) => {
+  const used = [...new Set([...sql.matchAll(/\$(\d+)/g)].map((match) => Number(match[1])))].sort((a, b) => a - b);
+  if (!used.length) return { sql, params: [] };
+  const remap = new Map(used.map((index, position) => [index, position + 1]));
+  return {
+    sql: sql.replace(/\$(\d+)/g, (_match, index) => "$" + remap.get(Number(index))),
+    params: used.map((index) => params[index - 1]),
+  };
+};
