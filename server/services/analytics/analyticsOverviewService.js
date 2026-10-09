@@ -24,8 +24,10 @@ import {
   applyCogsCoveragePolicy,
   buildDelta,
   safeRatio,
+  toFiniteNumber,
   toMoney,
 } from "./analyticsComparison.js";
+import { normalizePaymentMethodKey, paymentMethodSettlement } from "../../../shared/paymentMethods.js";
 import {
   CONTRACT_VERSION,
   buildCostContext,
@@ -316,6 +318,81 @@ const buildCategoryQuery = ({ scope, costContext, includeCost, itemColumns }) =>
   `;
 };
 
+/* ---------------------------------------------------------- query 4: payment mix */
+
+/**
+ * The period's invoices split across the payment methods that actually paid them.
+ *
+ * `orders.payment_method` is NOT the source. A sale paid half in cash and half on a card
+ * stores the single word `mixed` there, so grouping by that column puts the whole invoice
+ * under one method on every normal sale and hides the split ones behind a label that is
+ * not a payment method at all. The authoritative record is `orders.payment_breakdown` —
+ * one `{ method, amount }` allocation per real payment — which is also what the till
+ * reconciles against (see shared/paymentMethods.js and managerPortalPaymentDistribution).
+ *
+ * So allocations are the primary source and the stored column is a fallback used ONLY for
+ * an invoice that carries no allocation array at all (pre-split-canonicalisation rows).
+ *
+ * Normalisation (`visa` -> `card`, `insta_pay` -> `instapay`) deliberately does NOT
+ * happen in SQL. Spelling it out here as well as in shared/paymentMethods.js would be two
+ * copies of one rule, and the day they drift the report quietly splits one method into
+ * two rows. SQL groups by the raw stored string — a bounded set — and the JS layer merges.
+ *
+ * An amount that is not a usable number becomes NULL rather than 0, so it can be COUNTed
+ * and reported instead of silently shrinking a method's total (D-01).
+ */
+const buildPaymentMixQuery = ({ scope, orderColumns }) => {
+  const revenue = nanSafe(orderRevenueExpr(orderColumns));
+  // jsonb_array_elements throws on a non-array, and the column held objects and nulls
+  // before the 2026-08-13 canonicalisation migration, so the type is checked first.
+  const allocations = orderColumns.has("payment_breakdown")
+    ? "(CASE WHEN jsonb_typeof(o.payment_breakdown) = 'array' THEN o.payment_breakdown ELSE '[]'::jsonb END)"
+    : "'[]'::jsonb";
+  const storedMethod = orderColumns.has("payment_method") ? "LOWER(TRIM(COALESCE(o.payment_method, '')))" : "''";
+  const rawAmount = "(alloc->>'amount')";
+  // A jsonb number casts cleanly; a stringified number is tolerated because the POS has
+  // written both. Anything else is NULL, which is counted rather than treated as zero.
+  const allocationAmount = `CASE
+        WHEN jsonb_typeof(alloc->'amount') = 'number' THEN ${rawAmount}::numeric
+        WHEN jsonb_typeof(alloc->'amount') = 'string' AND ${rawAmount} ~ '^[+-]?[0-9]+(\\.[0-9]+)?$' THEN ${rawAmount}::numeric
+        ELSE NULL
+      END`;
+
+  return `
+    WITH scoped AS (
+      SELECT
+        o.id                       AS order_id,
+        ${storedMethod}            AS stored_method,
+        ${allocations}             AS allocations,
+        ${revenue}                 AS revenue
+      FROM orders o
+      ${scope.orderWhere}
+        AND o.created_at >= ${scope.currentFrom}::date AND o.created_at < (${scope.currentTo}::date + INTERVAL '1 day')
+    ),
+    allocated AS (
+      SELECT
+        s.order_id,
+        LOWER(TRIM(COALESCE(alloc->>'method', alloc->>'payment_method', ''))) AS method,
+        ${allocationAmount} AS amount
+      FROM scoped s
+      CROSS JOIN LATERAL jsonb_array_elements(s.allocations) AS alloc
+      UNION ALL
+      SELECT s.order_id, s.stored_method, s.revenue
+      FROM scoped s
+      WHERE jsonb_array_length(s.allocations) = 0
+    )
+    SELECT
+      method,
+      COALESCE(SUM(amount), 0)                        AS amount,
+      COUNT(DISTINCT order_id)::int                   AS orders,
+      COUNT(*) FILTER (WHERE amount IS NULL)::int     AS unusable
+    FROM allocated
+    WHERE amount IS NULL OR amount <> 0
+    GROUP BY method
+    ORDER BY amount DESC
+  `;
+};
+
 /* -------------------------------------------------------------------- highlights */
 
 const HIGHLIGHT_THRESHOLDS = Object.freeze({
@@ -497,6 +574,7 @@ export const getExecutiveOverview = async ({ filters, permissions = {}, client =
     variantColumns, productColumns, orderColumns, itemColumns, costContext,
   });
   const categorySql = buildCategoryQuery({ scope, costContext, includeCost, itemColumns });
+  const paymentMixSql = buildPaymentMixQuery({ scope, orderColumns });
 
   const timings = {};
   // Postgres rejects a bind that supplies more parameters than the statement's highest
@@ -510,26 +588,114 @@ export const getExecutiveOverview = async ({ filters, permissions = {}, client =
     return result;
   };
 
-  // Three round trips. A failure here propagates as a 500 - never a zero.
-  const [ordersResult, contextResult, categoryResult] = await Promise.all([
+  // Four round trips. A failure here propagates as a 500 - never a zero.
+  const [ordersResult, contextResult, categoryResult, paymentMixResult] = await Promise.all([
     timed("orders", ordersSql),
     timed("context", contextSql),
     timed("categories", categorySql),
+    timed("paymentMix", paymentMixSql),
   ]);
 
   return assembleOverview({
     ordersRow: ordersResult.rows[0] || {},
     contextRow: contextResult.rows[0] || {},
     categoryRows: categoryResult.rows || [],
+    paymentMixRows: paymentMixResult.rows || [],
     filters, granularity, includeCost, includeProfit, collector, timings,
   });
 };
 
 /**
- * Pure assembly of the three result sets into the response contract.
+ * Payment mix: one row per real payment method, plus the three settlement totals.
+ *
+ * Merging happens HERE, over the raw strings SQL grouped by, using the one normaliser the
+ * POS, the till and the manager portal already share. `visa` and `card` are the same
+ * method and must land on one row; two rows would look like two payment rails.
+ *
+ * `mixed` and an empty method are NOT silently folded into anything. They mean the
+ * invoice never recorded which method paid it, so they get their own settlement class and
+ * a warning carrying the amount — a report that spread them across the real methods would
+ * be inventing the answer the manager asked for.
+ *
+ * The totals are PAID amounts on the period's invoices, which is not net sales: deposits
+ * pay part of an invoice, returns are deducted from sales but not from what was collected,
+ * and a deferred invoice reads as paid while nothing moved. netSales rides along so the UI
+ * can state the gap instead of letting a manager assume the two must match.
+ *
+ * Exported for tests: the whole contract is a pure function over SQL rows.
+ */
+export const assemblePaymentMix = ({ rows = [], netSales = null, collector = new WarningCollector() } = {}) => {
+  const merged = new Map();
+  let unusableRows = 0;
+
+  for (const row of rows) {
+    unusableRows += Number(row?.unusable || 0);
+    const key = normalizePaymentMethodKey(row?.method) || "unknown";
+    const amount = toFiniteNumber(row?.amount);
+    if (amount === null) {
+      // The SUM itself is unreadable: count it rather than contributing a zero that
+      // would understate the method with nothing on screen to say so.
+      unusableRows += 1;
+      continue;
+    }
+    const existing = merged.get(key) || { method: key, amount: 0, orders: 0 };
+    existing.amount += amount;
+    existing.orders += Number(row?.orders || 0);
+    merged.set(key, existing);
+  }
+
+  const settlementOf = (method) =>
+    method === "unknown" || method === "mixed" ? "unattributed" : paymentMethodSettlement(method);
+
+  const totals = { collected: 0, pending: 0, credit: 0, unattributed: 0, all: 0 };
+  for (const row of merged.values()) {
+    totals[settlementOf(row.method)] += row.amount;
+    totals.all += row.amount;
+  }
+
+  const result = {
+    rows: Array.from(merged.values())
+      .map((row) => ({
+        method: row.method,
+        settlement: settlementOf(row.method),
+        amount: toMoney(row.amount),
+        orders: row.orders,
+        share: safeRatio(row.amount, totals.all),
+      }))
+      .sort((a, b) => (b.amount ?? 0) - (a.amount ?? 0)),
+    totals: {
+      collected: toMoney(totals.collected),
+      pending: toMoney(totals.pending),
+      credit: toMoney(totals.credit),
+      unattributed: toMoney(totals.unattributed),
+      all: toMoney(totals.all),
+    },
+    netSales,
+  };
+
+  if (unusableRows > 0) {
+    collector.add(
+      WARNING_CODES.NAN_VALUES_IGNORED,
+      "Some payment allocations do not carry a usable amount, so the payment mix understates those methods.",
+      { rows: unusableRows, metric: "paymentMix.amount" }
+    );
+  }
+  if (totals.unattributed > 0) {
+    collector.add(
+      WARNING_CODES.PAYMENT_MIX_UNATTRIBUTED,
+      "Some invoices record no payment method, so their value cannot be attributed to one.",
+      { amount: toMoney(totals.unattributed), share: safeRatio(totals.unattributed, totals.all) }
+    );
+  }
+
+  return result;
+};
+
+/**
+ * Pure assembly of the four result sets into the response contract.
  * Exported so tests can drive it without a database.
  */
-export const assembleOverview = ({ ordersRow, contextRow, categoryRows, filters, granularity, includeCost, includeProfit, collector = new WarningCollector(), timings = {} }) => {
+export const assembleOverview = ({ ordersRow, contextRow, categoryRows, paymentMixRows = [], filters, granularity, includeCost, includeProfit, collector = new WarningCollector(), timings = {} }) => {
   const totals = ordersRow.totals || {};
   const itemTotals = ordersRow.item_totals || {};
   const trendRows = Array.isArray(ordersRow.trend) ? ordersRow.trend : [];
@@ -734,6 +900,10 @@ export const assembleOverview = ({ ordersRow, contextRow, categoryRows, filters,
     });
   }
 
+  /* ------------------------------------------------------------ payment mix */
+
+  const paymentMix = assemblePaymentMix({ rows: paymentMixRows, netSales, collector });
+
   const highlights = buildHighlights({ kpis, cogsCoverage });
 
   return {
@@ -743,6 +913,7 @@ export const assembleOverview = ({ ordersRow, contextRow, categoryRows, filters,
       kpis,
       trend,
       categories,
+      paymentMix,
       highlights,
     },
     meta: {

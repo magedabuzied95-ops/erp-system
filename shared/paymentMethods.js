@@ -4,6 +4,32 @@
 // collected or it inflates the shift's expected cash.
 const NON_COLLECTED_METHODS = new Set(["credit_sale", "exchange_credit", "return_credit", "employee_advance"]);
 
+/**
+ * When the money behind a payment method actually reaches us.
+ *
+ *   collected — real money arrived at the till or the account at sale time
+ *   pending   — the sale is real but the cash is with somebody else (the courier)
+ *   credit    — nothing moved: it is owed, advanced against a salary, or paid out of a
+ *               balance the customer already had, which is a liability being consumed
+ *
+ * Reporting MUST keep these apart. Adding a cash-on-delivery invoice to the cash total
+ * reports money we have not touched, and a report that does it is worse than no report:
+ * it reconciles against nothing and looks authoritative while doing it.
+ */
+// `shipping_confirmation` is a storefront method, not a rail: the customer transfers the
+// shipping or confirmation fee and the REST of the invoice is collected by the courier,
+// so the invoice's value is overwhelmingly still on its way. `pending` is a payment
+// method only in the sense that nothing has been paid yet.
+const PENDING_METHODS = new Set(["cod", "cash_on_delivery", "shipping_confirmation", "pending", "unpaid", "awaiting_payment"]);
+const CREDIT_METHODS = new Set([...NON_COLLECTED_METHODS, "customer_wallet", "personal"]);
+
+export const paymentMethodSettlement = (method = "") => {
+  const key = normalizePaymentMethodKey(method);
+  if (CREDIT_METHODS.has(key)) return "credit";
+  if (PENDING_METHODS.has(key)) return "pending";
+  return "collected";
+};
+
 export const normalizePaymentMethodKey = (value = "") => {
   const key = String(value || "").trim().toLowerCase().replace(/[\s-]+/g, "_");
   if (key === "visa") return "card";
@@ -67,6 +93,18 @@ const AR_LABELS = {
   employee_advance: "سلفة موظف",
   cod: "الدفع عند الاستلام",
   cash_on_delivery: "الدفع عند الاستلام",
+  bank_transfer: "تحويل بنكي",
+  exchange_credit: "رصيد استبدال",
+  return_credit: "رصيد مرتجع",
+  personal: "شخصي",
+  mixed: "طرق متعددة",
+  unknown: "غير محدد",
+  shipping_confirmation: "تحويل رسوم التأكيد",
+  transfer: "تحويل",
+  electronic: "دفع إلكتروني",
+  online: "دفع أونلاين",
+  paymob: "Paymob",
+  pending: "لم يُدفع بعد",
 };
 const EN_LABELS = {
   cash: "Cash",
@@ -81,6 +119,31 @@ const EN_LABELS = {
   employee_advance: "Employee advance",
   cod: "Cash on delivery",
   cash_on_delivery: "Cash on delivery",
+  bank_transfer: "Bank transfer",
+  exchange_credit: "Exchange credit",
+  return_credit: "Return credit",
+  personal: "Personal",
+  mixed: "Multiple methods",
+  unknown: "Unspecified",
+  shipping_confirmation: "Confirmation fee transfer",
+  transfer: "Transfer",
+  electronic: "Electronic payment",
+  online: "Online payment",
+  paymob: "Paymob",
+  pending: "Not paid yet",
+};
+
+/**
+ * Display name for one payment method key.
+ *
+ * An unmapped key falls through as written rather than disappearing, so a method added
+ * at the POS shows its raw name in a report instead of silently merging into another row.
+ */
+export const paymentMethodLabel = (method = "", language = "ar") => {
+  const isArabic = String(language || "").toLowerCase().startsWith("ar");
+  const key = normalizePaymentMethodKey(method);
+  const labels = isArabic ? AR_LABELS : EN_LABELS;
+  return labels[key] || key || (isArabic ? "غير محدد" : "Unspecified");
 };
 
 export const formatOrderPaymentMethods = (order = {}, language = "ar") => {

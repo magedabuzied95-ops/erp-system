@@ -35,14 +35,14 @@ const load = async () => {
 const FULL = { view: true, cost: true, profit: true };
 const WIDE = { from: "2026-01-01", to: "2026-12-31" };
 
-test("live: overview runs in exactly three queries and returns a coherent payload", async (t) => {
+test("live: overview runs in exactly four queries and returns a coherent payload", async (t) => {
   if (!(await reachable())) return t.skip("no database reachable");
   const { parseAnalyticsFilters, getExecutiveOverview } = await load();
 
   const filters = parseAnalyticsFilters({ query: WIDE, user: { tenant_id: 1 } });
   const payload = await getExecutiveOverview({ filters, permissions: FULL });
 
-  assert.deepEqual(Object.keys(payload.meta.timings).sort(), ["categories", "context", "orders"]);
+  assert.deepEqual(Object.keys(payload.meta.timings).sort(), ["categories", "context", "orders", "paymentMix"]);
   assert.equal(typeof payload.data.kpis.netSales.current, "number");
   assert.ok(Number.isFinite(payload.data.kpis.netSales.current), "net sales must be finite - NaN must never survive");
   assert.ok(Array.isArray(payload.data.trend));

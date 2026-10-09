@@ -182,6 +182,28 @@ Denominator is deliberately **not** `CANON_ORDER` — a cancelled order can neve
 ### Return Rate (units)
 `SUM(oi.returned_quantity) / SUM(oi.quantity)` under `CANON_ORDER`. `null` when denominator is 0.
 
+### 3.1 Payment mix — what paid for the period
+
+**Source of truth: `orders.payment_breakdown`**, the jsonb array of `{ method, amount }` allocations the till
+reconciles against. `orders.payment_method` is a FALLBACK used only for an invoice whose allocation array is empty,
+because a split sale stores the single word `mixed` in that column — grouping by it buckets every split sale under a
+label that is not a payment method.
+
+Method strings are normalised in JS by `normalizePaymentMethodKey` (`shared/paymentMethods.js`), never in SQL, so
+`visa`/`card` cannot drift into two rows. Each row carries a **settlement class**, and the three are never summed into
+one headline:
+
+| Class | Meaning | Methods |
+|---|---|---|
+| `collected` | money reached the till or the account | `cash`, `card`, `instapay`, `vodafone_cash`, `wallet`, `bank_transfer`, gateway rails |
+| `pending` | the sale is real, the money is not with us yet | `cod`, `shipping_confirmation`, `pending` |
+| `credit` | nothing moved: owed, advanced, or drawn from an existing balance | `credit_sale`, `employee_advance`, `exchange_credit`, `return_credit`, `customer_wallet`, `personal` |
+| `unattributed` | the invoice records no method; reported, never spread across the real ones | `mixed`, empty |
+
+The mix totals **PAID amounts on the period's invoices**, which is deliberately not Net Sales: returns are deducted
+from sales but not from what was collected, and a deposit pays part of an invoice. The payload carries `netSales`
+beside the totals so the screen states the gap rather than implying the two must match.
+
 ---
 
 ## 4. Profitability metrics
@@ -393,6 +415,7 @@ Legacy overstates by 800; v2 overstates by 200 and discloses exactly why.
 | `RETURNS_FALLBACK_USED` | Order-status fallback used instead of `return_items` | — |
 | `RANGE_TOO_LARGE` | Requested range exceeds 400 days | `days` |
 | `COMPARISON_BASE_ZERO` | Comparison denominator is 0; Δ% is `null` | `metric` |
+| `PAYMENT_MIX_UNATTRIBUTED` | Invoices whose value cannot be attributed to a payment method (§3.1) | `amount`, `share` |
 
 ---
 

@@ -253,7 +253,8 @@
     "SELLER_ATTRIBUTION_PARTIAL": "Not every order carries a seller. The per-person figures cover only the ones that do, and the remainder is shown as its own row.",
     "SELLER_UNATTRIBUTED_ORDERS": "Some orders carry no seller. They are shown as their own row and are never shared out across the named sellers.",
     "ACCOUNTING_COMPARISON_UNAVAILABLE": "The accounting profit and loss could not be read, so the deliberate differences could not be measured. The Reporting Center's own consistency checks are unaffected.",
-    "RECONCILIATION_FAILED": "Two screens that answer the same question returned different numbers. Every figure derived from the failing check is suspect until it is resolved."
+    "RECONCILIATION_FAILED": "Two screens that answer the same question returned different numbers. Every figure derived from the failing check is suspect until it is resolved.",
+    "PAYMENT_MIX_UNATTRIBUTED": "Some invoices record no payment method, so their value ({{amount}}) cannot be attributed to one."
   },
   "states": {
     "loading": "Loading data...",
@@ -339,5 +340,26 @@
     "imported": "Imported {{count}} saved views.",
     "importedWithDrops": "Imported {{count}} saved views. These filters could not be carried over because they filter on columns nothing writes: {{keys}}.",
     "importFailed": "The saved views could not be imported."
+  },
+  "paymentMix": {
+    "title": "Sales by payment method",
+    "empty": "No payments recorded in the selected period.",
+    "orders": "Invoices",
+    "share": "Share",
+    "total": "Total paid",
+    "settlementColumn": "Settlement",
+    "settlement": {
+      "collected": "Collected",
+      "pending": "On its way (on delivery)",
+      "credit": "Deferred or from an existing balance",
+      "unattributed": "Not attributed to a method"
+    },
+    "chip": {
+      "pending": "On delivery",
+      "credit": "Deferred",
+      "unattributed": "Unattributed"
+    },
+    "footnote": "These are the amounts paid on the period's invoices before returns, so they need not match net sales.",
+    "footnoteWithNet": "These are the amounts paid on the period's invoices before returns; net sales is {{netSales}} — the gap is expected from returns and part payments."
   }
 }

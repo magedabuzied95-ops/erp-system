@@ -10,6 +10,8 @@ import KpiTile from "../components/KpiTile";
 import CoverageBadge from "../components/CoverageBadge";
 import OverviewTrendChart from "../components/OverviewTrendChart";
 import CategoryContribution from "../components/CategoryContribution";
+import PaymentMix from "../components/PaymentMix";
+import { paymentMethodLabel } from "../../../../shared/paymentMethods";
 import ManagementHighlights from "../components/ManagementHighlights";
 import ReportExportMenu from "../components/ReportExportMenu";
 import { Card, PeriodFootnote, ReportsHeader, ReportsPage, Subtle } from "../components/ReportsLayout";
@@ -155,9 +157,16 @@ export default function ExecutiveOverview() {
             </div>
 
             <div className="grid items-start gap-4 xl:grid-cols-[minmax(0,1.85fr)_minmax(0,1fr)] 2xl:gap-5">
-              <Card title={t("overview.categories.title")}>
-                <CategoryContribution categories={data.categories} showProfit={showProfit} />
-              </Card>
+              <div className="grid min-w-0 items-start gap-4 lg:grid-cols-2 2xl:gap-5">
+                <Card title={t("overview.categories.title")}>
+                  <CategoryContribution categories={data.categories} showProfit={showProfit} />
+                </Card>
+
+                {/* What paid for all of it — one row per method, for the selected period. */}
+                <Card title={t("overview.paymentMix.title")}>
+                  <PaymentMix paymentMix={data.paymentMix} />
+                </Card>
+              </div>
 
               {/* Level 3 — health indicators, compact rows rather than four cards. */}
               <Subtle title={t("overview.groups.health")}>
@@ -213,6 +222,28 @@ const buildOverviewSheets = ({ t, language, data, showProfit }) => {
         { key: "share", label: t("overview.kpi.discountRate"), align: "end", kind: "percent" },
       ],
       rows: data.categories,
+    });
+  }
+
+  // Every method on its own row, with the settlement class spelled out: the file is what
+  // somebody reconciles the till against, so "collected" must not read as "all of it".
+  if (data?.paymentMix?.rows?.length) {
+    sheets.push({
+      name: t("overview.paymentMix.title"),
+      columns: [
+        { key: "method", label: t("overview.filters.paymentMethod"), kind: "text" },
+        { key: "settlement", label: t("overview.paymentMix.settlementColumn"), kind: "text" },
+        { key: "amount", label: t("overview.paymentMix.total"), align: "end" },
+        { key: "share", label: t("overview.paymentMix.share"), align: "end", kind: "percent" },
+        { key: "orders", label: t("overview.paymentMix.orders"), align: "end" },
+      ],
+      rows: data.paymentMix.rows.map((row) => ({
+        method: paymentMethodLabel(row.method, language),
+        settlement: t(`overview.paymentMix.settlement.${row.settlement}`),
+        amount: row.amount,
+        share: row.share,
+        orders: row.orders,
+      })),
     });
   }
 
