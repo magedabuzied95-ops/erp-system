@@ -135,6 +135,24 @@ export const telegramPostCaption = ({ facts = {}, settings = {}, soldOut = false
   });
 };
 
+// Telegram puts the FIRST post at the top of a channel and drops a visitor at
+// the BOTTOM, so the last thing posted is the first thing anyone sees. The
+// catalogue is read newest-first, and posting it in that order buries the new
+// arrivals at the top and greets every visitor with the oldest stock.
+//
+// So the backfill runs oldest-first, ordered by the product's own date rather
+// than by reversing the listing array -- the listing also pushes offers to the
+// end, and reversing would strand every offer at the very top where nobody
+// lands. A card with no date sorts to the front; ties keep catalogue order,
+// because Array.prototype.sort is stable.
+const telegramCardDate = (card = {}) => {
+  const parsed = Date.parse(card?.created_at || "");
+  return Number.isFinite(parsed) ? parsed : 0;
+};
+
+export const orderCardsOldestFirst = (cards = []) =>
+  [...(Array.isArray(cards) ? cards : [])].sort((a, b) => telegramCardDate(a) - telegramCardDate(b));
+
 export const telegramCardImageUrl = (card = {}) =>
   resolvePublicProductImageUrl(
     card.image_url || card.product_image_url || (Array.isArray(card.gallery_images) ? card.gallery_images[0] : "")
@@ -175,7 +193,9 @@ export const syncTelegramChannel = async ({
   }
   await ensureTelegramCatalogSchema(client);
 
-  const cards = await loadCards({ tenantId, audience: channel.audience || "" });
+  // Oldest first: see orderCardsOldestFirst -- the last post is the first thing
+  // a visitor sees, so the newest model has to be the last one in.
+  const cards = orderCardsOldestFirst(await loadCards({ tenantId, audience: channel.audience || "" }));
   const existing = await listPosts({ tenantId, channelId: channel.id, client });
   const existingByCard = new Map(existing.map((row) => [text(row.card_id), row]));
   const seen = new Set();

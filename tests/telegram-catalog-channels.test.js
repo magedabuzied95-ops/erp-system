@@ -545,3 +545,39 @@ test("a live post whose price goes missing keeps its caption instead of being ma
   assert.equal(summary.skipped, 1);
   assert.deepEqual(jobs, []);
 });
+
+// ---------------------------------------------------------------------------
+// Posting order. Telegram drops a visitor at the BOTTOM of a channel, so the
+// last post is the first thing seen.
+// ---------------------------------------------------------------------------
+
+const { orderCardsOldestFirst } = await import("../server/services/telegramCatalogPublisherService.js");
+
+test("the backfill runs oldest first, so the newest model is the last one posted", () => {
+  const ordered = orderCardsOldestFirst([
+    { card_id: "c:new", created_at: "2026-10-01T00:00:00Z" },
+    { card_id: "a:old", created_at: "2024-01-01T00:00:00Z" },
+    { card_id: "b:mid", created_at: "2025-06-01T00:00:00Z" },
+  ]);
+  assert.deepEqual(ordered.map((c) => c.card_id), ["a:old", "b:mid", "c:new"]);
+});
+
+test("a card with no date sorts to the front, and ties keep catalogue order", () => {
+  const ordered = orderCardsOldestFirst([
+    { card_id: "tie:1", created_at: "2025-01-01T00:00:00Z" },
+    { card_id: "undated" },
+    { card_id: "tie:2", created_at: "2025-01-01T00:00:00Z" },
+  ]);
+  assert.deepEqual(ordered.map((c) => c.card_id), ["undated", "tie:1", "tie:2"]);
+});
+
+test("the sync queues the creates oldest first", async () => {
+  const { jobs } = await runSync({
+    cards: [
+      { ...CARD, card_id: "9:new", created_at: "2026-10-01T00:00:00Z" },
+      { ...CARD, card_id: "7:old", created_at: "2024-01-01T00:00:00Z" },
+      { ...CARD, card_id: "8:mid", created_at: "2025-06-01T00:00:00Z" },
+    ],
+  });
+  assert.deepEqual(jobs.map((j) => j.cardId), ["7:old", "8:mid", "9:new"]);
+});
