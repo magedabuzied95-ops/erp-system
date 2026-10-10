@@ -1285,3 +1285,59 @@ test("every action the schedulers queue is allowed", () => {
     assert.ok(TELEGRAM_JOB_ACTIONS.includes(action), `"${action}" is queued but not allowed`);
   }
 });
+
+// ---------------------------------------------------------------------------
+// Getting from one channel to the next. Telegram has no notion of related
+// channels, so the only way across is a link -- on the pinned menu, which is
+// the first thing anyone sees, rather than a row on every single post.
+// ---------------------------------------------------------------------------
+
+const SIBLINGS = [
+  { audience: "men", channel_key: "men", title: "M1 Store ( Men )", invite_url: "https://t.me/m1store_men" },
+  { audience: "women", channel_key: "women", title: "M1 store ( Women )", invite_url: "https://t.me/m1store_women" },
+  { audience: "kids", channel_key: "kids", title: "M1 store ( Kids )", invite_url: "https://t.me/m1store_kids" },
+];
+
+test("the menu carries a button to each of the shop's OTHER channels", () => {
+  const rows = telegramIndexKeyboard({ audience: "men", siblings: SIBLINGS }).inline_keyboard;
+  const buttons = rows[rows.length - 1];
+  assert.deepEqual(buttons.map((b) => b.url), ["https://t.me/m1store_women", "https://t.me/m1store_kids"]);
+  assert.ok(buttons.every((b) => b.text.length <= 20), "a button label has to fit on a phone");
+});
+
+test("a channel never links to itself", () => {
+  for (const audience of ["men", "women", "kids"]) {
+    const flat = telegramIndexKeyboard({ audience, siblings: SIBLINGS }).inline_keyboard.flat();
+    const self = SIBLINGS.find((c) => c.audience === audience);
+    assert.ok(!flat.some((b) => b.url === self.invite_url), `${audience} links to itself`);
+  }
+});
+
+test("a channel with no public link is not offered as a button that goes nowhere", () => {
+  const rows = telegramIndexKeyboard({
+    audience: "men",
+    siblings: [...SIBLINGS.slice(0, 2), { audience: "kids", channel_key: "kids", invite_url: "" }],
+  }).inline_keyboard.flat();
+  assert.equal(rows.filter((b) => b.url.includes("t.me")).length, 1, "only the women's channel can be opened");
+});
+
+test("only a real Telegram link becomes a button", () => {
+  const rows = telegramIndexKeyboard({
+    audience: "men",
+    siblings: [{ audience: "women", invite_url: "javascript:alert(1)" }, { audience: "kids", invite_url: "http://t.me/x" }],
+  }).inline_keyboard.flat();
+  assert.ok(rows.every((b) => !b.url.startsWith("javascript:")));
+  assert.ok(rows.every((b) => !b.url.startsWith("http://")));
+});
+
+test("the only channel in the shop gets a menu without a dead sibling row", () => {
+  const rows = telegramIndexKeyboard({ audience: "men", siblings: [SIBLINGS[0]] }).inline_keyboard;
+  assert.equal(rows.length, 1, "just the filter button");
+});
+
+test("adding a channel changes the menu, so the others re-send theirs", () => {
+  const body = buildTelegramChannelIndex({ cards: INDEX_CARDS, labels: SHOP_LABELS, scopedTags: ["gender"] });
+  const two = telegramIndexFingerprint(body, telegramIndexKeyboard({ audience: "men", siblings: SIBLINGS.slice(0, 2) }));
+  const three = telegramIndexFingerprint(body, telegramIndexKeyboard({ audience: "men", siblings: SIBLINGS }));
+  assert.notEqual(two, three);
+});

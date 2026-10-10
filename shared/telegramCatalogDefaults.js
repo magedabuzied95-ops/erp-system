@@ -33,6 +33,10 @@ export const TELEGRAM_CATALOG_DEFAULTS = Object.freeze({
   // inside the chat rather than as a list, so a shopper who does not know the
   // tags exist has no way to narrow 600 posts down.
   index_title: "🔎 دوّر على اللي يعجبك",
+  // Telegram has no notion of related channels, so the only way from the men's
+  // channel to the women's is a link. The pinned menu is where it belongs: the
+  // first thing anyone sees, and one message rather than a row on every post.
+  sibling_buttons: { men: "👞 رجالي", women: "👠 حريمي", kids: "🧸 أطفالي" },
   index_filter_button: "🎛 فلترة متقدمة (أكتر من فلتر مع بعض)",
   index_filter_hint: "عايز تجمع أكتر من فلتر؟ هاشتاج تليجرام بيفلتر حاجة واحدة بس — اضغط الزرار تحت.",
   index_hint: "دوس على أي هاشتاج تحت عشان تشوف كل اللي فيه، أو اكتب اسم الموديل في بحث القناة.",

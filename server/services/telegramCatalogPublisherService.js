@@ -325,13 +325,26 @@ export const buildTelegramChannelDescription = ({ channel = {}, shopName = "", b
   return tidyTelegramText(body).slice(0, 255);
 };
 
-export const telegramIndexKeyboard = ({ audience = "", baseUrl = storefrontBaseUrl() } = {}) => {
+export const telegramIndexKeyboard = ({ audience = "", siblings = [], baseUrl = storefrontBaseUrl() } = {}) => {
   if (!baseUrl) return null;
   const params = new URLSearchParams({ utm_source: "telegram", utm_medium: "channel_index" });
   if (text(audience)) params.set("gender", text(audience));
   const url = `${baseUrl}/products?${params.toString()}`;
   if (!/^https:\/\//i.test(url)) return null;
-  return { inline_keyboard: [[{ text: TELEGRAM_CATALOG_DEFAULTS.index_filter_button, url }]] };
+  const rows = [[{ text: TELEGRAM_CATALOG_DEFAULTS.index_filter_button, url }]];
+
+  // The shop's other channels. Only ones a shopper can actually open: a channel
+  // with no public link would be a button that goes nowhere.
+  const labels = TELEGRAM_CATALOG_DEFAULTS.sibling_buttons;
+  const siblingRow = (Array.isArray(siblings) ? siblings : [])
+    .filter((channel) => text(channel?.audience) !== text(audience))
+    .filter((channel) => /^https:\/\/t\.me\//i.test(text(channel?.invite_url)))
+    .map((channel) => ({
+      text: labels[text(channel.audience).toLowerCase()] || tidyTelegramText(channel.title) || text(channel.channel_key),
+      url: text(channel.invite_url),
+    }));
+  if (siblingRow.length) rows.push(siblingRow);
+  return { inline_keyboard: rows };
 };
 
 export const telegramIndexFingerprint = (body = "", replyMarkup = null) =>
@@ -427,6 +440,7 @@ export const syncTelegramChannel = async ({
   enqueue = enqueueTelegramCatalogJob,
   markSynced = markTelegramChannelSynced,
   loadLabels = loadTelegramClassificationLabels,
+  listSiblings = listTelegramChannels,
 } = {}) => {
   const summary = { channel_id: channel?.id || null, created: 0, updated: 0, sold_out: 0, unchanged: 0, skipped: 0 };
   if (!channel?.id || !text(channel.chat_id)) {
@@ -536,7 +550,7 @@ export const syncTelegramChannel = async ({
 
   // Queued last, so the menu goes out after the posts it points at.
   const indexBody = buildTelegramChannelIndex({ cards, labels, scopedTags });
-  const indexMarkup = telegramIndexKeyboard({ audience: channel.audience });
+  const indexMarkup = telegramIndexKeyboard({ audience: channel.audience, siblings: await listSiblings({ tenantId, client }) });
   const description = buildTelegramChannelDescription({ channel, shopName: await shopDisplayName() });
   const indexHash = telegramIndexFingerprint(indexBody, indexMarkup);
   if (indexBody && indexHash !== text(channel.index_hash)) {
