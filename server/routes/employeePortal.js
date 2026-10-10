@@ -1040,7 +1040,10 @@ router.post("/:token/inventory/sessions/:sessionId/open", async (req, res) => {
     const session = await openInventoryCountSession(db, {
       tenantId: scoped.employee.tenant_id ?? null,
       sessionId: scoped.session.id,
-      openedBy: scoped.employee.id || null,
+      // NOT openedBy: that column references users(id), and this is an
+      // employee id — a different person there, or a rejected write.
+      openedBy: null,
+      openedByEmployeeId: scoped.employee.id || null,
     });
     return res.json({ success: true, session });
   } catch (error) {
@@ -1101,7 +1104,8 @@ router.put("/:token/inventory/sessions/:sessionId/items", async (req, res) => {
       systemQuantity: req.body?.systemQuantity ?? req.body?.system_quantity,
       reason: req.body?.reason || "",
       notes: req.body?.notes || "",
-      userId: scoped.employee.id || null,
+      userId: null,
+      employeeId: scoped.employee.id || null,
     });
     return res.json({ success: true, session: result.session, item: result.item });
   } catch (error) {
@@ -1119,7 +1123,12 @@ router.put("/:token/inventory/sessions/:sessionId/items/bulk", async (req, res) 
     const result = await bulkUpsertInventoryCountItems(db, {
       tenantId: scoped.employee.tenant_id ?? null,
       sessionId: scoped.session.id,
-      userId: scoped.employee.id || null,
+      // The counter is an EMPLOYEE. Putting that id in a users column named a
+      // different person where the two id spaces overlap — and on a database
+      // that still enforces the foreign key it failed the whole batch, so an
+      // employee could count all day and save nothing at all.
+      userId: null,
+      employeeId: scoped.employee.id || null,
       items: Array.isArray(req.body?.items) ? req.body.items : [],
     });
     return res.json({
@@ -1205,7 +1214,8 @@ router.post("/:token/inventory/sessions/:sessionId/submit", async (req, res) => 
     const result = await submitInventoryCountSession(db, {
       tenantId: scoped.employee.tenant_id ?? null,
       sessionId: scoped.session.id,
-      submittedBy: scoped.employee.id || null,
+      submittedBy: null,
+      submittedByEmployeeId: scoped.employee.id || null,
       user: { id: scoped.employee.id || null, role: scoped.employee.role || scoped.employee.role_name || "" },
     });
     return res.json({ success: true, session: result.session, submitted: result.submitted === true });
@@ -1222,7 +1232,8 @@ router.post("/:token/inventory/sessions/:sessionId/reopen", async (req, res) => 
     const result = await reopenInventoryCountSession(db, {
       tenantId: scoped.employee.tenant_id ?? null,
       sessionId: scoped.session.id,
-      reopenedBy: scoped.employee.id || null,
+      reopenedBy: null,
+      reopenedByEmployeeId: scoped.employee.id || null,
       user: { id: scoped.employee.id || null, role: scoped.employee.role || scoped.employee.role_name || "" },
     });
     return res.json({ success: true, session: result.session, reopened: result.reopened === true });

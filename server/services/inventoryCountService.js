@@ -526,6 +526,13 @@ const ensureInventoryCountItemsCompatibility = async (client) => {
   // is answerable without guessing which id space a number belongs to.
   await ensureColumn(client, "inventory_count_sessions", "created_by_employee_id BIGINT NULL");
   await ensureColumn(client, "inventory_count_sessions", "opened_by BIGINT NULL");
+  // Same story as created_by_employee_id: opened_by and submitted_by reference
+  // users(id), and the portal acts as an EMPLOYEE. Writing an employee id into
+  // them named a different person where the id spaces overlap — and where the
+  // foreign key is still enforced it failed the write outright, which is how an
+  // employee could add a whole count and save nothing at all.
+  await ensureColumn(client, "inventory_count_sessions", "opened_by_employee_id BIGINT NULL");
+  await ensureColumn(client, "inventory_count_sessions", "submitted_by_employee_id BIGINT NULL");
   await ensureColumn(client, "inventory_count_sessions", "completed_by BIGINT NULL");
   await ensureColumn(client, "inventory_count_sessions", "cancelled_by BIGINT NULL");
   await ensureColumn(client, "inventory_count_sessions", "submitted_by BIGINT NULL");
@@ -578,6 +585,8 @@ const ensureInventoryCountItemsCompatibility = async (client) => {
   // created/submitted it; these two carry the counter down to the size row so
   // the product history can answer "who counted this, and on what date".
   await ensureColumn(client, "inventory_count_items", "counted_by BIGINT NULL");
+  // Who actually counted the size, when the counting was done from a phone.
+  await ensureColumn(client, "inventory_count_items", "counted_by_employee_id BIGINT NULL");
   await ensureColumn(client, "inventory_count_items", "counted_at TIMESTAMPTZ NULL");
   await ensureColumn(client, "inventory_count_items", "created_at TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP");
   await ensureColumn(client, "inventory_count_items", "updated_at TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP");
@@ -810,6 +819,7 @@ const fetchSessionItems = async (clientOrPool, { tenantId, sessionId, lock = fal
       v.barcode AS variant_barcode,
       v.article_code AS variant_article_code,
       COALESCE(NULLIF(cb.name, ''), cb.email) AS counted_by_name,
+      cbe.full_name AS counted_by_employee_name,
       ${imageSelects.variantImageExpr} AS variant_image_url,
       ${imageSelects.colorImageExpr} AS color_image_url,
       ${imageSelects.imageUrlExpr} AS image_url,
@@ -821,6 +831,7 @@ const fetchSessionItems = async (clientOrPool, { tenantId, sessionId, lock = fal
     LEFT JOIN product_variants v ON v.id = COALESCE(i.product_variant_id, i.variant_id)
     LEFT JOIN products p ON p.id = COALESCE(i.product_id, v.product_id)
     LEFT JOIN users cb ON cb.id = i.counted_by
+    LEFT JOIN employees cbe ON cbe.id = i.counted_by_employee_id
     WHERE (i.inventory_count_session_id = $1 OR i.inventory_count_id = $1)
       ${tenantClause}
     ORDER BY i.created_at ASC, i.id ASC
@@ -1124,11 +1135,12 @@ export const openInventoryCountSession = async (clientOrPool, data = {}) => {
     SET status = 'in_progress',
         opened_at = COALESCE(opened_at, NOW()),
         opened_by = COALESCE(opened_by, $2),
+        opened_by_employee_id = COALESCE(opened_by_employee_id, $3::bigint),
         updated_at = NOW()
     WHERE id = $1
     RETURNING *
     `,
-    [sessionId, data.openedBy ?? data.opened_by ?? null]
+    [sessionId, data.openedBy ?? data.opened_by ?? null, data.openedByEmployeeId ?? data.opened_by_employee_id ?? null]
   );
   return applyRowAliases(result.rows[0]);
   });
@@ -1161,12 +1173,13 @@ export const submitInventoryCountSession = async (clientOrPool, data = {}) => {
     UPDATE inventory_count_sessions
     SET status = 'pending_review',
         submitted_by = COALESCE(submitted_by, $2),
+        submitted_by_employee_id = COALESCE(submitted_by_employee_id, $3::bigint),
         submitted_at = COALESCE(submitted_at, NOW()),
         updated_at = NOW()
     WHERE id = $1
     RETURNING *
     `,
-    [sessionId, submittedBy]
+    [sessionId, submittedBy, normalizeNullableId(data.submittedByEmployeeId ?? data.submitted_by_employee_id)]
   );
 
   const submittedSession = applyRowAliases(result.rows[0]);
@@ -1821,6 +1834,11 @@ const writeInventoryCountItemRow = async (dbClient, { sessionId, variantId, vari
   const countedBy = isCount
     ? normalizeNullableId(data.userId ?? data.user_id ?? data.countedBy ?? data.counted_by) ?? null
     : null;
+  // counted_by points at users(id); a count taken on a phone was taken by an
+  // employee, who is a different person under that number.
+  const countedByEmployeeId = isCount
+    ? normalizeNullableId(data.employeeId ?? data.employee_id ?? data.countedByEmployeeId ?? data.counted_by_employee_id) ?? null
+    : null;
   // ISO strings carry their own offset, so the cast must be timestamptz —
   // a plain ::timestamp would land the count three hours off in Cairo.
   const countedAt = isCount ? normalizeCountedAt(data.countedAt ?? data.counted_at) || new Date().toISOString() : null;
@@ -1843,6 +1861,7 @@ const writeInventoryCountItemRow = async (dbClient, { sessionId, variantId, vari
           reason = $9,
           notes = $10,
           counted_by = COALESCE($12::bigint, counted_by),
+          counted_by_employee_id = COALESCE($14::bigint, counted_by_employee_id),
           counted_at = COALESCE($13::timestamptz, counted_at),
           updated_at = NOW()
       WHERE id = $11
@@ -1862,6 +1881,7 @@ const writeInventoryCountItemRow = async (dbClient, { sessionId, variantId, vari
         existing.id,
         countedBy,
         countedAt,
+        countedByEmployeeId,
       ]
     );
     return result.rows[0];
@@ -1884,11 +1904,12 @@ const writeInventoryCountItemRow = async (dbClient, { sessionId, variantId, vari
       reason,
       notes,
       counted_by,
+      counted_by_employee_id,
       counted_at,
       created_at,
       updated_at
     )
-    VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$6,$7,$8,$9,$10,$11::bigint,$12::timestamptz,NOW(),NOW())
+    VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$6,$7,$8,$9,$10,$11::bigint,$13::bigint,$12::timestamptz,NOW(),NOW())
     RETURNING *
     `,
     [
@@ -1904,6 +1925,7 @@ const writeInventoryCountItemRow = async (dbClient, { sessionId, variantId, vari
       notes,
       countedBy,
       countedAt,
+      countedByEmployeeId,
     ]
   );
   return result.rows[0];
@@ -1984,10 +2006,11 @@ export const upsertInventoryCountItem = async (clientOrPool, data = {}) => {
       SET status = 'in_progress',
           opened_at = COALESCE(opened_at, NOW()),
           opened_by = COALESCE(opened_by, $2),
+          opened_by_employee_id = COALESCE(opened_by_employee_id, $3::bigint),
           updated_at = NOW()
       WHERE id = $1
       `,
-      [sessionId, data.userId ?? data.createdBy ?? data.created_by ?? null]
+      [sessionId, data.userId ?? data.createdBy ?? data.created_by ?? null, data.employeeId ?? data.employee_id ?? null]
     );
   }
 
@@ -2039,6 +2062,7 @@ export const bulkUpsertInventoryCountItems = async (clientOrPool, data = {}) => 
     }
 
     const userId = data.userId ?? data.user_id ?? null;
+    const employeeId = normalizeNullableId(data.employeeId ?? data.employee_id);
     if (session.status === "draft" && rows.length) {
       await dbClient.query(
         `
@@ -2046,10 +2070,11 @@ export const bulkUpsertInventoryCountItems = async (clientOrPool, data = {}) => 
         SET status = 'in_progress',
             opened_at = COALESCE(opened_at, NOW()),
             opened_by = COALESCE(opened_by, $2),
+            opened_by_employee_id = COALESCE(opened_by_employee_id, $3::bigint),
             updated_at = NOW()
         WHERE id = $1
         `,
-        [sessionId, userId]
+        [sessionId, userId, employeeId]
       );
     }
 
@@ -2072,7 +2097,8 @@ export const bulkUpsertInventoryCountItems = async (clientOrPool, data = {}) => 
         sessionId,
         variantId,
         variant,
-        data: { ...row, userId: row?.userId ?? userId },
+        // The batch knows who is counting; the individual row does not carry it.
+        data: { ...row, userId: row?.userId ?? userId, employeeId: row?.employeeId ?? employeeId },
       });
       saved.push(decorateInventoryCountItemRow(itemRow, variant));
     }
@@ -2165,10 +2191,11 @@ export const addProductModelToCount = async (clientOrPool, data = {}) => {
       SET status = 'in_progress',
           opened_at = COALESCE(opened_at, NOW()),
           opened_by = COALESCE(opened_by, $2),
+          opened_by_employee_id = COALESCE(opened_by_employee_id, $3::bigint),
           updated_at = NOW()
       WHERE id = $1
       `,
-      [sessionId, data.userId ?? data.createdBy ?? data.created_by ?? null]
+      [sessionId, data.userId ?? data.createdBy ?? data.created_by ?? null, data.employeeId ?? data.employee_id ?? null]
     );
   }
 

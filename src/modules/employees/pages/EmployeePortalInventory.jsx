@@ -1412,9 +1412,12 @@ export default function EmployeePortalInventory() {
           flushed = await flushOutbox({ silent: false });
         }
         if (!flushed) {
-          // The quantities are safe on the phone either way; say so instead of
-          // claiming a save that only half happened.
-          toast(tt("employeePortal.stockCount.queuedOffline"), { icon: "📴" });
+          // The flush was not silent, so it has already said what went wrong —
+          // and a server that refused the write is not "no connection". Only
+          // add the offline line when the phone really has no signal, or this
+          // blames the line for something it did not do.
+          const offline = typeof navigator !== "undefined" && navigator?.onLine === false;
+          if (offline) toast(tt("employeePortal.stockCount.queuedOffline"), { icon: "📴" });
           return;
         }
       }

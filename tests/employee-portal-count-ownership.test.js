@@ -80,3 +80,48 @@ test("the screen no longer promises the branch's counts", () => {
   assert.doesNotMatch(ar.stockCount.scopeHint, /فرعك/, "the list is no longer the branch's");
   assert.doesNotMatch(en.stockCount.scopeHint, /branch/i);
 });
+
+// ---- The id spaces, everywhere the portal writes ---------------------------
+
+test("the portal never writes an employee id into a users column", () => {
+  // opened_by / submitted_by / counted_by all reference users(id). An employee
+  // id there names a different person — and where the foreign key is still
+  // enforced the write is REJECTED, so the employee saves nothing at all.
+  for (const field of ["openedBy", "submittedBy", "userId", "createdBy", "reopenedBy"]) {
+    assert.doesNotMatch(
+      routes,
+      new RegExp(`${field}: (scoped\\.)?employee\\.id`),
+      `${field} is a users column; the employee belongs in its own`
+    );
+  }
+  assert.match(routes, /openedBy: null,\s*\n\s*openedByEmployeeId: scoped\.employee\.id \|\| null,/);
+  assert.match(routes, /userId: null,\s*\n\s*employeeId: scoped\.employee\.id \|\| null,/);
+  assert.match(routes, /submittedBy: null,\s*\n\s*submittedByEmployeeId: scoped\.employee\.id \|\| null,/);
+});
+
+test("who opened, who counted and who submitted are kept as employees", () => {
+  assert.match(service, /ensureColumn\(client, "inventory_count_sessions", "opened_by_employee_id BIGINT NULL"\)/);
+  assert.match(service, /ensureColumn\(client, "inventory_count_sessions", "submitted_by_employee_id BIGINT NULL"\)/);
+  assert.match(service, /ensureColumn\(client, "inventory_count_items", "counted_by_employee_id BIGINT NULL"\)/);
+  // Every path that flips a draft to in_progress records it.
+  assert.equal(
+    (service.match(/opened_by_employee_id = COALESCE\(opened_by_employee_id, \$3::bigint\)/g) || []).length,
+    4,
+    "open, the single item write, the bulk flush and add-model all open a count"
+  );
+  assert.match(service, /submitted_by_employee_id = COALESCE\(submitted_by_employee_id, \$3::bigint\)/);
+  assert.match(service, /counted_by_employee_id = COALESCE\(\$14::bigint, counted_by_employee_id\)/, "the update branch");
+  assert.match(service, /counted_by_employee_id,\s*\n\s*counted_at,/, "the insert branch");
+  // The batch knows the counter; the row does not carry it.
+  assert.match(service, /employeeId: row\?\.employeeId \?\? employeeId/);
+  // And the screen can show the real name.
+  assert.match(service, /cbe\.full_name AS counted_by_employee_name/);
+  assert.match(service, /LEFT JOIN employees cbe ON cbe\.id = i\.counted_by_employee_id/);
+});
+
+test("a write the server refused is not reported as no connection", () => {
+  assert.match(
+    page,
+    /const offline = typeof navigator !== "undefined" && navigator\?\.onLine === false;\s*\n\s*if \(offline\) toast\(tt\("employeePortal\.stockCount\.queuedOffline"\)/
+  );
+});
