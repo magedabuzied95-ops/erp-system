@@ -29,6 +29,9 @@ export const TELEGRAM_CATALOG_DEFAULTS = Object.freeze({
   order_button_label: "🛒 اطلب الآن",
   site_button_label: "🔗 شوفه على الموقع",
   currency_label: "ج.م",
+  // Telegram drops a visitor at the BOTTOM, so the LAST group posted is the
+  // FIRST one seen: offers buried at the top, the mirror line where people land.
+  post_order: "offer,type:crocs,type:slippers,grade:local,grade:imported_from_vietnam,grade:mirror_original",
   // The pinned menu of hashtags. Telegram's in-channel search shows a match
   // inside the chat rather than as a list, so a shopper who does not know the
   // tags exist has no way to narrow 600 posts down.

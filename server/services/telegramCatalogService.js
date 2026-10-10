@@ -200,7 +200,7 @@ export const loadTelegramCatalogSettings = async () => {
     getSetting(TELEGRAM_CATALOG_SETTING_KEYS.restockAnnounce, false),
     getSetting(TELEGRAM_CATALOG_SETTING_KEYS.digestEnabled, false),
     getSetting(TELEGRAM_CATALOG_SETTING_KEYS.digestHour, 21),
-    getSetting(TELEGRAM_CATALOG_SETTING_KEYS.postOrder, ""),
+    getSetting(TELEGRAM_CATALOG_SETTING_KEYS.postOrder, TELEGRAM_CATALOG_DEFAULTS.post_order),
   ]);
   const mode = text(orderMode).toLowerCase();
   return {
@@ -214,7 +214,7 @@ export const loadTelegramCatalogSettings = async () => {
     restock_announcement: restockAnnounce === true || text(restockAnnounce).toLowerCase() === "true",
     daily_digest: digestEnabled === true || text(digestEnabled).toLowerCase() === "true",
     digest_hour: asNumber(digestHour, 21, { min: 0, max: 23 }),
-    post_order: text(postOrder),
+    post_order: text(postOrder) || TELEGRAM_CATALOG_DEFAULTS.post_order,
   };
 };
 

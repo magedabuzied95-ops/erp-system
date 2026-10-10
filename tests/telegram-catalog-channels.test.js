@@ -1459,3 +1459,30 @@ test("the kids channel still gets its school bags", async () => {
   assert.equal(jobs.length, 1);
   assert.equal(jobs[0].cardId, "b:1");
 });
+
+test("the posting order has a working default, not an empty string", async () => {
+  // The loader used to pass "" as its fallback, so a shop that had never saved
+  // the setting got no grouping at all and the whole order silently reverted to
+  // plain oldest-first.
+  const { TELEGRAM_CATALOG_DEFAULTS: defaults } = await import("../shared/telegramCatalogDefaults.js");
+  const groups = parseTelegramPostOrder(defaults.post_order);
+  assert.deepEqual(groups, [
+    "offer",
+    "type:crocs",
+    "type:slippers",
+    "grade:local",
+    "grade:imported_from_vietnam",
+    "grade:mirror_original",
+  ]);
+
+  const service = readFileSync(new URL("../server/services/telegramCatalogService.js", import.meta.url), "utf8");
+  assert.ok(
+    /postOrder,\s*TELEGRAM_CATALOG_DEFAULTS\.post_order/.test(service),
+    "the loader must fall back to the real default"
+  );
+  const registry = readFileSync(new URL("../shared/settingsRegistry.js", import.meta.url), "utf8");
+  assert.ok(
+    /telegram\.catalog_post_order[^\]]*TELEGRAM_CATALOG_DEFAULTS\.post_order/.test(registry),
+    "and the registry must use the same constant, not a copy that can drift"
+  );
+});
