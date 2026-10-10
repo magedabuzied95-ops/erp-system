@@ -956,6 +956,7 @@ export const listInventoryCountSessions = async (clientOrPool, { tenantId = null
         ua.name AS approved_by_name,
         ur.name AS rejected_by_name,
         COALESCE(items.item_count, 0)::int AS item_count,
+        COALESCE(items.model_count, 0)::int AS model_count,
         COALESCE(items.adjusted_items, 0)::int AS adjusted_items,
         COALESCE(items.difference_total, 0)::int AS difference_total,
         cover.cover_image_url,
@@ -972,6 +973,9 @@ export const listInventoryCountSessions = async (clientOrPool, { tenantId = null
         SELECT
           inventory_count_session_id,
           COUNT(*)::int AS item_count,
+          -- One model means the count can carry that model's name instead of
+          -- being the fifth row called "جرد جديد".
+          COUNT(DISTINCT product_id)::int AS model_count,
           COUNT(*) FILTER (WHERE difference_quantity <> 0)::int AS adjusted_items,
           COALESCE(SUM(ABS(difference_quantity)), 0)::int AS difference_total
         FROM inventory_count_items

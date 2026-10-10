@@ -45,6 +45,7 @@ import {
 import usePortalCatalog from "../hooks/usePortalCatalog";
 import CountProductSearch from "../components/CountProductSearch";
 import { countIndexFacets, findCountGroupByCode, getCountSearchIndex, searchCountIndex } from "../services/employeeDrafts/countSearchIndex.js";
+import { countSessionTitle } from "../services/employeeDrafts/countSessionTitle.js";
 import usePageTitle from "../../../shared/hooks/usePageTitle";
 import "./EmployeePortalWorkspaces.m1.css";
 import {
@@ -372,12 +373,17 @@ function InventoryImage({ src, alt = "", className = "" }) {
  *
  * Every count is called "جرد جديد" until someone renames it, which made the
  * list unreadable. The first colour put on the sheet carries the picture the
- * employee actually recognises, so the row leads with it and names the model
- * underneath. Used by both the drawer on a phone and the column on a desktop,
- * so the two can never drift apart.
+ * employee actually recognises, so the row leads with it — and when the whole
+ * count is that one model, it carries its name too. Used by both the drawer on
+ * a phone and the column on a desktop, so the two can never drift apart.
  */
 function CountSessionRow({ row, active, onSelect }) {
   const status = String(row.status || "draft");
+  const title = countSessionTitle(row);
+  const model = String(row.cover_product_name ?? "").trim();
+  // Never the same words twice: once the model IS the title, the line under it
+  // goes back to telling the employee where and how big the count is.
+  const subtitle = model && model !== title ? model : row.branch_name || tt("employeePortal.common.branch");
   return (
     <button
       type="button"
@@ -386,12 +392,12 @@ function CountSessionRow({ row, active, onSelect }) {
     >
       <div className="flex min-w-0 items-center gap-3">
         <div className="h-12 w-12 shrink-0 overflow-hidden rounded-[var(--radius-control)] border border-border bg-surface-soft">
-          <InventoryImage src={row.cover_image_url} alt={row.cover_product_name || ""} />
+          <InventoryImage src={row.cover_image_url} alt={model} />
         </div>
         <div className="min-w-0 flex-1">
-          <div className="truncate text-sm font-black text-text">{row.title || tt("employeePortal.stockCount.new")}</div>
+          <div dir="auto" className="truncate text-start text-sm font-black text-text">{title || tt("employeePortal.stockCount.new")}</div>
           <div className="mt-0.5 flex min-w-0 flex-wrap items-center gap-x-2 text-xs font-semibold text-text-muted">
-            <span className="truncate">{row.cover_product_name || row.branch_name || tt("employeePortal.common.branch")}</span>
+            <span className="truncate">{subtitle}</span>
             {toNumber(row.item_count, 0) > 0 ? (
               <span>{tt("employeePortal.stockCount.sizeCount", { count: toNumber(row.item_count, 0) })}</span>
             ) : null}
@@ -1052,11 +1058,23 @@ export default function EmployeePortalInventory() {
       const status = String(row.status || "draft");
       if (filter.statuses && !filter.statuses.includes(status)) return false;
       if (!query) return true;
-      return `${row.title || ""} ${row.branch_name || ""} ${row.warehouse_name || ""} ${status}`.toLowerCase().includes(query);
+      return `${row.title || ""} ${row.cover_product_name || ""} ${row.branch_name || ""} ${row.warehouse_name || ""} ${status}`.toLowerCase().includes(query);
     });
   }, [sessionSearch, sessions, statusFilter]);
 
   const groupedItems = useMemo(() => groupVariants(items), [items]);
+  // The open count names itself the same way its row in the list does, off the
+  // sheet in hand rather than a field the server would have to send back.
+  const openCountTitle = useMemo(() => {
+    const models = [...new Set(groupedItems.map((group) => clean(group.product_name)).filter(Boolean))];
+    return (
+      countSessionTitle({
+        title: titleDraft || session?.title || "",
+        cover_product_name: models[0] || "",
+        model_count: models.length,
+      }) || tt("employeePortal.stockCount.new")
+    );
+  }, [groupedItems, session?.title, titleDraft]);
   // ---- Search index + filter options, both from the phone's catalogue -------
   // Built once per snapshot. The filter panel used to be fed by a list that was
   // never populated, so every option showed a count of 0 and the size filter
@@ -1840,7 +1858,7 @@ export default function EmployeePortalInventory() {
                     employee needs to trust the sheet, in one strip. */}
                 <div className="inventory-head inventory-wrap rounded-[1.25rem] border border-border bg-surface p-2.5 shadow-sm">
                   <div className="flex min-w-0 flex-wrap items-center gap-2">
-                    <h2 className="m1-section-title min-w-0 flex-1 truncate text-text">{titleDraft || session.title || tt("employeePortal.stockCount.new")}</h2>
+                    <h2 dir="auto" className="m1-section-title min-w-0 flex-1 truncate text-start text-text">{openCountTitle}</h2>
                     <span className={`shrink-0 rounded-full border px-2.5 py-1 text-[11px] font-black ${sessionStatusTone[session.status] || sessionStatusTone.draft}`}>
                       {sessionStatusLabels[session.status] || session.status}
                     </span>

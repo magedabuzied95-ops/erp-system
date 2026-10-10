@@ -52,7 +52,70 @@ test("a count is recognised in the list by its first model's picture", () => {
   // Screen: one row component, so the phone's drawer and the desktop column
   // can never drift apart.
   assert.match(page, /function CountSessionRow\(\{ row, active, onSelect \}\)/);
-  assert.match(page, /<InventoryImage src=\{row\.cover_image_url\} alt=\{row\.cover_product_name \|\| ""\} \/>/);
-  assert.match(page, /\{row\.cover_product_name \|\| row\.branch_name/);
+  assert.match(page, /<InventoryImage src=\{row\.cover_image_url\} alt=\{model\} \/>/);
+  assert.match(page, /const model = String\(row\.cover_product_name \?\? ""\)\.trim\(\);/);
   assert.equal((page.match(/<CountSessionRow/g) || []).length, 2, "the drawer and the desktop column both use it");
+});
+
+// ---- What a count is called -----------------------------------------------
+
+const { countSessionTitle, isUnnamedCountTitle } = await import(
+  "../src/modules/employees/services/employeeDrafts/countSessionTitle.js"
+);
+
+test("a count of one model is called by that model", () => {
+  assert.equal(
+    countSessionTitle({ title: "جرد جديد", cover_product_name: "Nike Air Force 1", model_count: 1 }),
+    "Nike Air Force 1"
+  );
+  // A count created on an English phone and read on an Arabic one, and the
+  // other way round: both default titles have to be recognised as "unnamed".
+  assert.equal(
+    countSessionTitle({ title: "New stock count", cover_product_name: "Adidas Samba", model_count: 1 }),
+    "Adidas Samba"
+  );
+  assert.equal(
+    countSessionTitle({ title: "", cover_product_name: "Adidas Samba", model_count: 1 }),
+    "Adidas Samba"
+  );
+});
+
+test("a name the employee typed is never taken away", () => {
+  assert.equal(
+    countSessionTitle({ title: "جرد الرف الثالث", cover_product_name: "Nike Air Force 1", model_count: 1 }),
+    "جرد الرف الثالث"
+  );
+});
+
+test("a count of several models keeps the generic name", () => {
+  // No single model speaks for it, and naming it after the first would be a lie.
+  assert.equal(
+    countSessionTitle({ title: "جرد جديد", cover_product_name: "Nike Air Force 1", model_count: 4 }),
+    "جرد جديد"
+  );
+  assert.equal(countSessionTitle({ title: "جرد جديد", cover_product_name: "", model_count: 1 }), "جرد جديد");
+  assert.equal(countSessionTitle({}), "");
+});
+
+test("the default titles are recognised whatever the casing", () => {
+  assert.ok(isUnnamedCountTitle("جرد جديد"));
+  assert.ok(isUnnamedCountTitle("NEW STOCK COUNT"));
+  assert.ok(isUnnamedCountTitle("  "));
+  assert.ok(!isUnnamedCountTitle("جرد الرف الثالث"));
+});
+
+test("the screen uses that rule, and the server sends what it needs", () => {
+  assert.match(page, /import \{ countSessionTitle \} from "\.\.\/services\/employeeDrafts\/countSessionTitle\.js";/);
+  assert.match(page, /const title = countSessionTitle\(row\);/, "the list row");
+  assert.match(page, /const openCountTitle = useMemo\(/, "the open count names itself the same way");
+  assert.match(page, /model_count: models\.length,/);
+  // Saying the model name twice in one row is the thing the owner keeps asking
+  // not to see.
+  assert.match(page, /const subtitle = model && model !== title \? model : row\.branch_name/);
+  // The server has to say how many models the count holds, or every count of
+  // one model keeps the generic name.
+  assert.match(service, /COUNT\(DISTINCT product_id\)::int AS model_count/);
+  assert.match(service, /COALESCE\(items\.model_count, 0\)::int AS model_count/);
+  // And searching for the model has to find the count that carries its name.
+  assert.match(page, /\$\{row\.title \|\| ""\} \$\{row\.cover_product_name \|\| ""\}/);
 });
