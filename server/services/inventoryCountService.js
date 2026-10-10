@@ -2434,6 +2434,9 @@ export const deleteInventoryCountSession = async (clientOrPool, data = {}) => {
       warehouse_id: session.warehouse_id ?? null,
       deleted_items_count: deletedItemsCount,
       status: session.status,
+      // The portal deletes as an EMPLOYEE, whose id means a different person in
+      // the users table the activity log points at — so it travels here instead.
+      deleted_by_employee_id: normalizeNullableId(data.deletedByEmployeeId ?? data.deleted_by_employee_id),
     }
   );
 

@@ -51,7 +51,7 @@ test("a count is recognised in the list by its first model's picture", () => {
   assert.match(service, /LEFT JOIN LATERAL \([\s\S]{0,600}?ORDER BY ci\.created_at ASC, ci\.id ASC\s*\n\s*LIMIT 1\s*\n\s*\) cover ON TRUE/);
   // Screen: one row component, so the phone's drawer and the desktop column
   // can never drift apart.
-  assert.match(page, /function CountSessionRow\(\{ row, active, onSelect \}\)/);
+  assert.match(page, /function CountSessionRow\(\{ row, active, busy = false, onSelect, onRename, onDelete \}\)/);
   assert.match(page, /<InventoryImage src=\{row\.cover_image_url\} alt=\{model\} \/>/);
   assert.match(page, /const model = String\(row\.cover_product_name \?\? ""\)\.trim\(\);/);
   assert.equal((page.match(/<CountSessionRow/g) || []).length, 2, "the drawer and the desktop column both use it");
@@ -118,4 +118,52 @@ test("the screen uses that rule, and the server sends what it needs", () => {
   assert.match(service, /COALESCE\(items\.model_count, 0\)::int AS model_count/);
   // And searching for the model has to find the count that carries its name.
   assert.match(page, /\$\{row\.title \|\| ""\} \$\{row\.cover_product_name \|\| ""\}/);
+});
+
+// ---- Renaming and throwing away a count ------------------------------------
+
+const routes = read("../server/routes/employeePortal.js");
+
+test("a count can be renamed and deleted from the list", () => {
+  assert.match(page, /onRename=\{handleRenameSession\}/, "the desktop column");
+  assert.match(page, /onRename=\{onRenameSession\}/, "the drawer");
+  assert.equal((page.match(/onDelete=\{(handleDeleteSession|onDeleteSession)\}/g) || []).length, 2);
+  assert.match(page, /const handleRenameSession = useCallback\(async \(row, nextTitle\) => \{/);
+  assert.match(page, /const handleDeleteSession = useCallback\(async \(row\) => \{/);
+  // The row is a div now: a rename and a delete control cannot live inside
+  // another button.
+  assert.match(page, /\{\/\* The row is a div, not a button/);
+});
+
+test("deleting says what it is about to take, and cannot be undone silently", () => {
+  assert.match(page, /const confirmed = window\.confirm\(\s*\n?\s*tt\("employeePortal\.stockCount\.confirmDeleteCount", \{ name: label, count: toNumber\(row\.item_count, 0\) \}\)/);
+  const ar = JSON.parse(read("../src/locales/ar/employeePortal.json"));
+  const en = JSON.parse(read("../src/locales/en/employeePortal.json"));
+  for (const copy of [ar.stockCount.confirmDeleteCount, en.stockCount.confirmDeleteCount]) {
+    assert.match(copy, /\{\{name\}\}/, "the employee has to be told WHICH count");
+    assert.match(copy, /\{\{count\}\}/, "and how much goes with it");
+  }
+  // Nothing local may outlive the count, or the next flush re-creates it.
+  assert.match(page, /await clearInventoryDraft\(\{ \.\.\.draftIdentity, sessionId: row\.id \}\);/);
+  assert.match(page, /setOutbox\(\{\}\);\s*\n\s*setItems\(\[\]\);\s*\n\s*setSession\(null\);/);
+});
+
+test("a count already with the manager is nobody's to change from a phone", () => {
+  // The row hides the controls…
+  assert.match(page, /const editable = \["draft", "in_progress"\]\.includes\(status\);/);
+  assert.match(page, /\{editable \? \(/);
+  // …and the server refuses anyway, because a hidden button is not a rule.
+  assert.match(routes, /router\.delete\("\/:token\/inventory\/sessions\/:sessionId"/);
+  assert.match(routes, /if \(!\["draft", "in_progress"\]\.includes\(status\)\) \{[\s\S]{0,320}?inventory_count_session_not_deletable/);
+  // It deletes through loadEmployeeInventorySession, which owns the branch and
+  // owner checks — a count that is not yours cannot be deleted by id.
+  assert.match(routes, /router\.delete\("\/:token\/inventory\/sessions\/:sessionId",[\s\S]{0,200}?loadEmployeeInventorySession\(req, res\)/);
+  // And the employee id travels as an employee, not as a users row.
+  assert.match(routes, /deletedByEmployeeId: scoped\.employee\.id \|\| null,/);
+  assert.match(service, /deleted_by_employee_id: normalizeNullableId\(data\.deletedByEmployeeId/);
+});
+
+test("the list of counts is wide enough to read on a phone", () => {
+  assert.match(page, /className="absolute inset-y-0 end-0 flex h-full w-full flex-col[^"]*sm:w-\[min\(100vw,30rem\)\]"/);
+  assert.doesNotMatch(page, /w-\[min\(100vw,22rem\)\]/, "22rem truncated the model names it now leads with");
 });

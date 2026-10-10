@@ -15,6 +15,7 @@ import {
   Save,
   Send,
   Menu,
+  Pencil,
   Trash2,
   Warehouse,
   Wifi,
@@ -55,6 +56,7 @@ import {
   listEmployeePortalInventorySessions,
   lookupEmployeePortalInventoryVariants,
   deleteEmployeePortalInventoryColorGroup,
+  deleteEmployeePortalInventorySession,
   openEmployeePortalInventorySession,
   reopenEmployeePortalInventorySession,
   submitEmployeePortalInventorySession,
@@ -377,20 +379,82 @@ function InventoryImage({ src, alt = "", className = "" }) {
  * count is that one model, it carries its name too. Used by both the drawer on
  * a phone and the column on a desktop, so the two can never drift apart.
  */
-function CountSessionRow({ row, active, onSelect }) {
+function CountSessionRow({ row, active, busy = false, onSelect, onRename, onDelete }) {
   const status = String(row.status || "draft");
   const title = countSessionTitle(row);
   const model = String(row.cover_product_name ?? "").trim();
   // Never the same words twice: once the model IS the title, the line under it
   // goes back to telling the employee where and how big the count is.
   const subtitle = model && model !== title ? model : row.branch_name || tt("employeePortal.common.branch");
+  // Renaming happens in the row itself: a phone has nowhere to put a dialog
+  // that is only one field wide.
+  const [renaming, setRenaming] = useState(false);
+  const [draftTitle, setDraftTitle] = useState("");
+  // A count is the employee's to change only while it is still theirs — once it
+  // is with the manager, the buttons would only earn a refusal from the server.
+  const editable = ["draft", "in_progress"].includes(status);
+
+  const startRename = () => {
+    // The name on screen, not the stored "جرد جديد": the employee edits what
+    // they can see, and a model name is a better starting point than a blank.
+    setDraftTitle(title || "");
+    setRenaming(true);
+  };
+  const commitRename = async () => {
+    const next = String(draftTitle || "").trim();
+    setRenaming(false);
+    if (!next || next === String(row.title || "").trim()) return;
+    await onRename?.(row, next);
+  };
+
+  if (renaming) {
+    return (
+      <div className="rounded-[var(--radius-control)] border border-primary/40 bg-surface p-3">
+        <input
+          autoFocus
+          value={draftTitle}
+          onChange={(event) => setDraftTitle(event.target.value)}
+          onKeyDown={(event) => {
+            if (event.key === "Enter") void commitRename();
+            if (event.key === "Escape") setRenaming(false);
+          }}
+          dir="auto"
+          placeholder={tt("employeePortal.stockCount.name")}
+          className="w-full rounded-[var(--radius-control)] border border-border bg-surface-soft px-3 py-2 text-base font-black text-text outline-none"
+        />
+        <div className="mt-2 flex items-center gap-2">
+          <button
+            type="button"
+            onClick={() => void commitRename()}
+            className="inline-flex min-h-[var(--control-height-md)] flex-1 items-center justify-center gap-1.5 rounded-[var(--radius-control)] bg-primary px-3 text-xs font-black text-[var(--primary-contrast)]"
+          >
+            <Save className="h-3.5 w-3.5" />
+            {tt("employeePortal.common.save")}
+          </button>
+          <button
+            type="button"
+            onClick={() => setRenaming(false)}
+            className="inline-flex min-h-[var(--control-height-md)] items-center justify-center rounded-[var(--radius-control)] border border-border bg-surface px-3 text-xs font-black text-text"
+          >
+            {tt("employeePortal.common.cancel")}
+          </button>
+        </div>
+      </div>
+    );
+  }
+
   return (
-    <button
-      type="button"
-      onClick={() => onSelect(row.id)}
-      className={`w-full rounded-[var(--radius-control)] border p-3 text-start transition ${active ? "border-border bg-success-subtle shadow-sm" : "border-border bg-surface hover:bg-surface-soft"}`}
+    <div
+      className={`flex min-w-0 items-stretch gap-2 rounded-[var(--radius-control)] border p-2 transition ${active ? "border-border bg-success-subtle shadow-sm" : "border-border bg-surface"} ${busy ? "opacity-60" : ""}`}
     >
-      <div className="flex min-w-0 items-center gap-3">
+      {/* The row is a div, not a button: a rename and a delete control cannot
+          live inside another button. */}
+      <button
+        type="button"
+        onClick={() => onSelect(row.id)}
+        disabled={busy}
+        className="flex min-w-0 flex-1 items-center gap-3 rounded-[var(--radius-control)] p-1 text-start transition hover:bg-surface-soft disabled:opacity-60"
+      >
         <div className="h-12 w-12 shrink-0 overflow-hidden rounded-[var(--radius-control)] border border-border bg-surface-soft">
           <InventoryImage src={row.cover_image_url} alt={model} />
         </div>
@@ -402,12 +466,36 @@ function CountSessionRow({ row, active, onSelect }) {
               <span>{tt("employeePortal.stockCount.sizeCount", { count: toNumber(row.item_count, 0) })}</span>
             ) : null}
           </div>
+          <span className={`mt-1 inline-flex rounded-full border px-2 py-0.5 text-[10px] font-black ${sessionStatusTone[status] || sessionStatusTone.draft}`}>
+            {sessionStatusLabels[status] || status}
+          </span>
         </div>
-        <span className={`shrink-0 rounded-full border px-2.5 py-1 text-[11px] font-black ${sessionStatusTone[status] || sessionStatusTone.draft}`}>
-          {sessionStatusLabels[status] || status}
-        </span>
-      </div>
-    </button>
+      </button>
+      {editable ? (
+        <div className="flex shrink-0 flex-col justify-center gap-1">
+          <button
+            type="button"
+            onClick={startRename}
+            disabled={busy}
+            className="inline-flex h-9 w-9 items-center justify-center rounded-[var(--radius-control)] border border-border bg-surface text-text disabled:opacity-60"
+            aria-label={tt("employeePortal.stockCount.renameCount")}
+            title={tt("employeePortal.stockCount.renameCount")}
+          >
+            <Pencil className="h-4 w-4" />
+          </button>
+          <button
+            type="button"
+            onClick={() => onDelete?.(row)}
+            disabled={busy}
+            className="inline-flex h-9 w-9 items-center justify-center rounded-[var(--radius-control)] border border-border bg-danger-subtle text-text disabled:opacity-60"
+            aria-label={tt("employeePortal.stockCount.deleteCount")}
+            title={tt("employeePortal.stockCount.deleteCount")}
+          >
+            {busy ? <Loader2 className="h-4 w-4 animate-spin" /> : <Trash2 className="h-4 w-4" />}
+          </button>
+        </div>
+      ) : null}
+    </div>
   );
 }
 
@@ -701,6 +789,7 @@ export default function EmployeePortalInventory() {
   const [sessionOpening, setSessionOpening] = useState(false);
   const [sessionSubmitting, setSessionSubmitting] = useState(false);
   const [sessionSavingDraft, setSessionSavingDraft] = useState(false);
+  const [sessionActionId, setSessionActionId] = useState("");
   const [sessionReopening, setSessionReopening] = useState(false);
   const [itemSavingId, setItemSavingId] = useState("");
   const [facets, setFacets] = useState({ categories: [], types: [], brands: [], manufacturers: [], genders: [], grades: [], sizes: [] });
@@ -1157,6 +1246,63 @@ export default function EmployeePortalInventory() {
     navigate(`/employee-portal/${encodeURIComponent(token)}/inventory/${encodeURIComponent(nextSessionId)}`);
     loadSession(nextSessionId);
   }, [loadSession, navigate, token]);
+
+  /** Rename a count from the list, without having to open it first. */
+  const handleRenameSession = useCallback(async (row, nextTitle) => {
+    if (!row?.id) return;
+    try {
+      setSessionActionId(String(row.id));
+      const response = await updateEmployeePortalInventorySession(token, row.id, { title: nextTitle });
+      // The open count is showing the old name in its header and its own edit
+      // field; both follow.
+      if (String(row.id) === String(session?.id)) {
+        if (response?.session) setSession(response.session);
+        setTitleDraft(nextTitle);
+      }
+      await loadSessions();
+      toast.success(tt("employeePortal.stockCount.renamed"));
+    } catch (error) {
+      toast.error(error?.responseBody?.message || error?.message || tt("employeePortal.stockCount.renameFailed"));
+    } finally {
+      setSessionActionId("");
+    }
+  }, [loadSessions, session?.id, token]);
+
+  /**
+   * Throw a count away.
+   *
+   * Destructive and not undoable, so it asks first and names what it is about
+   * to take. The server refuses anything already sent for review; the row only
+   * offers the button while it is still the employee's to change.
+   */
+  const handleDeleteSession = useCallback(async (row) => {
+    if (!row?.id) return;
+    const label = countSessionTitle(row) || tt("employeePortal.stockCount.new");
+    const confirmed = window.confirm(
+      tt("employeePortal.stockCount.confirmDeleteCount", { name: label, count: toNumber(row.item_count, 0) })
+    );
+    if (!confirmed) return;
+    try {
+      setSessionActionId(String(row.id));
+      await deleteEmployeePortalInventorySession(token, row.id);
+      // Nothing local may outlive the count: its draft and its outbox would
+      // otherwise re-create it on the next flush.
+      if (draftIdentity) await clearInventoryDraft({ ...draftIdentity, sessionId: row.id });
+      if (String(row.id) === String(session?.id)) {
+        setOutbox({});
+        setItems([]);
+        setSession(null);
+        setSelectedSessionId("");
+        navigate(`/employee-portal/${encodeURIComponent(token)}/inventory`, { replace: true });
+      }
+      await loadSessions();
+      toast.success(tt("employeePortal.stockCount.countDeleted"));
+    } catch (error) {
+      toast.error(error?.responseBody?.message || error?.message || tt("employeePortal.stockCount.deleteCountFailed"));
+    } finally {
+      setSessionActionId("");
+    }
+  }, [draftIdentity, loadSessions, navigate, session?.id, token]);
 
   const handleCreateSession = useCallback(async () => {
     try {
@@ -1826,7 +1972,10 @@ export default function EmployeePortalInventory() {
                     key={row.id}
                     row={row}
                     active={String(row.id) === String(selectedSessionId)}
+                    busy={sessionActionId === String(row.id)}
                     onSelect={selectSession}
+                    onRename={handleRenameSession}
+                    onDelete={handleDeleteSession}
                   />
                 ))
               ) : (
@@ -2110,6 +2259,9 @@ export default function EmployeePortalInventory() {
             setBranchDrawerOpen(false);
             selectSession(sessionId);
           }}
+          onRenameSession={handleRenameSession}
+          onDeleteSession={handleDeleteSession}
+          sessionActionId={sessionActionId}
           onCreateSession={handleCreateSession}
           sessionSaving={sessionSaving}
         />
@@ -2154,6 +2306,9 @@ function BranchInventoryDrawer({
   sessionFilters,
   onClose,
   onSelectSession,
+  onRenameSession,
+  onDeleteSession,
+  sessionActionId,
   onCreateSession,
   sessionSaving,
 }) {
@@ -2165,7 +2320,7 @@ function BranchInventoryDrawer({
       }}
     >
       <aside
-        className="absolute inset-y-0 end-0 flex h-full w-[min(100vw,22rem)] flex-col border-s border-border bg-surface shadow-[var(--shadow-overlay)] "
+        className="absolute inset-y-0 end-0 flex h-full w-full flex-col border-s border-border bg-surface shadow-[var(--shadow-overlay)] sm:w-[min(100vw,30rem)]"
         role="dialog"
         aria-modal="true"
         aria-labelledby="branch-inventory-drawer-title"
@@ -2239,7 +2394,10 @@ function BranchInventoryDrawer({
                   key={row.id}
                   row={row}
                   active={String(row.id) === String(selectedSessionId)}
+                  busy={sessionActionId === String(row.id)}
                   onSelect={onSelectSession}
+                  onRename={onRenameSession}
+                  onDelete={onDeleteSession}
                 />
               ))
             ) : (

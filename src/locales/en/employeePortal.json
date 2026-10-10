@@ -102,7 +102,8 @@
     "saving": "Saving...",
     "arabic": "Arabic",
     "noColor": "No colour",
-    "noSize": "No size"
+    "noSize": "No size",
+    "cancel": "Cancel"
   },
   "priority": {
     "low": "Low",
@@ -328,7 +329,14 @@
     "noResultsHint": "Try part of the name, the article code, or scan the barcode.",
     "noResultsFiltered": "Active filters may be hiding the product.",
     "saveDraft": "Save as draft",
-    "draftSaved": "Saved as a draft"
+    "draftSaved": "Saved as a draft",
+    "renameCount": "Rename this count",
+    "renamed": "The count was renamed",
+    "renameFailed": "The count could not be renamed",
+    "deleteCount": "Delete this count",
+    "countDeleted": "The count was deleted",
+    "deleteCountFailed": "The count could not be deleted",
+    "confirmDeleteCount": "This deletes \"{{name}}\" and its {{count}} size rows. It cannot be undone. Delete it?"
   },
   "payroll": {
     "walletTitle": "Employee wallet",

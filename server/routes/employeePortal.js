@@ -25,6 +25,7 @@ import { loadEmployeeDisplayAudit, markEmployeeProductDisplayed } from "../servi
 import {
   bulkUpsertInventoryCountItems,
   createInventoryCountSession,
+  deleteInventoryCountSession,
   getInventoryCountSession,
   inventoryCountSessionOwnerEmployeeId,
   listInventoryCountSessions,
@@ -1000,6 +1001,35 @@ router.patch("/:token/inventory/sessions/:sessionId", async (req, res) => {
   } catch (error) {
     console.error("[employee-payroll-portal] inventory update error", error);
     return res.status(error.status || 500).json({ success: false, code: error.code, message: error.message || "Failed to update inventory session" });
+  }
+});
+
+// Throw away a count the employee started. The owner guard in
+// loadEmployeeInventorySession already means it can only be their own.
+router.delete("/:token/inventory/sessions/:sessionId", async (req, res) => {
+  try {
+    const scoped = await loadEmployeeInventorySession(req, res);
+    if (!scoped) return;
+    // Only while it is still theirs to work on. Once it is with the manager it
+    // is a document under review, and once approved it is the record of what
+    // the stock was — neither is an employee's to delete from a phone.
+    const status = String(scoped.session.status || "");
+    if (!["draft", "in_progress"].includes(status)) {
+      return res.status(409).json({
+        success: false,
+        code: "inventory_count_session_not_deletable",
+        message: "A stock count that has been sent for review can no longer be deleted",
+      });
+    }
+    const result = await deleteInventoryCountSession(db, {
+      tenantId: scoped.employee.tenant_id ?? null,
+      sessionId: scoped.session.id,
+      deletedByEmployeeId: scoped.employee.id || null,
+    });
+    return res.json({ success: true, deleted: true, deletedItemsCount: result?.deletedItemsCount || 0 });
+  } catch (error) {
+    console.error("[employee-payroll-portal] inventory delete error", error);
+    return res.status(error.status || 500).json({ success: false, code: error.code, message: error.message || "Failed to delete inventory session" });
   }
 });
 

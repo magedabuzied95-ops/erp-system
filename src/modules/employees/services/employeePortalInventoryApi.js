@@ -12,6 +12,11 @@ export const getEmployeePortalInventorySession = (token, sessionId) =>
 export const updateEmployeePortalInventorySession = (token, sessionId, body = {}) =>
   api.patch(`/employee-portal/${encodeURIComponent(token)}/inventory/sessions/${encodeURIComponent(sessionId)}`, body);
 
+// Only a count the employee still owns and has not sent for review; the server
+// refuses the rest.
+export const deleteEmployeePortalInventorySession = (token, sessionId) =>
+  api.delete(`/employee-portal/${encodeURIComponent(token)}/inventory/sessions/${encodeURIComponent(sessionId)}`);
+
 export const openEmployeePortalInventorySession = (token, sessionId) =>
   api.post(`/employee-portal/${encodeURIComponent(token)}/inventory/sessions/${encodeURIComponent(sessionId)}/open`);
 
