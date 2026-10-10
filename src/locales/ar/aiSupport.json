@@ -2033,7 +2033,11 @@
         "stored": "محفوظ",
         "notStored": "غير محفوظ",
         "webhookSubscribed": "Webhook مشترك",
-        "webhookPending": "Webhook يحتاج تحقق"
+        "webhookPending": "Webhook يحتاج تحقق",
+        "lastAutoRefresh": "آخر تجديد تلقائي: {{at}}",
+        "expiredWarning": "انتهت صلاحية الرمز، وردود إنستجرام لن تصل للعملاء. الصق رمزًا جديدًا لإعادة التشغيل.",
+        "expiringWarning": "الرمز ينتهي خلال {{days}} يوم. التجديد التلقائي يعمل يوميًا، وإن فشل فأعد الربط من هنا.",
+        "refreshFailed": "فشل التجديد التلقائي للرمز: {{reason}}. أعد الربط يدويًا."
       },
       "advanced": {
         "title": "المعرّفات اليدوية",

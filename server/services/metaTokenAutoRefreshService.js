@@ -1,6 +1,8 @@
 import db from "../database/db.js";
 import { ensureMarketingSchema } from "../utils/marketingSchema.js";
 import { refreshLongLivedMetaToken } from "./metaTokenService.js";
+import { runInstagramTokenAutoRefreshScan } from "./metaIntegrationService.js";
+import { createNotification } from "./notificationsService.js";
 
 const REFRESH_WINDOW_MS = 7 * 24 * 60 * 60 * 1000;
 const CHECK_INTERVAL_MS = 24 * 60 * 60 * 1000;
@@ -183,6 +185,41 @@ export const refreshMarketingTenantMetaToken = async ({ tenantId, force = false,
   }
 };
 
+// A failed refresh used to end in a log line nobody reads. The connection is
+// then on a clock, so it has to reach whoever can reconnect it.
+const notifyMarketingTokenRefreshFailure = async ({ tenantId, reason = "" } = {}) => {
+  // The scheduler also runs once at boot, so a day of deploys would otherwise
+  // ring the same alarm a dozen times. createNotification's own dedupe window
+  // is ten minutes — too short to cover that.
+  const recent = await db.query(
+    `
+    SELECT 1
+    FROM notifications
+    WHERE type = 'meta_token_refresh_failed'
+      AND tenant_id = $1::bigint
+      AND created_at >= NOW() - INTERVAL '20 hours'
+    LIMIT 1
+    `,
+    [tenantId]
+  ).catch(() => ({ rows: [] }));
+  if (recent.rows?.length) return;
+
+  await createNotification({
+    tenant_id: tenantId,
+    role_key: "admin",
+    type: "meta_token_refresh_failed",
+    category: "integrations",
+    priority: "high",
+    title: "فشل تجديد رمز ميتا",
+    message: `تعذّر تجديد رمز ميتا تلقائيًا${reason ? `: ${reason}` : ""}. أعد ربط ميتا قبل أن تتوقف الرسائل والنشر.`,
+    action_url: "/admin/ai-inbox?integrations=meta",
+    action_label: "فتح إعدادات ميتا",
+    entity_type: "marketing_settings",
+    entity_id: String(tenantId),
+    metadata: { tenant_id: tenantId, reason: String(reason || "").slice(0, 300) },
+  });
+};
+
 export const runMetaTokenAutoRefreshScan = async () => {
   await ensureMarketingSchema();
   const result = await db.query(
@@ -206,8 +243,23 @@ export const runMetaTokenAutoRefreshScan = async () => {
         tenantId: row.tenant_id,
         reason: error?.message || "Unknown refresh failure",
       });
+      await notifyMarketingTokenRefreshFailure({
+        tenantId: row.tenant_id,
+        reason: error?.message || "Unknown refresh failure",
+      }).catch((notifyError) => {
+        console.error("[meta-refresh] failure notification error", {
+          tenantId: row.tenant_id,
+          reason: notifyError?.message || "unknown",
+        });
+      });
     }
   }
+
+  // The inbox channel keeps its Instagram credential in a different table, so
+  // the marketing scan above never touched it — and nothing else did either.
+  await runInstagramTokenAutoRefreshScan().catch((error) => {
+    console.error("[meta-refresh] instagram scan error", { reason: error?.message || "unknown" });
+  });
 };
 
 let schedulerStarted = false;

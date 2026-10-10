@@ -519,6 +519,34 @@ export default function MetaIntegrationPanel({ onStatusChange }) {
   const instagramTokenReady = Boolean(
     metaConfig.instagram_access_token_configured && !DEAD_TOKEN_STATUSES.includes(clean(metaConfig.instagram_token_status).toLowerCase())
   );
+  // The Instagram token dies on its own 60-day clock. Nobody notices until a
+  // customer reply bounces, so its last week has to be visible here.
+  const instagramTokenAlert = useMemo(() => {
+    if (!metaConfig.instagram_access_token_configured) return null;
+    const status = clean(metaConfig.instagram_token_status).toLowerCase();
+    const days = Number.isFinite(Number(metaConfig.instagram_token_expires_in_days))
+      ? Number(metaConfig.instagram_token_expires_in_days)
+      : null;
+    if (status === "expired") return { tone: "rose", text: t("aiSupport.integrations.meta.instagram.expiredWarning") };
+    if (status === "error" || status === "invalid" || status === "revoked") {
+      return {
+        tone: "rose",
+        text: t("aiSupport.integrations.meta.instagram.refreshFailed", {
+          reason: clean(metaConfig.instagram_token_refresh_error) || status,
+        }),
+      };
+    }
+    if (status === "expiring_soon") {
+      return { tone: "amber", text: t("aiSupport.integrations.meta.instagram.expiringWarning", { days: days ?? 7 }) };
+    }
+    return null;
+  }, [
+    metaConfig.instagram_access_token_configured,
+    metaConfig.instagram_token_status,
+    metaConfig.instagram_token_expires_in_days,
+    metaConfig.instagram_token_refresh_error,
+    t,
+  ]);
   const messengerConnected = Boolean(facebookStatus.messenger_connected || (tokenReady && webhookReady && (metaConfig.facebook_page_id || form.page_id)));
   const instagramDmConnected = Boolean(
     instagramStatus.dm_connected || ((instagramTokenReady || tokenReady) && webhookReady && (metaConfig.instagram_business_account_id || form.instagram_account_id))
@@ -757,6 +785,28 @@ export default function MetaIntegrationPanel({ onStatusChange }) {
               {" • "}
               {metaConfig.instagram_webhook_subscribed ? t("aiSupport.integrations.meta.instagram.webhookSubscribed") : t("aiSupport.integrations.meta.instagram.webhookPending")}
             </div>
+            {metaConfig.instagram_access_token_configured ? (
+              <div className="mt-1 text-[11px] text-slate-500">
+                {t("aiSupport.integrations.meta.field.tokenExpires")}: {formatDateTime(metaConfig.instagram_token_expires_at) || t("aiSupport.integrations.common.missing")}
+                {metaConfig.instagram_token_refreshed_at ? (
+                  <>
+                    {" • "}
+                    {t("aiSupport.integrations.meta.instagram.lastAutoRefresh", { at: formatDateTime(metaConfig.instagram_token_refreshed_at) })}
+                  </>
+                ) : null}
+              </div>
+            ) : null}
+            {instagramTokenAlert ? (
+              <p
+                className={`mt-2 rounded-xl border p-2 text-[11px] leading-5 ${
+                  instagramTokenAlert.tone === "rose"
+                    ? "border-rose-400/30 bg-rose-500/10 text-rose-100"
+                    : "border-amber-300/20 bg-amber-400/10 text-amber-100"
+                }`}
+              >
+                {instagramTokenAlert.text}
+              </p>
+            ) : null}
           </div>
 
           <div className="rounded-xl border border-white/10 bg-slate-950/40 p-3">

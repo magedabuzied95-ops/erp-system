@@ -7124,9 +7124,14 @@ const sanitizeConfig = (row = {}) => ({
   instagram_username: row.instagram_username || "",
   instagram_access_token_configured: Boolean(row.instagram_access_token_encrypted),
   instagram_app_secret_configured: Boolean(row.instagram_app_secret_encrypted),
-  instagram_token_status: row.instagram_token_status || "missing",
+  // Derived from the live expiry, never echoed from the column: the column
+  // only records what was true the day the token was saved.
+  instagram_token_status: resolveInstagramTokenStatus(row),
   instagram_token_expires_at: row.instagram_token_expires_at || null,
+  instagram_token_expires_in_days: instagramTokenDaysLeft(row.instagram_token_expires_at),
   instagram_token_last_validated_at: row.instagram_token_last_validated_at || null,
+  instagram_token_refreshed_at: row.instagram_token_refreshed_at || null,
+  instagram_token_refresh_error: row.instagram_token_refresh_error || "",
   instagram_webhook_subscribed: row.instagram_webhook_subscribed === true,
   app_id: row.app_id || "",
   app_secret_configured: Boolean(row.app_secret_encrypted),
@@ -7283,6 +7288,9 @@ export const ensureMetaIntegrationSchema = async (clientOrPool = db) => {
       await clientOrPool.query(`ALTER TABLE IF EXISTS meta_integration_configs ADD COLUMN IF NOT EXISTS last_meta_poll_error_at TIMESTAMPTZ NULL`);
       await clientOrPool.query(`ALTER TABLE IF EXISTS meta_integration_configs ADD COLUMN IF NOT EXISTS meta_poll_backoff_until TIMESTAMPTZ NULL`);
       await clientOrPool.query(`ALTER TABLE IF EXISTS meta_integration_configs ADD COLUMN IF NOT EXISTS meta_poll_error_count INTEGER NULL`);
+      await clientOrPool.query(`ALTER TABLE IF EXISTS meta_integration_configs ADD COLUMN IF NOT EXISTS instagram_token_refreshed_at TIMESTAMPTZ NULL`);
+      await clientOrPool.query(`ALTER TABLE IF EXISTS meta_integration_configs ADD COLUMN IF NOT EXISTS instagram_token_refresh_error TEXT NOT NULL DEFAULT ''`);
+      await clientOrPool.query(`ALTER TABLE IF EXISTS meta_integration_configs ADD COLUMN IF NOT EXISTS instagram_token_alert_sent_at TIMESTAMPTZ NULL`);
       await clientOrPool.query(`UPDATE meta_integration_configs SET facebook_page_name = page_name WHERE facebook_page_name = '' AND page_name <> ''`);
       await clientOrPool.query(`UPDATE meta_integration_configs SET instagram_dm_enabled = instagram_enabled WHERE instagram_dm_enabled = FALSE AND instagram_enabled = TRUE`);
       await clientOrPool.query(`CREATE INDEX IF NOT EXISTS idx_meta_integration_page ON meta_integration_configs (facebook_page_id)`);
@@ -7731,6 +7739,43 @@ const tokenExpired = (config = {}) => {
   if (!config.token_expires_at) return false;
   const date = parseMetaDate(config.token_expires_at);
   return Boolean(date && date.getTime() <= Date.now());
+};
+
+// The Instagram Business Login token is a SEPARATE 60-day credential with its
+// own column. tokenExpired() above only reads token_expires_at (the Facebook
+// user-token expiry), so an Instagram token could die while the panel still
+// said "connected" and every DM reply came back as "Session has expired".
+const INSTAGRAM_TOKEN_WARNING_WINDOW_MS = 7 * 24 * 60 * 60 * 1000;
+const INSTAGRAM_DEAD_TOKEN_STATUSES = ["expired", "invalid", "revoked", "error"];
+// Meta told us these; a date cannot argue with them. "expired" is missing on
+// purpose — that one is a judgement about the clock, so the live expiry owns
+// it and a stale column must never outvote a token that was just renewed.
+const INSTAGRAM_STICKY_TOKEN_STATUSES = ["invalid", "revoked", "error"];
+
+const instagramTokenMsLeft = (value) => {
+  const date = parseMetaDate(value);
+  return date ? date.getTime() - Date.now() : null;
+};
+
+// Reads a RAW config row (encrypted column included), not a sanitized one: it
+// runs inside sanitizeConfig so every caller sees the live expiry, never the
+// status that was stored on the day the token was pasted.
+const resolveInstagramTokenStatus = (row = {}) => {
+  if (!text(row.instagram_access_token_encrypted)) return "missing";
+  const stored = lower(text(row.instagram_token_status));
+  const msLeft = instagramTokenMsLeft(row.instagram_token_expires_at);
+  // An unknown expiry is not proof of health, but it is not proof of death
+  // either — the refresh scan learns the real one on its next pass.
+  if (msLeft === null) return stored && stored !== "missing" ? stored : "active";
+  if (msLeft <= 0) return "expired";
+  if (INSTAGRAM_STICKY_TOKEN_STATUSES.includes(stored)) return stored;
+  return msLeft <= INSTAGRAM_TOKEN_WARNING_WINDOW_MS ? "expiring_soon" : "active";
+};
+
+const instagramTokenDaysLeft = (value) => {
+  const msLeft = instagramTokenMsLeft(value);
+  if (msLeft === null) return null;
+  return Math.max(0, Math.ceil(msLeft / 86400000));
 };
 
 const daysBetween = (start, end = new Date()) => {
@@ -8719,10 +8764,17 @@ const buildMetaChannels = (config = {}, setupCompletion = null) => {
       setupCompletion?.subscribed_apps_verified
   );
   const messengerOperational = Boolean(tokenValid && hasPageTokenAndPage(config) && webhookOperational);
-  const instagramOperational = Boolean(tokenValid && hasInstagramBase(config) && webhookOperational);
+  // Instagram DMs go out on the Instagram Business Login token when one is
+  // stored, so its own expiry — not the Page token's — decides this channel.
+  const instagramTokenValid = config.instagram_access_token_configured
+    ? !INSTAGRAM_DEAD_TOKEN_STATUSES.includes(lower(text(config.instagram_token_status)))
+    : tokenValid;
+  const instagramOperational = Boolean(instagramTokenValid && hasInstagramBase(config) && webhookOperational);
   const messengerConnected = Boolean((config.messenger_enabled && hasPageTokenAndPage(config) && capabilityOk(config, "facebook_messenger")) || messengerOperational);
   const facebookPublishingConnected = Boolean(config.facebook_publishing_enabled && hasPageTokenAndPage(config) && capabilityOk(config, "facebook_publishing"));
-  const instagramDmConnected = Boolean((config.instagram_dm_enabled && hasInstagramBase(config) && capabilityOk(config, "instagram_dm")) || instagramOperational);
+  const instagramDmConnected = Boolean(
+    instagramTokenValid && ((config.instagram_dm_enabled && hasInstagramBase(config) && capabilityOk(config, "instagram_dm")) || instagramOperational)
+  );
   const instagramPublishingConnected = Boolean(config.instagram_publishing_enabled && hasInstagramBase(config) && capabilityOk(config, "instagram_publishing"));
   return {
     facebook: {
@@ -8756,7 +8808,7 @@ const buildMetaChannels = (config = {}, setupCompletion = null) => {
       connected: instagramDmConnected || instagramPublishingConnected,
       dm_connected: instagramDmConnected,
       webhook_healthy: webhookOperational,
-      token_valid: tokenValid,
+      token_valid: instagramTokenValid,
       messaging_active: instagramDmConnected,
       operational_source: instagramOperational ? "webhook_verified" : "capability_status",
       publishing_connected: instagramPublishingConnected,
@@ -8766,6 +8818,11 @@ const buildMetaChannels = (config = {}, setupCompletion = null) => {
       username: config.instagram_username,
       last_sync_at: config.last_sync_at,
       token_expires_at: config.token_expires_at,
+      instagram_token_status: config.instagram_token_status,
+      instagram_token_expires_at: config.instagram_token_expires_at,
+      instagram_token_expires_in_days: config.instagram_token_expires_in_days,
+      instagram_token_refreshed_at: config.instagram_token_refreshed_at,
+      instagram_token_refresh_error: config.instagram_token_refresh_error,
       missing: {
         dm: buildMissingItems([
           { done: config.page_access_token_configured, label: "page_access_token" },
@@ -11503,6 +11560,278 @@ export const removeInstagramAppSecret = async ({ tenantId } = {}) => {
   );
   if (!result.rows[0]) throw Object.assign(new Error("Meta integration is not configured."), { status: 404 });
   return { config: sanitizeConfig(result.rows[0]) };
+};
+
+// ---------------------------------------------------------------------------
+// Instagram token auto-refresh
+//
+// An Instagram Business Login token lives 60 days and dies in silence: the
+// first sign is a staff reply bouncing back as "Error validating access token:
+// Session has expired". Meta renews one only WHILE IT IS STILL ALIVE
+// (graph.instagram.com/refresh_access_token, token at least 24h old), so this
+// scan runs daily, renews anything inside its last week, and — once a token is
+// past saving — tells an admin that only a reconnect will bring DMs back.
+//
+// It deliberately lives here and not in metaTokenAutoRefreshService.js: that
+// scheduler reads marketing_settings (the ads/publishing connection), which is
+// a different row holding a different credential. The inbox channel lives in
+// meta_integration_configs, and nothing used to renew it.
+// ---------------------------------------------------------------------------
+
+const INSTAGRAM_TOKEN_REFRESH_URL = "https://graph.instagram.com/refresh_access_token";
+// A token Meta minted less than 24h ago is refused; the extra hour is slack.
+const INSTAGRAM_TOKEN_MIN_AGE_MS = 25 * 60 * 60 * 1000;
+// Under a day, so a daily scan never skips an alert by a few minutes, but a
+// server that restarts repeatedly still cannot spam the bell.
+const INSTAGRAM_TOKEN_ALERT_INTERVAL_MS = 20 * 60 * 60 * 1000;
+
+const refreshInstagramLongLivedToken = async (token) => {
+  const target = new URL(INSTAGRAM_TOKEN_REFRESH_URL);
+  target.searchParams.set("grant_type", "ig_refresh_token");
+  target.searchParams.set("access_token", text(token));
+  const response = await fetch(target);
+  noteGraphResponse(response);
+  const payload = await parseMetaPayload(response);
+  if (!response.ok) {
+    throw metaGraphFailure(Object.assign(new Error(metaErrorMessage(payload, "Instagram token refresh failed")), {
+      status: response.status,
+      meta: payload?.error || payload,
+      metaResponse: payload,
+    }));
+  }
+  const accessToken = text(payload?.access_token);
+  if (!accessToken) {
+    throw Object.assign(new Error("Instagram did not return a refreshed access token."), { status: 502, metaResponse: payload });
+  }
+  const expiresIn = Number(payload?.expires_in);
+  return {
+    accessToken,
+    expiresAt: Number.isFinite(expiresIn) && expiresIn > 0 ? new Date(Date.now() + expiresIn * 1000).toISOString() : null,
+  };
+};
+
+const instagramAccountLabel = (row = {}) => {
+  const username = text(row.instagram_username).replace(/^@/, "");
+  if (username) return `@${username}`;
+  return text(row.instagram_business_account_id);
+};
+
+const notifyInstagramTokenHealth = async ({ row = {}, state = "expiring", detail = "" } = {}) => {
+  const tenantId = numberOrNull(row.tenant_id);
+  const configId = row.id || null;
+  if (!tenantId || !configId) return false;
+  const lastAlert = parseMetaDate(row.instagram_token_alert_sent_at);
+  if (lastAlert && Date.now() - lastAlert.getTime() < INSTAGRAM_TOKEN_ALERT_INTERVAL_MS) return false;
+
+  const account = instagramAccountLabel(row);
+  const suffix = account ? ` (${account})` : "";
+  const daysLeft = instagramTokenDaysLeft(row.instagram_token_expires_at);
+  const copy = {
+    expired: {
+      type: "meta_instagram_token_expired",
+      priority: "critical",
+      title: "انتهت صلاحية رمز إنستجرام",
+      message: `رمز رسائل إنستجرام${suffix} انتهت صلاحيته، وأي رد على عميل لن يصل حتى إعادة الربط من إعدادات ميتا.`,
+    },
+    expiring: {
+      type: "meta_instagram_token_expiring",
+      priority: "high",
+      title: "رمز إنستجرام على وشك الانتهاء",
+      message: `رمز رسائل إنستجرام${suffix} ينتهي خلال ${daysLeft === null ? 7 : daysLeft} يوم. أعد الربط قبل أن تتوقف الردود.`,
+    },
+    refresh_failed: {
+      type: "meta_instagram_token_refresh_failed",
+      priority: "high",
+      title: "فشل التجديد التلقائي لرمز إنستجرام",
+      message: `تعذّر تجديد رمز رسائل إنستجرام${suffix} تلقائيًا${detail ? `: ${detail}` : ""}. أعد الربط يدويًا من إعدادات ميتا.`,
+    },
+  }[state] || null;
+  if (!copy) return false;
+
+  await createNotification({
+    tenant_id: tenantId,
+    role_key: "admin",
+    type: copy.type,
+    category: "integrations",
+    priority: copy.priority,
+    title: copy.title,
+    message: copy.message,
+    action_url: "/admin/ai-inbox?integrations=meta",
+    action_label: "فتح إعدادات ميتا",
+    entity_type: "meta_integration_config",
+    entity_id: String(configId),
+    metadata: {
+      config_id: configId,
+      instagram_business_account_id: row.instagram_business_account_id || "",
+      instagram_username: row.instagram_username || "",
+      instagram_token_expires_at: row.instagram_token_expires_at || null,
+      days_left: daysLeft,
+      state,
+      detail: text(detail).slice(0, 300),
+    },
+  });
+  await db.query(
+    `UPDATE meta_integration_configs SET instagram_token_alert_sent_at = NOW(), updated_at = NOW() WHERE id = $1`,
+    [configId]
+  );
+  return true;
+};
+
+const refreshInstagramTokenForConfig = async ({ row = {}, force = false } = {}) => {
+  const configId = row.id || null;
+  const logContext = {
+    tenant_id: numberOrNull(row.tenant_id),
+    config_id: configId,
+    instagram_business_account_id: maskIdForLog(row.instagram_business_account_id),
+  };
+  const decrypted = tryDecryptSecret(row.instagram_access_token_encrypted, {
+    tenant_id: logContext.tenant_id,
+    config_id: configId,
+    source: "instagram_token_refresh",
+    channel: "instagram",
+  });
+  if (!decrypted.value) {
+    console.warn("[meta-ig-token] skipped", { ...logContext, reason: "token_unreadable" });
+    return { config_id: configId, skipped: true, reason: "token_unreadable" };
+  }
+
+  const msLeft = instagramTokenMsLeft(row.instagram_token_expires_at);
+  if (msLeft !== null && msLeft <= 0) {
+    // Past saving: Meta refuses to renew a dead token, only a reconnect works.
+    console.warn("[meta-ig-token] expired", { ...logContext, expires_at: row.instagram_token_expires_at });
+    await db.query(
+      `
+      UPDATE meta_integration_configs
+      SET instagram_token_status = 'expired',
+          instagram_token_refresh_error = 'The Instagram token expired before it could be refreshed. Reconnect Instagram.',
+          updated_at = NOW()
+      WHERE id = $1
+      `,
+      [configId]
+    );
+    const alerted = await notifyInstagramTokenHealth({ row, state: "expired" }).catch(() => false);
+    return { config_id: configId, refreshed: false, expired: true, alerted, reason: "token_expired" };
+  }
+
+  // Outside the last week there is nothing to do — Meta hands back roughly the
+  // same 60 days whenever it is asked, so renewing early only burns calls.
+  if (!force && msLeft !== null && msLeft > INSTAGRAM_TOKEN_WARNING_WINDOW_MS) {
+    return { config_id: configId, skipped: true, reason: "not_due" };
+  }
+
+  // A token saved minutes ago is still too young for Meta to renew.
+  const savedAt = parseMetaDate(row.instagram_token_refreshed_at || row.instagram_token_last_validated_at);
+  if (!force && savedAt && Date.now() - savedAt.getTime() < INSTAGRAM_TOKEN_MIN_AGE_MS) {
+    return { config_id: configId, skipped: true, reason: "token_too_young" };
+  }
+
+  console.log("[meta-ig-token] refresh started", {
+    ...logContext,
+    expires_at: row.instagram_token_expires_at || null,
+    expiry_known: msLeft !== null,
+    forced: force === true,
+  });
+
+  try {
+    const refreshed = await refreshInstagramLongLivedToken(decrypted.value);
+    const result = await db.query(
+      `
+      UPDATE meta_integration_configs
+      SET instagram_access_token_encrypted = $2,
+          instagram_token_expires_at = COALESCE($3::timestamptz, instagram_token_expires_at),
+          instagram_token_status = 'active',
+          instagram_token_last_validated_at = NOW(),
+          instagram_token_refreshed_at = NOW(),
+          instagram_token_refresh_error = '',
+          instagram_token_alert_sent_at = NULL,
+          updated_at = NOW()
+      WHERE id = $1
+      RETURNING instagram_token_expires_at
+      `,
+      [configId, encryptSecret(refreshed.accessToken), refreshed.expiresAt]
+    );
+    console.log("[meta-ig-token] refresh success", {
+      ...logContext,
+      new_expiry: result.rows[0]?.instagram_token_expires_at || null,
+    });
+    return {
+      config_id: configId,
+      refreshed: true,
+      token_expires_at: result.rows[0]?.instagram_token_expires_at || null,
+    };
+  } catch (error) {
+    const reason = text(error?.meta?.message || error?.message || "Instagram token refresh failed").slice(0, 300);
+    console.error("[meta-ig-token] refresh failed", {
+      ...logContext,
+      status: error?.status || null,
+      meta_code: error?.meta?.code ?? null,
+      meta_subcode: error?.meta?.error_subcode ?? null,
+      reason,
+    });
+    await db.query(
+      `
+      UPDATE meta_integration_configs
+      SET instagram_token_status = 'error',
+          instagram_token_refresh_error = $2,
+          updated_at = NOW()
+      WHERE id = $1
+      `,
+      [configId, reason]
+    ).catch(() => {});
+    const alerted = await notifyInstagramTokenHealth({ row, state: "refresh_failed", detail: reason }).catch(() => false);
+    return { config_id: configId, refreshed: false, alerted, error: reason };
+  }
+};
+
+export const runInstagramTokenAutoRefreshScan = async ({ tenantId = null, force = false } = {}) => {
+  await ensureMetaIntegrationSchema();
+  const scopedTenantId = numberOrNull(tenantId);
+  const rows = await db.query(
+    `
+    SELECT *
+    FROM meta_integration_configs
+    WHERE COALESCE(instagram_access_token_encrypted, '') <> ''
+      AND ($1::bigint IS NULL OR tenant_id = $1::bigint)
+    ORDER BY id ASC
+    `,
+    [scopedTenantId]
+  ).catch((error) => {
+    console.error("[meta-ig-token] scan query failed", { message: error?.message || "unknown" });
+    return { rows: [] };
+  });
+
+  const results = [];
+  for (const row of rows.rows || []) {
+    try {
+      const outcome = await refreshInstagramTokenForConfig({ row, force });
+      // A token that survived the refresh but is still inside its last week
+      // (expiry unknown, or Meta handed back a short one) is worth a warning.
+      if (!outcome.refreshed && !outcome.expired && !outcome.error) {
+        const msLeft = instagramTokenMsLeft(row.instagram_token_expires_at);
+        if (msLeft !== null && msLeft > 0 && msLeft <= INSTAGRAM_TOKEN_WARNING_WINDOW_MS) {
+          outcome.alerted = await notifyInstagramTokenHealth({ row, state: "expiring" }).catch(() => false);
+        }
+      }
+      results.push(outcome);
+    } catch (error) {
+      console.error("[meta-ig-token] scan row failed", {
+        config_id: row.id || null,
+        message: error?.message || "unknown",
+      });
+      results.push({ config_id: row.id || null, error: text(error?.message).slice(0, 300) });
+    }
+  }
+
+  const summary = {
+    scanned: results.length,
+    refreshed: results.filter((item) => item.refreshed).length,
+    expired: results.filter((item) => item.expired).length,
+    failed: results.filter((item) => item.error).length,
+    alerted: results.filter((item) => item.alerted).length,
+    results,
+  };
+  if (summary.scanned) console.log("[meta-ig-token] scan complete", { ...summary, results: undefined });
+  return summary;
 };
 
 export const testMetaIntegrationConfig = async ({ tenantId } = {}) => {

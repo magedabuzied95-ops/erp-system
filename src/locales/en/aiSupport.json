@@ -2025,7 +2025,11 @@
         "stored": "Stored",
         "notStored": "Not stored",
         "webhookSubscribed": "Webhook subscribed",
-        "webhookPending": "Webhook needs verification"
+        "webhookPending": "Webhook needs verification",
+        "lastAutoRefresh": "Last auto-refresh: {{at}}",
+        "expiredWarning": "This token has expired, so Instagram replies never reach customers. Paste a new token to bring DMs back.",
+        "expiringWarning": "This token expires in {{days}} days. Auto-refresh runs daily; if it fails, reconnect here.",
+        "refreshFailed": "Auto-refresh failed: {{reason}}. Reconnect the token manually."
       },
       "advanced": {
         "title": "Manual identifiers",

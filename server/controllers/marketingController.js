@@ -25,7 +25,7 @@ import {
   renderCommentDmMessage,
   sendCommentPrivateReply,
 } from "../services/commentDmAutomationService.js";
-import { processMetaWebhook } from "../services/metaIntegrationService.js";
+import { processMetaWebhook, runInstagramTokenAutoRefreshScan } from "../services/metaIntegrationService.js";
 import {
   createAutoReplyRule as createMarketingAutoReplyRule,
   deleteAutoReplyRule as deleteMarketingAutoReplyRule,
@@ -6402,22 +6402,29 @@ export const testAutoRefreshSettings = async (req, res) => {
     await ensureMarketingSchema();
     const tenantId = getTenantScope(req);
     const current = await getSettingsRow(tenantId);
-    if (!current) {
-      return res.status(404).json({ success: false, message: "Marketing settings row not found" });
+
+    // The two Meta credentials live in two tables. A manual "refresh now" has
+    // to cover both, and a marketing row that cannot be refreshed must not
+    // stop the Instagram inbox token from being renewed.
+    let result = { skipped: true, reason: "Marketing settings row not found" };
+    let marketingError = null;
+    if (current) {
+      try {
+        result = await refreshMarketingTenantMetaToken({ tenantId, force: true, source: "manual-test" });
+      } catch (error) {
+        marketingError = error?.message || "Meta token refresh failed";
+      }
     }
 
-    const result = await refreshMarketingTenantMetaToken({
-      tenantId,
-      force: true,
-      source: "manual-test",
-    });
+    const instagram = await runInstagramTokenAutoRefreshScan({ tenantId, force: true });
 
     const updated = await getSettingsRow(tenantId);
     res.json({
       success: true,
-      skipped: Boolean(result?.skipped),
-      reason: result?.reason || null,
-      data: normalizeSettingsRow(updated || current),
+      skipped: Boolean(result?.skipped) && !instagram.refreshed,
+      reason: marketingError || result?.reason || null,
+      instagram: { scanned: instagram.scanned, refreshed: instagram.refreshed, expired: instagram.expired, failed: instagram.failed },
+      data: current || updated ? normalizeSettingsRow(updated || current) : null,
     });
   } catch (error) {
     console.error("[marketing] Meta auto refresh test error", {
