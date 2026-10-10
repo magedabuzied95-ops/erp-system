@@ -197,3 +197,42 @@ test("leaving a count keeps the installed app inside its own shell", () => {
   assert.match(page, /navigate\(`\$\{buildEmployeePortalHomePath\(\{ pathname: window\.location\.pathname, token \}\)\}\/inventory`, \{ replace: true \}\)/);
   assert.match(page, /const base = buildEmployeePortalHomePath\(\{ pathname: window\.location\.pathname, token \}\);\s*\n\s*navigate\(`\$\{base\}\/inventory\/\$\{encodeURIComponent\(nextSessionId\)\}`\)/);
 });
+
+// ---- Who took the count, and when ------------------------------------------
+
+test("every count says who took it and when", () => {
+  assert.match(page, /function CountTakenBy\(\{ row, className = "" \}\)/);
+  assert.match(page, /const who = String\(row\?\.created_by_employee_name \?\? ""\)\.trim\(\);/);
+  assert.match(page, /const when = countTakenAt\(row\?\.created_at\);/);
+  // Both surfaces: the row in the list and the count that is open.
+  assert.match(page, /<CountTakenBy row=\{row\} className="mt-0\.5" \/>/, "the list row");
+  assert.match(page, /<CountTakenBy row=\{session\} className="mt-1" \/>/, "the open count");
+});
+
+test("the time shown is the shop's clock, with a month nobody has to decode", () => {
+  // A phone on another zone would date the count a day out in a record read a
+  // year later, and ١٠/١٠ cannot be read as a date without guessing an order.
+  assert.match(page, /formatInAppTimezone\(\s*\n?\s*value,\s*\n?\s*\{ day: "numeric", month: "short", year: "numeric", hour: "numeric", minute: "2-digit" \}/);
+  assert.match(page, /import \{ formatInAppTimezone \} from "\.\.\/\.\.\/\.\.\/shared\/lib\/appTimezone";/);
+  assert.doesNotMatch(page, /countTakenAt = \(value\) =>\s*\n?\s*new Date\(/, "never the device's own formatting");
+  assert.match(page, /i18n\.language === "en" \? "en-GB" : "ar-EG"/);
+});
+
+test("the name comes from the employee record, so it outlives the person leaving", () => {
+  // Employees are archived, not erased, so the join still resolves their name.
+  // BOTH surfaces select it — the list and the open count — and dropping it
+  // from one leaves that screen quietly nameless.
+  assert.equal(
+    (service.match(/ce\.full_name AS created_by_employee_name/g) || []).length,
+    2,
+    "the sessions list and the single-session read both need the name"
+  );
+  assert.equal(
+    (service.match(/LEFT JOIN employees ce ON ce\.id = s\.created_by_employee_id/g) || []).length,
+    3,
+    "those two queries plus the count query they share a WHERE with"
+  );
+  // A count with no name on it shows the date alone instead of inventing one.
+  assert.match(page, /if \(!who && !when\) return null;/);
+  assert.match(page, /\{who \? \(/);
+});

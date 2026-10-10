@@ -14,8 +14,10 @@ import {
   Search,
   Save,
   Send,
+  CalendarClock,
   Menu,
   Pencil,
+  UserRound,
   Trash2,
   Warehouse,
   Wifi,
@@ -25,6 +27,7 @@ import toast from "react-hot-toast";
 
 import BarcodeScanner from "../../../components/BarcodeScanner";
 import { resolveProductImageUrl } from "../../../shared/lib/imageUrls";
+import { formatInAppTimezone } from "../../../shared/lib/appTimezone";
 import EmployeePortalNavControls, { buildEmployeePortalHomePath, canNavigateEmployeePortalBack } from "../components/EmployeePortalNavControls";
 import SmartPosFilters from "../../pos/components/SmartPosFilters";
 import { getEmployeePortalFacets } from "../services/employeePortalProductsApi";
@@ -371,6 +374,52 @@ function InventoryImage({ src, alt = "", className = "" }) {
 }
 
 /**
+ * When a count was taken, in the shop's clock.
+ *
+ * Never the device's: a phone on the wrong zone would date the count a day out
+ * in the record somebody reads a year later.
+ */
+const countTakenAt = (value) =>
+  // A named month, not ١٠/١٠: a record read a year later must not depend on
+  // the reader guessing whether the day or the month comes first.
+  formatInAppTimezone(
+    value,
+    { day: "numeric", month: "short", year: "numeric", hour: "numeric", minute: "2-digit" },
+    i18n.language === "en" ? "en-GB" : "ar-EG"
+  );
+
+/**
+ * Who took a count, and when — the line that still answers "who counted this?"
+ * long after everyone has forgotten.
+ *
+ * The name is the EMPLOYEE's, read back through `created_by_employee_id`. It
+ * survives the employee leaving (they are archived, not erased), but a count
+ * started before that column existed has no name to show, so the line falls
+ * back to the date alone rather than inventing one.
+ */
+function CountTakenBy({ row, className = "" }) {
+  const who = String(row?.created_by_employee_name ?? "").trim();
+  const when = countTakenAt(row?.created_at);
+  if (!who && !when) return null;
+  return (
+    <div className={`flex min-w-0 flex-wrap items-center gap-x-2 gap-y-0.5 text-[11px] font-bold text-text-muted ${className}`.trim()}>
+      {who ? (
+        <span className="inline-flex min-w-0 items-center gap-1">
+          <UserRound className="h-3 w-3 shrink-0" />
+          <span className="truncate" dir="auto">{who}</span>
+        </span>
+      ) : null}
+      {when ? (
+        <span className="inline-flex shrink-0 items-center gap-1">
+          <CalendarClock className="h-3 w-3 shrink-0" />
+          <span dir="auto">{when}</span>
+        </span>
+      ) : null}
+    </div>
+  );
+}
+
+/**
  * One count in a list of counts.
  *
  * Every count is called "جرد جديد" until someone renames it, which made the
@@ -466,6 +515,7 @@ function CountSessionRow({ row, active, busy = false, onSelect, onRename, onDele
               <span>{tt("employeePortal.stockCount.sizeCount", { count: toNumber(row.item_count, 0) })}</span>
             ) : null}
           </div>
+          <CountTakenBy row={row} className="mt-0.5" />
           <span className={`mt-1 inline-flex rounded-full border px-2 py-0.5 text-[10px] font-black ${sessionStatusTone[status] || sessionStatusTone.draft}`}>
             {sessionStatusLabels[status] || status}
           </span>
@@ -2058,6 +2108,10 @@ export default function EmployeePortalInventory() {
                   <div className="mt-0.5 truncate text-xs font-semibold text-text-muted">
                     {session.branch_name || tt("employeePortal.common.branch")}{session.warehouse_name ? ` • ${session.warehouse_name}` : ""}
                   </div>
+                  {/* Who took this count and when, on the count itself — not
+                      only in the list, so it is there while it is being taken
+                      and still there when it is read back a year later. */}
+                  <CountTakenBy row={session} className="mt-1" />
 
                   <div className="mt-2 grid grid-cols-3 gap-1.5 text-center">
                     <div className="rounded-[var(--radius-control)] border border-border bg-surface-soft px-1.5 py-1.5">
