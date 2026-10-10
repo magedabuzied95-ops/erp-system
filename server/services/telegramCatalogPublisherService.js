@@ -205,8 +205,90 @@ const telegramCardDate = (card = {}) => {
   return Number.isFinite(parsed) ? parsed : 0;
 };
 
+
+/*
+ * A school bag belongs in the kids channel and nowhere else.
+ *
+ * There is no field that says "school bag" -- the shop's bag-type classification
+ * is empty on every one of them. What the catalogue DOES say is the audience,
+ * and the split is exact: every bag carrying the kids audience is a backpack
+ * (Classic / Momolly / Mile Stone / "size 16"), and every bag that does not is a
+ * handbag (hand & crossbody, Chrisbella, David Jones...). Not one handbag is
+ * listed for kids, and not one backpack is listed without them.
+ *
+ * So the rule is the audience, not a name list: a bag that is also for kids is
+ * only posted in the kids channel. A school bag added next season is marked for
+ * kids like the others and is excluded without anyone being told.
+ */
+export const isSchoolBagForAdultChannel = (card = {}, channelAudience = "") => {
+  if (text(channelAudience).toLowerCase() === "kids") return false;
+  if (text(card.product_type || card.productType).toLowerCase() !== "bags") return false;
+  const audiences = []
+    .concat(Array.isArray(card.audiences) ? card.audiences : [])
+    .concat(Array.isArray(card.product_audiences) ? card.product_audiences : [])
+    .map((value) => text(value).toLowerCase());
+  return audiences.includes("kids");
+};
+
 export const orderCardsOldestFirst = (cards = []) =>
   [...(Array.isArray(cards) ? cards : [])].sort((a, b) => telegramCardDate(a) - telegramCardDate(b));
+
+
+/*
+ * The order a channel is filled in.
+ *
+ * Telegram drops a visitor at the BOTTOM of a channel, so the LAST thing posted
+ * is the first thing seen. The order therefore reads backwards from what you
+ * want a shopper to meet: whatever should greet them goes last.
+ *
+ * The shop's order for the men's channel is offers, then crocs, then slippers,
+ * then local, then imported, then mirror -- which puts the offers (broken size
+ * runs, end of line) at the very top where nobody lands, and the mirror line at
+ * the bottom where everybody does.
+ *
+ * A group is "offer", "type:<product type>" or "grade:<grade>". A card joins the
+ * FIRST group it matches, so a slipper that is also on offer is an offer. Cards
+ * matching no group are posted with the offers, at the top: an unclassified
+ * product should not be the first thing a shopper sees. Within a group the order
+ * is oldest-first, which keeps a model's colours together.
+ */
+const cardMatchesGroup = (card = {}, group = "") => {
+  const rule = text(group).toLowerCase();
+  if (!rule) return false;
+  if (rule === "offer") {
+    return card.is_offer_story === true ||
+      text(card.is_offer_story).toLowerCase() === "true" ||
+      card.sale_mode_applied === true ||
+      card.sale_price_enabled === true;
+  }
+  const [kind, ...rest] = rule.split(":");
+  const value = rest.join(":").trim();
+  if (!value) return false;
+  if (kind === "type") return text(card.product_type || card.productType).toLowerCase() === value;
+  if (kind === "grade") return text(card.grade).toLowerCase() === value;
+  if (kind === "brand") return text(card.brand_name || card.brand).toLowerCase() === value;
+  return false;
+};
+
+export const parseTelegramPostOrder = (value = "") =>
+  text(value)
+    .split(",")
+    .map((group) => text(group))
+    .filter(Boolean);
+
+export const orderCardsForBackfill = (cards = [], groups = []) => {
+  const list = Array.isArray(cards) ? cards : [];
+  const order = Array.isArray(groups) ? groups.filter(Boolean) : [];
+  if (!order.length) return orderCardsOldestFirst(list);
+  const buckets = order.map(() => []);
+  const leftovers = [];
+  for (const card of list) {
+    const index = order.findIndex((group) => cardMatchesGroup(card, group));
+    if (index < 0) leftovers.push(card);
+    else buckets[index].push(card);
+  }
+  return [...orderCardsOldestFirst(leftovers), ...buckets.flatMap((bucket) => orderCardsOldestFirst(bucket))];
+};
 
 export const telegramCardImageUrl = (card = {}) =>
   resolvePublicProductImageUrl(
@@ -455,7 +537,10 @@ export const syncTelegramChannel = async ({
 
   // Oldest first: see orderCardsOldestFirst -- the last post is the first thing
   // a visitor sees, so the newest model has to be the last one in.
-  const cards = orderCardsOldestFirst(await loadCards({ tenantId, audience: channel.audience || "" }));
+  const catalogue = (await loadCards({ tenantId, audience: channel.audience || "" }))
+    // A school bag is a kids product wherever else it is listed.
+    .filter((card) => !isSchoolBagForAdultChannel(card, channel.audience));
+  const cards = orderCardsForBackfill(catalogue, parseTelegramPostOrder(settings.post_order));
   const existing = await listPosts({ tenantId, channelId: channel.id, client });
   const existingByCard = new Map(existing.map((row) => [text(row.card_id), row]));
   const seen = new Set();

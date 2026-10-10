@@ -1341,3 +1341,121 @@ test("adding a channel changes the menu, so the others re-send theirs", () => {
   const three = telegramIndexFingerprint(body, telegramIndexKeyboard({ audience: "men", siblings: SIBLINGS }));
   assert.notEqual(two, three);
 });
+
+// ---------------------------------------------------------------------------
+// What goes in a channel, and in what order.
+// ---------------------------------------------------------------------------
+
+const {
+  isSchoolBagForAdultChannel,
+  orderCardsForBackfill,
+  parseTelegramPostOrder,
+} = await import("../server/services/telegramCatalogPublisherService.js");
+
+const bag = (audiences) => ({ card_id: "b:1", product_type: "bags", audiences });
+
+test("a bag listed for kids is a school bag, and belongs only in the kids channel", () => {
+  assert.equal(isSchoolBagForAdultChannel(bag(["men", "women", "kids"]), "men"), true);
+  assert.equal(isSchoolBagForAdultChannel(bag(["men", "women", "kids"]), "women"), true);
+  assert.equal(isSchoolBagForAdultChannel(bag(["men", "women", "kids"]), "kids"), false, "it IS the kids channel's product");
+});
+
+test("a handbag is never listed for kids, so it stays", () => {
+  assert.equal(isSchoolBagForAdultChannel(bag(["women"]), "women"), false);
+});
+
+test("a shoe is never a school bag, whoever it is for", () => {
+  assert.equal(isSchoolBagForAdultChannel({ product_type: "sneakers", audiences: ["men", "kids"] }, "men"), false);
+  assert.equal(isSchoolBagForAdultChannel({ product_type: "slippers", audiences: ["kids"] }, "men"), false);
+});
+
+test("the audience is read from either field the listing may carry", () => {
+  assert.equal(isSchoolBagForAdultChannel({ product_type: "bags", product_audiences: ["kids"] }, "men"), true);
+  assert.equal(isSchoolBagForAdultChannel({ product_type: "bags" }, "men"), false);
+});
+
+const ORDER = parseTelegramPostOrder("offer,type:crocs,type:slippers,grade:local,grade:imported_from_vietnam,grade:mirror_original");
+
+const card = (id, extra) => ({ card_id: id, created_at: "2025-01-01T00:00:00Z", ...extra });
+
+test("the groups are posted in the order the shop asked for", () => {
+  const ordered = orderCardsForBackfill([
+    card("mirror", { grade: "mirror_original", product_type: "sneakers" }),
+    card("local", { grade: "local", product_type: "sneakers" }),
+    card("crocs", { grade: "local", product_type: "crocs" }),
+    card("vietnam", { grade: "imported_from_vietnam", product_type: "sneakers" }),
+    card("slipper", { grade: "local", product_type: "slippers" }),
+    card("offer", { grade: "mirror_original", product_type: "sneakers", is_offer_story: true }),
+  ], ORDER);
+  assert.deepEqual(ordered.map((c) => c.card_id), ["offer", "crocs", "slipper", "local", "vietnam", "mirror"]);
+});
+
+test("an offer is an offer whatever section it came from — it goes to the top", () => {
+  const ordered = orderCardsForBackfill([
+    card("plain", { grade: "local", product_type: "sneakers" }),
+    card("offer-slipper", { grade: "local", product_type: "slippers", sale_mode_applied: true }),
+  ], ORDER);
+  assert.equal(ordered[0].card_id, "offer-slipper", "a slipper on offer is an offer first");
+});
+
+test("the LAST group posted is the one a visitor meets, so mirror ends up on top of the view", () => {
+  const ordered = orderCardsForBackfill([
+    card("a", { grade: "mirror_original" }),
+    card("b", { grade: "local" }),
+  ], ORDER);
+  assert.equal(ordered[ordered.length - 1].grade, "mirror_original");
+});
+
+test("a card matching nothing is buried at the top, never left to greet a shopper", () => {
+  const ordered = orderCardsForBackfill([
+    card("mirror", { grade: "mirror_original" }),
+    card("ungrouped", {}),
+    card("offer", { grade: "local", is_offer_story: true }),
+  ], ORDER);
+  assert.equal(ordered[0].card_id, "ungrouped", "an unclassified product goes above even the offers");
+  assert.equal(ordered[ordered.length - 1].card_id, "mirror", "and the last group still greets the shopper");
+});
+
+test("within a group, a model's colours stay together and oldest goes first", () => {
+  const ordered = orderCardsForBackfill([
+    card("new", { grade: "local", created_at: "2026-01-01T00:00:00Z" }),
+    card("old", { grade: "local", created_at: "2024-01-01T00:00:00Z" }),
+  ], ORDER);
+  assert.deepEqual(ordered.map((c) => c.card_id), ["old", "new"]);
+});
+
+test("no order configured falls back to plain oldest-first", () => {
+  const ordered = orderCardsForBackfill([
+    card("new", { created_at: "2026-01-01T00:00:00Z" }),
+    card("old", { created_at: "2024-01-01T00:00:00Z" }),
+  ], []);
+  assert.deepEqual(ordered.map((c) => c.card_id), ["old", "new"]);
+});
+
+test("every card is posted exactly once, whatever the groups", () => {
+  const cards = [
+    card("1", { grade: "local" }), card("2", { grade: "mirror_original", is_offer_story: true }),
+    card("3", { product_type: "crocs", grade: "local" }), card("4", {}), card("5", { grade: "imported_from_vietnam" }),
+  ];
+  const ordered = orderCardsForBackfill(cards, ORDER);
+  assert.equal(ordered.length, cards.length);
+  assert.equal(new Set(ordered.map((c) => c.card_id)).size, cards.length);
+});
+
+test("the sweep itself drops a school bag from an adult channel", async () => {
+  const schoolBag = { ...CARD, card_id: "b:1", product_type: "bags", audiences: ["men", "women", "kids"] };
+  const { jobs, summary } = await runSync({ cards: [schoolBag, CARD] });
+  assert.equal(jobs.length, 1, "only the shoe is queued");
+  assert.equal(jobs[0].cardId, CARD.card_id);
+  assert.equal(summary.created, 1);
+});
+
+test("the kids channel still gets its school bags", async () => {
+  const schoolBag = { ...CARD, card_id: "b:1", product_type: "bags", audiences: ["men", "women", "kids"] };
+  const { jobs } = await runSync({
+    cards: [schoolBag],
+    channel: { ...CHANNEL, audience: "kids" },
+  });
+  assert.equal(jobs.length, 1);
+  assert.equal(jobs[0].cardId, "b:1");
+});

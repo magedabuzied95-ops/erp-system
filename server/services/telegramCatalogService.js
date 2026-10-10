@@ -34,6 +34,7 @@ export const TELEGRAM_CATALOG_SETTING_KEYS = Object.freeze({
   restockAnnounce: "telegram.catalog_restock_announcement",
   digestEnabled: "telegram.catalog_daily_digest",
   digestHour: "telegram.catalog_digest_hour",
+  postOrder: "telegram.catalog_post_order",
 });
 
 export const TELEGRAM_POST_STATES = Object.freeze(["pending", "live", "sold_out", "failed", "removed"]);
@@ -188,7 +189,7 @@ const asNumber = (value, fallback, { min, max } = {}) => {
 };
 
 export const loadTelegramCatalogSettings = async () => {
-  const [enabled, botUsername, orderMode, syncMinutes, postsPerMinute, captionTemplate, soldOutLabel, restockAnnounce, digestEnabled, digestHour] = await Promise.all([
+  const [enabled, botUsername, orderMode, syncMinutes, postsPerMinute, captionTemplate, soldOutLabel, restockAnnounce, digestEnabled, digestHour, postOrder] = await Promise.all([
     getSetting(TELEGRAM_CATALOG_SETTING_KEYS.enabled, false),
     getSetting(TELEGRAM_CATALOG_SETTING_KEYS.botUsername, ""),
     getSetting(TELEGRAM_CATALOG_SETTING_KEYS.orderMode, "both"),
@@ -199,6 +200,7 @@ export const loadTelegramCatalogSettings = async () => {
     getSetting(TELEGRAM_CATALOG_SETTING_KEYS.restockAnnounce, false),
     getSetting(TELEGRAM_CATALOG_SETTING_KEYS.digestEnabled, false),
     getSetting(TELEGRAM_CATALOG_SETTING_KEYS.digestHour, 21),
+    getSetting(TELEGRAM_CATALOG_SETTING_KEYS.postOrder, ""),
   ]);
   const mode = text(orderMode).toLowerCase();
   return {
@@ -212,6 +214,7 @@ export const loadTelegramCatalogSettings = async () => {
     restock_announcement: restockAnnounce === true || text(restockAnnounce).toLowerCase() === "true",
     daily_digest: digestEnabled === true || text(digestEnabled).toLowerCase() === "true",
     digest_hour: asNumber(digestHour, 21, { min: 0, max: 23 }),
+    post_order: text(postOrder),
   };
 };
 
