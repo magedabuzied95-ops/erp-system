@@ -87,14 +87,27 @@ test("a name the employee typed is never taken away", () => {
   );
 });
 
-test("a count of several models keeps the generic name", () => {
-  // No single model speaks for it, and naming it after the first would be a lie.
+test("a count of several models leads with the one on top and says how many more", () => {
+  // Keeping the generic name here just brought the five identical rows back.
   assert.equal(
     countSessionTitle({ title: "جرد جديد", cover_product_name: "Nike Air Force 1", model_count: 4 }),
-    "جرد جديد"
+    "Nike Air Force 1 +3"
   );
+  // A row that cannot say how many models it holds still has its cover, and one
+  // model is the safest reading — the count on screen said the model's name
+  // while the title stayed generic.
+  assert.equal(countSessionTitle({ title: "New stock count", cover_product_name: "Adidas Running" }), "Adidas Running");
+  assert.equal(countSessionTitle({ title: "New stock count", cover_product_name: "Adidas Running", model_count: 0 }), "Adidas Running");
+});
+
+test("a count with nothing on its sheet keeps the generic name", () => {
   assert.equal(countSessionTitle({ title: "جرد جديد", cover_product_name: "", model_count: 1 }), "جرد جديد");
   assert.equal(countSessionTitle({}), "");
+  // And a name a person typed still wins over every model on the sheet.
+  assert.equal(
+    countSessionTitle({ title: "جرد الرف الثالث", cover_product_name: "Nike Air Force 1", model_count: 4 }),
+    "جرد الرف الثالث"
+  );
 });
 
 test("the default titles are recognised whatever the casing", () => {
@@ -105,16 +118,19 @@ test("the default titles are recognised whatever the casing", () => {
 });
 
 test("the screen uses that rule, and the server sends what it needs", () => {
-  assert.match(page, /import \{ countSessionTitle \} from "\.\.\/services\/employeeDrafts\/countSessionTitle\.js";/);
+  assert.match(page, /import \{ countSessionTitle, countTitleIsModelName \} from "\.\.\/services\/employeeDrafts\/countSessionTitle\.js";/);
   assert.match(page, /const title = countSessionTitle\(row\);/, "the list row");
   assert.match(page, /const openCountTitle = useMemo\(/, "the open count names itself the same way");
   assert.match(page, /model_count: models\.length,/);
   // Saying the model name twice in one row is the thing the owner keeps asking
   // not to see.
-  assert.match(page, /const subtitle = model && model !== title \? model : row\.branch_name/);
+  assert.match(page, /const subtitle = model && !countTitleIsModelName\(row\) \? model : row\.branch_name/);
   // The server has to say how many models the count holds, or every count of
-  // one model keeps the generic name.
-  assert.match(service, /COUNT\(DISTINCT product_id\)::int AS model_count/);
+  // one model keeps the generic name — counted through the VARIANT too, the
+  // same way the cover picture and the cover name are resolved. Counting only
+  // the item's own product_id read a count of one model as a count of none.
+  assert.match(service, /COUNT\(DISTINCT COALESCE\(ci\.product_id, v\.product_id\)\)::int AS model_count/);
+  assert.match(service, /LEFT JOIN product_variants v ON v\.id = COALESCE\(ci\.product_variant_id, ci\.variant_id\)/);
   assert.match(service, /COALESCE\(items\.model_count, 0\)::int AS model_count/);
   // And searching for the model has to find the count that carries its name.
   assert.match(page, /\$\{row\.title \|\| ""\} \$\{row\.cover_product_name \|\| ""\}/);

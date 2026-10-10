@@ -983,15 +983,20 @@ export const listInventoryCountSessions = async (clientOrPool, { tenantId = null
       LEFT JOIN users ur ON ur.id = s.rejected_by
       LEFT JOIN (
         SELECT
-          inventory_count_session_id,
+          ci.inventory_count_session_id,
           COUNT(*)::int AS item_count,
-          -- One model means the count can carry that model's name instead of
-          -- being the fifth row called "جرد جديد".
-          COUNT(DISTINCT product_id)::int AS model_count,
-          COUNT(*) FILTER (WHERE difference_quantity <> 0)::int AS adjusted_items,
-          COALESCE(SUM(ABS(difference_quantity)), 0)::int AS difference_total
-        FROM inventory_count_items
-        GROUP BY inventory_count_session_id
+          -- How many models are on the sheet: one, and the count carries that
+          -- model's name instead of being the fifth row called "جرد جديد".
+          -- Read through the VARIANT as well, exactly like the cover below — a
+          -- row that only knows its variant still belongs to a model, and
+          -- counting it as none left those counts unnamed while their own row
+          -- was showing the model's name and picture.
+          COUNT(DISTINCT COALESCE(ci.product_id, v.product_id))::int AS model_count,
+          COUNT(*) FILTER (WHERE ci.difference_quantity <> 0)::int AS adjusted_items,
+          COALESCE(SUM(ABS(ci.difference_quantity)), 0)::int AS difference_total
+        FROM inventory_count_items ci
+        LEFT JOIN product_variants v ON v.id = COALESCE(ci.product_variant_id, ci.variant_id)
+        GROUP BY ci.inventory_count_session_id
       ) items ON items.inventory_count_session_id = s.id
       -- The first colour put on the sheet is what the count LOOKS like. A list
       -- of counts all called "جرد جديد" is unreadable; the model's picture is

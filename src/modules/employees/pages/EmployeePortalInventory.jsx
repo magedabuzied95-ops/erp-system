@@ -50,7 +50,7 @@ import {
 import usePortalCatalog from "../hooks/usePortalCatalog";
 import CountProductSearch from "../components/CountProductSearch";
 import { countFilterDictionaries, countIndexFacets, findCountGroupByCode, getCountSearchIndex, searchCountIndex } from "../services/employeeDrafts/countSearchIndex.js";
-import { countSessionTitle } from "../services/employeeDrafts/countSessionTitle.js";
+import { countSessionTitle, countTitleIsModelName } from "../services/employeeDrafts/countSessionTitle.js";
 import usePageTitle from "../../../shared/hooks/usePageTitle";
 import "./EmployeePortalWorkspaces.m1.css";
 import {
@@ -433,9 +433,10 @@ function CountSessionRow({ row, active, busy = false, onSelect, onRename, onDele
   const status = String(row.status || "draft");
   const title = countSessionTitle(row);
   const model = String(row.cover_product_name ?? "").trim();
-  // Never the same words twice: once the model IS the title, the line under it
-  // goes back to telling the employee where and how big the count is.
-  const subtitle = model && model !== title ? model : row.branch_name || tt("employeePortal.common.branch");
+  // Never the same words twice: once the model IS the title — on its own or as
+  // "the model +2" — the line under it goes back to telling the employee where
+  // the count is.
+  const subtitle = model && !countTitleIsModelName(row) ? model : row.branch_name || tt("employeePortal.common.branch");
   // Renaming happens in the row itself: a phone has nowhere to put a dialog
   // that is only one field wide.
   const [renaming, setRenaming] = useState(false);
