@@ -3233,6 +3233,12 @@ export const getManagerPortalEmployeeDetails = async ({ manager = {}, employeeId
         type: blocker.type || "",
         severity: blocker.severity || "warning",
         message: blocker.message_ar || blocker.message || "",
+        reference_id: blocker.reference_id ?? null,
+        date: blocker.date || "",
+        // An open attendance day is closed from the approval card itself, so the
+        // clock it should close at travels with the blocker.
+        check_in_time: blocker.check_in_time || null,
+        suggested_check_out_time: blocker.suggested_check_out_time || "",
       })),
       hard_blocked: approvalBlockers.some((blocker) => String(blocker.severity || "").toLowerCase() === "hard"),
     },

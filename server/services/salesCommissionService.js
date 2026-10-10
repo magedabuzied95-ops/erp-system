@@ -6,6 +6,7 @@ import { getTenantId, isSuperAdminUser } from "../utils/requestScope.js";
 import { ensureAttendanceSchema } from "../utils/attendanceSchema.js";
 import { countedLatePermissions, loadAttendancePolicy, policyAppliesOn, resolveLateDay } from "../utils/attendancePolicy.js";
 import { getAttendanceTimeZone } from "../utils/attendanceTimezone.js";
+import { parseManualAttendanceTimestamp } from "../utils/attendanceManualEntry.js";
 import { ensureForeignKeyConstraint } from "../utils/schemaConstraints.js";
 import { sendEmployeePortalPush } from "./employeePortalPushService.js";
 
@@ -120,6 +121,34 @@ const dateKey = (value) => {
     }).format(date);
   } catch {
     return date.toISOString().slice(0, 10);
+  }
+};
+
+const nextDateKey = (value) => {
+  const [year, month, day] = String(value || "").slice(0, 10).split("-").map(Number);
+  if (!year || !month || !day) return String(value || "").slice(0, 10);
+  return new Date(Date.UTC(year, month - 1, day + 1)).toISOString().slice(0, 10);
+};
+
+// HH:MM on the attendance clock. The suggested check-out travels to the portal
+// as a wall clock, which is what the correction endpoint takes back.
+const clockKey = (value) => {
+  if (!value) return "";
+  const date = value instanceof Date ? value : new Date(value);
+  if (Number.isNaN(date.getTime())) return "";
+  try {
+    const parts = new Intl.DateTimeFormat("en-GB", {
+      timeZone: getAttendanceTimeZone(),
+      hour: "2-digit",
+      minute: "2-digit",
+      hourCycle: "h23",
+    }).formatToParts(date);
+    const get = (type) => parts.find((part) => part.type === type)?.value || "";
+    const hour = get("hour");
+    const minute = get("minute");
+    return hour && minute ? `${hour}:${minute}` : "";
+  } catch {
+    return "";
   }
 };
 
@@ -885,19 +914,39 @@ export const calculateAttendancePayrollDeductions = async ({ tenantId = null, em
   const openAttendanceResult = await db.query(
     `
     SELECT
-      id,
-      attendance_date,
-      COALESCE(check_in_at, check_in) AS check_in_time,
-      COALESCE(check_out_at, check_out) AS check_out_time,
-      status
-    FROM attendance_logs
-    WHERE employee_id::text = $1::text
-      AND ($2::bigint IS NULL OR tenant_id = $2::bigint)
-      AND attendance_date BETWEEN $3::date AND $4::date
-      AND ($5::text IS NULL OR branch_id::text = $5::text)
-      AND COALESCE(check_in_at, check_in) IS NOT NULL
-      AND COALESCE(check_out_at, check_out) IS NULL
-    ORDER BY attendance_date ASC, id ASC
+      al.id,
+      al.attendance_date,
+      COALESCE(al.check_in_at, al.check_in) AS check_in_time,
+      COALESCE(al.check_out_at, al.check_out) AS check_out_time,
+      al.resolved_shift_end_time,
+      COALESCE(ess.end_time, es.end_time) AS shift_end_clock,
+      al.status
+    FROM attendance_logs al
+    LEFT JOIN LATERAL (
+      SELECT end_time
+      FROM employee_shift_schedules
+      WHERE tenant_id = al.tenant_id
+        AND employee_id = al.employee_id
+        AND work_date = al.attendance_date
+        AND LOWER(COALESCE(status, 'scheduled')) <> 'cancelled'
+      ORDER BY id DESC
+      LIMIT 1
+    ) ess ON TRUE
+    LEFT JOIN LATERAL (
+      SELECT end_time
+      FROM employee_shifts
+      WHERE tenant_id = al.tenant_id
+        AND employee_id = al.employee_id
+      ORDER BY updated_at DESC, id DESC
+      LIMIT 1
+    ) es ON TRUE
+    WHERE al.employee_id::text = $1::text
+      AND ($2::bigint IS NULL OR al.tenant_id = $2::bigint)
+      AND al.attendance_date BETWEEN $3::date AND $4::date
+      AND ($5::text IS NULL OR al.branch_id::text = $5::text)
+      AND COALESCE(al.check_in_at, al.check_in) IS NOT NULL
+      AND COALESCE(al.check_out_at, al.check_out) IS NULL
+    ORDER BY al.attendance_date ASC, al.id ASC
     `,
     [employeeId, tenantId, periodStart, periodEnd, attendanceBranchId]
   );
@@ -1021,13 +1070,43 @@ export const calculateAttendancePayrollDeductions = async ({ tenantId = null, em
   const leaveDeduction = toNumber(leavePayrollImpact.leave_deduction);
   const attendanceDeductionTotal = absenceDeduction + missingHoursDeduction + lateDeduction + earlyLeaveDeduction + leaveDeduction;
   const missingAttendanceDates = expectedDates.filter((item) => !attendanceByDate.has(item));
-  const openAttendanceLogs = openAttendanceResult.rows.map((row) => ({
-    id: row.id,
-    attendance_date: row.attendance_date ? dateKey(row.attendance_date) : "",
-    check_in_time: row.check_in_time || null,
-    check_out_time: row.check_out_time || null,
-    status: row.status || "",
-  }));
+  // An open day is closed from the payroll card in one tap, so every one of
+  // these carries the check-out the shift implies: the end the check-in already
+  // resolved, else the shift's own end clock on that day, else a full working
+  // day after the check-in. Only the clock travels: a night shift's check-out
+  // lands on the next calendar day, and the portal derives that from the two
+  // clocks exactly as its own correction form does.
+  const openAttendanceLogs = openAttendanceResult.rows.map((row) => {
+    const attendanceDate = row.attendance_date ? dateKey(row.attendance_date) : "";
+    const checkInAt = row.check_in_time ? new Date(row.check_in_time) : null;
+    const validCheckIn = checkInAt && !Number.isNaN(checkInAt.getTime()) ? checkInAt : null;
+    let suggestedAt = null;
+    const resolvedEnd = row.resolved_shift_end_time ? new Date(row.resolved_shift_end_time) : null;
+    if (resolvedEnd && !Number.isNaN(resolvedEnd.getTime()) && (!validCheckIn || resolvedEnd > validCheckIn)) {
+      suggestedAt = resolvedEnd;
+    } else if (row.shift_end_clock && attendanceDate) {
+      const endClock = String(row.shift_end_clock).slice(0, 5);
+      const sameDayEnd = parseManualAttendanceTimestamp(attendanceDate, endClock);
+      if (sameDayEnd) {
+        // The next day at that clock, not 24 hours later: on the night the
+        // clocks change those are an hour apart, and the shift ends by the clock.
+        suggestedAt = validCheckIn && sameDayEnd <= validCheckIn
+          ? parseManualAttendanceTimestamp(nextDateKey(attendanceDate), endClock)
+          : sameDayEnd;
+      }
+    }
+    if (!suggestedAt && validCheckIn) {
+      suggestedAt = new Date(validCheckIn.getTime() + dailyWorkHours * 60 * 60 * 1000);
+    }
+    return {
+      id: row.id,
+      attendance_date: attendanceDate,
+      check_in_time: row.check_in_time || null,
+      check_out_time: row.check_out_time || null,
+      status: row.status || "",
+      suggested_check_out_time: clockKey(suggestedAt),
+    };
+  });
 
   return {
     absence_days: Number(absenceDays.toFixed(2)),
@@ -1144,6 +1223,10 @@ const buildPayrollApprovalBlockers = ({ employee = {}, payrollSnapshot = {}, att
       message_ar: `سجل حضور غير محسوم: attendance_log_id=${log.id} دخول بدون انصراف`,
       reference_id: Number(log.id) || null,
       date: log.attendance_date || null,
+      // Carried so the approval card can close the day where it is reported
+      // instead of sending the manager into the attendance tab.
+      check_in_time: log.check_in_time || null,
+      suggested_check_out_time: log.suggested_check_out_time || "",
     });
   });
 

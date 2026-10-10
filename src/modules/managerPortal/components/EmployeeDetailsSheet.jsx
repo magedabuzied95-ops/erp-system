@@ -151,9 +151,7 @@ export default function EmployeeDetailsSheet({ token, employee, initialTab = "ov
   const payrollRun = d?.payroll?.run || null;
   const nextAdvanceMonth = d?.payroll?.next_advance_month || shiftMonth(month, 1);
   const hardBlockers = (d?.payroll?.blockers || [])
-    .filter((blocker) => String(blocker?.severity || "").toLowerCase() === "hard")
-    .map((blocker) => blocker.message)
-    .filter(Boolean);
+    .filter((blocker) => String(blocker?.severity || "").toLowerCase() === "hard" && (blocker.message || blocker.type));
   const approvePayroll = async () => {
     if (!d || approving || payrollRun) return;
     const net = d.salary.net_pay === null ? "—" : formatCurrency(d.salary.net_pay);
@@ -178,6 +176,50 @@ export default function EmployeeDetailsSheet({ token, employee, initialTab = "ov
       });
     } finally {
       setApproving(false);
+    }
+  };
+
+  // A day that was checked into and never out of blocks the approval, and the
+  // only way to clear it used to be the attendance tab's full correction form.
+  // The blocker now carries the check-out its shift implies, so it closes from
+  // the approval card in one tap; the clock stays editable for the days the
+  // shift's end is not what actually happened, and the editor's own long-day
+  // guard still applies.
+  const [fixBusyId, setFixBusyId] = useState(null);
+  const [fixClocks, setFixClocks] = useState({});
+  const [fixNotice, setFixNotice] = useState("");
+  useEffect(() => { setFixClocks({}); setFixNotice(""); }, [month, employeeId]);
+
+  const blockerClock = (blocker) => fixClocks[blocker.reference_id] ?? (blocker.suggested_check_out_time || "");
+
+  const closeOpenAttendanceDay = async (blocker) => {
+    const date = toDateKey(blocker.date);
+    const clock = blockerClock(blocker);
+    if (!date || !/^([01]\d|2[0-3]):([0-5]\d)$/.test(clock)) { setFixNotice(tt("managerPortal.employeeDetails.blockerFixTimeRequired")); return; }
+    const shift = describeManualShift({ date, checkIn: toClockInput(blocker.check_in_time), checkOut: clock });
+    if (shift?.isLong && !window.confirm(tt("managerPortal.employeeDetails.blockerFixLongConfirm", { hours: (shift.minutes / 60).toFixed(1) }))) return;
+    try {
+      setFixBusyId(blocker.reference_id);
+      setFixNotice("");
+      await managerPortalApi.correctEmployeeAttendance(token, employeeId, {
+        attendance_date: date,
+        check_out_time: clock,
+        check_out_date: shift?.checkOutDate || date,
+        correction_scope: "check_out",
+        reason: tt("managerPortal.employeeDetails.blockerFixReason"),
+      });
+      setFixClocks((prev) => {
+        const next = { ...prev };
+        delete next[blocker.reference_id];
+        return next;
+      });
+      setFixNotice(tt("managerPortal.employeeDetails.blockerFixed", { date: formatDay(date), time: clock }));
+      await load();
+      onChanged?.();
+    } catch (error) {
+      setFixNotice(error?.response?.data?.message || error?.message || tt("managerPortal.employeeDetails.attendanceSaveError"));
+    } finally {
+      setFixBusyId(null);
     }
   };
 
@@ -422,11 +464,44 @@ export default function EmployeeDetailsSheet({ token, employee, initialTab = "ov
                           {tt("managerPortal.employeeDetails.payrollOpenHint", { month: monthLabel(month), next: monthLabel(nextAdvanceMonth) })}
                         </div>
                         {hardBlockers.length ? (
-                          <div className="mt-1.5 text-[11px] font-bold text-rose-700">
-                            {tt("managerPortal.employeeDetails.payrollBlocked")}
-                            <ul className="mt-0.5 list-disc space-y-0.5 pr-4">{hardBlockers.map((text, index) => <li key={index}>{text}</li>)}</ul>
+                          <div className="mt-1.5 space-y-1.5 text-[11px] font-bold text-rose-700">
+                            <div>{tt("managerPortal.employeeDetails.payrollBlocked")}</div>
+                            {hardBlockers.map((blocker, index) => {
+                              const fixable = blocker.type === "attendance_unresolved" && blocker.reference_id && blocker.date;
+                              if (!fixable) return <div key={index} className="rounded-[var(--radius-card)] border border-slate-200 bg-white px-2 py-1.5">{blocker.message}</div>;
+                              const busy = fixBusyId === blocker.reference_id;
+                              return (
+                                <div key={index} className="rounded-[var(--radius-card)] border border-slate-200 bg-white px-2 py-2">
+                                  <div className="font-black text-slate-800">
+                                    {formatDay(blocker.date)} · {tt("managerPortal.employeeDetails.blockerOpenDay", { time: formatClock(blocker.check_in_time) })}
+                                  </div>
+                                  <div className="mt-1.5 flex items-center gap-2">
+                                    <input
+                                      type="time"
+                                      value={blockerClock(blocker)}
+                                      onChange={(event) => setFixClocks((prev) => ({ ...prev, [blocker.reference_id]: event.target.value }))}
+                                      aria-label={tt("managerPortal.employeeDetails.checkOut")}
+                                      className="h-[var(--control-height-md)] min-w-0 flex-1 rounded-[var(--radius-control)] border border-slate-200 bg-white px-2 text-sm font-black tabular-nums text-slate-950"
+                                    />
+                                    <button
+                                      type="button"
+                                      disabled={busy}
+                                      onClick={() => closeOpenAttendanceDay(blocker)}
+                                      className="inline-flex h-[var(--control-height-md)] shrink-0 items-center justify-center gap-1.5 rounded-[var(--radius-control)] bg-slate-950 px-3 text-xs font-black text-slate-50 disabled:opacity-50"
+                                    >
+                                      {busy ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : null}
+                                      {tt("managerPortal.employeeDetails.blockerFixAction")}
+                                    </button>
+                                  </div>
+                                  <div className="mt-1 text-[10px] font-bold text-slate-500">{tt("managerPortal.employeeDetails.blockerFixHint")}</div>
+                                </div>
+                              );
+                            })}
                           </div>
                         ) : null}
+                        {/* Outside the list above: closing the last open day empties it, and the
+                            manager still needs to read what was just saved. */}
+                        {fixNotice ? <div className="mt-1.5 text-[11px] font-bold text-slate-700">{fixNotice}</div> : null}
                         <button
                           type="button"
                           disabled={approving || hardBlockers.length > 0 || d.salary.net_pay === null}
