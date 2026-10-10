@@ -114,6 +114,133 @@ test("the match is highlighted where the employee's letters landed", () => {
   assert.deepEqual(idx.highlightParts("Nike", "zzz"), ["Nike", "", ""]);
 });
 
+// ---- The filter: the owner's classification, and every factory of a colour ----
+/*
+ * What these guard: the chips are the classification the OWNER configured (the
+ * rows' own words offered five spellings of the same thing and matched none),
+ * a factory that sits only on a COLOUR is filterable (and a colour can be made
+ * in two), a snapshot taken before the factory ids still filters by name, and a
+ * picked chip with an empty search box IS the list.
+ */
+
+const FILTER_SNAPSHOT = {
+  variants: [
+    row({
+      product_id: 40, product_variant_id: 400, product_name: "Vietnam Sneaker", color: "Red", size: "42",
+      sku: "VS-42", barcode: "4001", article_code: "V-1", brand: "M1", type: "sneakers", style: "runner",
+      gender: "men,women", grade: "mirror_original", category: "Uncategorized", stock: 4,
+      // The factory lives on the COLOUR, and this colour is made in two.
+      manufacturer_name: "", manufacturer_ids: ["8", "36"], product_updated_at: 400,
+    }),
+    row({
+      product_id: 41, product_variant_id: 410, product_name: "Local Slipper", color: "Blue", size: "40",
+      sku: "LS-40", barcode: "4101", article_code: "L-1", brand: "M1", type: "slippers", style: "slide",
+      gender: "men", grade: "local", category: "Uncategorized", stock: 0,
+      manufacturer_name: "Cavo", manufacturer_ids: ["8"], product_updated_at: 410,
+    }),
+    row({
+      product_id: 42, product_variant_id: 420, product_name: "Old Shoe", color: "Grey", size: "41",
+      sku: "OS-41", barcode: "4201", article_code: "O-1", brand: "M1", type: "sneakers", style: "runner",
+      gender: "men", grade: "local", category: "Uncategorized", stock: 2,
+      // A snapshot older than the ids: the legacy name is all it has.
+      manufacturer_name: "Factory Z", product_updated_at: 420,
+    }),
+    row({
+      product_id: 43, product_variant_id: 430, product_name: "Label Shoe", color: "Pink", size: "39",
+      sku: "LB-39", barcode: "4301", article_code: "B-1", brand: "M1", type: "sneakers", style: "runner",
+      // The product was filed under the owner's LABEL, not the value stored
+      // behind it — the words on a product and the words in the filter are not
+      // the same strings, which is the whole reason the mapping exists.
+      gender: "حريمي", grade: "Mirror", category: "", stock: 1,
+      manufacturer_name: "", manufacturer_ids: ["36"], product_updated_at: 430,
+    }),
+  ],
+};
+
+const label = (value) => value;
+const DICTIONARIES = {
+  manufacturers: [
+    { id: "8", name: "Cavo" },
+    { id: "36", name: label("مستورد فيتنامى") },
+  ],
+  classifications: [
+    {
+      key: "grade",
+      options: [
+        { value: "mirror_original", label_ar: label("مرايا"), label_en: "Mirror", sort_order: 1, is_active: true },
+        { value: "local", label_ar: label("محلي"), label_en: "Local", sort_order: 2, is_active: true },
+        { value: "second_copy", label_ar: label("نسخة"), label_en: "Copy", sort_order: 3, is_active: true },
+      ],
+    },
+    {
+      key: "gender",
+      options: [
+        { value: "men", label_ar: label("رجالي"), label_en: "Men", sort_order: 1, is_active: true },
+        { value: "women", label_ar: label("حريمي"), label_en: "Women", sort_order: 2, is_active: true },
+      ],
+    },
+  ],
+};
+
+const filterIndex = idx.getCountSearchIndex(FILTER_SNAPSHOT);
+const browse = (filters, options = {}) =>
+  idx.searchCountIndex(filterIndex, "", { filters, dictionaries: DICTIONARIES, ...options });
+const browsed = (filters, options) => browse(filters, options).groups.map((group) => group.product_name);
+
+test("the chips are the classification the owner configured, not the product's own words", () => {
+  const facets = idx.countIndexFacets(filterIndex, DICTIONARIES);
+  assert.deepEqual(
+    facets.grade.map((option) => [option.id, option.name, option.count]),
+    [["mirror_original", label("مرايا"), 2], ["local", label("محلي"), 2]],
+    "the owner's labels, in the owner's order; an option nothing is filed under is not offered"
+  );
+  assert.deepEqual(facets.gender.map((option) => [option.id, option.count]), [["men", 3], ["women", 2]], "a capitalised Women is the same chip as women");
+  // The raw data said "mirror_original" and "Uncategorized"; picking the
+  // configured value is what finds the product.
+  assert.deepEqual(browsed({ category: "mirror_original" }), ["Label Shoe", "Vietnam Sneaker"], "the one filed under the label belongs to the same chip");
+  assert.deepEqual(browsed({ category: "local" }), ["Local Slipper", "Old Shoe"]);
+  assert.deepEqual(browsed({ gender: "women" }), ["Label Shoe", "Vietnam Sneaker"], "a product made for both carries both");
+});
+
+test("a factory that sits only on the colour is filterable, including the second one", () => {
+  const facets = idx.countIndexFacets(filterIndex, DICTIONARIES);
+  const factories = new Map(facets.manufacturer.map((option) => [option.id, [option.name, option.count]]));
+  assert.equal(facets.manufacturer.length, 3, "one chip per factory, named from the snapshot's dictionary");
+  assert.deepEqual(factories.get("8"), ["Cavo", 2]);
+  assert.deepEqual(factories.get("36"), [label("مستورد فيتنامى"), 2]);
+  assert.deepEqual(factories.get("name:factory z"), ["Factory Z", 1], "folded key, so two spellings are one chip");
+  assert.deepEqual(browsed({ manufacturer: "36" }), ["Label Shoe", "Vietnam Sneaker"], "the colour's SECOND factory matches");
+  assert.deepEqual(browsed({ manufacturer: "8" }), ["Local Slipper", "Vietnam Sneaker"]);
+  assert.deepEqual(browsed({ manufacturer: "name:Factory Z" }), ["Old Shoe"], "a pre-ids snapshot still filters by name, however it is spelled");
+  assert.deepEqual(browsed({ manufacturer: "999" }), [], "a factory nothing is made in matches nothing");
+});
+
+test("a picked chip with an empty search box is the list", () => {
+  const result = browse({ type: "sneakers" });
+  assert.equal(result.browsing, true);
+  assert.deepEqual(result.groups.map((group) => group.product_name), ["Label Shoe", "Old Shoe", "Vietnam Sneaker"]);
+  assert.equal(result.total, 3);
+  // Nothing picked lists nothing: the whole catalogue is not an answer.
+  const idle = browse({});
+  assert.deepEqual([idle.total, idle.browsing], [0, false]);
+  // The cap still reports the real total, so "add every colour" works off it.
+  const capped = browse({ brand: "M1" }, { limit: 1 });
+  assert.deepEqual([capped.groups.length, capped.all.length, capped.total], [1, 4, 4]);
+  // A size narrows the same way, and a zero-stock colour stays visible.
+  assert.deepEqual(browsed({ brand: "M1" }, { size: "40" }), ["Local Slipper"]);
+  assert.deepEqual(browsed({ brand: "M1", inStockOnly: true }), ["Label Shoe", "Old Shoe", "Vietnam Sneaker"]);
+});
+
+test("a typed name is filtered by the configured value too", () => {
+  const hit = idx.searchCountIndex(filterIndex, "sneaker", { filters: { category: "local" }, dictionaries: DICTIONARIES });
+  assert.deepEqual(hit.groups.map((group) => group.product_name), ["Old Shoe"], "the mirror sneaker is not filed under local");
+  const found = idx.searchCountIndex(filterIndex, "sneaker", { filters: { category: "mirror_original" }, dictionaries: DICTIONARIES });
+  assert.deepEqual(found.groups.map((group) => group.product_name), ["Vietnam Sneaker", "Label Shoe"], "a typed search ranks, a browse sorts by name");
+  // An exact code still beats every chip.
+  const scanned = idx.searchCountIndex(filterIndex, "4201", { filters: { manufacturer: "36" }, dictionaries: DICTIONARIES });
+  assert.deepEqual([scanned.exact, scanned.groups.map((group) => group.product_name)], [true, ["Old Shoe"]]);
+});
+
 // ---- Wiring guards --------------------------------------------------------------
 
 const page = readFileSync(new URL("../src/modules/employees/pages/EmployeePortalInventory.jsx", import.meta.url), "utf8");

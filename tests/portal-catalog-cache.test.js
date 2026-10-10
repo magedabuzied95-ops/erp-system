@@ -186,6 +186,37 @@ test("an unchanged catalogue costs a few bytes, never a second download", async 
   assert.deepEqual(api.calls, { version: 2, snapshot: 1 });
 });
 
+test("what the filter needs survives the cache: the colour's factories and the dictionaries", async () => {
+  // The row shape is an ALLOWLIST. The POS lost a colour's second factory
+  // exactly here: the server sent it, the cache dropped it, and the factory
+  // chip then hid a product that is made there. The factory names and the
+  // owner's classification are cached with the rows too, because the filter has
+  // to work on a phone with no line at all.
+  const twoFactories = cache.toPortalCatalogRow({ product_id: 40, product_variant_id: 400, manufacturer_ids: ["8", "36", "8", " "] });
+  assert.deepEqual(twoFactories.manufacturer_ids, ["8", "36"], "both factories of the colour, de-duplicated");
+  assert.deepEqual(cache.toPortalCatalogRow({ product_id: 41 }).manufacturer_ids, []);
+
+  const dictionaries = {
+    manufacturers: [{ id: "8", name: "Cavo" }, { id: "", name: "nameless" }],
+    classifications: [{ key: "grade", options: [{ value: "local", label_ar: "محلي", sort_order: 2 }] }],
+  };
+  const api = {
+    getVersion: async () => ({ version: "s5.1", identity: IDENTITY }),
+    getSnapshot: async () => ({ ...snapshotResponse("s5.1"), ...dictionaries }),
+  };
+  const result = await cache.refreshPortalCatalog({ token: TOKEN, api });
+  await store.flushPendingDraftWrites();
+  assert.deepEqual(result.snapshot.manufacturers, [{ id: "8", name: "Cavo" }], "a factory with no id is no chip");
+  assert.deepEqual(result.snapshot.classifications, [
+    { key: "grade", options: [{ value: "local", label_ar: "محلي", label_en: "", icon: null, color: null, sort_order: 2, is_active: true }] },
+  ]);
+
+  // And they are still there on a cold open with no network.
+  const cold = await cache.readPortalCatalog({ token: TOKEN });
+  assert.deepEqual(cold.manufacturers, [{ id: "8", name: "Cavo" }]);
+  assert.equal(cold.classifications[0].options[0].value, "local");
+});
+
 test("a changed catalogue is downloaded again", async () => {
   const t0 = Date.now();
   await cache.refreshPortalCatalog({ token: TOKEN, api: countingApi({ version: "v1" }), now: t0 });

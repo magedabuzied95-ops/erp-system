@@ -5,6 +5,7 @@ import {
   loadProductVariantImages,
 } from "./productVariantImagesService.js";
 import { recordInventoryMovement } from "./inventoryMovementService.js";
+import { fetchProductClassificationGroups } from "./productClassificationsService.js";
 import { createNotification } from "./notificationsService.js";
 import logActivity from "../utils/logActivity.js";
 
@@ -1277,6 +1278,60 @@ export const reopenInventoryCountSession = async (clientOrPool, data = {}) => {
 };
 
 /**
+ * The two dictionaries the count's filter cannot work without, sent beside the
+ * rows because the phone has to filter with no network at all.
+ *
+ * `manufacturers` turns the factory IDS every colour carries into names the
+ * filter sheet can show, and only the factories this catalogue actually uses are
+ * sent — a retired factory never becomes a chip that matches nothing.
+ * `classifications` is the classification the OWNER configured. The rows carry
+ * the product's own words ("mirror_original", "Uncategorized", "local"), which is
+ * why the filter used to offer five spellings of the same thing and match none of
+ * them; the phone maps those words onto these options instead.
+ */
+const loadInventoryCountFilterDictionaries = async (dbClient, rows = []) => {
+  const ids = [...new Set(rows.flatMap((row) => (Array.isArray(row.manufacturer_ids) ? row.manufacturer_ids : [])))]
+    .filter((id) => /^[0-9]+$/.test(String(id)));
+  const [manufacturers, classifications] = await Promise.all([
+    (async () => {
+      if (!ids.length || !(await tableExists(dbClient, "manufacturers"))) return [];
+      const result = await dbClient.query(
+        "SELECT id::text AS id, COALESCE(NULLIF(TRIM(name), ''), '') AS name FROM manufacturers WHERE id = ANY($1::bigint[])",
+        [ids]
+      );
+      return result.rows
+        .map((row) => ({ id: String(row.id), name: String(row.name || "") }))
+        .filter((row) => row.name)
+        .sort((a, b) => a.name.localeCompare(b.name, "ar"));
+    })(),
+    (async () => {
+      try {
+        const groups = await fetchProductClassificationGroups({ includeInactive: false });
+        // Only what a filter needs: the group key, and each option's value + labels.
+        return (Array.isArray(groups) ? groups : []).map((group) => ({
+          key: String(group.key || ""),
+          options: (Array.isArray(group.options) ? group.options : []).map((option) => ({
+            value: String(option.value || ""),
+            label_ar: String(option.label_ar || ""),
+            label_en: String(option.label_en || ""),
+            icon: option.icon || null,
+            color: option.color || null,
+            sort_order: toNumber(option.sort_order, 0),
+            is_active: option.is_active !== false,
+          })),
+        }));
+      } catch (error) {
+        // A filter with no configured options falls back to the raw words; that is
+        // never worth failing the whole catalogue download over.
+        console.warn("[inventory-count] classification load for the catalogue snapshot failed", error?.message || error);
+        return [];
+      }
+    })(),
+  ]);
+  return { manufacturers, classifications };
+};
+
+/**
  * The whole countable catalogue in one lean payload, so a phone with no signal
  * can still search, scan and add a colour.
  *
@@ -1468,11 +1523,7 @@ export const loadInventoryCountCatalogSnapshot = async (clientOrPool, data = {})
   // version endpoint, so an unchanged catalogue is never downloaded twice.
   const { version } = await loadInventoryCountCatalogVersion(dbClient, { tenantId });
 
-  return {
-    version,
-    generated_at: new Date().toISOString(),
-    truncated: result.rows.length >= limit,
-    variants: result.rows.map((row) => ({
+  const variants = result.rows.map((row) => ({
       ...row,
       product_variant_id: Number(row.product_variant_id),
       product_id: Number(row.product_id),
@@ -1481,11 +1532,20 @@ export const loadInventoryCountCatalogSnapshot = async (clientOrPool, data = {})
       manufacturer_ids: (Array.isArray(row.manufacturer_ids) ? row.manufacturer_ids : [])
         .map((value) => String(value ?? "").trim())
         .filter(Boolean),
-    })),
+    }));
+  const { manufacturers, classifications } = await loadInventoryCountFilterDictionaries(dbClient, variants);
+
+  return {
+    version,
+    generated_at: new Date().toISOString(),
+    truncated: result.rows.length >= limit,
+    manufacturers,
+    classifications,
+    variants,
   };
 };
 
-const CATALOG_SNAPSHOT_SHAPE = "s4";
+const CATALOG_SNAPSHOT_SHAPE = "s5";
 
 /**
  * A few bytes that say whether the catalogue snapshot a phone already holds is
@@ -1532,7 +1592,7 @@ export const loadInventoryCountCatalogVersion = async (clientOrPool, data = {}) 
   );
   const row = result.rows[0] || {};
   // The leading tag is the SHAPE of the snapshot. The data watermark cannot see a
-  // change to what the snapshot contains (s2: colour-level article codes, s3: each colour's own picture), so
+  // change to what the snapshot contains (s2: colour-level article codes, s3: each colour's own picture, s4: each colour's factories, s5: the filter's own dictionaries), so
   // bump this whenever the projection changes and every phone re-downloads once.
   return { version: `${CATALOG_SNAPSHOT_SHAPE}.${row.pc || 0}.${row.vc || 0}.${row.pmax || 0}.${row.vmax || 0}` };
 };

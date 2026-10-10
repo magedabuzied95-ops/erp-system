@@ -15,17 +15,40 @@ import { normalizeClassificationValue } from "../../../products/lib/productClass
 
 export const normalizeFilterValue = (value = "") => normalizeClassificationValue(value);
 
+/**
+ * Comparing a product's word with an option's word.
+ *
+ * The canonical normaliser keeps ASCII only, so an Arabic word normalises to the
+ * empty string: a colour whose grade is stored as "اصلي" could never be recognised as
+ * the option whose Arabic label is "اصلي", and fell out of every chip. Matching folds
+ * instead — case, Arabic letter variants, tashkeel, spacing — while the value
+ * that comes BACK is still the option's canonical one, so what the filter
+ * carries around is unchanged.
+ */
+const ALIAS_DIACRITICS = /[ً-ٰٟـ]/g;
+const foldAlias = (value = "") =>
+  String(value ?? "")
+    .trim()
+    .toLowerCase()
+    .replace(ALIAS_DIACRITICS, "")
+    .replace(/[أإآٱ]/g, "ا")
+    .replace(/ة/g, "ه")
+    .replace(/ى/g, "ي")
+    .replace(/[\s-]+/g, "_");
+
+const optionAliases = (option = {}) =>
+  [option?.value, option?.id, option?.name, option?.label, option?.label_ar, option?.label_en]
+    .map((alias) => foldAlias(alias))
+    .filter(Boolean);
+
 /** The configured option a raw value belongs to, or the value itself. */
 export const resolveConfiguredFilterValue = (value, options = []) => {
-  const normalized = normalizeFilterValue(value);
-  if (!normalized) return "";
-  const match = (Array.isArray(options) ? options : []).find((option) =>
-    [option?.value, option?.id, option?.name, option?.label, option?.label_ar, option?.label_en]
-      .map(normalizeFilterValue)
-      .filter(Boolean)
-      .includes(normalized)
-  );
-  return normalizeFilterValue(match?.value || match?.id || normalized);
+  const folded = foldAlias(value);
+  if (!folded) return "";
+  const match = (Array.isArray(options) ? options : []).find((option) => optionAliases(option).includes(folded));
+  if (match) return normalizeFilterValue(match.value || match.id || match.name);
+  // Nothing configured covers it: the value keeps its own canonical form.
+  return normalizeFilterValue(value);
 };
 
 /**

@@ -51,6 +51,13 @@ export const SEARCH_NETWORK_TIMEOUT_MS = 6000;
 /** A snapshot row as both screens need it: the lookup fields plus the product's. */
 export const toPortalCatalogRow = (record = {}) => ({
   ...toCatalogRow(record),
+  // Every factory the COLOUR is made in, as ids. This row shape is an
+  // allowlist, and dropping the field here is exactly how the POS lost the
+  // colour's second factory: the server sent it, the cache ate it, and the
+  // factory chip then hid a product that is made there.
+  manufacturer_ids: Array.isArray(record.manufacturer_ids)
+    ? [...new Set(record.manufacturer_ids.map((value) => str(value)).filter(Boolean))]
+    : [],
   qr_token: str(record.qr_token),
   product_code: str(record.product_code),
   style: str(record.style),
@@ -173,6 +180,26 @@ export const refreshPortalCatalog = ({ token, identity = null, api, force = fals
       const snapshotIdentity = toCacheIdentity(response?.identity || {}) || serverIdentity;
       const snapshot = {
         variants: rows,
+        // The filter's own dictionaries: factory names for the ids on the rows,
+        // and the classification the owner configured. Cached with the rows,
+        // because the filter has to work with no network at all.
+        manufacturers: (Array.isArray(response?.manufacturers) ? response.manufacturers : [])
+          .map((row) => ({ id: str(row?.id), name: str(row?.name) }))
+          .filter((row) => row.id && row.name),
+        classifications: (Array.isArray(response?.classifications) ? response.classifications : [])
+          .map((group) => ({
+            key: str(group?.key),
+            options: (Array.isArray(group?.options) ? group.options : []).map((option) => ({
+              value: str(option?.value),
+              label_ar: str(option?.label_ar),
+              label_en: str(option?.label_en),
+              icon: option?.icon || null,
+              color: option?.color || null,
+              sort_order: toNumber(option?.sort_order, 0),
+              is_active: option?.is_active !== false,
+            })),
+          }))
+          .filter((group) => group.key),
         version: str(response?.version) || serverVersion,
         generatedAt: response?.generated_at || null,
         savedAt: now,

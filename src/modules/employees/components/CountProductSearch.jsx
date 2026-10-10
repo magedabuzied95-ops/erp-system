@@ -94,6 +94,7 @@ const ResultRow = memo(function ResultRow({ group, query, state, busy, onPick })
  */
 function CountProductSearch({
   snapshot,
+  dictionaries,
   filters,
   selectedSize,
   activeFilterCount = 0,
@@ -131,11 +132,15 @@ function CountProductSearch({
 
   const index = useMemo(() => getCountSearchIndex(snapshot), [snapshot]);
   const local = useMemo(
-    () => searchCountIndex(index, deferredQuery, { filters, size: selectedSize, limit: RESULT_LIMIT }),
-    [deferredQuery, filters, index, selectedSize]
+    () => searchCountIndex(index, deferredQuery, { filters, size: selectedSize, limit: RESULT_LIMIT, dictionaries }),
+    [deferredQuery, dictionaries, filters, index, selectedSize]
   );
 
   const trimmed = deferredQuery.trim();
+  // Browsing: the filter alone is the question, so its colours are listed with
+  // the box still empty. The employee counting one factory's shelf has a list
+  // after a tap instead of having to think of a word to type first.
+  const browsing = Boolean(!trimmed && local.browsing);
   const needsServer = Boolean(trimmed.length >= 2 && !local.groups.length && online && sessionId && !disabled);
 
   // Server fallback: only for a query the phone cannot answer at all.
@@ -273,7 +278,7 @@ function CountProductSearch({
     if (groups.length === 1 || (local.exact && groups.length)) void pick(groups[0], stateOf(groups[0]), true);
   };
 
-  const showPanel = Boolean(trimmed);
+  const showPanel = Boolean(trimmed) || browsing || Boolean(!trimmed && activeFilterCount > 0);
 
   return (
     <section ref={cardRef} className="inventory-search-card rounded-[1.25rem] border border-slate-200 bg-white p-2.5 shadow-sm">
@@ -342,8 +347,8 @@ function CountProductSearch({
               {searching
                 ? tt("employeePortal.stockCount.searchingServer")
                 : total > groups.length
-                  ? tt("employeePortal.stockCount.resultsCapped", { shown: groups.length, total })
-                  : tt("employeePortal.stockCount.resultsCount", { count: total })}
+                  ? tt(browsing ? "employeePortal.stockCount.filterResultsCapped" : "employeePortal.stockCount.resultsCapped", { shown: groups.length, total })
+                  : tt(browsing ? "employeePortal.stockCount.filterResults" : "employeePortal.stockCount.resultsCount", { count: total })}
             </span>
             <span className="flex shrink-0 items-center gap-2">
               {searching ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : null}
@@ -351,11 +356,11 @@ function CountProductSearch({
                   a button the employee can see, not only the box's clear icon. */}
               <button
                 type="button"
-                onClick={closePanel}
+                onClick={browsing ? onResetFilters : closePanel}
                 className="inline-flex items-center gap-1 rounded-full border border-slate-200 bg-white px-2 py-1 text-[11px] font-black text-slate-600"
               >
                 <X className="h-3 w-3" />
-                {tt("employeePortal.stockCount.closeResults")}
+                {tt(browsing ? "employeePortal.stockCount.clearFilters" : "employeePortal.stockCount.closeResults")}
               </button>
             </span>
           </div>
@@ -411,7 +416,9 @@ function CountProductSearch({
             </ul>
           ) : !searching ? (
             <div className="px-3 py-4 text-center">
-              <p className="text-sm font-black text-slate-700">{tt("employeePortal.stockCount.noResults")}</p>
+              <p className="text-sm font-black text-slate-700">
+                {trimmed ? tt("employeePortal.stockCount.noResults") : tt("employeePortal.stockCount.noFilterResults")}
+              </p>
               <p className="mt-1 text-xs font-semibold text-slate-500">
                 {activeFilterCount > 0 ? tt("employeePortal.stockCount.noResultsFiltered") : tt("employeePortal.stockCount.noResultsHint")}
               </p>

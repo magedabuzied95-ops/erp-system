@@ -11,6 +11,13 @@
  *
  * Pure and framework-free, so ranking and folding are testable on their own.
  */
+import {
+  facetMatches,
+  normalizeFilterValue,
+  resolveConfiguredFilterValue,
+  selectedFilterValues,
+} from "./classificationMatch.js";
+import { classificationGroupsToFieldOptions } from "../../../products/lib/productClassifications.js";
 
 const str = (value) => String(value ?? "").trim();
 const toNumber = (value, fallback = 0) => {
@@ -82,6 +89,10 @@ const buildIndex = (rows) => {
         category: str(row.category),
         grade: str(row.grade),
         manufacturer_name: str(row.manufacturer_name),
+        // Every factory the COLOUR is made in, as ids: a colour can be made in
+        // two, and the legacy single id only ever holds the first.
+        manufacturerIds: new Set(),
+        audiences: [],
         image_url: "",
         stock: 0,
         sizes: [],
@@ -100,6 +111,10 @@ const buildIndex = (rows) => {
     if (row.size) group.sizes.push(str(row.size));
     if (!group.article_code && row.article_code) group.article_code = str(row.article_code);
     if (!group.image_url) group.image_url = str(row.image_url) || str(row.product_image_url);
+    for (const id of Array.isArray(row.manufacturer_ids) ? row.manufacturer_ids : []) {
+      const manufacturerId = str(id);
+      if (manufacturerId) group.manufacturerIds.add(manufacturerId);
+    }
     for (const field of CODE_FIELDS) {
       const code = foldSearchText(row[field]);
       if (code) group.codes.add(code);
@@ -108,6 +123,9 @@ const buildIndex = (rows) => {
 
   const list = [...groups.values()];
   for (const group of list) {
+    group.manufacturerIds = [...group.manufacturerIds];
+    // A product made "for men and women" carries both, comma separated.
+    group.audiences = group.gender.split(/[,|/]+/).map((part) => part.trim()).filter(Boolean);
     group.sizes = [...new Set(group.sizes)].sort(sizeSort);
     group.variants.sort((a, b) => sizeSort(a.size, b.size));
     group.text = [
@@ -118,7 +136,7 @@ const buildIndex = (rows) => {
       foldSearchText(group.style),
       foldSearchText(group.grade || group.category),
       [...group.codes].join(" "),
-    ].join("  ");
+    ].join("  ");
   }
   return list;
 };
@@ -140,13 +158,121 @@ const isAll = (value) => {
   return !folded || folded === "all" || folded === "الكل";
 };
 
-const passesFilters = (group, wanted) => {
-  if (wanted.brand && foldSearchText(group.brand) !== wanted.brand) return false;
-  if (wanted.manufacturer && foldSearchText(group.manufacturer_name) !== wanted.manufacturer) return false;
-  if (wanted.gender && !foldSearchText(group.gender).split(/[,|]/).map((part) => part.trim()).includes(wanted.gender)) return false;
-  if (wanted.type && foldSearchText(group.type) !== wanted.type && foldSearchText(group.style) !== wanted.type) return false;
-  if (wanted.category && foldSearchText(group.grade) !== wanted.category && foldSearchText(group.category) !== wanted.category) return false;
-  if (wanted.size && !group.sizes.some((size) => foldSearchText(size) === wanted.size)) return false;
+// ---- Filtering ---------------------------------------------------------------
+// A count filters on exactly what the cashier filters on, or the two screens
+// disagree about what a product IS. Two things that costs:
+//
+// 1. The CONFIGURED classification, never the product's own words. The rows say
+//    "mirror_original", "Uncategorized", "local"; the filter the owner set up
+//    says something else entirely, which is why this filter used to offer five
+//    spellings of the same thing and match none of them.
+// 2. Factory IDS, per colour. Factories live on the colour
+//    (product_variants.manufacturer_ids) and a colour can carry two, while the
+//    legacy single id only ever holds the first — matching the one name hid
+//    every product whose factory sits only on its colours. An id the dictionary
+//    has no name for is still matchable under a "name:" key, so a phone holding
+//    a snapshot older than the ids keeps filtering instead of filtering nothing.
+
+const NAME_KEY_PREFIX = "name:";
+const manufacturerNameKey = (name) => NAME_KEY_PREFIX + foldSearchText(name);
+
+/** The configured option lists this index is filtered against. */
+const filterOptionsOf = (classifications) => {
+  const fields = classificationGroupsToFieldOptions(
+    Array.isArray(classifications) ? classifications : [],
+    {},
+    { includeInactive: false }
+  );
+  return { gender: fields.gender || [], type: fields.productType || [], grade: fields.grade || [] };
+};
+
+const dictionarySignature = ({ classifications = [], manufacturers = [] } = {}) =>
+  [
+    (Array.isArray(classifications) ? classifications : [])
+      .map((group) => [group?.key, (group?.options || []).map((option) => option?.value).join("|")].join(":"))
+      .join(";"),
+    (Array.isArray(manufacturers) ? manufacturers : []).map((row) => row?.id).join("|"),
+  ].join("##");
+
+// Mapping ~2k colours onto the configured options costs a pass over the index,
+// so it is done once per (index, dictionary) and reused for every keystroke.
+const tagCache = new WeakMap();
+
+const tagGroup = (group, options) => ({
+  gender: [...new Set(group.audiences.map((value) => resolveConfiguredFilterValue(value, options.gender)).filter(Boolean))],
+  type: [...new Set([group.type, group.style].map((value) => resolveConfiguredFilterValue(value, options.type)).filter(Boolean))],
+  grade: [...new Set([group.grade, group.category].map((value) => resolveConfiguredFilterValue(value, options.grade)).filter(Boolean))],
+  brand: foldSearchText(group.brand),
+  manufacturer: [
+    ...group.manufacturerIds,
+    ...(group.manufacturer_name ? [manufacturerNameKey(group.manufacturer_name)] : []),
+  ],
+  sizes: group.sizes.map((size) => foldSearchText(size)),
+});
+
+/** The index with its filter tags, mapped once per dictionary. */
+export const tagCountIndex = (index, dictionaries = {}) => {
+  const list = Array.isArray(index) ? index : [];
+  const signature = dictionarySignature(dictionaries);
+  const cached = tagCache.get(list);
+  if (cached && cached.signature === signature) return cached;
+  const options = filterOptionsOf(dictionaries.classifications);
+  const tags = new Map(list.map((group) => [group, tagGroup(group, options)]));
+  const entry = { signature, options, tags };
+  tagCache.set(list, entry);
+  return entry;
+};
+
+// A brand or a factory is a NAME or an id, never a classification value: the
+// classification normaliser would turn "Factory Z" into "factory_z" and eat the
+// colon off a "name:" key, so those two keep their own, plainer reading.
+const pickedValues = (selected) =>
+  (Array.isArray(selected) ? selected : [selected])
+    .map((value) => String(value ?? "").trim())
+    .filter((value) => value && !isAll(value));
+
+/** What the filter panel handed over, as the index matches it. */
+export const wantedCountFilters = ({ filters = {}, size = "all" } = {}) => ({
+  brand: pickedValues(filters.brand).map((value) => foldSearchText(value)),
+  manufacturer: pickedValues(filters.manufacturer),
+  gender: isAll(filters.gender) ? [] : selectedFilterValues(filters.gender),
+  type: isAll(filters.type) ? [] : selectedFilterValues(filters.type),
+  grade: isAll(filters.category) ? [] : selectedFilterValues(filters.category),
+  size: isAll(size) ? "" : foldSearchText(size),
+  inStockOnly: Boolean(filters.inStockOnly),
+});
+
+/** Whether anything is actually narrowing the catalogue. */
+export const hasWantedCountFilters = (wanted = {}) =>
+  Boolean(
+    wanted.brand?.length ||
+    wanted.manufacturer?.length ||
+    wanted.gender?.length ||
+    wanted.type?.length ||
+    wanted.grade?.length ||
+    wanted.size ||
+    wanted.inStockOnly
+  );
+
+const EMPTY_OPTIONS = { gender: [], type: [], grade: [] };
+
+const passesFilters = (group, wanted, tags) => {
+  const tag = tags.get(group) || tagGroup(group, EMPTY_OPTIONS);
+  if (wanted.brand.length && !wanted.brand.includes(tag.brand)) return false;
+  // A factory is picked by id; the "name:" key is the fallback for a snapshot
+  // taken before the ids, and for a factory the dictionary has no row for.
+  if (wanted.manufacturer.length) {
+    const picked = wanted.manufacturer.map((value) => {
+      const text = String(value);
+      return text.startsWith(NAME_KEY_PREFIX) ? manufacturerNameKey(text.slice(NAME_KEY_PREFIX.length)) : text;
+    });
+    if (!picked.some((value) => tag.manufacturer.includes(value))) return false;
+  }
+  if (!facetMatches(wanted.gender, tag.gender)) return false;
+  if (!facetMatches(wanted.type, tag.type)) return false;
+  if (!facetMatches(wanted.grade, tag.grade)) return false;
+  if (wanted.size && !tag.sizes.includes(wanted.size)) return false;
+  if (wanted.inStockOnly && group.stock <= 0) return false;
   return true;
 };
 
@@ -171,42 +297,49 @@ const rankGroup = (group, query, tokens) => {
  * them, because a code read off the box in the employee's hand names THE
  * product — hiding it behind a forgotten filter chip reads as "not found".
  *
- * `groups` is the capped page the list shows; `all` is every match in rank
- * order. "Add every colour of this model" has to work off `all`, or it would
- * silently add only the colours that happened to fit on the visible page.
+ * With no query at all, the FILTER is the question: picked chips alone list the
+ * colours they match, so "count everything from this factory" is a few taps
+ * rather than a word the employee has to guess. Nothing picked lists nothing —
+ * the whole catalogue is not an answer.
+ *
+ * `groups` is the capped page the list shows; `all` is every match in order.
+ * "Add every colour of this model" has to work off `all`, or it would silently
+ * add only the colours that happened to fit on the visible page.
  */
-export const searchCountIndex = (index, rawQuery, { filters = {}, size = "all", limit = 30 } = {}) => {
+export const searchCountIndex = (index, rawQuery, { filters = {}, size = "all", limit = 30, dictionaries = {} } = {}) => {
   const query = foldSearchText(rawQuery);
-  if (!query || !Array.isArray(index) || !index.length) return { groups: [], all: [], total: 0, exact: false };
-  const tokens = query.split(" ").filter(Boolean);
-  const wanted = {
-    brand: isAll(filters.brand) ? "" : foldSearchText(filters.brand),
-    manufacturer: isAll(filters.manufacturer) ? "" : foldSearchText(filters.manufacturer),
-    gender: isAll(filters.gender) ? "" : foldSearchText(filters.gender),
-    type: isAll(filters.type) ? "" : foldSearchText(filters.type),
-    category: isAll(filters.category) ? "" : foldSearchText(filters.category),
-    size: isAll(size) ? "" : foldSearchText(size),
-  };
+  const list = Array.isArray(index) ? index : [];
+  const { tags } = tagCountIndex(list, dictionaries);
+  const wanted = wantedCountFilters({ filters, size });
+  const byName = (a, b) => a.product_name.localeCompare(b.product_name, "ar") || a.color.localeCompare(b.color, "ar");
+  const nothing = { groups: [], all: [], total: 0, exact: false, browsing: false };
 
+  if (!query) {
+    if (!list.length || !hasWantedCountFilters(wanted)) return nothing;
+    const matched = list.filter((group) => passesFilters(group, wanted, tags)).sort(byName);
+    return { groups: matched.slice(0, limit), all: matched, total: matched.length, exact: false, browsing: true };
+  }
+  if (!list.length) return nothing;
+
+  const tokens = query.split(" ").filter(Boolean);
   const exact = [];
   const ranked = [];
-  for (const group of index) {
+  for (const group of list) {
     const rank = rankGroup(group, query, tokens);
     if (rank < 0) continue;
     if (rank === 0) { exact.push(group); continue; }
-    if (!passesFilters(group, wanted)) continue;
+    if (!passesFilters(group, wanted, tags)) continue;
     ranked.push({ group, rank });
   }
-  if (exact.length) return { groups: exact.slice(0, limit), all: exact, total: exact.length, exact: true };
+  if (exact.length) return { groups: exact.slice(0, limit), all: exact, total: exact.length, exact: true, browsing: false };
 
   ranked.sort((a, b) =>
     (a.rank - b.rank) ||
     (b.group.updated_at - a.group.updated_at) ||
-    a.group.product_name.localeCompare(b.group.product_name, "ar") ||
-    a.group.color.localeCompare(b.group.color, "ar")
+    byName(a.group, b.group)
   );
   const all = ranked.map((entry) => entry.group);
-  return { groups: all.slice(0, limit), all, total: all.length, exact: false };
+  return { groups: all.slice(0, limit), all, total: all.length, exact: false, browsing: false };
 };
 
 /** The one group an exact code names — what a barcode scan resolves to. */
@@ -223,33 +356,90 @@ export const findCountGroupByCode = (index, rawCode) => {
   return shared;
 };
 
-/** Filter-panel options with how many colours each one holds, from the phone. */
-export const countIndexFacets = (index) => {
-  const tally = () => new Map();
-  const facets = { gender: tally(), type: tally(), grade: tally(), brand: tally(), manufacturer: tally(), size: tally() };
-  const bump = (map, value) => {
-    const label = str(value);
-    if (label) map.set(label, (map.get(label) || 0) + 1);
+/**
+ * Filter-panel options with how many colours each one holds, from the phone.
+ *
+ * The classification options are the OWNER'S, in the owner's words and order,
+ * and an option the catalogue has nothing under is left out rather than offered
+ * as a dead end. Factories are keyed by id — a colour can be made in two — and
+ * named from the snapshot's dictionary.
+ */
+export const countIndexFacets = (index, dictionaries = {}) => {
+  const list = Array.isArray(index) ? index : [];
+  const { options, tags } = tagCountIndex(list, dictionaries);
+  const tally = { gender: new Map(), type: new Map(), grade: new Map(), brand: new Map(), manufacturer: new Map(), size: new Map() };
+  const bump = (map, key, name) => {
+    if (!key) return;
+    const entry = map.get(key) || { id: key, name: name || key, count: 0 };
+    entry.count += 1;
+    map.set(key, entry);
   };
-  for (const group of Array.isArray(index) ? index : []) {
-    bump(facets.gender, group.gender);
-    bump(facets.type, group.type);
-    bump(facets.grade, group.grade || group.category);
-    bump(facets.brand, group.brand);
-    bump(facets.manufacturer, group.manufacturer_name);
-    for (const size of group.sizes) bump(facets.size, size);
+  const manufacturerNames = new Map(
+    (Array.isArray(dictionaries.manufacturers) ? dictionaries.manufacturers : [])
+      .map((row) => [str(row?.id), str(row?.name)])
+      .filter(([id, name]) => id && name)
+  );
+
+  for (const group of list) {
+    const tag = tags.get(group);
+    if (!tag) continue;
+    for (const value of tag.gender) bump(tally.gender, value);
+    for (const value of tag.type) bump(tally.type, value);
+    for (const value of tag.grade) bump(tally.grade, value);
+    if (group.brand) bump(tally.brand, str(group.brand));
+    // One chip per factory the colour is made in. An id with no name falls back
+    // to the legacy name on the row, which is all a pre-ids snapshot has.
+    const factories = group.manufacturerIds.length
+      ? group.manufacturerIds.map((id) => [id, manufacturerNames.get(id) || str(group.manufacturer_name) || id])
+      : group.manufacturer_name
+        ? [[manufacturerNameKey(group.manufacturer_name), str(group.manufacturer_name)]]
+        : [];
+    for (const [id, name] of factories) bump(tally.manufacturer, id, name);
+    for (const size of group.sizes) bump(tally.size, str(size));
   }
-  const toOptions = (map, sorter = (a, b) => a.name.localeCompare(b.name, "ar")) =>
-    [...map.entries()].map(([name, count]) => ({ id: name, name, count })).sort(sorter);
+
+  const plain = (map, sorter = (a, b) => a.name.localeCompare(b.name, "ar")) => [...map.values()].sort(sorter);
+  // The owner's options, in the owner's order. A value the classification does
+  // not cover gets NO chip of its own — the cashier's filter does not offer one
+  // either, and a count that disagrees with the cashier about what a product is
+  // is worse than one chip short. Only a field the owner has not configured at
+  // all falls back to the raw words, so the sheet is never empty.
+  const configured = (field) => {
+    if (!(options[field] || []).length) return plain(tally[field]);
+    const seen = new Set();
+    const ordered = [];
+    for (const option of options[field] || []) {
+      const id = normalizeFilterValue(option.value || option.id || option.name || option.label);
+      if (!id || seen.has(id)) continue;
+      seen.add(id);
+      const entry = tally[field].get(id);
+      if (!entry) continue; // nothing on the shelf is filed under it: no dead chip
+      ordered.push({
+        id,
+        name: option.label_ar || option.label || option.label_en || option.value || id,
+        count: entry.count,
+        ...(option.icon ? { icon: option.icon } : {}),
+        ...(option.color ? { color: option.color } : {}),
+      });
+    }
+    return ordered;
+  };
+
   return {
-    gender: toOptions(facets.gender),
-    type: toOptions(facets.type),
-    grade: toOptions(facets.grade),
-    brand: toOptions(facets.brand),
-    manufacturer: toOptions(facets.manufacturer),
-    size: toOptions(facets.size, (a, b) => sizeSort(a.name, b.name)),
+    gender: configured("gender"),
+    type: configured("type"),
+    grade: configured("grade"),
+    brand: plain(tally.brand),
+    manufacturer: plain(tally.manufacturer),
+    size: plain(tally.size, (a, b) => sizeSort(a.name, b.name)),
   };
 };
+
+/** The dictionaries a snapshot carries for the filter, with safe defaults. */
+export const countFilterDictionaries = (snapshot) => ({
+  classifications: Array.isArray(snapshot?.classifications) ? snapshot.classifications : [],
+  manufacturers: Array.isArray(snapshot?.manufacturers) ? snapshot.manufacturers : [],
+});
 
 /** Split `label` around the first place `rawQuery` matches, for highlighting. */
 export const highlightParts = (label, rawQuery) => {

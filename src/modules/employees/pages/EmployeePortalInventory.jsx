@@ -30,6 +30,7 @@ import { resolveProductImageUrl } from "../../../shared/lib/imageUrls";
 import { formatInAppTimezone } from "../../../shared/lib/appTimezone";
 import EmployeePortalNavControls, { buildEmployeePortalHomePath, canNavigateEmployeePortalBack } from "../components/EmployeePortalNavControls";
 import SmartPosFilters from "../../pos/components/SmartPosFilters";
+import { moveWinterCollectionToEnd } from "../../pos/lib/posQuickFilterLogic";
 import { getEmployeePortalFacets } from "../services/employeePortalProductsApi";
 import {
   saveInventoryDraft,
@@ -48,7 +49,7 @@ import {
 } from "../services/employeeDrafts/inventoryCountSync.js";
 import usePortalCatalog from "../hooks/usePortalCatalog";
 import CountProductSearch from "../components/CountProductSearch";
-import { countIndexFacets, findCountGroupByCode, getCountSearchIndex, searchCountIndex } from "../services/employeeDrafts/countSearchIndex.js";
+import { countFilterDictionaries, countIndexFacets, findCountGroupByCode, getCountSearchIndex, searchCountIndex } from "../services/employeeDrafts/countSearchIndex.js";
 import { countSessionTitle } from "../services/employeeDrafts/countSessionTitle.js";
 import usePageTitle from "../../../shared/hooks/usePageTitle";
 import "./EmployeePortalWorkspaces.m1.css";
@@ -1231,11 +1232,18 @@ export default function EmployeePortalInventory() {
   // never populated, so every option showed a count of 0 and the size filter
   // reset itself on each render; the index gives it real colours-per-option.
   const searchIndex = useMemo(() => getCountSearchIndex(catalogSnapshot), [catalogSnapshot]);
-  const indexFacets = useMemo(() => countIndexFacets(searchIndex), [searchIndex]);
+  // The filter's own dictionaries ride with the snapshot: factory names for the
+  // ids on every colour, and the classification the OWNER configured. Without
+  // them the sheet offered the product's own words — five spellings of the same
+  // thing, matching none of them — and no factory at all.
+  const filterDictionaries = useMemo(() => countFilterDictionaries(catalogSnapshot), [catalogSnapshot]);
+  const indexFacets = useMemo(() => countIndexFacets(searchIndex, filterDictionaries), [filterDictionaries, searchIndex]);
   const facetFallback = useCallback((list) => uniqueTextValues(Array.isArray(list) ? list : []).map((name) => ({ id: name, name })), []);
   const smartFilterOptions = useMemo(() => ({
+    // Crocs / bags / sneakers keep the shop's own order, with the winter
+    // collection last, exactly as the cashier's filter shows them.
     gender: indexFacets.gender.length ? indexFacets.gender : facetFallback(facets.genders),
-    productType: indexFacets.type.length ? indexFacets.type : facetFallback(facets.types),
+    productType: moveWinterCollectionToEnd(indexFacets.type.length ? indexFacets.type : facetFallback(facets.types)),
     grade: indexFacets.grade.length ? indexFacets.grade : facetFallback(facets.grades?.length ? facets.grades : facets.categories),
   }), [facetFallback, facets, indexFacets]);
   const brandOptions = useMemo(() => (indexFacets.brand.length ? indexFacets.brand : facetFallback(facets.brands)), [facetFallback, facets.brands, indexFacets.brand]);
@@ -1258,6 +1266,37 @@ export default function EmployeePortalInventory() {
   }, []);
   const openFilters = useCallback(() => setFiltersOpen(true), []);
   const openScanner = useCallback(() => setScannerOpen(true), []);
+
+  // A pick the catalogue no longer offers — a retired factory, a renamed grade,
+  // a refreshed snapshot — hides every colour with no chip left to undo it. The
+  // moment its option disappears, the filter lets go of it.
+  useEffect(() => {
+    const stale = [
+      ["gender", smartFilterOptions.gender],
+      ["type", smartFilterOptions.productType],
+      ["category", smartFilterOptions.grade],
+      ["brand", brandOptions],
+      ["manufacturer", manufacturerOptions],
+    ].filter(([key, options]) => {
+      const list = Array.isArray(options) ? options : [];
+      // An EMPTY list is a catalogue that has not arrived yet, not an option
+      // that went away: letting go of the pick there would clear the filter
+      // under the employee on every cold open.
+      if (!list.length || filters[key] === "all") return false;
+      return !list.some((option) => String(option.id) === String(filters[key]));
+    });
+    if (!stale.length) return;
+    setFilters((current) => {
+      const next = { ...current };
+      for (const [key] of stale) next[key] = "all";
+      return next;
+    });
+  }, [brandOptions, filters, manufacturerOptions, smartFilterOptions]);
+
+  useEffect(() => {
+    if (selectedFilterSize === "all" || !availableSizes.length) return;
+    if (!availableSizes.some((option) => String(option.id) === String(selectedFilterSize))) setSelectedFilterSize("all");
+  }, [availableSizes, selectedFilterSize]);
 
   // Which size rows are already on the sheet. Re-made only when the SET of ids
   // changes, so counting (which rewrites `items` on every tap) does not make the
@@ -2256,6 +2295,7 @@ export default function EmployeePortalInventory() {
 
                 <CountProductSearch
                   snapshot={catalogSnapshot}
+                  dictionaries={filterDictionaries}
                   filters={filters}
                   selectedSize={selectedFilterSize}
                   activeFilterCount={activeFilterCount}
