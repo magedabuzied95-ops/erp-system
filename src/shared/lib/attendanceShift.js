@@ -1,4 +1,4 @@
-import { dateKeyInAppTimezone } from "../../../shared/lib/appTimezone.js";
+import { dateKeyInAppTimezone } from "./appTimezone.js";
 /**
  * The shape of one manually corrected attendance day, as the sheet is about to
  * save it.
@@ -55,6 +55,20 @@ export const zonedDateKey = (value, timeZone = ATTENDANCE_TZ) => {
     month: "2-digit",
     day: "2-digit",
   }).format(date);
+};
+
+/**
+ * A stored timestamp as the 24-hour clock a time input takes, on the attendance
+ * timezone. Read on a device left on another zone, an unpinned clock disagrees
+ * with the value the same row shows in the editor.
+ */
+export const toClockInput = (value, timeZone = ATTENDANCE_TZ) => {
+  if (!value) return "";
+  const date = new Date(value);
+  if (Number.isNaN(date.getTime())) return "";
+  const parts = new Intl.DateTimeFormat("en-GB", { timeZone, hour: "2-digit", minute: "2-digit", hourCycle: "h23" }).formatToParts(date);
+  const get = (type) => parts.find((part) => part.type === type)?.value || "00";
+  return `${get("hour")}:${get("minute")}`;
 };
 
 /**
