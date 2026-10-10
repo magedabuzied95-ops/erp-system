@@ -817,6 +817,11 @@ export default function EmployeePortalInventory() {
   const filtersPanelRef = useRef(null);
   const taskLaunchHandledRef = useRef(false);
   const taskAutoAddHandledRef = useRef(false);
+  // Whether the screen has already chosen a count for the employee on arrival.
+  const autoSelectedRef = useRef(false);
+  // A count the employee deliberately put down, so the route effect above
+  // does not pick it back up while the address bar still names it.
+  const closedSessionRef = useRef("");
 
   const isEditable = ["draft", "in_progress"].includes(String(session?.status || ""));
   const isRejected = String(session?.status || "") === "rejected";
@@ -1077,16 +1082,23 @@ export default function EmployeePortalInventory() {
   }, [loadSessions]);
 
   useEffect(() => {
-    if (routeSessionId && routeSessionId !== selectedSessionId) {
+    // Not one the employee just put down: the address bar still names it for a
+    // render or two after the navigate, and this would load it straight back.
+    if (routeSessionId && routeSessionId !== selectedSessionId && routeSessionId !== closedSessionRef.current) {
       setSelectedSessionId(routeSessionId);
       loadSession(routeSessionId);
     }
   }, [loadSession, routeSessionId, selectedSessionId]);
 
+  // Opening the employee's first active count on arrival is a convenience, and
+  // it happens ONCE. Without the ref it fought them: closing a count, parking
+  // it or deleting it all left an empty screen that immediately filled itself
+  // back up with the count they had just put down.
   useEffect(() => {
-    if (routeSessionId || selectedSessionId || sessionLoading || !sessions.length) return;
+    if (autoSelectedRef.current || routeSessionId || selectedSessionId || sessionLoading || !sessions.length) return;
     const preferred = sessions.find((item) => ["draft", "in_progress", "pending_review", "rejected"].includes(String(item.status || ""))) || sessions[0];
     if (preferred?.id) {
+      autoSelectedRef.current = true;
       setSelectedSessionId(String(preferred.id));
       loadSession(preferred.id);
     }
@@ -1242,10 +1254,39 @@ export default function EmployeePortalInventory() {
   }, [loadSession, loadSessions, selectedSessionId]);
 
   const selectSession = useCallback((nextSessionId) => {
+    // Picking it again undoes the suppression below.
+    closedSessionRef.current = "";
     setSelectedSessionId(String(nextSessionId));
-    navigate(`/employee-portal/${encodeURIComponent(token)}/inventory/${encodeURIComponent(nextSessionId)}`);
+    // Through the home path builder: a hardcoded /employee-portal throws the
+    // installed app out of its own shell.
+    const base = buildEmployeePortalHomePath({ pathname: window.location.pathname, token });
+    navigate(`${base}/inventory/${encodeURIComponent(nextSessionId)}`);
     loadSession(nextSessionId);
   }, [loadSession, navigate, token]);
+
+  /**
+   * Put the open count down and go back to the list.
+   *
+   * `autoSelectedRef` is what makes it stick: the screen opens the employee's
+   * first active count on arrival as a convenience, and without this it would
+   * simply re-open the one they just closed.
+   */
+  const closeOpenCount = useCallback(() => {
+    autoSelectedRef.current = true;
+    closedSessionRef.current = String(routeSessionId || session?.id || "");
+    setOutbox({});
+    setItems([]);
+    setSession(null);
+    setSelectedSessionId("");
+    setTitleDraft("");
+    setNotesDraft("");
+    editedAtRef.current.clear();
+    if (routeSessionId) {
+      // Through the home path builder, so the installed app stays inside its
+      // own shell instead of being thrown onto /employee-portal.
+      navigate(`${buildEmployeePortalHomePath({ pathname: window.location.pathname, token })}/inventory`, { replace: true });
+    }
+  }, [navigate, routeSessionId, session?.id, token]);
 
   /** Rename a count from the list, without having to open it first. */
   const handleRenameSession = useCallback(async (row, nextTitle) => {
@@ -1288,13 +1329,7 @@ export default function EmployeePortalInventory() {
       // Nothing local may outlive the count: its draft and its outbox would
       // otherwise re-create it on the next flush.
       if (draftIdentity) await clearInventoryDraft({ ...draftIdentity, sessionId: row.id });
-      if (String(row.id) === String(session?.id)) {
-        setOutbox({});
-        setItems([]);
-        setSession(null);
-        setSelectedSessionId("");
-        navigate(`/employee-portal/${encodeURIComponent(token)}/inventory`, { replace: true });
-      }
+      if (String(row.id) === String(session?.id)) closeOpenCount();
       await loadSessions();
       toast.success(tt("employeePortal.stockCount.countDeleted"));
     } catch (error) {
@@ -1302,7 +1337,7 @@ export default function EmployeePortalInventory() {
     } finally {
       setSessionActionId("");
     }
-  }, [draftIdentity, loadSessions, navigate, session?.id, token]);
+  }, [closeOpenCount, draftIdentity, loadSessions, session?.id, token]);
 
   const handleCreateSession = useCallback(async () => {
     try {
@@ -1314,7 +1349,7 @@ export default function EmployeePortalInventory() {
       const created = response?.session || null;
       if (created?.id) {
         await loadSessions();
-        navigate(`/employee-portal/${encodeURIComponent(token)}/inventory/${encodeURIComponent(created.id)}`);
+        navigate(`${buildEmployeePortalHomePath({ pathname: window.location.pathname, token })}/inventory/${encodeURIComponent(created.id)}`);
         await loadSession(created.id);
         toast.success(tt("employeePortal.stockCount.created"));
       }
@@ -1422,6 +1457,11 @@ export default function EmployeePortalInventory() {
         }
       }
       await loadSessions();
+      // Parking a count means putting it DOWN: the sheet closes and the screen
+      // goes back to the list. Leaving it open read as "nothing happened", and
+      // an employee who then kept tapping was counting into a count they
+      // believed they had finished with.
+      closeOpenCount();
       setBranchDrawerOpen(true);
       toast.success(tt("employeePortal.stockCount.draftSaved"));
     } catch (error) {
@@ -1429,7 +1469,7 @@ export default function EmployeePortalInventory() {
     } finally {
       setSessionSavingDraft(false);
     }
-  }, [flushOutbox, loadSessions, session?.id]);
+  }, [closeOpenCount, flushOutbox, loadSessions, session?.id]);
 
   const handleSubmitSession = useCallback(async () => {
     if (!session?.id) return;

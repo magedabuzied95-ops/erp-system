@@ -34,7 +34,7 @@ test("parking a count is a button, and it ends on the list", () => {
   assert.match(page, /const handleSaveDraft = useCallback\(async \(\) => \{/);
   // Everything still owed goes out first, or the employee is told it did not.
   assert.match(page, /setSessionSavingDraft\(true\);[\s\S]{0,400}?flushOutbox\(\{ silent: false \}\)/);
-  assert.match(page, /await loadSessions\(\);\s*\n\s*setBranchDrawerOpen\(true\);/, "the saved count has to be visible where it landed");
+  assert.match(page, /await loadSessions\(\);[\s\S]{0,400}?setBranchDrawerOpen\(true\);/, "the saved count has to be visible where it landed");
   assert.match(page, /onClick=\{handleSaveDraft\}/);
   assert.match(page, /employeePortal\.stockCount\.saveDraft/);
   const ar = JSON.parse(read("../src/locales/ar/employeePortal.json"));
@@ -166,4 +166,34 @@ test("a count already with the manager is nobody's to change from a phone", () =
 test("the list of counts is wide enough to read on a phone", () => {
   assert.match(page, /className="absolute inset-y-0 end-0 flex h-full w-full flex-col[^"]*sm:w-\[min\(100vw,30rem\)\]"/);
   assert.doesNotMatch(page, /w-\[min\(100vw,22rem\)\]/, "22rem truncated the model names it now leads with");
+});
+
+// ---- Putting a count down actually puts it down ---------------------------
+
+test("parking a count closes the sheet", () => {
+  assert.match(page, /const closeOpenCount = useCallback\(\(\) => \{/);
+  assert.match(page, /closeOpenCount\(\);\s*\n\s*setBranchDrawerOpen\(true\);/, "save as draft");
+  assert.match(page, /if \(String\(row\.id\) === String\(session\?\.id\)\) closeOpenCount\(\);/, "deleting the open count");
+  // Everything the open count was holding goes with it.
+  assert.match(page, /setOutbox\(\{\}\);\s*\n\s*setItems\(\[\]\);\s*\n\s*setSession\(null\);\s*\n\s*setSelectedSessionId\(""\);/);
+});
+
+test("a count that was put down does not open itself again", () => {
+  // Two effects would otherwise pick it straight back up: the arrival
+  // convenience, and the route, whose address bar still names it for a render
+  // or two after the navigate.
+  assert.match(page, /if \(autoSelectedRef\.current \|\| routeSessionId \|\| selectedSessionId/);
+  assert.match(page, /autoSelectedRef\.current = true;\s*\n\s*setSelectedSessionId\(String\(preferred\.id\)\);/, "arriving counts as having chosen");
+  assert.match(page, /routeSessionId !== closedSessionRef\.current/);
+  assert.match(page, /closedSessionRef\.current = String\(routeSessionId \|\| session\?\.id \|\| ""\);/);
+  // Picking it again undoes the suppression, or it could never be reopened.
+  assert.match(page, /const selectSession = useCallback\(\(nextSessionId\) => \{\s*\n[\s\S]{0,120}?closedSessionRef\.current = "";/);
+});
+
+test("leaving a count keeps the installed app inside its own shell", () => {
+  // A hardcoded /employee-portal throws /employee-app and /employee/portal out
+  // of their routes.
+  assert.doesNotMatch(page, /navigate\(`\/employee-portal\/\$\{encodeURIComponent\(token\)\}\/inventory/);
+  assert.match(page, /navigate\(`\$\{buildEmployeePortalHomePath\(\{ pathname: window\.location\.pathname, token \}\)\}\/inventory`, \{ replace: true \}\)/);
+  assert.match(page, /const base = buildEmployeePortalHomePath\(\{ pathname: window\.location\.pathname, token \}\);\s*\n\s*navigate\(`\$\{base\}\/inventory\/\$\{encodeURIComponent\(nextSessionId\)\}`\)/);
 });
