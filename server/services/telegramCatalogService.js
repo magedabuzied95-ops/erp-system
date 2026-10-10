@@ -40,7 +40,18 @@ export const TELEGRAM_POST_STATES = Object.freeze(["pending", "live", "sold_out"
 // "index" is the channel's one pinned message - the menu of hashtags a shopper
 // filters by. It goes through the same paced queue as the posts, and carries the
 // reserved card id below because the queue is keyed on (channel, card, action).
-export const TELEGRAM_JOB_ACTIONS = Object.freeze(["create", "update", "delete", "index"]);
+// Every action the worker can carry out. An action missing from this list is
+// refused at enqueue time, which makes the handler for it dead code that still
+// reads as working -- "announce" and "digest" shipped that way and could never
+// be queued at all. The guard test keeps this list and the worker in step.
+export const TELEGRAM_JOB_ACTIONS = Object.freeze([
+  "create",
+  "update",
+  "delete",
+  "index",
+  "announce",
+  "digest",
+]);
 export const TELEGRAM_INDEX_CARD_ID = "__index__";
 export const TELEGRAM_DIGEST_CARD_ID = "__digest__";
 // What happened to a colour, worth telling a subscriber about.

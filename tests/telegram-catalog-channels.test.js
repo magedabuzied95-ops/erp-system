@@ -1254,3 +1254,34 @@ test("a channel whose description Telegram refuses still gets its menu", async (
   assert.equal(result.described, false);
   assert.match(result.describe_error, /not enough rights/);
 });
+
+// ---------------------------------------------------------------------------
+// The allowed-action list. enqueueTelegramCatalogJob REFUSES an action that is
+// not on it, so an action the worker handles but the list omits is a handler
+// that can never run -- which is how the restock announcement and the daily
+// summary shipped: both dead, both looking perfectly alive in the code.
+// ---------------------------------------------------------------------------
+
+const { TELEGRAM_JOB_ACTIONS } = await import("../server/services/telegramCatalogService.js");
+
+test("every action the worker handles can actually be queued", () => {
+  const worker = readFileSync(new URL("../server/services/telegramCatalogWorkerService.js", import.meta.url), "utf8");
+  const handled = [...worker.matchAll(/job\.action === "(\w+)"/g)].map((match) => match[1]);
+  assert.ok(handled.length >= 5, `found ${handled.length} handled actions`);
+  for (const action of handled) {
+    assert.ok(
+      TELEGRAM_JOB_ACTIONS.includes(action),
+      `the worker handles "${action}" but enqueueTelegramCatalogJob would refuse it`
+    );
+  }
+});
+
+test("every action the schedulers queue is allowed", () => {
+  const worker = readFileSync(new URL("../server/services/telegramCatalogWorkerService.js", import.meta.url), "utf8");
+  const publisher = readFileSync(new URL("../server/services/telegramCatalogPublisherService.js", import.meta.url), "utf8");
+  const queued = [...`${worker}\n${publisher}`.matchAll(/action: "(\w+)"/g)].map((match) => match[1]);
+  assert.ok(queued.length >= 3, `found ${queued.length} queued actions`);
+  for (const action of queued) {
+    assert.ok(TELEGRAM_JOB_ACTIONS.includes(action), `"${action}" is queued but not allowed`);
+  }
+});
