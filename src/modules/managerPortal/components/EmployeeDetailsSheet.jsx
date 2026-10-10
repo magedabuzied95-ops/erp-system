@@ -8,6 +8,7 @@ import {
   ATTENDANCE_TZ,
   describeManualShift,
   isOvernightRow,
+  toClockInput,
   toDateKey,
 } from "../../../shared/lib/attendanceShift";
 
@@ -26,9 +27,9 @@ const formatDate = (value) => {
   if (Number.isNaN(date.getTime())) return String(value).slice(0, 10);
   return new Intl.DateTimeFormat("ar-EG", { day: "numeric", month: "short", year: "numeric" }).format(date);
 };
-// Pinned to the attendance timezone, like the edit form's `toClockInput`: read
-// on a phone left on another zone, an unpinned clock disagreed with the value
-// the same row put in the editor.
+// Pinned to the attendance timezone, like the shared `toClockInput`: read on a
+// phone left on another zone, an unpinned clock disagreed with the value the
+// same row put in the editor.
 const formatClock = (value) => {
   if (!value) return "—";
   const date = new Date(value);
@@ -41,14 +42,6 @@ const formatMinutes = (minutes) => {
   const h = Math.floor(m / 60);
   const r = m % 60;
   return h ? `${h} س ${r ? `${r} د` : ""}`.trim() : `${r} د`;
-};
-const toClockInput = (value) => {
-  if (!value) return "";
-  const date = new Date(value);
-  if (Number.isNaN(date.getTime())) return "";
-  const parts = new Intl.DateTimeFormat("en-GB", { timeZone: ATTENDANCE_TZ, hour: "2-digit", minute: "2-digit", hourCycle: "h23" }).formatToParts(date);
-  const get = (type) => parts.find((part) => part.type === type)?.value || "00";
-  return `${get("hour")}:${get("minute")}`;
 };
 const todayKey = () => new Intl.DateTimeFormat("en-CA", { timeZone: ATTENDANCE_TZ, year: "numeric", month: "2-digit", day: "2-digit" }).format(new Date());
 const monthLabel = (month) => {

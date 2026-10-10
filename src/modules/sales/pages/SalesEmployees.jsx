@@ -21,6 +21,8 @@ import {
   upsertSalesEmployeeProfile,
   updateSalesEmployeeSettings,
 } from "../services/salesEmployeesApi";
+import { saveManualAttendance } from "../../attendance/attendanceApi";
+import { describeManualShift, toClockInput, toDateKey } from "../../../shared/lib/attendanceShift";
 import { api } from "../../../shared/api/api";
 import { logPagePerf } from "../../../shared/lib/perfDebug";
 import { useVirtualRows } from "../../../shared/components/VirtualList";
@@ -340,6 +342,7 @@ function SalesEmployees({ defaultTab = "staff", visibleTabs = null, embedded = f
   const [payrollFinalizing, setPayrollFinalizing] = useState(false);
   const [payrollPaying, setPayrollPaying] = useState(false);
   const [payrollCalculateStatus, setPayrollCalculateStatus] = useState("");
+  const [resolvingBlockerId, setResolvingBlockerId] = useState(null);
   const [penalties, setPenalties] = useState([]);
   const [penaltyForm, setPenaltyForm] = useState(emptyPenaltyForm);
   const [penaltiesLoading, setPenaltiesLoading] = useState(false);
@@ -1020,6 +1023,39 @@ function SalesEmployees({ defaultTab = "staff", visibleTabs = null, embedded = f
     }
   };
 
+  // A day checked into and never out of is a hard blocker, and sending the
+  // accountant to the attendance screen to close it costs the whole approval.
+  // The blocker carries the check-out its shift implies, so the payroll screen
+  // books it through the same manual-entry endpoint that screen uses.
+  const resolveAttendanceBlocker = async (blocker, clock) => {
+    const attendanceDate = toDateKey(blocker?.date);
+    if (!payroll.employee_id || !attendanceDate || !/^([01]\d|2[0-3]):([0-5]\d)$/.test(clock || "")) {
+      toast.error(t("sales.payroll.blockerFixTimeRequired", "اكتب وقت الانصراف"));
+      return;
+    }
+    const shift = describeManualShift({ date: attendanceDate, checkIn: toClockInput(blocker?.check_in_time), checkOut: clock });
+    if (shift?.isLong && !window.confirm(t("sales.payroll.blockerFixLongConfirm", "اليوم ده هيطلع {{hours}} ساعة. تكمل؟", { hours: (shift.minutes / 60).toFixed(1) }))) return;
+    setResolvingBlockerId(blocker.reference_id);
+    try {
+      await saveManualAttendance({
+        employee_id: Number(payroll.employee_id),
+        attendance_date: attendanceDate,
+        correction_scope: "check_out",
+        check_out_time: clock,
+        check_out_date: shift?.checkOutDate || attendanceDate,
+        reason: t("sales.payroll.blockerFixReason", "إقفال انصراف ناقص قبل اعتماد المرتب"),
+      });
+      // Recalculating is what clears the blocker: the deductions for that day
+      // change the moment it is closed, so the figures on screen must follow.
+      await previewPayroll();
+      toast.success(t("sales.payroll.blockerFixed", "اتقفل {{date}} الساعة {{time}}", { date: attendanceDate, time: clock }));
+    } catch (error) {
+      toast.error(error?.message || t("sales.payroll.blockerFixError", "تعذر إقفال سجل الحضور"));
+    } finally {
+      setResolvingBlockerId(null);
+    }
+  };
+
   const handleCalculatePayroll = async () => {
     try {
       await previewPayroll({ manual: true });
@@ -1459,6 +1495,8 @@ function SalesEmployees({ defaultTab = "staff", visibleTabs = null, embedded = f
               onDeductionsChange={(value) => updatePayrollField("deductions", value)}
               onCustomMonthChange={applyCustomMonth}
               onOpenAttendance={() => navigate("/employees/attendance")}
+              onResolveAttendanceBlocker={resolveAttendanceBlocker}
+              resolvingBlockerId={resolvingBlockerId}
               onEmployeeChange={(value) => {
                 const employee = employees.find((item) => String(item.id) === String(value));
                 setPayrollEmployeeAdjusted(true);
@@ -1826,6 +1864,8 @@ function PayrollFinancialSummary({
   onEmployeeChange,
   onRangeModeChange,
   onOpenAttendance,
+  onResolveAttendanceBlocker,
+  resolvingBlockerId = null,
   selectedEmployeeName = "",
   isRtl,
   t,
@@ -1837,6 +1877,9 @@ function PayrollFinancialSummary({
   paying,
 }) {
   const safePayrollPreview = payrollPreview ?? null;
+  // Keyed by attendance_log_id: empty until the accountant overrides the
+  // check-out the server suggested for that day.
+  const [blockerClocks, setBlockerClocks] = useState({});
   const activePayrollRun = payrollRun || safePayrollPreview?.payroll_run || null;
   const payrollStatus = String(activePayrollRun?.status || safePayrollPreview?.payroll_status || (safePayrollPreview ? "calculated" : "")).toLowerCase();
   const paymentStatus = String(activePayrollRun?.payment_status || safePayrollPreview?.payment_status || "").toLowerCase();
@@ -1962,6 +2005,13 @@ function PayrollFinancialSummary({
     { label: t("sales.payroll.totalDeductions", "إجمالي الخصومات"), value: formatDeductions(totalDeductions), icon: Gavel, tone: "negative" },
   ];
   const payrollWarnings = hardPayrollBlockers.length ? hardPayrollBlockers : softPayrollBlockers;
+  // Open attendance days are the one blocker this screen can clear on its own,
+  // so they leave the chip list and become rows with the check-out their shift
+  // implies already filled in.
+  const fixableBlockers = onResolveAttendanceBlocker
+    ? payrollWarnings.filter((issue) => issue?.type === "attendance_unresolved" && issue.reference_id && issue.date)
+    : [];
+  const chipWarnings = payrollWarnings.filter((issue) => !fixableBlockers.includes(issue));
   const heroSubtitle = hasPayrollDetails
     ? payrollMonthLabel || t("sales.payroll.currentMonth", "الشهر الحالي")
     : t("sales.payroll.selectEmployee", "اختر الموظف");
@@ -2127,13 +2177,56 @@ function PayrollFinancialSummary({
                         ? t("sales.payroll.cannotApproveNow", "لا يمكن اعتماد الراتب الآن")
                         : t("sales.payroll.reviewWarnings", "تنبيهات للمراجعة قبل الاعتماد")}
                     </div>
-                    <ul className="mt-2 flex flex-wrap gap-2 text-xs font-bold leading-5">
-                      {payrollWarnings.map((issue) => (
-                        <li key={`${issue.type || issue.key || "generic"}-${issue.reference_id || issue.date || issue.amount || issue.message_ar || issue.label}`} className="rounded-full border border-current/20 bg-black/10 px-3 py-1" dir="auto">
-                          {issue.message_ar || issue.label}
-                        </li>
-                      ))}
-                    </ul>
+                    {fixableBlockers.length ? (
+                      <div className="mt-2 space-y-2">
+                        {fixableBlockers.map((issue) => {
+                          const clock = blockerClocks[issue.reference_id] ?? (issue.suggested_check_out_time || "");
+                          const busy = resolvingBlockerId === issue.reference_id;
+                          return (
+                            <div key={`open-${issue.reference_id}`} className="rounded-[var(--radius-card)] border border-current/20 bg-black/10 p-2.5">
+                              <div className="text-xs font-black leading-5" dir="auto">
+                                <span dir="ltr" className="tabular-nums">{issue.date}</span>
+                                {" · "}
+                                {t("sales.payroll.blockerOpenDay", "دخول {{time}} من غير انصراف", { time: toClockInput(issue.check_in_time) || "--:--" })}
+                              </div>
+                              <div className="mt-2 flex items-center gap-2">
+                                <input
+                                  type="time"
+                                  value={clock}
+                                  onChange={(event) => setBlockerClocks((prev) => ({ ...prev, [issue.reference_id]: event.target.value }))}
+                                  aria-label={t("sales.payroll.checkOut", "الانصراف")}
+                                  className="h-[var(--control-height-md)] min-w-0 flex-1 rounded-[var(--radius-control)] border border-[var(--border)] bg-[var(--surface)] px-2 text-sm font-black tabular-nums text-[var(--text)]"
+                                />
+                                {/* Not `theme-button-primary`: it paints white ink on --primary,
+                                    which is 2.04 against the gold in the dark palette. The pair
+                                    below is the one the Calculate button beside it uses. */}
+                                <button
+                                  type="button"
+                                  disabled={busy}
+                                  onClick={() => onResolveAttendanceBlocker(issue, clock)}
+                                  className="inline-flex h-[var(--control-height-md)] shrink-0 items-center justify-center gap-1.5 rounded-[var(--radius-control)] bg-[var(--primary)] px-3 text-xs font-black text-[var(--primary-contrast)] disabled:opacity-50"
+                                >
+                                  {busy ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : null}
+                                  {t("sales.payroll.blockerFixAction", "اقفل اليوم")}
+                                </button>
+                              </div>
+                              <div className="mt-1 text-[11px] font-bold leading-4 opacity-75">
+                                {t("sales.payroll.blockerFixHint", "الوقت ده متحسب من ميعاد نهاية ورديته — عدّله لو مش مظبوط.")}
+                              </div>
+                            </div>
+                          );
+                        })}
+                      </div>
+                    ) : null}
+                    {chipWarnings.length ? (
+                      <ul className="mt-2 flex flex-wrap gap-2 text-xs font-bold leading-5">
+                        {chipWarnings.map((issue) => (
+                          <li key={`${issue.type || issue.key || "generic"}-${issue.reference_id || issue.date || issue.amount || issue.message_ar || issue.label}`} className="rounded-full border border-current/20 bg-black/10 px-3 py-1" dir="auto">
+                            {issue.message_ar || issue.label}
+                          </li>
+                        ))}
+                      </ul>
+                    ) : null}
                   </div>
                 </div>
               </div>
@@ -2210,7 +2303,9 @@ function PayrollFinancialSummary({
               <div className="mt-2 flex flex-wrap gap-2">
                 {openAttendanceLogs.map((log) => (
                   <span key={log.id} dir="ltr" className="rounded-full border border-rose-300/25 bg-black/20 px-3 py-1 text-xs font-black tabular-nums text-rose-100">
-                    {log.attendance_date || "-"} · {String(log.check_in_time || "").slice(11, 16) || "--:--"}
+                    {/* The clock has to come off the attendance calendar: slicing the raw
+                        ISO string showed the UTC hour, three hours early in Cairo. */}
+                    {log.attendance_date || "-"} · {toClockInput(log.check_in_time) || "--:--"}
                   </span>
                 ))}
               </div>
