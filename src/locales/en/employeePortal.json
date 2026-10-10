@@ -326,7 +326,9 @@
     "searchingServer": "Not on this phone — asking the server…",
     "noResults": "No product with that name or code",
     "noResultsHint": "Try part of the name, the article code, or scan the barcode.",
-    "noResultsFiltered": "Active filters may be hiding the product."
+    "noResultsFiltered": "Active filters may be hiding the product.",
+    "saveDraft": "Save as draft",
+    "draftSaved": "Saved as a draft"
   },
   "payroll": {
     "walletTitle": "Employee wallet",

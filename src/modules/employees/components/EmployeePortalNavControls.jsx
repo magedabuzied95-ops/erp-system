@@ -38,12 +38,19 @@ export default function EmployeePortalNavControls({
   backLabel = "رجوع",
   homeLabel = "الرئيسية",
   className = "",
+  // An optional control for the far side of the same row. A page that needs one
+  // button always to hand (the stock count's list of counts) puts it here
+  // instead of spending a card on it.
+  trailing = null,
+  // For a trailing control that only belongs on some widths: it has to hide the
+  // pill around it too, or a desktop gets an empty one.
+  trailingClassName = "",
 }) {
   const shellClassName = "border-border bg-surface/92 text-text shadow-[var(--shadow-card)] backdrop-blur";
   const buttonClassName = "border-border bg-surface text-text hover:bg-surface-soft";
 
   return (
-    <div dir="ltr" className={`sticky top-[calc(env(safe-area-inset-top)+12px)] z-40 mb-3 flex justify-start ${className}`.trim()}>
+    <div dir="ltr" className={`sticky top-[calc(env(safe-area-inset-top)+12px)] z-40 mb-3 flex items-center gap-2 ${trailing ? "justify-between" : "justify-start"} ${className}`.trim()}>
       <div className={`inline-flex items-center gap-2 rounded-full border p-2 ${shellClassName}`}>
         <button
           type="button"
@@ -62,6 +69,9 @@ export default function EmployeePortalNavControls({
           <span dir="auto">{homeLabel}</span>
         </button>
       </div>
+      {trailing ? (
+        <div className={`inline-flex items-center gap-2 rounded-full border p-2 ${shellClassName} ${trailingClassName}`.trim()}>{trailing}</div>
+      ) : null}
     </div>
   );
 }

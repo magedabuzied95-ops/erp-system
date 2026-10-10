@@ -929,6 +929,7 @@ export const listInventoryCountSessions = async (clientOrPool, { tenantId = null
   const pageValue = Math.max(toNumber(page, 1), 1);
   const offset = (pageValue - 1) * limitValue;
   const whereClause = clauses.length ? `WHERE ${clauses.join(" AND ")}` : "";
+  const coverSelects = await buildInventoryCountVariantImageSelects(dbClient);
 
   const [countResult, rowsResult] = await Promise.all([
     dbClient.query(
@@ -956,7 +957,9 @@ export const listInventoryCountSessions = async (clientOrPool, { tenantId = null
         ur.name AS rejected_by_name,
         COALESCE(items.item_count, 0)::int AS item_count,
         COALESCE(items.adjusted_items, 0)::int AS adjusted_items,
-        COALESCE(items.difference_total, 0)::int AS difference_total
+        COALESCE(items.difference_total, 0)::int AS difference_total,
+        cover.cover_image_url,
+        cover.cover_product_name
       FROM inventory_count_sessions s
       LEFT JOIN branches b ON b.id = s.branch_id
       LEFT JOIN warehouses w ON w.id = s.warehouse_id
@@ -974,6 +977,20 @@ export const listInventoryCountSessions = async (clientOrPool, { tenantId = null
         FROM inventory_count_items
         GROUP BY inventory_count_session_id
       ) items ON items.inventory_count_session_id = s.id
+      -- The first colour put on the sheet is what the count LOOKS like. A list
+      -- of counts all called "جرد جديد" is unreadable; the model's picture is
+      -- how the employee recognises the one they parked.
+      LEFT JOIN LATERAL (
+        SELECT
+          ${coverSelects.imageUrlExpr} AS cover_image_url,
+          COALESCE(p.name, '') AS cover_product_name
+        FROM inventory_count_items ci
+        LEFT JOIN product_variants v ON v.id = COALESCE(ci.product_variant_id, ci.variant_id)
+        LEFT JOIN products p ON p.id = COALESCE(ci.product_id, v.product_id)
+        WHERE ci.inventory_count_session_id = s.id
+        ORDER BY ci.created_at ASC, ci.id ASC
+        LIMIT 1
+      ) cover ON TRUE
       ${whereClause}
       ORDER BY s.created_at DESC, s.id DESC
       LIMIT $${params.length + 1}

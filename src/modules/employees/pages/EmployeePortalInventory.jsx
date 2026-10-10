@@ -367,6 +367,44 @@ function InventoryImage({ src, alt = "", className = "" }) {
   );
 }
 
+/**
+ * One count in a list of counts.
+ *
+ * Every count is called "جرد جديد" until someone renames it, which made the
+ * list unreadable. The first colour put on the sheet carries the picture the
+ * employee actually recognises, so the row leads with it and names the model
+ * underneath. Used by both the drawer on a phone and the column on a desktop,
+ * so the two can never drift apart.
+ */
+function CountSessionRow({ row, active, onSelect }) {
+  const status = String(row.status || "draft");
+  return (
+    <button
+      type="button"
+      onClick={() => onSelect(row.id)}
+      className={`w-full rounded-[var(--radius-control)] border p-3 text-start transition ${active ? "border-border bg-success-subtle shadow-sm" : "border-border bg-surface hover:bg-surface-soft"}`}
+    >
+      <div className="flex min-w-0 items-center gap-3">
+        <div className="h-12 w-12 shrink-0 overflow-hidden rounded-[var(--radius-control)] border border-border bg-surface-soft">
+          <InventoryImage src={row.cover_image_url} alt={row.cover_product_name || ""} />
+        </div>
+        <div className="min-w-0 flex-1">
+          <div className="truncate text-sm font-black text-text">{row.title || tt("employeePortal.stockCount.new")}</div>
+          <div className="mt-0.5 flex min-w-0 flex-wrap items-center gap-x-2 text-xs font-semibold text-text-muted">
+            <span className="truncate">{row.cover_product_name || row.branch_name || tt("employeePortal.common.branch")}</span>
+            {toNumber(row.item_count, 0) > 0 ? (
+              <span>{tt("employeePortal.stockCount.sizeCount", { count: toNumber(row.item_count, 0) })}</span>
+            ) : null}
+          </div>
+        </div>
+        <span className={`shrink-0 rounded-full border px-2.5 py-1 text-[11px] font-black ${sessionStatusTone[status] || sessionStatusTone.draft}`}>
+          {sessionStatusLabels[status] || status}
+        </span>
+      </div>
+    </button>
+  );
+}
+
 // What a colour card actually renders from: its size rows' quantities and which
 // of them still owe the server. A count tap rewrites `items`, which re-groups
 // EVERY colour into new objects — without this, one tap re-rendered every
@@ -656,6 +694,7 @@ export default function EmployeePortalInventory() {
   const [sessionSaving, setSessionSaving] = useState(false);
   const [sessionOpening, setSessionOpening] = useState(false);
   const [sessionSubmitting, setSessionSubmitting] = useState(false);
+  const [sessionSavingDraft, setSessionSavingDraft] = useState(false);
   const [sessionReopening, setSessionReopening] = useState(false);
   const [itemSavingId, setItemSavingId] = useState("");
   const [facets, setFacets] = useState({ categories: [], types: [], brands: [], manufacturers: [], genders: [], grades: [], sizes: [] });
@@ -1190,6 +1229,41 @@ export default function EmployeePortalInventory() {
     }
   }, [refreshCurrentSession, session?.id, token]);
 
+  /**
+   * Park the count without sending it for review.
+   *
+   * The sheet already saves itself as the employee taps, but "already saved"
+   * is not something a person can see — so this makes it an act: everything
+   * still owed goes out now, the list of counts is refreshed, and it opens on
+   * the parked count so they watch it land under its model's picture.
+   */
+  const handleSaveDraft = useCallback(async () => {
+    if (!session?.id) return;
+    try {
+      setSessionSavingDraft(true);
+      if (outboxSize(outboxRef.current)) {
+        let flushed = await flushOutbox({ silent: false });
+        if (!flushed && outboxSize(outboxRef.current)) {
+          await new Promise((resolve) => window.setTimeout(resolve, 900));
+          flushed = await flushOutbox({ silent: false });
+        }
+        if (!flushed) {
+          // The quantities are safe on the phone either way; say so instead of
+          // claiming a save that only half happened.
+          toast(tt("employeePortal.stockCount.queuedOffline"), { icon: "📴" });
+          return;
+        }
+      }
+      await loadSessions();
+      setBranchDrawerOpen(true);
+      toast.success(tt("employeePortal.stockCount.draftSaved"));
+    } catch (error) {
+      toast.error(error?.responseBody?.message || error?.message || tt("employeePortal.stockCount.saveItemFailed"));
+    } finally {
+      setSessionSavingDraft(false);
+    }
+  }, [flushOutbox, loadSessions, session?.id]);
+
   const handleSubmitSession = useCallback(async () => {
     if (!session?.id) return;
     try {
@@ -1637,9 +1711,24 @@ export default function EmployeePortalInventory() {
           }}
           onHome={() => navigate(buildEmployeePortalHomePath({ pathname: window.location.pathname, token }))}
           className="px-0"
+          // The list of counts rides in the top bar on a phone. It used to cost
+          // a whole card below the header that held nothing else there.
+          // Only on a phone: the desktop keeps its own column of counts.
+          trailingClassName="lg:hidden"
+          trailing={(
+            <button
+              type="button"
+              onClick={() => setBranchDrawerOpen(true)}
+              className="inline-flex min-h-[var(--control-height-lg)] min-w-11 items-center justify-center rounded-full border border-border bg-surface text-text transition hover:bg-surface-soft"
+              aria-label={tt("employeePortal.stockCount.branchCounts")}
+              title={tt("employeePortal.stockCount.branchCounts")}
+            >
+              <Menu className="h-5 w-5" />
+            </button>
+          )}
         />
 
-        <section className="rounded-[var(--radius-card)] border border-border bg-surface/95 p-2.5 shadow-[var(--shadow-card)] backdrop-blur sm:rounded-[2rem] sm:p-4 sm:shadow-[var(--shadow-overlay)]">
+        <section className="hidden rounded-[var(--radius-card)] border border-border bg-surface/95 p-2.5 shadow-[var(--shadow-card)] backdrop-blur sm:rounded-[2rem] sm:p-4 sm:shadow-[var(--shadow-overlay)] lg:block">
           <div className="inventory-wrap flex min-w-0 flex-col gap-3 lg:flex-row lg:items-center lg:justify-between">
             <div>
               <div className="hidden items-center gap-2 text-success sm:flex">
@@ -1652,15 +1741,6 @@ export default function EmployeePortalInventory() {
               </div>
             </div>
             <div className="inventory-actions flex min-w-0 gap-2">
-              <button
-                type="button"
-                onClick={() => setBranchDrawerOpen(true)}
-                className="inline-flex min-h-[var(--control-height-lg)] items-center justify-center gap-2 rounded-[var(--radius-control)] border border-border bg-surface px-4 text-sm font-black text-text lg:hidden"
-                aria-label={tt("employeePortal.stockCount.branchCounts")}
-              >
-                <Menu className="h-4 w-4" />
-                {tt("employeePortal.stockCount.branchCounts")}
-              </button>
               <button
                 type="button"
                 onClick={loadSessions}
@@ -1723,30 +1803,14 @@ export default function EmployeePortalInventory() {
               ) : sessionsError ? (
                 <div className="rounded-2xl border border-border bg-danger-subtle p-4 text-sm font-bold leading-6 text-text">{sessionsError}</div>
               ) : visibleSessions.length ? (
-                visibleSessions.map((row) => {
-                  const active = String(row.id) === String(selectedSessionId);
-                  const status = String(row.status || "draft");
-                  return (
-                    <button
-                      key={row.id}
-                      type="button"
-                      onClick={() => selectSession(row.id)}
-                      className={`w-full rounded-[var(--radius-control)] border p-3 text-right transition ${ active ? "border-border bg-success-subtle shadow-sm" : "border-border bg-surface hover:bg-surface-soft" }`}
-                    >
-              <div className="flex min-w-0 items-start justify-between gap-3">
-                <div className="min-w-0">
-                          <div className="truncate text-sm font-black text-text">{row.title || tt("employeePortal.stockCount.new")}</div>
-                          <div className="mt-1 text-xs font-semibold text-text-muted">
-                            {row.branch_name || tt("employeePortal.common.branch")}{row.warehouse_name ? ` • ${row.warehouse_name}` : ""}
-                          </div>
-                        </div>
-                        <span className={`rounded-full border px-2.5 py-1 text-[11px] font-black ${sessionStatusTone[status] || sessionStatusTone.draft}`}>
-                          {sessionStatusLabels[status] || status}
-                        </span>
-                      </div>
-                    </button>
-                  );
-                })
+                visibleSessions.map((row) => (
+                  <CountSessionRow
+                    key={row.id}
+                    row={row}
+                    active={String(row.id) === String(selectedSessionId)}
+                    onSelect={selectSession}
+                  />
+                ))
               ) : (
                 <div className="rounded-2xl border border-border bg-surface-soft p-4 text-sm font-bold leading-6 text-text-muted">
                   {tt("employeePortal.stockCount.noMatch")}
@@ -1984,12 +2048,21 @@ export default function EmployeePortalInventory() {
                     and never lets a quantity still sitting on the phone pass
                     as a reviewed count. */}
                 {isEditable ? (
-                  <div className="inventory-send-bar">
+                  <div className="inventory-send-bar grid grid-cols-[minmax(0,1fr)_minmax(0,1.4fr)] gap-2">
+                    <button
+                      type="button"
+                      onClick={handleSaveDraft}
+                      disabled={sessionSavingDraft || sessionSubmitting || !items.length}
+                      className="inline-flex min-h-[var(--control-height-lg)] w-full items-center justify-center gap-2 rounded-[var(--radius-control)] border border-border bg-surface px-3 text-sm font-black text-text shadow-[var(--shadow-card)] disabled:opacity-60"
+                    >
+                      {sessionSavingDraft ? <Loader2 className="h-4 w-4 animate-spin" /> : <Save className="h-4 w-4" />}
+                      {tt("employeePortal.stockCount.saveDraft")}
+                    </button>
                     <button
                       type="button"
                       onClick={handleSubmitSession}
-                      disabled={sessionSubmitting || !items.length}
-                      className="inline-flex min-h-[var(--control-height-lg)] w-full items-center justify-center gap-2 rounded-[var(--radius-control)] bg-primary px-4 text-sm font-black text-[var(--primary-contrast)] shadow-[var(--shadow-card)] disabled:opacity-60"
+                      disabled={sessionSubmitting || sessionSavingDraft || !items.length}
+                      className="inline-flex min-h-[var(--control-height-lg)] w-full items-center justify-center gap-2 rounded-[var(--radius-control)] bg-primary px-3 text-sm font-black text-[var(--primary-contrast)] shadow-[var(--shadow-card)] disabled:opacity-60"
                     >
                       {sessionSubmitting ? <Loader2 className="h-4 w-4 animate-spin" /> : <Send className="h-4 w-4" />}
                       {pendingCount ? tt("employeePortal.stockCount.sendWithPending", { count: pendingCount }) : "إرسال للمراجعة"}
@@ -2009,8 +2082,6 @@ export default function EmployeePortalInventory() {
           sessionsError={sessionsError}
           visibleSessions={visibleSessions}
           selectedSessionId={selectedSessionId}
-          sessionStatusTone={sessionStatusTone}
-          sessionStatusLabels={sessionStatusLabels}
           sessionSearch={sessionSearch}
           setSessionSearch={setSessionSearch}
           statusFilter={statusFilter}
@@ -2058,8 +2129,6 @@ function BranchInventoryDrawer({
   sessionsError,
   visibleSessions,
   selectedSessionId,
-  sessionStatusTone,
-  sessionStatusLabels,
   sessionSearch,
   setSessionSearch,
   statusFilter,
@@ -2147,30 +2216,14 @@ function BranchInventoryDrawer({
             ) : sessionsError ? (
               <div className="rounded-2xl border border-border bg-danger-subtle p-4 text-sm font-bold leading-6 text-text">{sessionsError}</div>
             ) : visibleSessions.length ? (
-              visibleSessions.map((row) => {
-                const active = String(row.id) === String(selectedSessionId);
-                const status = String(row.status || "draft");
-                return (
-                  <button
-                    key={row.id}
-                    type="button"
-                    onClick={() => onSelectSession(row.id)}
-                    className={`w-full rounded-[var(--radius-control)] border p-3 text-right transition ${ active ? "border-border bg-success-subtle shadow-sm" : "border-border bg-surface hover:bg-surface-soft" }`}
-                  >
-                    <div className="flex min-w-0 items-start justify-between gap-3">
-                      <div className="min-w-0">
-                        <div className="truncate text-sm font-black text-text">{row.title || tt("employeePortal.stockCount.new")}</div>
-                        <div className="mt-1 text-xs font-semibold text-text-muted">
-                          {row.branch_name || tt("employeePortal.common.branch")}{row.warehouse_name ? ` • ${row.warehouse_name}` : ""}
-                        </div>
-                      </div>
-                      <span className={`rounded-full border px-2.5 py-1 text-[11px] font-black ${sessionStatusTone[status] || sessionStatusTone.draft}`}>
-                        {sessionStatusLabels[status] || status}
-                      </span>
-                    </div>
-                  </button>
-                );
-              })
+              visibleSessions.map((row) => (
+                <CountSessionRow
+                  key={row.id}
+                  row={row}
+                  active={String(row.id) === String(selectedSessionId)}
+                  onSelect={onSelectSession}
+                />
+              ))
             ) : (
               <div className="rounded-2xl border border-border bg-surface-soft p-4 text-sm font-bold leading-6 text-text-muted">
                 {tt("employeePortal.stockCount.noMatch")}
