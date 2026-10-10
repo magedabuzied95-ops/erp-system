@@ -9,7 +9,7 @@ import {
   describeManualShift,
   isOvernightRow,
   toDateKey,
-} from "../lib/attendanceShift";
+} from "../../../shared/lib/attendanceShift";
 
 const tt = (key, options) => i18n.t(key, options);
 const formatNumber = (value) => new Intl.NumberFormat("ar-EG").format(Number(value || 0));
