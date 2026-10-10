@@ -142,6 +142,41 @@ const clampTelegramCaption = (value = "", { html = false } = {}) => {
   return `${cut}…`;
 };
 
+
+/*
+ * Arabic lines that start with an emoji.
+ *
+ * "💰 السعر: 850 ج.م" begins with a NEUTRAL character, so its direction is not
+ * its own: the client resolves it from the first strong character it can find,
+ * and in a caption whose product name is Latin that can be the name, several
+ * lines up. The same two lines then render right-aligned under one product and
+ * shifted under another, which is exactly what the channel showed.
+ *
+ * A RIGHT-TO-LEFT MARK in front of the emoji settles it: the line is RTL from
+ * its first character, on every client, whatever the product is called. Lines
+ * that genuinely start in Latin (the name, the hashtags) are left alone.
+ */
+const RLM = "‏";
+const FIRST_STRONG = /[A-Za-z֐-׿؀-ۿݐ-ݿ]/;
+const ARABIC = /[؀-ۿݐ-ݿ]/;
+
+export const applyTelegramLineDirection = (value = "") =>
+  String(value ?? "")
+    .split("\n")
+    .map((line) => {
+      if (!line || line.startsWith(RLM)) return line;
+      // The markup is not text. Without stripping it the "b" of "<b>" is read
+      // as the line's first strong character, and a price line that is plainly
+      // Arabic is left to drift.
+      const bare = line.replace(/<[^>]*>/g, "");
+      const strong = bare.match(FIRST_STRONG);
+      if (!strong || !ARABIC.test(strong[0])) return line;
+      // Already starts with its own strong character: nothing to settle.
+      if (bare[0] === strong[0]) return line;
+      return RLM + line;
+    })
+    .join("\n");
+
 export const renderTelegramCaption = (
   template = TELEGRAM_CATALOG_DEFAULTS.caption_template,
   facts = {},
@@ -164,7 +199,7 @@ export const renderTelegramCaption = (
     .join("\n")
     .replace(/\n{3,}/g, "\n\n")
     .trim();
-  return clampTelegramCaption(collapsed, { html });
+  return clampTelegramCaption(applyTelegramLineDirection(collapsed), { html });
 };
 
 export default {
@@ -177,6 +212,7 @@ export default {
   renderTelegramCaption,
   sortTelegramSizes,
   telegramCatalogTags,
+  applyTelegramLineDirection,
   telegramTagToken,
   tidyTelegramText,
 };
