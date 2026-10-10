@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useRef, useState } from "react";
+import { Fragment, useEffect, useMemo, useRef, useState } from "react";
 import { useNavigate, useParams, useSearchParams } from "react-router-dom";
 import {
   AlertTriangle,
@@ -70,6 +70,14 @@ const formatDateTime = (value) => {
 
 const itemColor = (item = {}) => text(item.variant_color || item.color, "");
 const itemSize = (item = {}) => text(item.variant_size || item.size, "");
+const itemSystemQty = (item = {}) => Number(item.system_quantity ?? item.expected_qty ?? 0) || 0;
+const itemCountedQty = (item = {}) => Number(item.counted_quantity ?? item.actual_qty ?? 0) || 0;
+const itemDifference = (item = {}) => {
+  const stored = item.difference_quantity ?? item.difference_qty;
+  if (stored !== null && stored !== undefined && stored !== "") return Number(stored) || 0;
+  return itemCountedQty(item) - itemSystemQty(item);
+};
+const signedNumber = (value) => (value > 0 ? `+${formatNumber(value)}` : formatNumber(value));
 const itemImage = (item = {}) => resolveProductImageUrl(
   item.color_image_url || item.variant_image_url || item.primary_image_url || item.main_image_url ||
   item.image_url || item.product_image_url || item.product_image || item.main_image || ""
@@ -104,42 +112,101 @@ export default function InventoryApprovalsPage() {
   const [rejectOpen, setRejectOpen] = useState(false);
   const [rejectReason, setRejectReason] = useState("");
   const [rejecting, setRejecting] = useState(false);
+  // "variance" opens the session on what moved; "all" shows every counted size.
+  const [itemFilter, setItemFilter] = useState("variance");
   const detailRef = useRef(null);
   const lastPortalUrl = typeof window !== "undefined" ? String(window.localStorage.getItem("manager_portal_last_url") || "").trim() : "";
 
   const selectedSession = selectedApproval?.session || null;
   const selectedItems = Array.isArray(selectedApproval?.items) ? selectedApproval.items : [];
-  const sortedSelectedItems = useMemo(() => {
+  // The count arrives as one row per size, so a model with eight colours lands
+  // as dozens of look-alike cards. A manager reads a count by product and
+  // colour, so fold the sizes back into the colour they belong to and float the
+  // colours that actually moved to the top.
+  const itemGroups = useMemo(() => {
     const collator = new Intl.Collator(["ar", "en"], { numeric: true, sensitivity: "base" });
-    return selectedItems
-      .map((item, index) => ({ item, index }))
+    const groups = new Map();
+    selectedItems.forEach((item, index) => {
+      const productKey = item.product_id ?? text(item.product_name, "product");
+      const colorKey = itemColor(item).toLowerCase() || "default";
+      const key = `${productKey}::${colorKey}`;
+      if (!groups.has(key)) {
+        groups.set(key, {
+          key,
+          order: index,
+          productName: text(item.product_name, ""),
+          color: itemColor(item),
+          imageUrl: "",
+          rows: [],
+          system: 0,
+          counted: 0,
+          surplus: 0,
+          shortage: 0,
+        });
+      }
+      const group = groups.get(key);
+      if (!group.imageUrl) group.imageUrl = itemImage(item);
+      const system = itemSystemQty(item);
+      const counted = itemCountedQty(item);
+      const diff = itemDifference(item);
+      group.rows.push({ item, system, counted, diff, order: index });
+      group.system += system;
+      group.counted += counted;
+      if (diff > 0) group.surplus += diff;
+      if (diff < 0) group.shortage += Math.abs(diff);
+    });
+    return [...groups.values()]
+      .map((group) => ({
+        ...group,
+        difference: group.surplus - group.shortage,
+        // Kept off `rows` so the header still speaks for the whole colour while
+        // the variance filter is thinning the tiles underneath it.
+        totalRows: group.rows.length,
+        changedRows: group.rows.filter((row) => row.diff !== 0).length,
+        rows: group.rows.slice().sort((left, right) => {
+          const leftSize = itemSize(left.item);
+          const rightSize = itemSize(right.item);
+          if (!leftSize && rightSize) return 1;
+          if (leftSize && !rightSize) return -1;
+          return collator.compare(leftSize, rightSize) || left.order - right.order;
+        }),
+      }))
       .sort((left, right) => {
-        const leftSize = itemSize(left.item);
-        const rightSize = itemSize(right.item);
-        if (!leftSize && rightSize) return 1;
-        if (leftSize && !rightSize) return -1;
-        const sizeOrder = collator.compare(leftSize, rightSize);
-        if (sizeOrder) return sizeOrder;
-        const productOrder = collator.compare(text(left.item.product_name, ""), text(right.item.product_name, ""));
+        const leftSettled = left.changedRows ? 0 : 1;
+        const rightSettled = right.changedRows ? 0 : 1;
+        if (leftSettled !== rightSettled) return leftSettled - rightSettled;
+        const productOrder = collator.compare(left.productName, right.productName);
         if (productOrder) return productOrder;
-        const colorOrder = collator.compare(itemColor(left.item), itemColor(right.item));
-        return colorOrder || left.index - right.index;
-      })
-      .map(({ item }) => item);
+        return collator.compare(left.color, right.color) || left.order - right.order;
+      });
   }, [selectedItems]);
   const sessionSummary = useMemo(() => {
-    const totals = selectedItems.reduce((acc, item) => {
-      const system = Number(item.system_quantity || item.expected_qty || 0);
-      const counted = Number(item.counted_quantity || item.actual_qty || 0);
-      const diff = Number(item.difference_quantity || item.difference_qty || counted - system);
-      if (diff > 0) acc.increase += diff;
-      if (diff < 0) acc.shortage += Math.abs(diff);
-      acc.total += Math.abs(diff);
-      acc.items += 1;
+    const totals = itemGroups.reduce((acc, group) => {
+      acc.colors += 1;
+      group.rows.forEach((row) => {
+        acc.items += 1;
+        if (row.diff > 0) {
+          acc.increase += row.diff;
+          acc.upLines += 1;
+        }
+        if (row.diff < 0) {
+          acc.shortage += Math.abs(row.diff);
+          acc.downLines += 1;
+        }
+        acc.total += Math.abs(row.diff);
+      });
       return acc;
-    }, { items: 0, increase: 0, shortage: 0, total: 0 });
-    return totals;
-  }, [selectedItems]);
+    }, { items: 0, colors: 0, increase: 0, shortage: 0, total: 0, upLines: 0, downLines: 0 });
+    return { ...totals, changedLines: totals.upLines + totals.downLines };
+  }, [itemGroups]);
+  const hasVariance = sessionSummary.changedLines > 0;
+  const varianceOnly = itemFilter === "variance" && hasVariance;
+  const visibleGroups = useMemo(() => {
+    if (!varianceOnly) return itemGroups;
+    return itemGroups
+      .filter((group) => group.changedRows > 0)
+      .map((group) => ({ ...group, rows: group.rows.filter((row) => row.diff !== 0) }));
+  }, [itemGroups, varianceOnly]);
 
   const loadApprovals = async (nextSessionId = "", overrides = {}) => {
     if (!token) return;
@@ -194,6 +261,7 @@ export default function InventoryApprovalsPage() {
 
   useEffect(() => {
     if (!selectedSessionId) return;
+    setItemFilter("variance");
     void loadDetail(selectedSessionId);
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [selectedSessionId]);
@@ -434,39 +502,111 @@ export default function InventoryApprovalsPage() {
                   <InfoStat title={tt("managerPortal.stockCount.totalVariance")} value={sessionSummary.total || 0} icon={ClipboardList} tone="amber" />
                 </section>
 
-                <div className="mt-4 space-y-2 md:hidden">
-                  {sortedSelectedItems.length ? sortedSelectedItems.map((item) => {
-                    const system = Number(item.system_quantity || item.expected_qty || 0);
-                    const counted = Number(item.counted_quantity || item.actual_qty || 0);
-                    const diff = Number(item.difference_quantity || item.difference_qty || counted - system);
-                    const color = itemColor(item);
-                    const size = itemSize(item);
-                    const imageUrl = itemImage(item);
-                    return (
-                      <article key={`mobile-${item.id || `${item.product_variant_id || item.variant_id}-${item.color}-${item.size}`}`} className="rounded-[var(--radius-card)] border border-border bg-surface p-3">
-                        <div className="flex items-start justify-between gap-3">
-                          <div className="flex min-w-0 items-start gap-3">
-                            <div className="grid h-14 w-14 shrink-0 place-items-center overflow-hidden rounded-[var(--radius-card)] border border-border bg-surface-soft">
-                              {imageUrl ? <img src={imageUrl} alt="" className="h-full w-full object-cover" loading="lazy" /> : <Package className="h-5 w-5 text-text-muted" />}
-                            </div>
-                            <div className="min-w-0">
-                              <h3 className="m1-section-title text-text">{text(item.product_name, tt("managerPortal.common.product"))}</h3>
-                              {(color || size) ? <p className="mt-1 text-xs text-text-muted">{[color, size].filter(Boolean).join(" • ")}</p> : null}
-                              {item.variant_sku || item.variant_barcode ? <p className="mt-1 truncate text-[10px] text-text-muted">{item.variant_sku || item.variant_barcode}</p> : null}
-                            </div>
-                          </div>
-                          <span className={`shrink-0 rounded-[var(--radius-control)] px-2.5 py-1 text-sm font-black ${diff > 0 ? "bg-emerald-500/15 text-emerald-300" : diff < 0 ? "bg-rose-500/15 text-rose-300" : "bg-surface-soft text-text-muted"}`}>
-                            {diff > 0 ? `+${formatNumber(diff)}` : formatNumber(diff)}
+                <section className="mt-3 rounded-[var(--radius-card)] border border-border bg-surface p-3">
+                  <div className="flex flex-wrap items-center justify-between gap-2">
+                    <div className="min-w-0">
+                      <div className="text-sm font-black text-text">{tt("managerPortal.stockCount.whatChanged")}</div>
+                      <div className="mt-1 flex flex-wrap items-center gap-x-3 gap-y-1 text-xs font-bold">
+                        {hasVariance ? (
+                          <>
+                            <span className="inline-flex items-center gap-1 text-emerald-300">
+                              <TrendingUp className="h-3.5 w-3.5" />
+                              {tt("managerPortal.stockCount.sizesUp", { n: formatNumber(sessionSummary.upLines), units: formatNumber(sessionSummary.increase) })}
+                            </span>
+                            <span className="inline-flex items-center gap-1 text-rose-300">
+                              <TrendingDown className="h-3.5 w-3.5" />
+                              {tt("managerPortal.stockCount.sizesDown", { n: formatNumber(sessionSummary.downLines), units: formatNumber(sessionSummary.shortage) })}
+                            </span>
+                          </>
+                        ) : (
+                          <span className="inline-flex items-center gap-1 text-emerald-300">
+                            <CheckCircle2 className="h-3.5 w-3.5" />
+                            {tt("managerPortal.stockCount.allBalanced")}
                           </span>
+                        )}
+                        <span className="text-text-muted">
+                          {tt("managerPortal.stockCount.countedScope", { colors: formatNumber(sessionSummary.colors), sizes: formatNumber(sessionSummary.items) })}
+                        </span>
+                      </div>
+                    </div>
+                    {hasVariance ? (
+                      <div className="flex shrink-0 gap-1 rounded-[var(--radius-control)] border border-border bg-surface-soft p-1">
+                        {[
+                          { id: "variance", label: tt("managerPortal.stockCount.filters.variance"), count: sessionSummary.changedLines },
+                          { id: "all", label: tt("managerPortal.stockCount.filters.all"), count: sessionSummary.items },
+                        ].map((chip) => (
+                          <button
+                            key={chip.id}
+                            type="button"
+                            onClick={() => setItemFilter(chip.id)}
+                            className={`rounded-[var(--radius-control)] px-3 py-2 text-xs font-black transition ${itemFilter === chip.id ? "bg-primary text-[var(--primary-contrast)]" : "text-text-muted hover:bg-surface-hover"}`}
+                          >
+                            {chip.label} ({formatNumber(chip.count)})
+                          </button>
+                        ))}
+                      </div>
+                    ) : null}
+                  </div>
+                </section>
+
+                <div className="mt-4 space-y-2 md:hidden">
+                  {visibleGroups.length ? visibleGroups.map((group) => (
+                    <article key={`mobile-${group.key}`} className="rounded-[var(--radius-card)] border border-border bg-surface p-3">
+                      <div className="flex items-start gap-3">
+                        <div className="grid h-14 w-14 shrink-0 place-items-center overflow-hidden rounded-[var(--radius-card)] border border-border bg-surface-soft">
+                          {group.imageUrl ? <img src={group.imageUrl} alt="" className="h-full w-full object-cover" loading="lazy" /> : <Package className="h-5 w-5 text-text-muted" />}
                         </div>
-                        <div className="mt-3 grid grid-cols-2 gap-2 text-xs">
-                          <div className="rounded-[var(--radius-control)] bg-surface-soft p-2"><span className="text-text-muted">{tt("managerPortal.stockCount.system")}</span><strong className="mr-2 text-text">{formatNumber(system)}</strong></div>
-                          <div className="rounded-[var(--radius-control)] bg-surface-soft p-2"><span className="text-text-muted">{tt("managerPortal.stockCount.actual")}</span><strong className="mr-2 text-text">{formatNumber(counted)}</strong></div>
+                        <div className="min-w-0 flex-1">
+                          <h3 className="m1-section-title truncate text-text">{group.productName || tt("managerPortal.common.product")}</h3>
+                          <div className="mt-1 flex min-w-0 flex-wrap items-center gap-1.5 text-[11px] font-bold text-text-muted">
+                            <span className="max-w-[10rem] truncate rounded-full border border-border bg-surface-soft px-2 py-0.5 text-text">
+                              {group.color || tt("managerPortal.stockCount.unknownColor")}
+                            </span>
+                            <span>{tt("managerPortal.stockCount.sizesInColor", { n: formatNumber(group.totalRows) })}</span>
+                          </div>
                         </div>
-                        {item.reason || item.notes ? <p className="mt-2 text-xs leading-5 text-text-muted">{[item.reason, item.notes].map((value) => text(value, "")).filter(Boolean).join(" — ")}</p> : null}
-                      </article>
-                    );
-                  }) : <div className="rounded-[var(--radius-card)] border border-dashed border-border p-6 text-center text-sm text-text-muted">{tt("managerPortal.stockCount.noItems")}</div>}
+                        <VarianceBadge surplus={group.surplus} shortage={group.shortage} />
+                      </div>
+                      <div className="mt-2 flex flex-wrap items-center gap-x-3 gap-y-1 text-[11px] font-bold text-text-muted">
+                        <span>{tt("managerPortal.stockCount.colorTotal")}</span>
+                        <span>{tt("managerPortal.stockCount.system")} <strong className="text-text" dir="ltr">{formatNumber(group.system)}</strong></span>
+                        <span>{tt("managerPortal.stockCount.actual")} <strong className="text-text" dir="ltr">{formatNumber(group.counted)}</strong></span>
+                      </div>
+                      <div className="mt-2 grid grid-cols-2 gap-2 sm:grid-cols-3">
+                        {group.rows.map((row) => (
+                          <div
+                            key={`tile-${row.item.id || `${row.item.product_variant_id || row.item.variant_id}-${row.order}`}`}
+                            className={`rounded-[var(--radius-control)] border p-2 ${row.diff > 0 ? "border-emerald-400/30 bg-emerald-500/10" : row.diff < 0 ? "border-rose-400/30 bg-rose-500/10" : "border-border bg-surface-soft"}`}
+                          >
+                            <div className="flex items-center justify-between gap-1">
+                              <span className="truncate text-sm font-black text-text">{itemSize(row.item) || tt("managerPortal.stockCount.unknownSize")}</span>
+                              <span className={`shrink-0 text-xs font-black ${row.diff > 0 ? "text-emerald-300" : row.diff < 0 ? "text-rose-300" : "text-text-muted"}`} dir="ltr">
+                                {row.diff === 0 ? "=" : signedNumber(row.diff)}
+                              </span>
+                            </div>
+                            {text(row.item.variant_article_code || row.item.article_code, "") ? (
+                              <p className="truncate text-[9px] font-bold text-text-muted" title={text(row.item.variant_article_code || row.item.article_code, "")}>
+                                {text(row.item.variant_article_code || row.item.article_code, "")}
+                              </p>
+                            ) : null}
+                            <div className="mt-1.5 grid grid-cols-2 gap-1 text-[10px] font-bold">
+                              <div className="rounded-[var(--radius-control)] bg-surface px-1 py-1 text-center">
+                                <div className="truncate text-text-muted">{tt("managerPortal.stockCount.system")}</div>
+                                <div className="text-sm font-black text-text" dir="ltr">{formatNumber(row.system)}</div>
+                              </div>
+                              <div className="rounded-[var(--radius-control)] bg-surface px-1 py-1 text-center">
+                                <div className="truncate text-text-muted">{tt("managerPortal.stockCount.actual")}</div>
+                                <div className="text-sm font-black text-text" dir="ltr">{formatNumber(row.counted)}</div>
+                              </div>
+                            </div>
+                            {row.item.reason || row.item.notes ? (
+                              <p className="mt-1 text-[10px] leading-4 text-text-muted">{[row.item.reason, row.item.notes].map((value) => text(value, "")).filter(Boolean).join(" — ")}</p>
+                            ) : null}
+                          </div>
+                        ))}
+                      </div>
+                    </article>
+                  )) : <div className="rounded-[var(--radius-card)] border border-dashed border-border p-6 text-center text-sm text-text-muted">{tt("managerPortal.stockCount.noItems")}</div>}
                 </div>
 
                 <div className="mt-4 hidden overflow-hidden rounded-[var(--radius-card)] border border-border bg-surface md:block">
@@ -474,9 +614,8 @@ export default function InventoryApprovalsPage() {
                     <table className="m1-table m1-table--compact min-w-full text-right text-sm">
                       <thead className="bg-surface-soft text-xs uppercase tracking-[0.18em] text-text-muted">
                         <tr>
-                          <th className="px-4 py-3">{tt("managerPortal.stockCount.table.product")}</th>
-                          <th className="px-4 py-3">{tt("managerPortal.stockCount.table.color")}</th>
                           <th className="px-4 py-3">{tt("managerPortal.stockCount.table.size")}</th>
+                          <th className="px-4 py-3">{tt("managerPortal.stockCount.table.code")}</th>
                           <th className="px-4 py-3">{tt("managerPortal.stockCount.table.systemQty")}</th>
                           <th className="px-4 py-3">{tt("managerPortal.stockCount.table.actualQty")}</th>
                           <th className="px-4 py-3">{tt("managerPortal.stockCount.table.variance")}</th>
@@ -485,26 +624,40 @@ export default function InventoryApprovalsPage() {
                         </tr>
                       </thead>
                       <tbody>
-                        {sortedSelectedItems.length ? sortedSelectedItems.map((item) => {
-                          const system = Number(item.system_quantity || item.expected_qty || 0);
-                          const counted = Number(item.counted_quantity || item.actual_qty || 0);
-                          const diff = Number(item.difference_quantity || item.difference_qty || counted - system);
-                          const imageUrl = itemImage(item);
-                          return (
-                            <tr key={item.id || `${item.product_variant_id || item.variant_id}-${item.color}-${item.size}`} className="border-t border-border">
-                              <td className="px-4 py-3 font-semibold text-text"><div className="flex items-center gap-2">{imageUrl ? <img src={imageUrl} alt="" className="h-10 w-10 rounded-[var(--radius-control)] object-cover" loading="lazy" /> : null}<span>{text(item.product_name, tt("managerPortal.common.product"))}</span></div></td>
-                              <td className="px-4 py-3 text-text-muted">{text(item.variant_color || item.color, "-")}</td>
-                              <td className="px-4 py-3 text-text-muted">{text(item.variant_size || item.size, "-")}</td>
-                              <td className="px-4 py-3 font-semibold text-text">{formatNumber(system)}</td>
-                              <td className="px-4 py-3 font-semibold text-text">{formatNumber(counted)}</td>
-                              <td className={`px-4 py-3 font-black ${diff > 0 ? "text-emerald-300" : diff < 0 ? "text-rose-300" : "text-text-muted"}`}>{diff > 0 ? `+${formatNumber(diff)}` : formatNumber(diff)}</td>
-                              <td className="px-4 py-3 text-text-muted">{text(item.reason, "-")}</td>
-                              <td className="px-4 py-3 text-text-muted">{text(item.notes, "-")}</td>
+                        {visibleGroups.length ? visibleGroups.map((group) => (
+                          <Fragment key={`table-${group.key}`}>
+                            <tr className="border-t border-border bg-surface-soft/60">
+                              <td colSpan={7} className="px-4 py-3">
+                                <div className="flex flex-wrap items-center gap-3">
+                                  {group.imageUrl ? <img src={group.imageUrl} alt="" className="h-10 w-10 rounded-[var(--radius-control)] object-cover" loading="lazy" /> : null}
+                                  <span className="font-black text-text">{group.productName || tt("managerPortal.common.product")}</span>
+                                  <span className="rounded-full border border-border bg-surface px-2.5 py-1 text-xs font-bold text-text">
+                                    {group.color || tt("managerPortal.stockCount.unknownColor")}
+                                  </span>
+                                  <span className="text-xs font-bold text-text-muted">
+                                    {tt("managerPortal.stockCount.system")} <strong className="text-text" dir="ltr">{formatNumber(group.system)}</strong>
+                                    <span className="mx-2">·</span>
+                                    {tt("managerPortal.stockCount.actual")} <strong className="text-text" dir="ltr">{formatNumber(group.counted)}</strong>
+                                  </span>
+                                  <VarianceBadge surplus={group.surplus} shortage={group.shortage} />
+                                </div>
+                              </td>
                             </tr>
-                          );
-                        }) : (
+                            {group.rows.map((row) => (
+                              <tr key={row.item.id || `${row.item.product_variant_id || row.item.variant_id}-${row.order}`} className="border-t border-border">
+                                <td className="px-4 py-3 font-semibold text-text">{itemSize(row.item) || "-"}</td>
+                                <td className="px-4 py-3 text-xs text-text-muted">{text(row.item.variant_article_code || row.item.article_code, "-")}</td>
+                                <td className="px-4 py-3 font-semibold text-text" dir="ltr">{formatNumber(row.system)}</td>
+                                <td className="px-4 py-3 font-semibold text-text" dir="ltr">{formatNumber(row.counted)}</td>
+                                <td className={`px-4 py-3 font-black ${row.diff > 0 ? "text-emerald-300" : row.diff < 0 ? "text-rose-300" : "text-text-muted"}`} dir="ltr">{signedNumber(row.diff)}</td>
+                                <td className="px-4 py-3 text-text-muted">{text(row.item.reason, "-")}</td>
+                                <td className="px-4 py-3 text-text-muted">{text(row.item.notes, "-")}</td>
+                              </tr>
+                            ))}
+                          </Fragment>
+                        )) : (
                           <tr>
-                            <td colSpan={8} className="px-4 py-10 text-center text-text-muted">{tt("managerPortal.stockCount.noItems")}</td>
+                            <td colSpan={7} className="px-4 py-10 text-center text-text-muted">{tt("managerPortal.stockCount.noItems")}</td>
                           </tr>
                         )}
                       </tbody>
@@ -606,6 +759,36 @@ function StatCard({ title, value, icon: Icon, tone = "sky" }) {
         <Icon className="h-5 w-5 shrink-0 opacity-90 sm:h-6 sm:w-6" />
       </div>
     </div>
+  );
+}
+
+/**
+ * A colour can carry a surplus on one size and a shortage on another, so the
+ * badge says both instead of netting them into one misleading number.
+ */
+function VarianceBadge({ surplus = 0, shortage = 0 }) {
+  if (!surplus && !shortage) {
+    return (
+      <span className="shrink-0 rounded-[var(--radius-control)] bg-surface-soft px-2.5 py-1 text-xs font-black text-text-muted">
+        {tt("managerPortal.stockCount.balanced")}
+      </span>
+    );
+  }
+  return (
+    <span className="flex shrink-0 flex-wrap items-center gap-1">
+      {surplus ? (
+        <span className="inline-flex items-center gap-1 rounded-[var(--radius-control)] bg-emerald-500/15 px-2.5 py-1 text-xs font-black text-emerald-300">
+          <TrendingUp className="h-3.5 w-3.5" />
+          <span dir="ltr">+{formatNumber(surplus)}</span>
+        </span>
+      ) : null}
+      {shortage ? (
+        <span className="inline-flex items-center gap-1 rounded-[var(--radius-control)] bg-rose-500/15 px-2.5 py-1 text-xs font-black text-rose-300">
+          <TrendingDown className="h-3.5 w-3.5" />
+          <span dir="ltr">-{formatNumber(shortage)}</span>
+        </span>
+      ) : null}
+    </span>
   );
 }
 

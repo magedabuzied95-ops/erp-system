@@ -417,14 +417,29 @@
       "actualQty": "الكمية الفعلية",
       "variance": "الفرق",
       "reason": "السبب",
-      "notes": "الملاحظات"
+      "notes": "الملاحظات",
+      "code": "كود الصنف"
     },
     "pickSession": "اختر جلسة من القائمة",
     "pickSessionHint": "سيظهر ملخص الأصناف والفروقات هنا.",
     "rejectTitle": "رفض الجرد",
     "enterReason": "أدخل سبب الرفض",
     "reasonHint": "السبب إلزامي وسيصل إلى أمين المخزن مع إشعار الرفض.",
-    "reasonPlaceholder": "مثال: توجد فروقات غير مبررة أو تحتاج مراجعة ميدانية"
+    "reasonPlaceholder": "مثال: توجد فروقات غير مبررة أو تحتاج مراجعة ميدانية",
+    "whatChanged": "ايه اللي اتغير",
+    "sizesUp": "{{n}} مقاس بزيادة ({{units}} قطعة)",
+    "sizesDown": "{{n}} مقاس بعجز ({{units}} قطعة)",
+    "allBalanced": "الجرد مطابق — لا توجد فروقات",
+    "countedScope": "{{colors}} لون · {{sizes}} مقاس في الجرد",
+    "sizesInColor": "{{n}} مقاس",
+    "unknownColor": "لون غير محدد",
+    "unknownSize": "مقاس غير محدد",
+    "balanced": "مطابق",
+    "filters": {
+      "variance": "الفروقات فقط",
+      "all": "كل المقاسات"
+    },
+    "colorTotal": "إجمالي اللون"
   },
   "install": {
     "title": "بوابة المدير كتطبيق",

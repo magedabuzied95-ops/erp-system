@@ -417,14 +417,29 @@
       "actualQty": "Actual qty",
       "variance": "Variance",
       "reason": "Reason",
-      "notes": "Notes"
+      "notes": "Notes",
+      "code": "Article code"
     },
     "pickSession": "Pick a session from the list",
     "pickSessionHint": "The item and variance summary will appear here.",
     "rejectTitle": "Reject stock count",
     "enterReason": "Enter the rejection reason",
     "reasonHint": "The reason is mandatory and is sent to the storekeeper with the rejection notice.",
-    "reasonPlaceholder": "Example: there are unexplained variances, or a field recount is needed"
+    "reasonPlaceholder": "Example: there are unexplained variances, or a field recount is needed",
+    "whatChanged": "What changed",
+    "sizesUp": "{{n}} sizes up ({{units}} units)",
+    "sizesDown": "{{n}} sizes short ({{units}} units)",
+    "allBalanced": "Everything matches — no variances",
+    "countedScope": "{{colors}} colours · {{sizes}} sizes counted",
+    "sizesInColor": "{{n}} sizes",
+    "unknownColor": "No colour",
+    "unknownSize": "No size",
+    "balanced": "Balanced",
+    "filters": {
+      "variance": "Variances only",
+      "all": "All sizes"
+    },
+    "colorTotal": "Colour total"
   },
   "install": {
     "title": "Manager Portal as an app",
