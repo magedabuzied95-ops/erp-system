@@ -4,20 +4,25 @@ import { useTranslation } from "react-i18next";
 import { AlertTriangle, ChevronDown, Eye, EyeOff, Loader2, Lock, RefreshCw } from "lucide-react";
 
 import { managerPortalApi } from "../services/managerPortalApi";
-import { formatMoney, formatPercentValue } from "../../reports/lib/metricFormat";
+import { formatMetricValue, formatMoney, formatPercentValue } from "../../reports/lib/metricFormat";
 import { formatNumber } from "../../../shared/lib/currency";
 import { paymentMethodLabel } from "../../../../shared/paymentMethods";
 
 /**
- * The Reporting Center's executive overview, on the manager's phone.
+ * The Reporting Center, on the manager's phone.
  *
- * Every figure arrives from /manager-portal/:token/reports, which calls the same
- * service the desktop screen calls. Nothing is recomputed here — this file decides
- * what fits on a phone and nothing about what the numbers mean.
+ * Six sections, one request each, every figure from the same service the matching
+ * desktop screen calls. Nothing is recomputed here — this file decides what fits on a
+ * phone and nothing about what the numbers mean.
  *
- * Labels are deliberately borrowed from the `overview.*` dictionary rather than
- * re-translated under `managerPortal.*`: "صافي المبيعات" must read identically on both
- * screens, and two dictionaries for one metric is how they stop matching.
+ * The KPI tiles are driven by whatever the server sent rather than a hardcoded list, so
+ * a metric added to a report appears here without a second edit, and a metric the
+ * caller may not see never arrives to be rendered.
+ *
+ * Labels are deliberately borrowed from the `overview.*`, `inventory.*` and
+ * `customerAnalytics.*` dictionaries rather than re-translated under `managerPortal.*`:
+ * "صافي المبيعات" must read identically on both screens, and two dictionaries for one
+ * metric is how they stop matching.
  *
  * PERIOD. The portal's اليوم tab counts the shop's night (a shift window that crosses
  * midnight); every number here counts calendar days. So there is no "today" preset and
@@ -26,23 +31,63 @@ import { paymentMethodLabel } from "../../../../shared/paymentMethods";
  */
 
 const PRESETS = ["last7", "last30", "thisMonth", "lastMonth"];
+const SECTIONS = ["overview", "sales", "inventory", "purchasing", "customers", "employees"];
 
-/** Shown without a profit unlock. */
-const BASE_METRICS = ["netSales", "orders", "averageOrderValue", "itemsSold", "discountRate", "returns", "returnRate", "newCustomers"];
 /** Only after the password unlock; the server masks them until then. */
 const PROFIT_METRICS = ["grossProfit", "grossMargin", "inventoryValue"];
 
-const METRIC_KIND = {
-  netSales: "money", grossProfit: "money", averageOrderValue: "money", returns: "money", inventoryValue: "money",
-  grossMargin: "percent", discountRate: "percent", returnRate: "percent",
-  orders: "count", itemsSold: "count", newCustomers: "count",
+/** A row's enum code, in the dictionary its own screen already uses. */
+const rowLabel = (section, row, t) => {
+  if (section === "inventory" && row.code) return t(`inventory.health.${row.code}`, { defaultValue: row.code });
+  if (section === "customers" && row.code) return t(`customerAnalytics.segment.${row.code}`, { defaultValue: row.code });
+  if (section === "employees" && row.code === "unattributed") return t("managerPortal.reports.unattributed");
+  return row.label || row.code || "—";
 };
 
-const formatMetric = (metric, value, language) => {
-  if (value === null || value === undefined) return "—";
-  if (METRIC_KIND[metric] === "money") return formatMoney(value, language) ?? "—";
-  if (METRIC_KIND[metric] === "percent") return formatPercentValue(value, language) ?? "—";
-  return formatNumber(value, language);
+/**
+ * Which field each report's trend carries, and what to call it.
+ *
+ * Every report returns a `trend`, but they do not return the same series: purchasing
+ * charts spend, customers and sellers chart revenue, sales charts net sales. Reading
+ * `netSales` off all of them drew a flat line at zero with "٠ ج.م" at both ends on three
+ * of the six screens — a chart that says nothing while looking like it measured
+ * something. `fallback` covers the series that is a cost figure and therefore null until
+ * the profit unlock.
+ */
+const TREND_SPEC = {
+  overview: { field: "netSales", kind: "money", titleKey: "overview.trend.title" },
+  sales: { field: "netSales", kind: "money", titleKey: "overview.trend.title" },
+  customers: { field: "revenue", kind: "money", titleKey: "overview.kpi.customerRevenue" },
+  employees: { field: "revenue", kind: "money", titleKey: "overview.kpi.sellerNetSales" },
+  purchasing: {
+    field: "spend",
+    kind: "money",
+    titleKey: "overview.kpi.purchaseSpend",
+    fallback: { field: "units", kind: "count", titleKey: "overview.kpi.purchaseUnits" },
+  },
+  inventory: null,
+};
+
+/** The series to draw, or null when there is nothing truthful to draw. */
+const resolveTrend = (section, trend = []) => {
+  const spec = TREND_SPEC[section];
+  if (!spec || trend.length < 2) return null;
+  for (const candidate of [spec, spec.fallback].filter(Boolean)) {
+    const points = trend.map((point) => Number(point?.[candidate.field]));
+    if (points.some((value) => Number.isFinite(value) && value !== 0)) {
+      return { points: points.map((value) => (Number.isFinite(value) ? value : 0)), ...candidate };
+    }
+  }
+  return null;
+};
+
+/** What the small muted number beside a row counts, per section. */
+const SECONDARY_LABEL = {
+  sales: "overview.categories.units",
+  inventory: "overview.categories.units",
+  purchasing: "overview.categories.units",
+  customers: "customerAnalytics.segments.customers",
+  employees: "overview.kpi.orders",
 };
 
 export default function PortalReports({ token, canViewProfit = false }) {
@@ -51,6 +96,7 @@ export default function PortalReports({ token, canViewProfit = false }) {
   const { t, i18n } = useTranslation();
   const language = i18n.language;
 
+  const [section, setSection] = useState("overview");
   const [preset, setPreset] = useState("last30");
   const [payload, setPayload] = useState(null);
   const [status, setStatus] = useState("loading");
@@ -67,18 +113,26 @@ export default function PortalReports({ token, canViewProfit = false }) {
       if (!token) return;
       setStatus(silent ? "refreshing" : "loading");
       try {
-        const res = await managerPortalApi.reports(token, { preset }, { profitToken: withProfit });
+        const res = await managerPortalApi.reports(token, { section, preset }, { profitToken: withProfit });
         setPayload(res || null);
         setStatus("ready");
       } catch {
         setStatus("error");
       }
     },
-    [token, preset, profitToken]
+    [token, section, preset, profitToken]
   );
 
   useEffect(() => { void load(); }, [load]);
   useEffect(() => () => { if (relockTimer.current) clearTimeout(relockTimer.current); }, []);
+
+  // Switching report drops the old payload on purpose. Keeping it renders one report's
+  // numbers under another report's heading for as long as the fetch takes, which is a
+  // wrong answer rather than a slow one.
+  const switchSection = useCallback((next) => {
+    setSection(next);
+    setPayload(null);
+  }, []);
 
   const relock = useCallback(() => {
     if (relockTimer.current) { clearTimeout(relockTimer.current); relockTimer.current = null; }
@@ -112,17 +166,30 @@ export default function PortalReports({ token, canViewProfit = false }) {
   };
 
   const data = payload?.data || null;
-  const kpis = data?.kpis || {};
   const profitShown = Boolean(payload?.profit_unlocked);
   const warnings = Array.isArray(payload?.warnings) ? payload.warnings : [];
   const range = payload?.range || null;
+  const rows = Array.isArray(payload?.rows) ? payload.rows : [];
+  const series = useMemo(() => resolveTrend(section, Array.isArray(data?.trend) ? data.trend : []), [section, data]);
 
-  const trend = useMemo(() => (Array.isArray(data?.trend) ? data.trend : []), [data]);
+  // Whatever the server sent, in its order, minus what it masked. A tile for a metric
+  // the caller may not see would be a blank card with a label explaining nothing.
+  const metrics = useMemo(() => {
+    const kpis = data?.kpis || {};
+    return Object.keys(kpis).filter((metric) => {
+      const kpi = kpis[metric];
+      if (!kpi || kpi.restricted) return false;
+      if (PROFIT_METRICS.includes(metric) && !profitShown) return false;
+      return true;
+    });
+  }, [data, profitShown]);
 
   if (status === "loading" && !data) {
     return (
-      <div className="manager-portal-tab manager-portal-tab--reports flex min-h-48 items-center justify-center">
-        <Loader2 className="h-6 w-6 animate-spin text-text-muted" />
+      <div className="manager-portal-tab manager-portal-tab--reports space-y-3">
+        <SectionChips section={section} onChange={switchSection} t={t} />
+        <PeriodChips preset={preset} onChange={setPreset} t={t} />
+        <div className="flex min-h-40 items-center justify-center"><Loader2 className="h-6 w-6 animate-spin text-text-muted" /></div>
       </div>
     );
   }
@@ -130,7 +197,7 @@ export default function PortalReports({ token, canViewProfit = false }) {
   if (status === "error" && !data) {
     return (
       <div className="manager-portal-tab manager-portal-tab--reports space-y-3">
-        <PeriodChips preset={preset} onChange={setPreset} t={t} />
+        <SectionChips section={section} onChange={switchSection} t={t} />
         <div className="rounded-[var(--radius-card)] border border-dashed border-border bg-surface px-4 py-6 text-center text-sm font-bold text-text-muted">
           {t("managerPortal.reports.failed")}
           <button type="button" onClick={() => void load()} className="mt-3 flex w-full items-center justify-center gap-2 rounded-[var(--radius-control)] border border-border bg-surface-soft px-3 py-2 text-sm font-black text-text">
@@ -144,6 +211,7 @@ export default function PortalReports({ token, canViewProfit = false }) {
 
   return (
     <div className="manager-portal-tab manager-portal-tab--reports space-y-3">
+      <SectionChips section={section} onChange={switchSection} t={t} />
       <PeriodChips preset={preset} onChange={setPreset} t={t} busy={status === "refreshing"} />
 
       <p className="px-1 text-[11px] font-bold leading-5 text-text-muted">
@@ -152,25 +220,25 @@ export default function PortalReports({ token, canViewProfit = false }) {
         {t("managerPortal.reports.calendarNote")}
       </p>
 
-      <section className="grid grid-cols-2 gap-2">
-        {BASE_METRICS.map((metric) => (
-          <MetricTile key={metric} label={t(`overview.kpi.${metric}`)} value={formatMetric(metric, kpis[metric]?.current, language)} />
-        ))}
-      </section>
+      {metrics.length ? (
+        <section className="grid grid-cols-2 gap-2">
+          {metrics.map((metric) => (
+            <MetricTile
+              key={metric}
+              label={t(`overview.kpi.${metric}`, { defaultValue: metric })}
+              value={formatMetricValue(metric, data.kpis[metric]?.current, language) ?? "—"}
+              tone={PROFIT_METRICS.includes(metric) ? "profit" : "base"}
+            />
+          ))}
+        </section>
+      ) : null}
 
       {canViewProfit ? (
         profitShown ? (
-          <section className="space-y-2">
-            <div className="grid grid-cols-2 gap-2">
-              {PROFIT_METRICS.map((metric) => (
-                <MetricTile key={metric} label={t(`overview.kpi.${metric}`)} value={formatMetric(metric, kpis[metric]?.current, language)} tone="profit" />
-              ))}
-            </div>
-            <button type="button" onClick={relock} className="flex w-full items-center justify-center gap-2 rounded-[var(--radius-control)] border border-border bg-surface-soft px-3 py-2 text-xs font-black text-text-muted">
-              <EyeOff className="h-4 w-4" />
-              {t("managerPortal.common.hide")}
-            </button>
-          </section>
+          <button type="button" onClick={relock} className="flex w-full items-center justify-center gap-2 rounded-[var(--radius-control)] border border-border bg-surface-soft px-3 py-2 text-xs font-black text-text-muted">
+            <EyeOff className="h-4 w-4" />
+            {t("managerPortal.common.hide")}
+          </button>
         ) : (
           <button
             type="button"
@@ -186,23 +254,39 @@ export default function PortalReports({ token, canViewProfit = false }) {
         )
       ) : null}
 
-      {trend.length > 1 ? (
-        <PortalCard title={t("overview.trend.title")}>
-          <Sparkline points={trend.map((point) => Number(point.netSales || 0))} />
+      {series ? (
+        <PortalCard title={t(series.titleKey)}>
+          <Sparkline points={series.points} />
           <div className="mt-2 flex items-center justify-between text-[11px] font-bold text-text-muted">
-            <span>{formatMoney(Math.min(...trend.map((point) => Number(point.netSales || 0))), language)}</span>
-            <span>{formatMoney(Math.max(...trend.map((point) => Number(point.netSales || 0))), language)}</span>
+            {[Math.min(...series.points), Math.max(...series.points)].map((bound, index) => (
+              <span key={index}>
+                {series.kind === "money" ? formatMoney(bound, language) : formatNumber(bound, language)}
+              </span>
+            ))}
           </div>
         </PortalCard>
       ) : null}
 
-      <PortalCard title={t("overview.paymentMix.title")}>
-        <PaymentMixList paymentMix={data?.paymentMix} language={language} t={t} />
-      </PortalCard>
-
-      <PortalCard title={t("overview.categories.title")}>
-        <CategoryList categories={data?.categories} language={language} t={t} />
-      </PortalCard>
+      {section === "overview" ? (
+        <>
+          <PortalCard title={t("overview.paymentMix.title")}>
+            <PaymentMixList paymentMix={data?.paymentMix} language={language} t={t} />
+          </PortalCard>
+          <PortalCard title={t("overview.categories.title")}>
+            <CategoryList categories={data?.categories} language={language} t={t} />
+          </PortalCard>
+        </>
+      ) : (
+        <PortalCard title={t(`managerPortal.reports.lists.${section}`)}>
+          <RankedList
+            rows={rows}
+            section={section}
+            valueKind={payload?.value_kind || "money"}
+            language={language}
+            t={t}
+          />
+        </PortalCard>
+      )}
 
       {warnings.length ? (
         <section className="rounded-[var(--radius-card)] border border-border bg-surface shadow-[var(--shadow-card)]">
@@ -252,6 +336,28 @@ export default function PortalReports({ token, canViewProfit = false }) {
           </div>
         </div>
       ) : null}
+    </div>
+  );
+}
+
+/** Horizontally scrollable: six reports do not fit across a phone, and wrapping them
+ *  pushes the first numbers below the fold. */
+function SectionChips({ section, onChange, t }) {
+  return (
+    <div className="-mx-1 flex gap-1.5 overflow-x-auto px-1 pb-1 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
+      {SECTIONS.map((key) => {
+        const active = section === key;
+        return (
+          <button
+            key={key}
+            type="button"
+            onClick={() => onChange(key)}
+            className={`shrink-0 rounded-full px-3 py-2 text-xs font-black transition ${active ? "bg-text text-surface" : "border border-border bg-surface text-text-muted"}`}
+          >
+            {t(`managerPortal.reports.sections.${key}`)}
+          </button>
+        );
+      })}
     </div>
   );
 }
@@ -307,6 +413,50 @@ function Sparkline({ points = [] }) {
     <svg viewBox="0 0 100 34" preserveAspectRatio="none" className="h-16 w-full" role="img" aria-hidden="true">
       <path d={path} fill="none" stroke="var(--primary)" strokeWidth="1.6" strokeLinejoin="round" strokeLinecap="round" vectorEffect="non-scaling-stroke" />
     </svg>
+  );
+}
+
+/** The one list each report contributes: top products, stock health, suppliers,
+ *  customer segments, sellers. One component, because they are one shape. */
+function RankedList({ rows = [], section, valueKind, language, t }) {
+  if (!rows.length) return <Empty label={t("managerPortal.reports.emptySection")} />;
+  const max = Math.max(...rows.map((row) => Math.abs(Number(row.value) || 0)), 1);
+  const secondaryKey = SECONDARY_LABEL[section];
+
+  return (
+    <ul className="space-y-2.5">
+      {rows.map((row) => {
+        const value = Number(row.value);
+        const formatted = Number.isFinite(value)
+          ? valueKind === "money"
+            ? formatMoney(value, language)
+            : formatNumber(value, language)
+          : "—";
+        return (
+          <li key={row.key}>
+            <div className="flex items-baseline justify-between gap-2">
+              <span className="truncate text-[13px] font-black text-text" title={rowLabel(section, row, t)}>
+                {rowLabel(section, row, t)}
+              </span>
+              <span className="shrink-0 text-[13px] font-black tabular-nums text-text">{formatted}</span>
+            </div>
+            <div className="mt-1 flex items-center gap-2">
+              <div className="h-1.5 min-w-0 flex-1 overflow-hidden rounded-full bg-surface-soft">
+                <div className="h-full rounded-full bg-[var(--primary)]" style={{ width: `${Math.max((Math.abs(value || 0) / max) * 100, 1.5)}%` }} />
+              </div>
+              {row.share !== null && row.share !== undefined ? (
+                <span className="w-10 shrink-0 text-end text-[10px] font-black tabular-nums text-text-muted">{formatPercentValue(row.share, language)}</span>
+              ) : null}
+            </div>
+            {row.secondary !== null && row.secondary !== undefined && secondaryKey ? (
+              <div className="mt-1 text-[10px] font-bold text-text-muted">
+                {t(secondaryKey)}: <span className="tabular-nums">{formatNumber(row.secondary, language)}</span>
+              </div>
+            ) : null}
+          </li>
+        );
+      })}
+    </ul>
   );
 }
 

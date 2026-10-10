@@ -833,6 +833,23 @@
       "last30": "Last 30 days",
       "thisMonth": "This month",
       "lastMonth": "Last month"
-    }
+    },
+    "sections": {
+      "overview": "Overview",
+      "sales": "Sales & profit",
+      "inventory": "Inventory",
+      "purchasing": "Purchasing",
+      "customers": "Customers",
+      "employees": "Sellers"
+    },
+    "lists": {
+      "sales": "Top selling products",
+      "inventory": "Stock health",
+      "purchasing": "Largest suppliers",
+      "customers": "Customer segments",
+      "employees": "Sellers"
+    },
+    "unattributed": "Sales with no seller",
+    "emptySection": "No data for this period."
   }
 }

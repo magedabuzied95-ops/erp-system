@@ -833,6 +833,23 @@
       "last30": "آخر ٣٠ يوم",
       "thisMonth": "الشهر ده",
       "lastMonth": "الشهر اللي فات"
-    }
+    },
+    "sections": {
+      "overview": "نظرة عامة",
+      "sales": "المبيعات والأرباح",
+      "inventory": "المخزون",
+      "purchasing": "المشتريات",
+      "customers": "العملاء",
+      "employees": "البائعين"
+    },
+    "lists": {
+      "sales": "أعلى المنتجات مبيعًا",
+      "inventory": "حالة المخزون",
+      "purchasing": "أكبر الموردين",
+      "customers": "شرائح العملاء",
+      "employees": "البائعين"
+    },
+    "unattributed": "مبيعات من غير بائع",
+    "emptySection": "مفيش بيانات في الفترة دي."
   }
 }

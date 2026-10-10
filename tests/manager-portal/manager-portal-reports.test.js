@@ -8,7 +8,7 @@ import test from "node:test";
 import assert from "node:assert/strict";
 import { readFile } from "node:fs/promises";
 
-import { resolveReportRange } from "../../server/services/managerPortalReportsService.js";
+import { REPORT_SECTIONS, resolveReportRange } from "../../server/services/managerPortalReportsService.js";
 
 const read = (relative) => readFile(new URL(relative, import.meta.url), "utf8");
 const NOW = new Date("2026-10-09T12:00:00Z");
@@ -78,10 +78,42 @@ test("the branch comes from the manager row and the request cannot widen it", as
   assert.match(source, /user: \{ tenant_id: manager\.tenant_id \}/, "the tenant comes from the manager too");
 });
 
-test("the period and the comparison are the only things the caller controls", async () => {
+test("the period, the comparison and which report are the only things the caller controls", async () => {
   const source = await read("../../server/services/managerPortalReportsService.js");
   const passed = [...source.matchAll(/query\.(\w+)/g)].map((match) => match[1]);
-  assert.deepEqual([...new Set(passed)].sort(), ["compare", "from", "preset", "to"]);
+  // `section` picks which report to run, never what it is allowed to see.
+  assert.deepEqual([...new Set(passed)].sort(), ["compare", "from", "preset", "section", "to"]);
+});
+
+test("an unknown section falls back to the overview instead of failing", async () => {
+  const source = await read("../../server/services/managerPortalReportsService.js");
+  assert.match(source, /SECTIONS\[query\.section\] \? query\.section : "overview"/);
+});
+
+test("every section is served by the matching Reporting Center service", async () => {
+  const source = await read("../../server/services/managerPortalReportsService.js");
+  const expected = {
+    overview: "getExecutiveOverview",
+    sales: "getSalesSummary",
+    inventory: "getInventorySummary",
+    purchasing: "getPurchasingSummary",
+    customers: "getCustomersSummary",
+    employees: "getEmployeesSummary",
+  };
+
+  assert.deepEqual(REPORT_SECTIONS, Object.keys(expected));
+  for (const [section, service] of Object.entries(expected)) {
+    const body = source.slice(source.indexOf(`  ${section}: async (`));
+    assert.match(body.slice(0, 400), new RegExp(service), `${section} must read ${service}`);
+  }
+});
+
+test("a cost figure is never the ranking when cost is masked", async () => {
+  const source = await read("../../server/services/managerPortalReportsService.js");
+  // Supplier spend and stock value are null without the profit unlock. Ranking by them
+  // would print a list of dashes; these two switch to units and say so.
+  assert.match(source, /valueKind: byValue \? "money" : "count"/);
+  assert.equal((source.match(/const byValue = Boolean\(permissions\.cost\)/g) || []).length, 2);
 });
 
 /* ------------------------------------------------------------------- profit */

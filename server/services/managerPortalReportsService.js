@@ -21,6 +21,11 @@
  */
 
 import { getExecutiveOverview } from "./analytics/analyticsOverviewService.js";
+import { getSalesProducts, getSalesSummary } from "./analytics/analyticsSalesService.js";
+import { getInventorySummary } from "./analytics/analyticsInventoryService.js";
+import { getPurchasingSummary, getPurchasingSuppliers } from "./analytics/analyticsPurchasingService.js";
+import { getCustomersSummary } from "./analytics/analyticsCustomersService.js";
+import { getEmployeesList, getEmployeesSummary } from "./analytics/analyticsEmployeesService.js";
 import { parseAnalyticsFilters } from "./analytics/analyticsFilters.js";
 import { resolveManagerProfitAccess } from "./managerPortalService.js";
 
@@ -56,6 +61,143 @@ export const resolveReportRange = (preset, { from, to, now = new Date() } = {}) 
   return { preset: "last30", from: isoDate(addDays(today, -29)), to: isoDate(today) };
 };
 
+/**
+ * The Reporting Center's screens, and the ONE list from each that earns its place on a
+ * phone beside the KPIs.
+ *
+ * Each entry returns the service envelope plus `rows` in one shape the screen can render
+ * without knowing which report it is looking at: `{ key, code, label, value, secondary,
+ * share }`. `code` is an enum the UI translates (a stock-health bucket, a customer
+ * segment); `label` is already human (a product, a supplier, a seller) and is never
+ * translated, because a supplier's name is their name.
+ *
+ * A section that needs a second query makes one — the phone asks for a single section at
+ * a time, so no manager ever pays for the five they are not looking at.
+ */
+const PHONE_ROWS = 6;
+
+const toRows = (rows = [], limit = PHONE_ROWS) => rows.filter(Boolean).slice(0, limit);
+
+const SECTIONS = {
+  overview: async ({ filters, permissions }) => {
+    const payload = await getExecutiveOverview({ filters, permissions });
+    // The overview carries its own purpose-built blocks (payment mix, categories), so it
+    // needs no generic list.
+    return { payload, rows: null };
+  },
+
+  sales: async ({ filters, permissions }) => {
+    const payload = await getSalesSummary({ filters, permissions });
+    const products = await getSalesProducts({ filters, permissions });
+    const ranked = products?.data?.rankings?.topBySales || [];
+    return {
+      payload,
+      rows: toRows(
+        ranked.map((row) => ({
+          key: `product-${row.productId}`,
+          label: row.productName,
+          value: row.netSales,
+          secondary: row.units,
+          share: null,
+        }))
+      ),
+    };
+  },
+
+  /*
+   * Stock value and supplier spend are COST figures, so they are null for a manager who
+   * has not unlocked profit. A list of dashes is not a report, and inventing a number to
+   * fill it would be worse — so when cost is masked these two rank by units instead and
+   * say so by switching the value's kind. The ranking stays truthful either way.
+   */
+  inventory: async ({ filters, permissions }) => {
+    const payload = await getInventorySummary({ filters, permissions });
+    const buckets = payload?.data?.health?.buckets || {};
+    const byValue = Boolean(permissions.cost);
+    return {
+      payload,
+      valueKind: byValue ? "money" : "count",
+      rows: toRows(
+        Object.entries(buckets)
+          .map(([code, bucket]) => ({
+            key: `health-${code}`,
+            code,
+            value: byValue ? Number(bucket?.value || 0) : Number(bucket?.units || 0),
+            secondary: byValue ? Number(bucket?.units || 0) : null,
+            share: null,
+          }))
+          .filter((row) => row.value > 0 || Number(row.secondary || 0) > 0)
+          .sort((a, b) => b.value - a.value),
+        8
+      ),
+    };
+  },
+
+  purchasing: async ({ filters, permissions }) => {
+    const payload = await getPurchasingSummary({ filters, permissions });
+    const suppliers = await getPurchasingSuppliers({ filters, permissions });
+    const byValue = Boolean(permissions.cost);
+    return {
+      payload,
+      valueKind: byValue ? "money" : "count",
+      rows: toRows(
+        // The service ranks by spend; ranking by units has to re-sort, or the biggest
+        // bar would sit in the middle of the list.
+        (suppliers?.data?.rows || [])
+          .map((row) => ({
+            key: `supplier-${row.supplierId}`,
+            label: row.supplierName,
+            value: byValue ? row.spend : row.units,
+            secondary: byValue ? row.units : null,
+            share: byValue ? row.spendShare ?? null : null,
+          }))
+          .sort((a, b) => Number(b.value || 0) - Number(a.value || 0))
+      ),
+    };
+  },
+
+  customers: async ({ filters, permissions }) => {
+    const payload = await getCustomersSummary({ filters, permissions });
+    const segments = payload?.data?.segments || [];
+    const total = segments.reduce((sum, row) => sum + Number(row.revenue || 0), 0);
+    return {
+      payload,
+      rows: toRows(
+        segments.map((row) => ({
+          key: `segment-${row.segment}`,
+          code: row.segment,
+          value: Number(row.revenue || 0),
+          secondary: Number(row.customers || 0),
+          share: total > 0 ? Number(row.revenue || 0) / total : null,
+        }))
+      ),
+    };
+  },
+
+  employees: async ({ filters, permissions }) => {
+    const payload = await getEmployeesSummary({ filters, permissions });
+    const sellers = await getEmployeesList({ filters, permissions });
+    return {
+      payload,
+      rows: toRows(
+        (sellers?.data?.rows || []).map((row) => ({
+          key: `seller-${row.seller}`,
+          // The service marks orders it could not attribute rather than sharing them
+          // out; the row keeps that marker so the phone can say so instead of showing
+          // an internal sentinel as somebody's name.
+          code: row.unattributed ? "unattributed" : null,
+          label: row.unattributed ? "" : row.seller,
+          value: row.netSales,
+          secondary: row.orders,
+          share: row.salesShare ?? null,
+        }))
+      ),
+    };
+  },
+};
+
+export const REPORT_SECTIONS = Object.freeze(Object.keys(SECTIONS));
+
 export const getManagerPortalReports = async ({ manager = {}, query = {}, profitToken = "" } = {}) => {
   const profitOk = await resolveManagerProfitAccess(manager, profitToken);
   const range = resolveReportRange(query.preset, { from: query.from, to: query.to });
@@ -73,13 +215,17 @@ export const getManagerPortalReports = async ({ manager = {}, query = {}, profit
     user: { tenant_id: manager.tenant_id },
   });
 
-  const payload = await getExecutiveOverview({
+  const section = SECTIONS[query.section] ? query.section : "overview";
+  const { payload, rows, valueKind = "money" } = await SECTIONS[section]({
     filters,
     permissions: { view: true, cost: profitOk, profit: profitOk },
   });
 
   return {
     ...payload,
+    section,
+    rows,
+    value_kind: valueKind,
     range,
     profit_unlocked: profitOk,
     branch: { id: branchId, name: branchId ? manager.branch_name || "" : "", scope: manager.branch_scope || "branch" },
