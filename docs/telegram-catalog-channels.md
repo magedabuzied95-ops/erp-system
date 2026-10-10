@@ -190,3 +190,45 @@ review.
 
 Worth adding at the same time, outside this codebase: the Instagram bio, the
 storefront footer, and the shop's printed material.
+
+---
+
+## Caption line direction (do not "fix" this with invisible marks)
+
+Telegram aligns **each caption line independently, by that line's own first
+strong directional character**. A caption whose product name is Latin and whose
+detail lines are Arabic therefore renders split — the name on the left, the
+Arabic on the right — and it looks intermittent, because a long name that wraps
+and fills the width hides it while a short one does not.
+
+A line that begins with an emoji (`💰 السعر: 850 ج.م`) has no direction of its
+own: the emoji is neutral, so the client resolves the line from further along.
+
+Five variants were tried against a real iPhone on 2026-10-10. **None of the
+control characters moved anything**, and one made things worse:
+
+| Tried | Result |
+| --- | --- |
+| `U+200F` RLM before an Arabic line | no change |
+| `U+200F` before **every** line, name included | name moves right, but `#Sneakers #محلي #ZARA` becomes `ZARA# محلي# Sneakers#` |
+| `U+200E` LRM to force everything left | no change |
+| emoji moved to the end of the line | no change |
+| **every line opened with a real Arabic word** | **fixed** |
+
+So the caption template starts each line with Arabic:
+
+```
+الموديل: {name}
+السعر: {price}
+المقاسات المتاحة: {sizes}
+{status}
+
+{tags}
+```
+
+The hashtag line is deliberately left alone: it is Latin-led and left-aligned,
+and any attempt to right-align it reverses the `#`.
+
+Diagnosing this from screenshots is a trap — the two captions that "looked
+different" were byte-identical. Dump the raw caption and compare it character by
+character before changing anything.
