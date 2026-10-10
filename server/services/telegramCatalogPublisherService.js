@@ -540,7 +540,11 @@ export const syncTelegramChannel = async ({
   const catalogue = (await loadCards({ tenantId, audience: channel.audience || "" }))
     // A school bag is a kids product wherever else it is listed.
     .filter((card) => !isSchoolBagForAdultChannel(card, channel.audience));
-  const cards = orderCardsForBackfill(catalogue, parseTelegramPostOrder(settings.post_order));
+  // The channel's own order wins; the shop-wide one is the fallback.
+  const cards = orderCardsForBackfill(
+    catalogue,
+    parseTelegramPostOrder(text(channel.post_order) || settings.post_order)
+  );
   const existing = await listPosts({ tenantId, channelId: channel.id, client });
   const existingByCard = new Map(existing.map((row) => [text(row.card_id), row]));
   const seen = new Set();

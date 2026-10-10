@@ -78,6 +78,7 @@ export const ensureTelegramCatalogSchema = async (client = db) => {
           sort_order INTEGER NOT NULL DEFAULT 0,
           last_synced_at TIMESTAMPTZ NULL,
           last_error TEXT NOT NULL DEFAULT '',
+          post_order TEXT NOT NULL DEFAULT '',
           index_message_id BIGINT NULL,
           index_hash TEXT NOT NULL DEFAULT '',
           created_at TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP,
@@ -110,6 +111,10 @@ export const ensureTelegramCatalogSchema = async (client = db) => {
       // Columns added after the table first shipped. Harmless on a fresh
       // install, and the only thing that repairs a database created by an
       // earlier build of this same feature.
+      // A channel fills itself in its own order: the men's channel leads with the
+      // offers buried at the top, the women's puts them after the slippers. Empty
+      // means "use the shop-wide order".
+      await client.query(`ALTER TABLE telegram_channels ADD COLUMN IF NOT EXISTS post_order TEXT NOT NULL DEFAULT ''`);
       await client.query(`ALTER TABLE telegram_channels ADD COLUMN IF NOT EXISTS index_message_id BIGINT NULL`);
       await client.query(`ALTER TABLE telegram_channels ADD COLUMN IF NOT EXISTS index_hash TEXT NOT NULL DEFAULT ''`);
       await client.query(`ALTER TABLE telegram_catalog_posts ADD COLUMN IF NOT EXISTS deeplink_token TEXT NOT NULL DEFAULT ''`);
@@ -250,6 +255,7 @@ export const upsertTelegramChannel = async ({
   inviteUrl = "",
   isActive = true,
   sortOrder = 0,
+  postOrder = null,
   client = db,
 } = {}) => {
   await ensureTelegramCatalogSchema(client);
@@ -265,9 +271,10 @@ export const upsertTelegramChannel = async ({
        invite_url = EXCLUDED.invite_url,
        is_active = EXCLUDED.is_active,
        sort_order = EXCLUDED.sort_order,
+       post_order = COALESCE($9, telegram_channels.post_order),
        updated_at = CURRENT_TIMESTAMP
      RETURNING *`,
-    [tenantId, key, text(title), text(chatId), text(audience).toLowerCase(), text(inviteUrl), isActive !== false, Number(sortOrder) || 0]
+    [tenantId, key, text(title), text(chatId), text(audience).toLowerCase(), text(inviteUrl), isActive !== false, Number(sortOrder) || 0, postOrder === null ? null : text(postOrder)]
   );
   return rows[0] || null;
 };

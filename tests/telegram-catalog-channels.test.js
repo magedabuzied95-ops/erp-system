@@ -1486,3 +1486,25 @@ test("the posting order has a working default, not an empty string", async () =>
     "and the registry must use the same constant, not a copy that can drift"
   );
 });
+
+test("a channel fills itself in its OWN order, falling back to the shop's", async () => {
+  const cards = [
+    { ...CARD, card_id: "1:a", product_type: "crocs", grade: "local" },
+    { ...CARD, card_id: "2:b", product_type: "sneakers", grade: "local", is_offer_story: true },
+  ];
+  const order = (channel) => runSync({ cards, channel }).then((r) => r.jobs.map((j) => j.cardId));
+
+  // The shop-wide order puts offers first; this channel wants crocs first.
+  assert.deepEqual(await order({ ...CHANNEL, post_order: "type:crocs,offer" }), ["1:a", "2:b"]);
+  assert.deepEqual(await order({ ...CHANNEL, post_order: "offer,type:crocs" }), ["2:b", "1:a"]);
+  // No order of its own: whatever the shop says, which in the test settings is
+  // nothing, so plain oldest-first.
+  const fallback = await order({ ...CHANNEL, post_order: "" });
+  assert.equal(fallback.length, 2);
+});
+
+test("the channel's order is persisted, and an upsert that omits it keeps it", () => {
+  const service = readFileSync(new URL("../server/services/telegramCatalogService.js", import.meta.url), "utf8");
+  assert.match(service, /ADD COLUMN IF NOT EXISTS post_order/);
+  assert.match(service, /post_order = COALESCE\(\$9, telegram_channels\.post_order\)/);
+});
