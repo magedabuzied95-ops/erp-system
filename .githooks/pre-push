@@ -1,0 +1,105 @@
+#!/bin/sh
+#
+# Refuse a push that Vercel would fail to build.
+#
+# Twice in one day a broken frontend reached production: a source file was
+# committed EMPTY, and an import pointed at a module that had been renamed.
+# Neither shows up in a diff review, both take Vercel's build down, and the
+# failure email names whichever commit happened to be on top — so the person
+# who broke it is usually not the person who gets told.
+#
+# Two gates, cheapest first:
+#   1. An empty source file in the push. Instant, and it is exactly what broke
+#      production the first time.
+#   2. `vite build` — the same command Vercel runs. ~40s, and it only runs when
+#      the push actually touches something the build reads. A server-only or
+#      test-only push costs nothing.
+#
+# Tests are deliberately NOT run here: some have assertions that are already
+# stale on main, so they would block every push for reasons unrelated to it.
+#
+# Install (once per clone; linked worktrees inherit it):
+#   git config core.hooksPath .githooks
+# Bypass for one push, when you know better:
+#   git push --no-verify
+
+set -u
+
+ZERO="0000000000000000000000000000000000000000"
+say() { printf '%s\n' "$*" >&2; }
+
+repo_root=$(git rev-parse --show-toplevel 2>/dev/null) || exit 0
+cd "$repo_root" || exit 0
+
+# Collect the files this push would carry, across every ref being pushed.
+changed=""
+while read -r _local_ref local_sha _remote_ref remote_sha; do
+  [ -z "${local_sha:-}" ] && continue
+  [ "$local_sha" = "$ZERO" ] && continue          # a branch deletion carries no files
+  if [ "${remote_sha:-$ZERO}" = "$ZERO" ]; then
+    # A branch the remote has never seen: compare against whatever it does have.
+    base=$(git merge-base "$local_sha" origin/main 2>/dev/null || echo "")
+  else
+    base="$remote_sha"
+  fi
+  if [ -n "$base" ]; then
+    files=$(git diff --name-only --diff-filter=d "$base" "$local_sha" 2>/dev/null || echo "")
+  else
+    files=$(git show --name-only --format= --diff-filter=d "$local_sha" 2>/dev/null || echo "")
+  fi
+  changed="$changed
+$files"
+done
+
+changed=$(printf '%s\n' "$changed" | grep -v '^$' | sort -u)
+[ -z "$changed" ] && exit 0
+
+# ---- Gate 1: a source file committed empty --------------------------------
+empty=""
+for file in $changed; do
+  case "$file" in
+    *.js|*.jsx|*.ts|*.tsx|*.mjs|*.cjs|*.css|*.json)
+      if [ -f "$file" ] && [ ! -s "$file" ]; then
+        empty="$empty  $file
+"
+      fi
+      ;;
+  esac
+done
+if [ -n "$empty" ]; then
+  say ""
+  say "push refused — these files are committed EMPTY:"
+  say "$empty"
+  say "An empty module takes the build down wherever it is imported."
+  exit 1
+fi
+
+# ---- Gate 2: the build, but only when the push can affect it ---------------
+needs_build=$(printf '%s\n' "$changed" | grep -E '^(src/|public/|index\.html|vite\.config|package\.json|package-lock\.json|tailwind\.config|postcss\.config)' || true)
+if [ -z "$needs_build" ]; then
+  exit 0
+fi
+
+if [ ! -d node_modules ]; then
+  say "pre-push: no node_modules, skipping the build check."
+  exit 0
+fi
+
+out="node_modules/.cache/prepush-$$"
+say ""
+say "pre-push: building the frontend the way Vercel does (~40s)…"
+log=$(mktemp 2>/dev/null || echo "${TMPDIR:-/tmp}/prepush-$$.log")
+if npx --no-install vite build --logLevel error --outDir "$out" --emptyOutDir >"$log" 2>&1; then
+  rm -rf "$out" "$log"
+  say "pre-push: build clean."
+  exit 0
+fi
+
+say ""
+say "push refused — the frontend does not build, and Vercel would fail too:"
+say ""
+tail -n 30 "$log" >&2
+say ""
+say "Fix it, or push with --no-verify if you are certain."
+rm -rf "$out" "$log"
+exit 1
