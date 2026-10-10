@@ -1,0 +1,4 @@
+# Git hooks are run by sh. This repository is checked out with core.autocrlf
+# true, and a shell script with CRLF endings fails in ways that are painful to
+# read ("$'\r': command not found"), so the hooks keep LF everywhere.
+.githooks/** text eol=lf
