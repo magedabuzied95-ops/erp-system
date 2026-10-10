@@ -1,3 +1,6 @@
+import { useEffect } from "react";
+import { useTranslation } from "react-i18next";
+
 import i18n, {
   applyDocumentLanguage,
   normalizeLanguage,
@@ -44,15 +47,38 @@ export const readSystemLanguage = () => normalizeLanguage(resolveInitialLanguage
 /** Effective portal language: the portal's own choice, else the system one. */
 export const resolveManagerPortalLanguage = () => readManagerPortalLanguage() || readSystemLanguage();
 
+// The last language someone asked for. Leaving one portal page for another runs
+// the old page's restore-to-system cleanup and the new page's activation in the
+// same commit; both are async, so without this the slower restore could land
+// last and leave the new page speaking the system language.
+let requestedLanguage = "";
+
 /** Switch the runtime (dictionary + document direction) without persisting anything system-wide. */
 export const activateRuntimeLanguage = async (language) => {
   const normalized = normalizeLanguage(language);
+  requestedLanguage = normalized;
   if (normalizeLanguage(i18n.resolvedLanguage || i18n.language) !== normalized) {
     await whenLocalesReady();
+    if (requestedLanguage !== normalized) return normalized;
     await i18n.changeLanguage(normalized);
   }
+  if (requestedLanguage !== normalized) return normalized;
   applyDocumentLanguage(normalized);
   return normalized;
+};
+
+/**
+ * Every manager-portal screen outside ManagerPortal.jsx. The portal's language
+ * is its own (`manager_portal_language`), and leaving the main page restores the
+ * system one — so a sub-route that does not re-apply it opens in the system
+ * language while the portal it was reached from is in Arabic.
+ */
+export const useManagerPortalLanguage = () => {
+  const translation = useTranslation();
+  useEffect(() => {
+    void activateRuntimeLanguage(resolveManagerPortalLanguage());
+  }, []);
+  return translation;
 };
 
 export const clearManagerPortalLanguage = () => {

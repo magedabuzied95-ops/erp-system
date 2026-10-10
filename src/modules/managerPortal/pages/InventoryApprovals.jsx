@@ -20,12 +20,11 @@ import {
 import toast from "react-hot-toast";
 
 import { managerPortalApi } from "../services/managerPortalApi";
+import { useManagerPortalLanguage } from "../lib/portalLanguage";
 import usePageTitle from "../../../shared/hooks/usePageTitle";
 import { resolveProductImageUrl } from "../../../shared/lib/imageUrls";
 import { Pagination } from "../../../shared/ui";
 import "./ManagerPortal.m1.css";
-
-import { useTranslation } from "react-i18next";
 
 import i18n from "../../../i18n/i18n";
 
@@ -92,8 +91,9 @@ const statusTone = (status = "") => {
 };
 
 export default function InventoryApprovalsPage() {
-  // Subscribes the page to language changes; strings resolve through tt().
-  useTranslation();
+  // Subscribes the page to language changes AND re-applies the portal's own
+  // language, which leaving the main portal page restores to the system one.
+  useManagerPortalLanguage();
   const navigate = useNavigate();
   const { token: routeToken = "" } = useParams();
   const [searchParams] = useSearchParams();
