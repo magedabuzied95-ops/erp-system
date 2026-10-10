@@ -1380,6 +1380,19 @@ export const loadInventoryCountCatalogSnapshot = async (clientOrPool, data = {})
     ? `COALESCE(NULLIF(b.name, ''), ${firstAvailableColumnExpr("p", productColumns, ["brand"], "''")})`
     : firstAvailableColumnExpr("p", productColumns, ["brand"], "''");
   const manufacturerExpr = productColumns.has("manufacturer_id") ? `COALESCE(NULLIF(m.name, ''), '')` : "''";
+  // EVERY factory the colour is made in. The editor saves them per colour in
+  // product_variants.manufacturer_ids and a colour can carry more than one;
+  // the legacy single id only ever holds the first, so filtering on the second
+  // factory found nothing. Sent as ids because that is what the POS filter
+  // matches on.
+  const manufacturerIdsExpr = (() => {
+    const parts = [];
+    if (variantColumns.has("manufacturer_ids")) parts.push("v.manufacturer_ids");
+    if (variantColumns.has("manufacturer_id")) parts.push("ARRAY[v.manufacturer_id]");
+    if (productColumns.has("manufacturer_id")) parts.push("ARRAY[p.manufacturer_id]");
+    if (!parts.length) return "ARRAY[]::text[]";
+    return `ARRAY(SELECT DISTINCT x::text FROM unnest(${parts.join(" || ")}) AS x WHERE x IS NOT NULL)`;
+  })();
   // The products page searches and filters on these too, so the one snapshot can
   // answer both screens with the same matches the server would give.
   const qrTokenExpr = firstAvailableColumnExpr("p", productColumns, ["qr_token"], "''");
@@ -1405,7 +1418,7 @@ export const loadInventoryCountCatalogSnapshot = async (clientOrPool, data = {})
     SELECT
       t.product_variant_id, t.product_id, t.product_name, t.color, t.size, t.sku, t.barcode,
       t.article_code, t.product_barcode, t.product_sku, t.stock, t.gender, t.type, t.category,
-      t.brand, t.manufacturer_name, t.qr_token, t.product_code, t.style, t.product_category,
+      t.brand, t.manufacturer_name, t.manufacturer_ids, t.qr_token, t.product_code, t.style, t.product_category,
       t.grade, t.product_updated_at,
       ${urlOnly("t.image_url_raw")} AS image_url,
       ${urlOnly("t.product_image_url_raw")} AS product_image_url
@@ -1427,6 +1440,7 @@ export const loadInventoryCountCatalogSnapshot = async (clientOrPool, data = {})
       ${categoryExpr} AS category,
       ${brandExpr} AS brand,
       ${manufacturerExpr} AS manufacturer_name,
+      ${manufacturerIdsExpr} AS manufacturer_ids,
       ${qrTokenExpr} AS qr_token,
       ${productCodeExpr} AS product_code,
       ${styleExpr} AS style,
@@ -1464,11 +1478,14 @@ export const loadInventoryCountCatalogSnapshot = async (clientOrPool, data = {})
       product_id: Number(row.product_id),
       stock: toNumber(row.stock, 0),
       product_updated_at: toNumber(row.product_updated_at, 0),
+      manufacturer_ids: (Array.isArray(row.manufacturer_ids) ? row.manufacturer_ids : [])
+        .map((value) => String(value ?? "").trim())
+        .filter(Boolean),
     })),
   };
 };
 
-const CATALOG_SNAPSHOT_SHAPE = "s3";
+const CATALOG_SNAPSHOT_SHAPE = "s4";
 
 /**
  * A few bytes that say whether the catalogue snapshot a phone already holds is
