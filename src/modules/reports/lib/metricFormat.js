@@ -58,6 +58,10 @@ export const METRIC_KIND = Object.freeze({
   salesPerSeller: "currency",
   attributionCoverage: "percent",
   unattributedNetSales: "currency",
+  // Till shifts.
+  shiftCount: "integer",
+  shiftCollected: "currency",
+  shiftPaid: "currency",
 });
 
 const isNumber = (value) => typeof value === "number" && Number.isFinite(value);

@@ -412,3 +412,42 @@ export const TIME_BUCKET_SQL = Object.freeze({
 });
 
 export const timeBucketExpr = (granularity) => TIME_BUCKET_SQL[granularity] || TIME_BUCKET_SQL.day;
+
+/* --------------------------------------------------------------- payment split */
+
+/**
+ * How an invoice's payments are read out of `orders.payment_breakdown`.
+ *
+ * `orders.payment_method` is NOT the source. A sale paid half in cash and half on a card
+ * stores the single word `mixed` there, so grouping on that column puts the whole invoice
+ * under one method on every normal sale and hides the split ones behind a label that is
+ * not a payment method at all. The authoritative record is the allocation array, which is
+ * also what the till reconciles against (shared/paymentMethods.js).
+ *
+ * Two readers need this now — the period's payment mix and the per-shift report — so the
+ * rule lives here once. Two copies would diverge the day one of them learned about a new
+ * allocation shape, and then the shift totals would stop adding up to the period's.
+ *
+ * Normalisation (`visa` -> `card`, `insta_pay` -> `instapay`) deliberately does NOT happen
+ * in SQL: the JS layer merges with the one normaliser the POS already shares, so a method
+ * can never split into two rows because two copies of the spelling drifted.
+ */
+export const paymentAllocationSql = (orderColumns, { alias = "o", element = "alloc" } = {}) => {
+  // jsonb_array_elements throws on a non-array, and the column held objects and nulls
+  // before the 2026-08-13 canonicalisation migration, so the type is checked first.
+  const allocations = orderColumns.has("payment_breakdown")
+    ? `(CASE WHEN jsonb_typeof(${alias}.payment_breakdown) = 'array' THEN ${alias}.payment_breakdown ELSE '[]'::jsonb END)`
+    : "'[]'::jsonb";
+  const storedMethod = orderColumns.has("payment_method") ? `LOWER(TRIM(COALESCE(${alias}.payment_method, '')))` : "''";
+  const rawAmount = `(${element}->>'amount')`;
+  // A jsonb number casts cleanly; a stringified number is tolerated because the POS has
+  // written both. Anything else is NULL, which is counted rather than treated as zero.
+  const allocationAmount = `CASE
+        WHEN jsonb_typeof(${element}->'amount') = 'number' THEN ${rawAmount}::numeric
+        WHEN jsonb_typeof(${element}->'amount') = 'string' AND ${rawAmount} ~ '^[+-]?[0-9]+(\\.[0-9]+)?$' THEN ${rawAmount}::numeric
+        ELSE NULL
+      END`;
+  const allocationMethod = `LOWER(TRIM(COALESCE(${element}->>'method', ${element}->>'payment_method', '')))`;
+
+  return { allocations, storedMethod, allocationAmount, allocationMethod };
+};

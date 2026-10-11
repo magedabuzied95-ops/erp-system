@@ -166,8 +166,8 @@ const buildScope = ({ filters, columns }) => {
 
   const tenantScoped = filters.tenantId !== null && filters.tenantId !== undefined;
   const tenant = tenantScoped ? push(filters.tenantId) : null;
-  const from = push(filters.from);
-  const to = push(filters.to);
+  const from = push(filters.windowStart);
+  const to = push(filters.windowEnd);
 
   const orderPredicate = canonicalOrderClauses(columns.orderColumns, { alias: "o" }).clauses.join(" AND ");
 
@@ -301,8 +301,8 @@ const inventoryCte = ({ scope, columns, includeCost }) => {
       FROM order_items oi
       JOIN orders o ON o.id = oi.order_id
       WHERE ${scope.tenantScoped ? `o.tenant_id = ${scope.tenant} AND ` : ""}${scope.orderPredicate}
-        AND o.created_at >= ${scope.from}::date
-        AND o.created_at < (${scope.to}::date + 1)
+        AND o.created_at >= ${scope.from}::timestamptz
+        AND o.created_at < ${scope.to}::timestamptz
       GROUP BY oi.variant_id, oi.product_id
     ),
     lifetime AS (

@@ -154,7 +154,7 @@ const TIME_BUCKETS = Object.freeze({
  */
 const buildScope = ({ filters, columns }) => {
   const { purchaseColumns, purchaseItemColumns, productColumns } = columns;
-  const { tenantId, from, to, comparison } = filters;
+  const { tenantId, windowStart, windowEnd, comparison } = filters;
 
   const params = [];
   const bind = (value) => {
@@ -163,10 +163,10 @@ const buildScope = ({ filters, columns }) => {
   };
   if (tenantId !== null) bind(tenantId);
 
-  const currentFrom = bind(from);
-  const currentTo = bind(to);
-  const previousFrom = comparison ? bind(comparison.from) : null;
-  const previousTo = comparison ? bind(comparison.to) : null;
+  const currentFrom = bind(windowStart);
+  const currentTo = bind(windowEnd);
+  const previousFrom = comparison ? bind(comparison.windowStart) : null;
+  const previousTo = comparison ? bind(comparison.windowEnd) : null;
 
   const purchaseWhere = [];
   if (tenantId !== null && purchaseColumns.has("tenant_id")) purchaseWhere.push("pu.tenant_id = $1");
@@ -175,9 +175,9 @@ const buildScope = ({ filters, columns }) => {
   if (filters.supplierId && purchaseColumns.has("supplier_id")) purchaseWhere.push(`pu.supplier_id = ${bind(filters.supplierId)}`);
   purchaseWhere.push(...recognisedPurchaseClauses(purchaseColumns, { alias: "pu" }));
 
-  const widestFrom = comparison && comparison.from < from ? previousFrom : currentFrom;
-  const widestTo = comparison && comparison.to > to ? previousTo : currentTo;
-  purchaseWhere.push(`pu.created_at >= ${widestFrom}::date AND pu.created_at < (${widestTo}::date + INTERVAL '1 day')`);
+  const widestFrom = comparison && comparison.windowStart < windowStart ? previousFrom : currentFrom;
+  const widestTo = comparison && comparison.windowEnd > windowEnd ? previousTo : currentTo;
+  purchaseWhere.push(`pu.created_at >= ${widestFrom}::timestamptz AND pu.created_at < ${widestTo}::timestamptz`);
 
   // Product-attribute filters apply to the LINES, not the purchase headers: a purchase
   // that contains one sneaker line and one bag line belongs to both filters, partially.
@@ -251,9 +251,9 @@ const purchasingCte = ({ scope, columns }) => {
              ${headerTotal}                                AS total,
              ${headerPaid}                                 AS paid_amount,
              (${headerTotalRaw})::text = 'NaN'             AS total_is_nan,
-             (pu.created_at >= ${scope.currentFrom}::date AND pu.created_at < (${scope.currentTo}::date + INTERVAL '1 day')) AS in_current,
+             (pu.created_at >= ${scope.currentFrom}::timestamptz AND pu.created_at < ${scope.currentTo}::timestamptz) AS in_current,
              ${scope.previousFrom
-                ? `(pu.created_at >= ${scope.previousFrom}::date AND pu.created_at < (${scope.previousTo}::date + INTERVAL '1 day'))`
+                ? `(pu.created_at >= ${scope.previousFrom}::timestamptz AND pu.created_at < ${scope.previousTo}::timestamptz)`
                 : "FALSE"}                                 AS in_previous
       FROM purchases pu
       WHERE ${scope.purchaseWhere}
@@ -542,8 +542,8 @@ const loadPurchaseVsSales = async ({ filters, columns, client, timings, includeC
     return `$${params.length}`;
   };
   if (filters.tenantId !== null) bind(filters.tenantId);
-  const from = bind(filters.from);
-  const to = bind(filters.to);
+  const from = bind(filters.windowStart);
+  const to = bind(filters.windowEnd);
 
   const orderClauses = [];
   if (filters.tenantId !== null && orderColumns.has("tenant_id")) orderClauses.push("o.tenant_id = $1");
@@ -552,7 +552,7 @@ const loadPurchaseVsSales = async ({ filters, columns, client, timings, includeC
   // is real on `purchases` even though nothing writes it on `orders`.
   orderClauses.push(...orderFilterClauses({ filters, orderColumns, bind }).clauses);
   orderClauses.push(...canonicalOrderClauses(orderColumns).clauses);
-  orderClauses.push(`o.created_at >= ${from}::date AND o.created_at < (${to}::date + INTERVAL '1 day')`);
+  orderClauses.push(`o.created_at >= ${from}::timestamptz AND o.created_at < ${to}::timestamptz`);
 
   const sql = `
     WITH sold AS (
@@ -607,7 +607,7 @@ const loadSupplierReturns = async ({ filters, columns, client, timings, collecto
   const clauses = [];
   if (filters.tenantId !== null && supplierReturnColumns.has("tenant_id")) clauses.push(`sri.tenant_id = ${bind(filters.tenantId)}`);
   if (filters.supplierId && supplierReturnColumns.has("supplier_id")) clauses.push(`sri.supplier_id = ${bind(filters.supplierId)}`);
-  clauses.push(`sri.created_at >= ${bind(filters.from)}::date AND sri.created_at < (${bind(filters.to)}::date + INTERVAL '1 day')`);
+  clauses.push(`sri.created_at >= ${bind(filters.windowStart)}::timestamptz AND sri.created_at < ${bind(filters.windowEnd)}::timestamptz`);
   if (supplierReturnColumns.has("status")) {
     clauses.push("LOWER(COALESCE(sri.status, '')) NOT IN ('cancelled', 'canceled', 'rejected', 'void')");
   }
@@ -949,8 +949,8 @@ export const getPurchasingSuppliers = async ({ filters, permissions = {}, client
              COALESCE(SUM(GREATEST(COALESCE(sri.quantity, 0), 0)), 0) AS return_units
       FROM supplier_return_items sri
       WHERE ${scope.tenantScoped && columns.supplierReturnColumns.has("tenant_id") ? "sri.tenant_id = $1 AND " : ""}
-            sri.created_at >= ${scope.currentFrom}::date
-        AND sri.created_at < (${scope.currentTo}::date + INTERVAL '1 day')
+            sri.created_at >= ${scope.currentFrom}::timestamptz
+        AND sri.created_at < ${scope.currentTo}::timestamptz
         ${columns.supplierReturnColumns.has("status") ? "AND LOWER(COALESCE(sri.status, '')) NOT IN ('cancelled', 'canceled', 'rejected', 'void')" : ""}
       GROUP BY sri.supplier_id
     ),`

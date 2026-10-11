@@ -81,7 +81,10 @@
     "activeChannels": "Active channels",
     "salesPerSeller": "Sales per seller",
     "attributionCoverage": "Attribution coverage",
-    "unattributedNetSales": "Unattributed sales"
+    "unattributedNetSales": "Unattributed sales",
+    "shiftCount": "Shifts",
+    "shiftCollected": "Actually collected",
+    "shiftPaid": "Total paid"
   },
   "definition": {
     "netSales": "Total sales after discounts and returns, per the approved reporting rules.",
@@ -254,7 +257,9 @@
     "SELLER_UNATTRIBUTED_ORDERS": "Some orders carry no seller. They are shown as their own row and are never shared out across the named sellers.",
     "ACCOUNTING_COMPARISON_UNAVAILABLE": "The accounting profit and loss could not be read, so the deliberate differences could not be measured. The Reporting Center's own consistency checks are unaffected.",
     "RECONCILIATION_FAILED": "Two screens that answer the same question returned different numbers. Every figure derived from the failing check is suspect until it is resolved.",
-    "PAYMENT_MIX_UNATTRIBUTED": "Some invoices record no payment method, so their value ({{amount}}) cannot be attributed to one."
+    "PAYMENT_MIX_UNATTRIBUTED": "Some invoices record no payment method, so their value ({{amount}}) cannot be attributed to one.",
+    "SHIFTS_UNAVAILABLE": "This installation does not record till shifts, so there is nothing to show here.",
+    "SHIFT_ATTRIBUTION_UNAVAILABLE": "Invoices do not record which till shift sold them, so the per-shift payment split cannot be produced."
   },
   "states": {
     "loading": "Loading data...",

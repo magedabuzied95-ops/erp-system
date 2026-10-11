@@ -10,6 +10,7 @@ import { readFile } from "node:fs/promises";
 
 import { assemblePaymentMix, assembleOverview } from "../../server/services/analytics/analyticsOverviewService.js";
 import { WARNING_CODES, WarningCollector } from "../../server/services/analytics/analyticsComparison.js";
+import { paymentAllocationSql } from "../../server/services/analytics/analyticsMetrics.js";
 import { paymentMethodSettlement, paymentReportingKey } from "../../shared/paymentMethods.js";
 
 const read = (relative) => readFile(new URL(relative, import.meta.url), "utf8");
@@ -21,6 +22,16 @@ const paymentMixQuerySource = async () => {
   assert.ok(start > 0, "buildPaymentMixQuery was renamed or removed");
   const end = source.indexOf("/* ------", start);
   return source.slice(start, end > start ? end : undefined);
+};
+
+/**
+ * The allocation-reading rule itself, which the per-shift report shares. It lives in
+ * analyticsMetrics rather than inside the mix query, so the guards below read it from
+ * there — the point is that ONE rule exists, not which file the mix happens to be in.
+ */
+const allocationSql = (columns = ["payment_breakdown", "payment_method"]) => {
+  const parts = paymentAllocationSql(new Set(columns));
+  return [parts.allocations, parts.storedMethod, parts.allocationAmount, parts.allocationMethod].join("\n");
 };
 
 const row = (method, amount, orders = 1, unusable = 0) => ({ method, amount, orders, unusable });
@@ -236,8 +247,19 @@ test("the query reads the allocations, and falls back to the stored column only 
   // The authoritative per-method record. Grouping by orders.payment_method instead would
   // bucket every split sale under the word "mixed".
   assert.match(query, /jsonb_array_elements/, "allocations are the source");
-  assert.match(query, /jsonb_typeof\(o\.payment_breakdown\) = 'array'/, "a non-array column would throw");
+  assert.match(allocationSql(), /jsonb_typeof\(o\.payment_breakdown\) = 'array'/, "a non-array column would throw");
   assert.match(query, /WHERE jsonb_array_length\(s\.allocations\) = 0/, "the fallback must not double-count an allocated invoice");
+
+  // And the mix query must be reading THAT rule, not a second copy of it.
+  assert.match(query, /paymentAllocationSql\(orderColumns\)/, "the shared allocation rule is the one used");
+});
+
+test("a schema without the allocation column cannot be read as if it had one", () => {
+  // The column arrived in a migration, and an older deployment must fall back to the
+  // stored method rather than throwing on a column that is not there.
+  const parts = paymentAllocationSql(new Set(["payment_method"]));
+  assert.equal(parts.allocations, "'[]'::jsonb");
+  assert.match(parts.storedMethod, /o\.payment_method/);
 });
 
 test("normalisation never happens in SQL, so it cannot drift from the shared rule", async () => {
@@ -279,6 +301,6 @@ test("every settlement class the service can emit has copy in both locales", asy
 test("an unusable allocation amount becomes NULL in SQL, not zero", async () => {
   const query = await paymentMixQuerySource();
 
-  assert.match(query, /ELSE NULL/, "a zero would be an invented amount");
+  assert.match(allocationSql(), /ELSE NULL/, "a zero would be an invented amount");
   assert.match(query, /COUNT\(\*\) FILTER \(WHERE amount IS NULL\)/, "what was refused has to be countable");
 });

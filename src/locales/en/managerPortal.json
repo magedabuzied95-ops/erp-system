@@ -854,7 +854,8 @@
       "last7": "Last 7 days",
       "last30": "Last 30 days",
       "thisMonth": "This month",
-      "lastMonth": "Last month"
+      "lastMonth": "Last month",
+      "custom": "Custom period"
     },
     "sections": {
       "overview": "Overview",
@@ -862,16 +863,46 @@
       "inventory": "Inventory",
       "purchasing": "Purchasing",
       "customers": "Customers",
-      "employees": "Sellers"
+      "employees": "Sellers",
+      "shifts": "Shifts"
     },
     "lists": {
       "sales": "Top selling products",
       "inventory": "Stock health",
       "purchasing": "Largest suppliers",
       "customers": "Customer segments",
-      "employees": "Sellers"
+      "employees": "Sellers",
+      "shifts": "Till shifts"
     },
     "unattributed": "Sales with no seller",
-    "emptySection": "No data for this period."
+    "emptySection": "No data for this period.",
+    "custom": {
+      "title": "Pick the period, down to the hour",
+      "from": "From",
+      "to": "To",
+      "date": "Date",
+      "time": "Time",
+      "anyTime": "Start of day",
+      "anyTimeEnd": "End of day",
+      "apply": "Apply",
+      "hint": "Leave a time empty to count the whole day. A time in the “To” box stops the count exactly there.",
+      "invalid": "Both a start and an end date are needed, and the end must come after the start.",
+      "summary": "From {{from}} to {{to}}"
+    },
+    "shifts": {
+      "opened": "Opened",
+      "closed": "Closed",
+      "stillOpen": "Still open",
+      "cashier": "Cashier",
+      "orders": "Invoices",
+      "total": "Shift total",
+      "openingCash": "Opening cash",
+      "expectedCash": "Expected cash",
+      "countedCash": "Counted cash",
+      "difference": "Difference",
+      "note": "A shift that opened inside the period is shown with its whole figures, even if it closed after the period ended.",
+      "truncated": "There are more shifts than shown. Narrow the period to see them all.",
+      "empty": "No shift opened in this period."
+    }
   }
 }

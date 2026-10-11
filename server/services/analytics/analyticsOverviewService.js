@@ -43,6 +43,7 @@ import {
   onHandUnitCostExpr,
   orderRevenueExpr,
   orphanExchangeExpr,
+  paymentAllocationSql,
   variantStockClauses,
   variantStockExpr,
 } from "./analyticsMetrics.js";
@@ -99,9 +100,9 @@ export const METRIC_DIRECTION = Object.freeze({
  * Returns rows keyed by bucket; the caller folds them into totals and a series.
  */
 const buildOrdersQuery = ({ orderColumns, itemColumns, costContext, scope, granularity, includeCost }) => {
-  const inCurrent = `o.created_at >= ${scope.currentFrom}::date AND o.created_at < (${scope.currentTo}::date + INTERVAL '1 day')`;
+  const inCurrent = `o.created_at >= ${scope.currentFrom}::timestamptz AND o.created_at < ${scope.currentTo}::timestamptz`;
   const inPrevious = scope.previousFrom
-    ? `o.created_at >= ${scope.previousFrom}::date AND o.created_at < (${scope.previousTo}::date + INTERVAL '1 day')`
+    ? `o.created_at >= ${scope.previousFrom}::timestamptz AND o.created_at < ${scope.previousTo}::timestamptz`
     : "FALSE";
 
   const revenue = nanSafe(orderRevenueExpr(orderColumns));
@@ -222,7 +223,7 @@ const buildContextQuery = ({ scope, includeCost, returnColumns, returnItemColumn
         WHERE ${scope.returnTenant}
           AND LOWER(COALESCE(r.status, '')) NOT IN ('cancelled','canceled','rejected','void','deleted')
           AND ${scope.refundedOrderCanonical}
-          AND r.created_at >= ${scope.currentFrom}::date AND r.created_at < (${scope.currentTo}::date + INTERVAL '1 day')
+          AND r.created_at >= ${scope.currentFrom}::timestamptz AND r.created_at < ${scope.currentTo}::timestamptz
       ) AS returns_current,
       (SELECT COALESCE(SUM(${nanSafe(refundExpr)}), 0)
          FROM return_items ri
@@ -231,7 +232,7 @@ const buildContextQuery = ({ scope, includeCost, returnColumns, returnItemColumn
         WHERE ${scope.returnTenant}
           AND LOWER(COALESCE(r.status, '')) NOT IN ('cancelled','canceled','rejected','void','deleted')
           AND ${scope.refundedOrderCanonical}
-          AND ${scope.previousFrom ? `r.created_at >= ${scope.previousFrom}::date AND r.created_at < (${scope.previousTo}::date + INTERVAL '1 day')` : "FALSE"}
+          AND ${scope.previousFrom ? `r.created_at >= ${scope.previousFrom}::timestamptz AND r.created_at < ${scope.previousTo}::timestamptz` : "FALSE"}
       ) AS returns_previous,
       (SELECT COUNT(*)::int FROM return_items ri
          LEFT JOIN order_items oi ON oi.id = ri.order_item_id
@@ -245,11 +246,11 @@ const buildContextQuery = ({ scope, includeCost, returnColumns, returnItemColumn
     ? `
       (SELECT COUNT(*)::int FROM customers c
         WHERE ${scope.customerTenant}
-          AND c.created_at >= ${scope.currentFrom}::date AND c.created_at < (${scope.currentTo}::date + INTERVAL '1 day')
+          AND c.created_at >= ${scope.currentFrom}::timestamptz AND c.created_at < ${scope.currentTo}::timestamptz
       ) AS new_customers_current,
       (SELECT COUNT(*)::int FROM customers c
         WHERE ${scope.customerTenant}
-          AND ${scope.previousFrom ? `c.created_at >= ${scope.previousFrom}::date AND c.created_at < (${scope.previousTo}::date + INTERVAL '1 day')` : "FALSE"}
+          AND ${scope.previousFrom ? `c.created_at >= ${scope.previousFrom}::timestamptz AND c.created_at < ${scope.previousTo}::timestamptz` : "FALSE"}
       ) AS new_customers_previous`
     : `NULL::int AS new_customers_current, NULL::int AS new_customers_previous`;
 
@@ -281,10 +282,10 @@ const buildContextQuery = ({ scope, includeCost, returnColumns, returnItemColumn
     SELECT
       ${returnsBlock},
       (SELECT COALESCE(SUM(${returnedUnitsExpr}), 0) FROM order_items oi JOIN orders o ON o.id = oi.order_id
-        ${scope.orderWhere} AND o.created_at >= ${scope.currentFrom}::date AND o.created_at < (${scope.currentTo}::date + INTERVAL '1 day')
+        ${scope.orderWhere} AND o.created_at >= ${scope.currentFrom}::timestamptz AND o.created_at < ${scope.currentTo}::timestamptz
       ) AS returned_units_current,
       (SELECT COALESCE(SUM(${soldUnitsExpr}), 0) FROM order_items oi JOIN orders o ON o.id = oi.order_id
-        ${scope.orderWhere} AND o.created_at >= ${scope.currentFrom}::date AND o.created_at < (${scope.currentTo}::date + INTERVAL '1 day')
+        ${scope.orderWhere} AND o.created_at >= ${scope.currentFrom}::timestamptz AND o.created_at < ${scope.currentTo}::timestamptz
       ) AS sold_units_current,
       ${customersBlock},
       ${inventoryBlock}
@@ -312,7 +313,7 @@ const buildCategoryQuery = ({ scope, costContext, includeCost, itemColumns }) =>
     ${costContext.joins}
     LEFT JOIN categories cat ON cat.id = p.category_id
     ${scope.orderWhere}
-      AND o.created_at >= ${scope.currentFrom}::date AND o.created_at < (${scope.currentTo}::date + INTERVAL '1 day')
+      AND o.created_at >= ${scope.currentFrom}::timestamptz AND o.created_at < ${scope.currentTo}::timestamptz
       ${scope.itemTenantClauseAnd}
     GROUP BY ${categoryExpr}
     ORDER BY net_sales DESC
@@ -344,20 +345,9 @@ const buildCategoryQuery = ({ scope, costContext, includeCost, itemColumns }) =>
  */
 const buildPaymentMixQuery = ({ scope, orderColumns }) => {
   const revenue = nanSafe(orderRevenueExpr(orderColumns));
-  // jsonb_array_elements throws on a non-array, and the column held objects and nulls
-  // before the 2026-08-13 canonicalisation migration, so the type is checked first.
-  const allocations = orderColumns.has("payment_breakdown")
-    ? "(CASE WHEN jsonb_typeof(o.payment_breakdown) = 'array' THEN o.payment_breakdown ELSE '[]'::jsonb END)"
-    : "'[]'::jsonb";
-  const storedMethod = orderColumns.has("payment_method") ? "LOWER(TRIM(COALESCE(o.payment_method, '')))" : "''";
-  const rawAmount = "(alloc->>'amount')";
-  // A jsonb number casts cleanly; a stringified number is tolerated because the POS has
-  // written both. Anything else is NULL, which is counted rather than treated as zero.
-  const allocationAmount = `CASE
-        WHEN jsonb_typeof(alloc->'amount') = 'number' THEN ${rawAmount}::numeric
-        WHEN jsonb_typeof(alloc->'amount') = 'string' AND ${rawAmount} ~ '^[+-]?[0-9]+(\\.[0-9]+)?$' THEN ${rawAmount}::numeric
-        ELSE NULL
-      END`;
+  // The allocation-reading rule lives in analyticsMetrics so the per-shift report reads
+  // the same one; see paymentAllocationSql for why the stored column is not the source.
+  const { allocations, storedMethod, allocationAmount, allocationMethod } = paymentAllocationSql(orderColumns);
 
   return `
     WITH scoped AS (
@@ -368,12 +358,12 @@ const buildPaymentMixQuery = ({ scope, orderColumns }) => {
         ${revenue}                 AS revenue
       FROM orders o
       ${scope.orderWhere}
-        AND o.created_at >= ${scope.currentFrom}::date AND o.created_at < (${scope.currentTo}::date + INTERVAL '1 day')
+        AND o.created_at >= ${scope.currentFrom}::timestamptz AND o.created_at < ${scope.currentTo}::timestamptz
     ),
     allocated AS (
       SELECT
         s.order_id,
-        LOWER(TRIM(COALESCE(alloc->>'method', alloc->>'payment_method', ''))) AS method,
+        ${allocationMethod} AS method,
         ${allocationAmount} AS amount
       FROM scoped s
       CROSS JOIN LATERAL jsonb_array_elements(s.allocations) AS alloc
@@ -509,7 +499,7 @@ export const getExecutiveOverview = async ({ filters, permissions = {}, client =
       getTableColumns(client, "customers"),
     ]);
 
-  const { tenantId, from, to, comparison, days, granularity: requestedGranularity, branchId } = filters;
+  const { tenantId, windowStart, windowEnd, comparison, days, granularity: requestedGranularity, branchId } = filters;
   const granularity = resolveGranularity(requestedGranularity, days);
 
   // $1 is always the tenant id when scoped, which buildCostContext relies on.
@@ -520,10 +510,10 @@ export const getExecutiveOverview = async ({ filters, permissions = {}, client =
   };
   if (tenantId !== null) bind(tenantId);
 
-  const currentFrom = bind(from);
-  const currentTo = bind(to);
-  const previousFrom = comparison ? bind(comparison.from) : null;
-  const previousTo = comparison ? bind(comparison.to) : null;
+  const currentFrom = bind(windowStart);
+  const currentTo = bind(windowEnd);
+  const previousFrom = comparison ? bind(comparison.windowStart) : null;
+  const previousTo = comparison ? bind(comparison.windowEnd) : null;
 
   const orderClauses = [];
   if (tenantId !== null && orderColumns.has("tenant_id")) orderClauses.push("o.tenant_id = $1");
@@ -534,9 +524,9 @@ export const getExecutiveOverview = async ({ filters, permissions = {}, client =
   orderClauses.push(...orderFilters.clauses);
   orderClauses.push(...canonicalOrderClauses(orderColumns).clauses);
   // The scan must cover both windows so FILTER can split them.
-  const widestFrom = comparison && comparison.from < from ? previousFrom : currentFrom;
-  const widestTo = comparison && comparison.to > to ? previousTo : currentTo;
-  orderClauses.push(`o.created_at >= ${widestFrom}::date AND o.created_at < (${widestTo}::date + INTERVAL '1 day')`);
+  const widestFrom = comparison && comparison.windowStart < windowStart ? previousFrom : currentFrom;
+  const widestTo = comparison && comparison.windowEnd > windowEnd ? previousTo : currentTo;
+  orderClauses.push(`o.created_at >= ${widestFrom}::timestamptz AND o.created_at < ${widestTo}::timestamptz`);
 
   const costContext = buildCostContext({
     orderColumns, itemColumns, productColumns, variantColumns,
@@ -919,7 +909,7 @@ export const assembleOverview = ({ ordersRow, contextRow, categoryRows, paymentM
 
   return {
     data: {
-      period: { from: filters.from, to: filters.to, days: filters.days, granularity },
+      period: { from: filters.from, to: filters.to, fromTime: filters.fromTime, toTime: filters.toTime, days: filters.days, granularity },
       comparison: filters.comparison ? { ...filters.comparison, mode: filters.comparisonMode } : null,
       kpis,
       trend,

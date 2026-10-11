@@ -62,7 +62,7 @@ export const getFilterOptions = async ({ filters }) => {
     }
     clauses.push(...canonicalOrderClauses(orderColumns).clauses);
     clauses.push(
-      `o.created_at >= ${bind(filters.from)}::date AND o.created_at < (${bind(filters.to)}::date + INTERVAL '1 day')`
+      `o.created_at >= ${bind(filters.windowStart)}::timestamptz AND o.created_at < ${bind(filters.windowEnd)}::timestamptz`
     );
     const orderWhere = whereSql(clauses);
 

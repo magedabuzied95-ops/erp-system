@@ -26,11 +26,30 @@ import { getInventorySummary } from "./analytics/analyticsInventoryService.js";
 import { getPurchasingSummary, getPurchasingSuppliers } from "./analytics/analyticsPurchasingService.js";
 import { getCustomersSummary } from "./analytics/analyticsCustomersService.js";
 import { getEmployeesList, getEmployeesSummary } from "./analytics/analyticsEmployeesService.js";
+import { getShiftsReport } from "./analytics/analyticsShiftsService.js";
 import { parseAnalyticsFilters } from "./analytics/analyticsFilters.js";
 import { resolveManagerProfitAccess } from "./managerPortalService.js";
 
 /** Period presets the portal offers. `today`/`yesterday` are deliberately absent. */
 const RANGE_PRESETS = new Set(["last7", "last30", "thisMonth", "lastMonth", "custom"]);
+
+const ISO_DATE = /^\d{4}-\d{2}-\d{2}$/;
+const TIME_OF_DAY = /^([01]?[0-9]|2[0-3]):([0-5][0-9])$/;
+
+/**
+ * The two ends of a custom window, taken from the caller and NOTHING else.
+ *
+ * A hand-typed date reaches the analytics contract, which validates it properly and
+ * answers 400 on nonsense; these two guards only keep an obviously malformed string from
+ * being treated as a window at all, because a `custom` preset that silently fell back to
+ * the last thirty days would show the manager a period they did not ask for under the
+ * heading they did.
+ */
+const cleanDate = (value) => (ISO_DATE.test(String(value || "").trim()) ? String(value).trim() : null);
+const cleanTime = (value) => {
+  const raw = String(value || "").trim();
+  return TIME_OF_DAY.test(raw) ? raw : null;
+};
 
 const pad = (value) => String(value).padStart(2, "0");
 const isoDate = (date) => `${date.getUTCFullYear()}-${pad(date.getUTCMonth() + 1)}-${pad(date.getUTCDate())}`;
@@ -40,15 +59,32 @@ const addDays = (date, days) => new Date(date.getTime() + days * 86_400_000);
  * The window for a preset, in the app's own calendar days.
  *
  * NOTE the portal's "today" tab counts the shop's NIGHT (a shift window that crosses
- * midnight), while every figure here counts calendar days. Offering a "today" preset
- * would put two different numbers under one word on the same screen, so the presets
- * start at seven days and the screen says which clock it is on.
+ * midnight), while a preset here counts calendar days. Offering a "today" preset would
+ * put two different numbers under one word on the same screen, so the presets start at
+ * seven days and the screen says which clock it is on.
+ *
+ * The `custom` preset is the way out of that: it carries an optional time on each end, so
+ * a manager whose shop runs 2pm to 2am can ask for exactly that window instead of being
+ * told which clock the presets are on. The times travel to the analytics contract, which
+ * turns them into the instants the SQL scans; nothing is recomputed here.
  */
-export const resolveReportRange = (preset, { from, to, now = new Date() } = {}) => {
+export const resolveReportRange = (preset, { from, to, fromTime, toTime, now = new Date() } = {}) => {
   const today = new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), now.getUTCDate()));
   const key = RANGE_PRESETS.has(preset) ? preset : "last30";
 
-  if (key === "custom" && from && to) return { preset: "custom", from, to };
+  if (key === "custom") {
+    const start = cleanDate(from);
+    const end = cleanDate(to);
+    // A custom preset with no usable dates is a request that cannot be honoured, not a
+    // request for the default month — the caller is told so rather than shown the wrong
+    // period under the right label.
+    if (start && end) {
+      return { preset: "custom", from: start, to: end, fromTime: cleanTime(fromTime), toTime: cleanTime(toTime) };
+    }
+    const error = new Error("A custom period needs a start and an end date");
+    error.status = 400;
+    throw error;
+  }
   if (key === "last7") return { preset: key, from: isoDate(addDays(today, -6)), to: isoDate(today) };
   if (key === "thisMonth") {
     return { preset: key, from: isoDate(new Date(Date.UTC(today.getUTCFullYear(), today.getUTCMonth(), 1))), to: isoDate(today) };
@@ -194,13 +230,29 @@ const SECTIONS = {
       ),
     };
   },
+
+  /*
+   * The till sessions themselves: when each drawer opened and closed, and what paid for
+   * the invoices rung through it. It is the one section with no comparison and no ranked
+   * list — a shift is a record, not a ranking — so it carries its own `shifts` array and
+   * the screen renders a card per session.
+   */
+  shifts: async ({ filters, permissions }) => {
+    const payload = await getShiftsReport({ filters, permissions });
+    return { payload, rows: null, shifts: payload?.data?.shifts || [] };
+  },
 };
 
 export const REPORT_SECTIONS = Object.freeze(Object.keys(SECTIONS));
 
 export const getManagerPortalReports = async ({ manager = {}, query = {}, profitToken = "" } = {}) => {
   const profitOk = await resolveManagerProfitAccess(manager, profitToken);
-  const range = resolveReportRange(query.preset, { from: query.from, to: query.to });
+  const range = resolveReportRange(query.preset, {
+    from: query.from,
+    to: query.to,
+    fromTime: query.fromTime ?? query.from_time,
+    toTime: query.toTime ?? query.to_time,
+  });
   // A branch-scoped manager cannot widen their own scope: the value is read from the
   // manager row and the caller's branchId is dropped on the floor.
   const branchId = manager.branch_scope === "all" ? null : manager.branch_id || null;
@@ -209,6 +261,8 @@ export const getManagerPortalReports = async ({ manager = {}, query = {}, profit
     query: {
       from: range.from,
       to: range.to,
+      ...(range.fromTime ? { fromTime: range.fromTime } : {}),
+      ...(range.toTime ? { toTime: range.toTime } : {}),
       compare: query.compare === "none" ? "none" : "previous_period",
       ...(branchId ? { branchId } : {}),
     },
@@ -216,7 +270,7 @@ export const getManagerPortalReports = async ({ manager = {}, query = {}, profit
   });
 
   const section = SECTIONS[query.section] ? query.section : "overview";
-  const { payload, rows, valueKind = "money" } = await SECTIONS[section]({
+  const { payload, rows, shifts = null, valueKind = "money" } = await SECTIONS[section]({
     filters,
     permissions: { view: true, cost: profitOk, profit: profitOk },
   });
@@ -225,6 +279,7 @@ export const getManagerPortalReports = async ({ manager = {}, query = {}, profit
     ...payload,
     section,
     rows,
+    shifts,
     value_kind: valueKind,
     range,
     profit_unlocked: profitOk,

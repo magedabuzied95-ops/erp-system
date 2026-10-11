@@ -71,6 +71,64 @@ export const toIsoDate = (date) => (date instanceof Date ? date.toISOString().sl
 
 const addDays = (date, days) => new Date(date.getTime() + days * MS_PER_DAY);
 
+/* ------------------------------------------------------------------- time of day */
+
+/**
+ * The window a query actually scans, as a pair of instants rather than a pair of days.
+ *
+ * Every analytics predicate used to be written `col >= $from::date AND col < ($to::date +
+ * INTERVAL '1 day')`, which can only express whole calendar days. A shop whose night
+ * crosses midnight could not ask for "the 1st at 2pm to the 2nd at 2am" at all.
+ *
+ * So the contract carries `windowStart` (inclusive) and `windowEnd` (EXCLUSIVE) as
+ * wall-clock stamps and the services compare against those. For a request with no times
+ * they are `from 00:00:00` and `to + 1 day 00:00:00` — the very same window the `::date`
+ * form produced, because the database session runs on the app's own zone (db.js pins
+ * `timezone=Africa/Cairo`) and both casts resolve there.
+ *
+ * NOTE the asymmetry, which is deliberate: `to` is an INCLUSIVE day when no time is given
+ * ("up to and including the 30th"), and `toTime` is an EXCLUSIVE instant when one is
+ * ("…to the 30th at 12am" ends the moment the 30th begins). That is what a person means
+ * by each. The envelope reports both, so a screen can say which one it used.
+ */
+const TIME_OF_DAY = /^([01]?[0-9]|2[0-3]):([0-5][0-9])(?::([0-5][0-9]))?$/;
+
+const pad2 = (value) => String(value).padStart(2, "0");
+
+/** "14:00" / "2:30:15" -> "14:00:00" / "02:30:15"; anything else -> null. */
+export const parseTimeOfDay = (value) => {
+  if (value === null || value === undefined || value === "") return null;
+  const match = TIME_OF_DAY.exec(String(value).trim());
+  if (!match) return null;
+  const [, h, m, s] = match;
+  return `${pad2(h)}:${pad2(m)}:${pad2(s || 0)}`;
+};
+
+/**
+ * Wall-clock arithmetic, done on a Date whose UTC fields hold the LOCAL reading.
+ *
+ * The stamps go to Postgres as text and are resolved in the session zone, so no offset
+ * belongs in them. Shifting a window back a month across a DST change therefore keeps the
+ * same clock reading rather than the same count of elapsed hours — which is what "the
+ * same window last month" means to the person reading the comparison.
+ */
+const stampToDate = (stamp) => new Date(`${String(stamp).replace(" ", "T")}Z`);
+
+const dateToStamp = (date) =>
+  `${toIsoDate(date)} ${pad2(date.getUTCHours())}:${pad2(date.getUTCMinutes())}:${pad2(date.getUTCSeconds())}`;
+
+const buildWindow = ({ from, to, fromTime, toTime }) => ({
+  windowStart: `${toIsoDate(from)} ${fromTime || "00:00:00"}`,
+  windowEnd: toTime ? `${toIsoDate(to)} ${toTime}` : `${toIsoDate(addDays(to, 1))} 00:00:00`,
+});
+
+/**
+ * THE predicate for "this row happened inside the window". One helper, so no service can
+ * express the window a second way and quietly disagree with the others.
+ */
+export const windowClause = (column, fromParam, toParam) =>
+  `${column} >= ${fromParam}::timestamptz AND ${column} < ${toParam}::timestamptz`;
+
 /** Inclusive day count between two UTC-midnight dates. */
 export const inclusiveDays = (from, to) => Math.floor((to.getTime() - from.getTime()) / MS_PER_DAY) + 1;
 
@@ -138,6 +196,55 @@ export const resolveComparisonWindow = ({ from, to, mode, compareFrom, compareTo
 };
 
 /**
+ * The comparison window as a pair of instants, for a request that named times.
+ *
+ * Whole-day requests keep the day arithmetic above untouched — it is what every existing
+ * comparison on every screen already uses, and re-deriving it here would be a second
+ * answer to a settled question. A request with times cannot go through it, because its
+ * window does not start or end on a day boundary, so the instants are shifted directly:
+ * the previous period by the window's own length, a month or a year by that calendar
+ * unit on BOTH ends (so "the same hours last month" keeps the same hours).
+ */
+const resolveComparisonStamps = ({ windowStart, windowEnd, mode, compareFrom, compareTo, fromTime, toTime }) => {
+  if (!mode || mode === "none") return null;
+
+  if (mode === "custom") {
+    const cFrom = parseIsoDate(compareFrom);
+    const cTo = parseIsoDate(compareTo);
+    if (!cFrom || !cTo) {
+      throw new AnalyticsFilterError("COMPARISON_RANGE_INVALID", "Custom comparison requires compareFrom and compareTo");
+    }
+    const window = buildWindow({ from: cFrom, to: cTo, fromTime, toTime });
+    if (window.windowEnd <= window.windowStart) {
+      throw new AnalyticsFilterError("COMPARISON_RANGE_INVALID", "compareFrom must be before compareTo");
+    }
+    return window;
+  }
+
+  const start = stampToDate(windowStart);
+  const end = stampToDate(windowEnd);
+
+  if (mode === "previous_period") {
+    const span = end.getTime() - start.getTime();
+    return { windowStart: dateToStamp(new Date(start.getTime() - span)), windowEnd: windowStart };
+  }
+
+  const unit = mode === "previous_month" ? { months: 1 } : { years: 1 };
+  const back = (date) =>
+    new Date(
+      Date.UTC(
+        date.getUTCFullYear() - (unit.years || 0),
+        date.getUTCMonth() - (unit.months || 0),
+        date.getUTCDate(),
+        date.getUTCHours(),
+        date.getUTCMinutes(),
+        date.getUTCSeconds()
+      )
+    );
+  return { windowStart: dateToStamp(back(start)), windowEnd: dateToStamp(back(end)) };
+};
+
+/**
  * Parse and validate an analytics request into the shape every v2 service consumes.
  * Throws AnalyticsFilterError (status 400) rather than silently coercing.
  */
@@ -170,7 +277,24 @@ export const parseAnalyticsFilters = (req = {}) => {
     throw new AnalyticsFilterError("DATE_RANGE_INVALID", "from must not be after to");
   }
 
-  const days = inclusiveDays(from, to);
+  // Times are optional and independent of the preset: a caller that sends neither gets
+  // the whole-day window this contract has always produced.
+  const rawFromTime = query.fromTime ?? query.from_time;
+  const rawToTime = query.toTime ?? query.to_time;
+  const fromTime = parseTimeOfDay(rawFromTime);
+  const toTime = parseTimeOfDay(rawToTime);
+  if (rawFromTime && !fromTime) throw new AnalyticsFilterError("TIME_INVALID", "fromTime is not a valid time of day");
+  if (rawToTime && !toTime) throw new AnalyticsFilterError("TIME_INVALID", "toTime is not a valid time of day");
+
+  const { windowStart, windowEnd } = buildWindow({ from, to, fromTime, toTime });
+  if (windowEnd <= windowStart) {
+    throw new AnalyticsFilterError("DATE_RANGE_INVALID", "The window must end after it starts");
+  }
+
+  // The day count still drives the range cap, the trend's bucket size and every per-day
+  // average, so a part-day window counts as the day it lands in rather than as zero.
+  const spanMs = stampToDate(windowEnd).getTime() - stampToDate(windowStart).getTime();
+  const days = fromTime || toTime ? Math.max(1, Math.ceil(spanMs / MS_PER_DAY)) : inclusiveDays(from, to);
   if (days > MAX_RANGE_DAYS) {
     throw new AnalyticsFilterError("RANGE_TOO_LARGE", `Range of ${days} days exceeds the ${MAX_RANGE_DAYS} day maximum`, { days });
   }
@@ -179,13 +303,28 @@ export const parseAnalyticsFilters = (req = {}) => {
   if (!COMPARISON_MODES.includes(comparisonMode)) {
     throw new AnalyticsFilterError("COMPARISON_MODE_INVALID", `Unknown comparison mode: ${comparisonMode}`);
   }
-  const comparison = resolveComparisonWindow({
-    from,
-    to,
-    mode: comparisonMode,
-    compareFrom: query.compareFrom,
-    compareTo: query.compareTo,
-  });
+  const comparison = fromTime || toTime
+    ? null
+    : resolveComparisonWindow({
+        from,
+        to,
+        mode: comparisonMode,
+        compareFrom: query.compareFrom,
+        compareTo: query.compareTo,
+      });
+  const comparisonStamps = fromTime || toTime
+    ? resolveComparisonStamps({
+        windowStart,
+        windowEnd,
+        mode: comparisonMode,
+        compareFrom: query.compareFrom,
+        compareTo: query.compareTo,
+        fromTime,
+        toTime,
+      })
+    : comparison
+      ? buildWindow({ from: comparison.from, to: comparison.to })
+      : null;
 
   const dimension = cleanString(query.dimension);
   if (dimension && !BREAKDOWN_DIMENSIONS.includes(dimension)) {
@@ -204,9 +343,23 @@ export const parseAnalyticsFilters = (req = {}) => {
     tenantId,
     from: toIsoDate(from),
     to: toIsoDate(to),
+    // Null when the caller asked for whole days. The screen needs to tell the two apart:
+    // "to the 30th" and "to the 30th at 12am" are different windows.
+    fromTime,
+    toTime,
+    // The window the SQL actually scans: inclusive start, EXCLUSIVE end.
+    windowStart,
+    windowEnd,
     days,
     comparisonMode,
-    comparison: comparison ? { from: toIsoDate(comparison.from), to: toIsoDate(comparison.to) } : null,
+    comparison: comparisonStamps
+      ? {
+          from: comparisonStamps.windowStart.slice(0, 10),
+          to: comparison ? toIsoDate(comparison.to) : comparisonStamps.windowEnd.slice(0, 10),
+          windowStart: comparisonStamps.windowStart,
+          windowEnd: comparisonStamps.windowEnd,
+        }
+      : null,
     branchId: positiveInt(query.branchId ?? query.branch_id),
     warehouseId: positiveInt(query.warehouseId ?? query.warehouse_id),
     categoryId: positiveInt(query.categoryId ?? query.category_id),

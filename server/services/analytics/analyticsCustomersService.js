@@ -158,7 +158,7 @@ const TIME_BUCKETS = Object.freeze({
 
 const buildScope = ({ filters, columns }) => {
   const { orderColumns } = columns;
-  const { tenantId, from, to, comparison } = filters;
+  const { tenantId, windowStart, windowEnd, comparison } = filters;
 
   const params = [];
   const bind = (value) => {
@@ -167,10 +167,10 @@ const buildScope = ({ filters, columns }) => {
   };
   if (tenantId !== null) bind(tenantId);
 
-  const currentFrom = bind(from);
-  const currentTo = bind(to);
-  const previousFrom = comparison ? bind(comparison.from) : null;
-  const previousTo = comparison ? bind(comparison.to) : null;
+  const currentFrom = bind(windowStart);
+  const currentTo = bind(windowEnd);
+  const previousFrom = comparison ? bind(comparison.windowStart) : null;
+  const previousTo = comparison ? bind(comparison.windowEnd) : null;
 
   // The order scan is NOT limited to the window: segmentation needs each customer's
   // whole order history to know whether a purchase inside the window was their first and
@@ -192,11 +192,11 @@ const buildScope = ({ filters, columns }) => {
     currentFrom, currentTo, previousFrom, previousTo,
     hasComparison: Boolean(comparison),
     orderWhere: orderClauses.join(" AND "),
-    inCurrent: `o.created_at >= ${currentFrom}::date AND o.created_at < (${currentTo}::date + INTERVAL '1 day')`,
+    inCurrent: `o.created_at >= ${currentFrom}::timestamptz AND o.created_at < ${currentTo}::timestamptz`,
     inPrevious: previousFrom
-      ? `o.created_at >= ${previousFrom}::date AND o.created_at < (${previousTo}::date + INTERVAL '1 day')`
+      ? `o.created_at >= ${previousFrom}::timestamptz AND o.created_at < ${previousTo}::timestamptz`
       : "FALSE",
-    beforeCurrent: `o.created_at < ${currentFrom}::date`,
+    beforeCurrent: `o.created_at < ${currentFrom}::timestamptz`,
   };
 };
 
@@ -235,9 +235,9 @@ const customerCte = ({ scope, columns }) => {
   const refundExpr = coalesceColumnExpr("ri", columns.returnItemColumns, ["refund_amount", "total", "total_amount"], "0");
   const returnStatus = "LOWER(COALESCE(r.status, '')) NOT IN ('cancelled','canceled','rejected','void','deleted')";
   const returnTenant = scope.tenantScoped && columns.orderColumns.has("tenant_id") ? "o.tenant_id = $1 AND " : "";
-  const inCurrentReturn = `r.created_at >= ${scope.currentFrom}::date AND r.created_at < (${scope.currentTo}::date + INTERVAL '1 day')`;
+  const inCurrentReturn = `r.created_at >= ${scope.currentFrom}::timestamptz AND r.created_at < ${scope.currentTo}::timestamptz`;
   const inPreviousReturn = scope.previousFrom
-    ? `r.created_at >= ${scope.previousFrom}::date AND r.created_at < (${scope.previousTo}::date + INTERVAL '1 day')`
+    ? `r.created_at >= ${scope.previousFrom}::timestamptz AND r.created_at < ${scope.previousTo}::timestamptz`
     : "FALSE";
 
   const customerReturns = returnsAvailable
@@ -321,13 +321,13 @@ const customerCte = ({ scope, columns }) => {
     ),
     segmented AS (
       SELECT pc.*,
-             GREATEST(EXTRACT(DAY FROM (${scope.currentTo}::date + INTERVAL '1 day') - pc.last_order_at), 0)::int AS days_since_last_order,
+             GREATEST(EXTRACT(DAY FROM ${scope.currentTo}::timestamptz - pc.last_order_at), 0)::int AS days_since_last_order,
              CASE
                WHEN pc.orders_current > 0 AND NOT COALESCE(pc.ordered_before, FALSE) AND pc.lifetime_orders > 1 THEN 'new_repeat'
                WHEN pc.orders_current > 0 AND NOT COALESCE(pc.ordered_before, FALSE) THEN 'new'
                WHEN pc.orders_current > 0                                            THEN 'active_repeat'
-               WHEN GREATEST(EXTRACT(DAY FROM (${scope.currentTo}::date + INTERVAL '1 day') - pc.last_order_at), 0) >= ${CUSTOMER_SEGMENT_RULES.dormantAfterDays} THEN 'dormant'
-               WHEN GREATEST(EXTRACT(DAY FROM (${scope.currentTo}::date + INTERVAL '1 day') - pc.last_order_at), 0) >= ${CUSTOMER_SEGMENT_RULES.atRiskAfterDays}  THEN 'at_risk'
+               WHEN GREATEST(EXTRACT(DAY FROM ${scope.currentTo}::timestamptz - pc.last_order_at), 0) >= ${CUSTOMER_SEGMENT_RULES.dormantAfterDays} THEN 'dormant'
+               WHEN GREATEST(EXTRACT(DAY FROM ${scope.currentTo}::timestamptz - pc.last_order_at), 0) >= ${CUSTOMER_SEGMENT_RULES.atRiskAfterDays}  THEN 'at_risk'
                ELSE 'recent'
              END AS segment
       FROM netted pc
@@ -353,8 +353,8 @@ const walkInRefunds = ({ scope, columns }) => {
               AND o.customer_id IS NULL
               -- D-21, on the walk-in side too, or the halves stop adding back up.
               AND ${canonicalOrderClauses(columns.orderColumns).clauses.join(" AND ")}
-              AND r.created_at >= ${scope.currentFrom}::date
-              AND r.created_at < (${scope.currentTo}::date + INTERVAL '1 day'))`;
+              AND r.created_at >= ${scope.currentFrom}::timestamptz
+              AND r.created_at < ${scope.currentTo}::timestamptz)`;
 };
 
 const runTimed = async (client, sql, params, timings, name) => {
@@ -418,8 +418,8 @@ export const getCustomersSummary = async ({ filters, permissions = {}, client = 
     ),
     base AS (
       SELECT COUNT(*)                                                                    AS total_customers,
-             COUNT(*) FILTER (WHERE c.created_at >= ${scope.currentFrom}::date
-                                AND c.created_at < (${scope.currentTo}::date + INTERVAL '1 day')) AS registered_in_window,
+             COUNT(*) FILTER (WHERE c.created_at >= ${scope.currentFrom}::timestamptz
+                                AND c.created_at < ${scope.currentTo}::timestamptz) AS registered_in_window,
              COALESCE(SUM(${columns.customerColumns.has("total_spent") ? "NULLIF(c.total_spent, 'NaN'::numeric)" : "0"}), 0) AS denormalised_total_spent
       FROM customers c
       WHERE ${scope.tenantScoped ? "c.tenant_id = $1" : "TRUE"}

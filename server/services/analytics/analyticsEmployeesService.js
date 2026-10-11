@@ -136,7 +136,7 @@ const TIME_BUCKETS = Object.freeze({
 
 const buildScope = ({ filters, columns }) => {
   const { orderColumns } = columns;
-  const { tenantId, from, to, comparison } = filters;
+  const { tenantId, windowStart, windowEnd, comparison } = filters;
 
   const params = [];
   const bind = (value) => {
@@ -145,19 +145,19 @@ const buildScope = ({ filters, columns }) => {
   };
   if (tenantId !== null) bind(tenantId);
 
-  const currentFrom = bind(from);
-  const currentTo = bind(to);
-  const previousFrom = comparison ? bind(comparison.from) : null;
-  const previousTo = comparison ? bind(comparison.to) : null;
+  const currentFrom = bind(windowStart);
+  const currentTo = bind(windowEnd);
+  const previousFrom = comparison ? bind(comparison.windowStart) : null;
+  const previousTo = comparison ? bind(comparison.windowEnd) : null;
 
   const orderClauses = [];
   if (tenantId !== null && orderColumns.has("tenant_id")) orderClauses.push("o.tenant_id = $1");
   orderClauses.push(...orderFilterClauses({ filters, orderColumns, bind }).clauses);
   orderClauses.push(...canonicalOrderClauses(orderColumns).clauses);
 
-  const widestFrom = comparison && comparison.from < from ? previousFrom : currentFrom;
-  const widestTo = comparison && comparison.to > to ? previousTo : currentTo;
-  orderClauses.push(`o.created_at >= ${widestFrom}::date AND o.created_at < (${widestTo}::date + INTERVAL '1 day')`);
+  const widestFrom = comparison && comparison.windowStart < windowStart ? previousFrom : currentFrom;
+  const widestTo = comparison && comparison.windowEnd > windowEnd ? previousTo : currentTo;
+  orderClauses.push(`o.created_at >= ${widestFrom}::timestamptz AND o.created_at < ${widestTo}::timestamptz`);
 
   return {
     params,
@@ -167,9 +167,9 @@ const buildScope = ({ filters, columns }) => {
     currentFrom, currentTo, previousFrom, previousTo,
     hasComparison: Boolean(comparison),
     orderWhere: orderClauses.join(" AND "),
-    inCurrent: `o.created_at >= ${currentFrom}::date AND o.created_at < (${currentTo}::date + INTERVAL '1 day')`,
+    inCurrent: `o.created_at >= ${currentFrom}::timestamptz AND o.created_at < ${currentTo}::timestamptz`,
     inPrevious: previousFrom
-      ? `o.created_at >= ${previousFrom}::date AND o.created_at < (${previousTo}::date + INTERVAL '1 day')`
+      ? `o.created_at >= ${previousFrom}::timestamptz AND o.created_at < ${previousTo}::timestamptz`
       : "FALSE",
   };
 };
@@ -228,7 +228,7 @@ export const resolveAttribution = async ({ client, filters, columns, timings }) 
   }
   clauses.push(...canonicalOrderClauses(columns.orderColumns).clauses);
   clauses.push(
-    `o.created_at >= ${bind(filters.from)}::date AND o.created_at < (${bind(filters.to)}::date + INTERVAL '1 day')`
+    `o.created_at >= ${bind(filters.windowStart)}::timestamptz AND o.created_at < ${bind(filters.windowEnd)}::timestamptz`
   );
 
   const sql = `
@@ -314,10 +314,10 @@ const employeeCte = ({ scope, columns, attribution }) => {
              ${columns.orderColumns.has("branch_id") ? "o.branch_id" : "NULL::bigint"}               AS branch_id,
              MAX(r.created_at)                                                                        AS refunded_at,
              COALESCE(SUM(${nanSafe(refundExpr)}), 0)                                                 AS refunded,
-             BOOL_OR(r.created_at >= ${scope.currentFrom}::date
-                 AND r.created_at < (${scope.currentTo}::date + INTERVAL '1 day'))                    AS in_current,
+             BOOL_OR(r.created_at >= ${scope.currentFrom}::timestamptz
+                 AND r.created_at < ${scope.currentTo}::timestamptz)                    AS in_current,
              ${scope.previousFrom
-                ? `BOOL_OR(r.created_at >= ${scope.previousFrom}::date AND r.created_at < (${scope.previousTo}::date + INTERVAL '1 day'))`
+                ? `BOOL_OR(r.created_at >= ${scope.previousFrom}::timestamptz AND r.created_at < ${scope.previousTo}::timestamptz)`
                 : "FALSE"}                                                                            AS in_previous
       FROM return_items ri
       JOIN returns r ON r.id = ri.return_id

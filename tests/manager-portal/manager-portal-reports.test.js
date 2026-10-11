@@ -49,13 +49,32 @@ test("an unknown preset falls back to a real window rather than failing", () => 
   assert.equal(range.from, "2026-09-10");
 });
 
-test("a custom window is honoured, and an incomplete one is not", () => {
+test("a custom window is honoured, and an incomplete one is refused", () => {
   assert.deepEqual(resolveReportRange("custom", { from: "2026-01-01", to: "2026-01-31", now: NOW }), {
-    preset: "custom", from: "2026-01-01", to: "2026-01-31",
+    preset: "custom", from: "2026-01-01", to: "2026-01-31", fromTime: null, toTime: null,
   });
-  // Half a custom range is not a range; silently reporting a different period than the
-  // one asked for is the failure mode this guards.
-  assert.equal(resolveReportRange("custom", { from: "2026-01-01", now: NOW }).preset, "last30");
+  // Half a custom range is not a range. It must FAIL rather than quietly resolve to the
+  // last thirty days: a screen headed "من 1 يناير إلى 31 يناير" showing September's
+  // numbers is the failure mode this guards.
+  for (const broken of [{ from: "2026-01-01" }, { to: "2026-01-31" }, {}, { from: "01/01/2026", to: "31/01/2026" }]) {
+    assert.throws(() => resolveReportRange("custom", { ...broken, now: NOW }), /custom period/i);
+  }
+});
+
+test("a custom window carries the times, and only times it can read", () => {
+  const range = resolveReportRange("custom", {
+    from: "2026-09-01", to: "2026-09-30", fromTime: "14:00", toTime: "02:00", now: NOW,
+  });
+  assert.equal(range.fromTime, "14:00");
+  assert.equal(range.toTime, "02:00");
+
+  // Nonsense is dropped to "the whole day" rather than becoming a window nobody asked
+  // for: 25:00 is not a time, and guessing which one was meant would invent the period.
+  const junk = resolveReportRange("custom", {
+    from: "2026-09-01", to: "2026-09-30", fromTime: "25:00", toTime: "noon", now: NOW,
+  });
+  assert.equal(junk.fromTime, null);
+  assert.equal(junk.toTime, null);
 });
 
 test("today and yesterday are deliberately not offered", () => {
@@ -81,8 +100,12 @@ test("the branch comes from the manager row and the request cannot widen it", as
 test("the period, the comparison and which report are the only things the caller controls", async () => {
   const source = await read("../../server/services/managerPortalReportsService.js");
   const passed = [...source.matchAll(/query\.(\w+)/g)].map((match) => match[1]);
-  // `section` picks which report to run, never what it is allowed to see.
-  assert.deepEqual([...new Set(passed)].sort(), ["compare", "from", "preset", "section", "to"]);
+  // `section` picks which report to run, never what it is allowed to see; the four
+  // period fields say WHEN, never WHOSE.
+  assert.deepEqual(
+    [...new Set(passed)].sort(),
+    ["compare", "fromTime", "from_time", "from", "preset", "section", "toTime", "to_time", "to"].sort()
+  );
 });
 
 test("an unknown section falls back to the overview instead of failing", async () => {
@@ -99,6 +122,7 @@ test("every section is served by the matching Reporting Center service", async (
     purchasing: "getPurchasingSummary",
     customers: "getCustomersSummary",
     employees: "getEmployeesSummary",
+    shifts: "getShiftsReport",
   };
 
   assert.deepEqual(REPORT_SECTIONS, Object.keys(expected));

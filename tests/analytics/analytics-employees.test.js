@@ -42,7 +42,17 @@ const columnsWith = (orderCols, { users = 1, salesEmployees = 1 } = {}) => ({
   returnItemColumns: new Set(["id", "return_id", "refund_amount"]),
 });
 
-const filters = { tenantId: 1, from: "2026-01-01", to: "2026-03-31", branchId: null, channel: null };
+const filters = {
+  tenantId: 1,
+  from: "2026-01-01",
+  to: "2026-03-31",
+  // The window the SQL scans: inclusive start, EXCLUSIVE end. The probe binds these,
+  // not the day strings, so a part-day window narrows it like every other query.
+  windowStart: "2026-01-01 00:00:00",
+  windowEnd: "2026-04-01 00:00:00",
+  branchId: null,
+  channel: null,
+};
 
 test("the field is chosen by coverage, not by the declared order", async () => {
   // salesperson_name is declared FIRST but covers less. seller_name must win, because a
@@ -125,7 +135,7 @@ test("the coverage probe binds only the parameters it uses", async () => {
     filters,
     columns: columnsWith(["tenant_id", "created_at", "salesperson_name"]),
   });
-  assert.deepEqual(bound, [1, "2026-01-01", "2026-03-31"], "tenant, from, to — and nothing else");
+  assert.deepEqual(bound, [1, "2026-01-01 00:00:00", "2026-04-01 00:00:00"], "tenant, window start, window end — and nothing else");
 });
 
 test("the probe applies the branch and channel filters the page is showing", async () => {
@@ -138,7 +148,7 @@ test("the probe applies the branch and channel filters the page is showing", asy
   });
   assert.match(sql, /o\.branch_id = \$2/);
   assert.match(sql, /LOWER\(COALESCE\(o\.channel,''\)\) = LOWER\(\$3\)/);
-  assert.deepEqual(bound, [1, 7, "pos", "2026-01-01", "2026-03-31"]);
+  assert.deepEqual(bound, [1, 7, "pos", "2026-01-01 00:00:00", "2026-04-01 00:00:00"]);
 });
 
 /* ------------------------------------------------------ withholding and honesty */

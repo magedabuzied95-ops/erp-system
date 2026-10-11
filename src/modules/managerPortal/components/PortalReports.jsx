@@ -25,13 +25,17 @@ import { paymentMethodLabel } from "../../../../shared/paymentMethods";
  * metric is how they stop matching.
  *
  * PERIOD. The portal's اليوم tab counts the shop's night (a shift window that crosses
- * midnight); every number here counts calendar days. So there is no "today" preset and
- * the screen says which clock it is on — one word covering two different numbers on one
- * phone is worse than not offering it.
+ * midnight); a preset here counts calendar days. So there is no "today" preset and the
+ * screen says which clock it is on — one word covering two different numbers on one phone
+ * is worse than not offering it.
+ *
+ * The فترة مخصصة preset is the way out of that: two dates and, optionally, a time on each
+ * end. A shop whose night runs 2pm to 2am asks for exactly that, and the note about
+ * calendar days steps aside because it no longer describes the window on screen.
  */
 
-const PRESETS = ["last7", "last30", "thisMonth", "lastMonth"];
-const SECTIONS = ["overview", "sales", "inventory", "purchasing", "customers", "employees"];
+const PRESETS = ["last7", "last30", "thisMonth", "lastMonth", "custom"];
+const SECTIONS = ["overview", "sales", "inventory", "purchasing", "customers", "employees", "shifts"];
 
 /** Only after the password unlock; the server masks them until then. */
 const PROFIT_METRICS = ["grossProfit", "grossMargin", "inventoryValue"];
@@ -66,6 +70,26 @@ const TREND_SPEC = {
     fallback: { field: "units", kind: "count", titleKey: "overview.kpi.purchaseUnits" },
   },
   inventory: null,
+  // A till session is a record, not a point on a curve: the shifts arrive as cards with
+  // their own clocks, and a line drawn through them would imply a series they are not.
+  shifts: null,
+};
+
+/** Local calendar day as YYYY-MM-DD — never toISOString, which shifts the date at night. */
+const isoDay = (date) =>
+  `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, "0")}-${String(date.getDate()).padStart(2, "0")}`;
+
+/** A clock reading the manager can read, on whatever locale the portal is in. */
+const formatStamp = (value, language) => {
+  if (!value) return null;
+  const date = new Date(value);
+  if (Number.isNaN(date.getTime())) return null;
+  return new Intl.DateTimeFormat(language || "ar-EG", {
+    day: "2-digit",
+    month: "2-digit",
+    hour: "2-digit",
+    minute: "2-digit",
+  }).format(date);
 };
 
 /** The series to draw, or null when there is nothing truthful to draw. */
@@ -98,6 +122,11 @@ export default function PortalReports({ token, canViewProfit = false }) {
 
   const [section, setSection] = useState("overview");
   const [preset, setPreset] = useState("last30");
+  // Two custom windows, on purpose: `draft` is what the manager is typing, `custom` is
+  // what the server was asked for. Fetching on every keystroke would send half-typed
+  // dates, and a half-typed date is a different period.
+  const [draft, setDraft] = useState(null);
+  const [custom, setCustom] = useState(null);
   const [payload, setPayload] = useState(null);
   const [status, setStatus] = useState("loading");
   const [profitToken, setProfitToken] = useState("");
@@ -111,16 +140,31 @@ export default function PortalReports({ token, canViewProfit = false }) {
   const load = useCallback(
     async ({ silent = false, withProfit = profitToken } = {}) => {
       if (!token) return;
+      // A custom period with nothing filled in yet is not a request. Asking anyway would
+      // answer with the default month under the "فترة مخصصة" heading.
+      if (preset === "custom" && !custom) return;
       setStatus(silent ? "refreshing" : "loading");
       try {
-        const res = await managerPortalApi.reports(token, { section, preset }, { profitToken: withProfit });
+        const params = preset === "custom"
+          ? {
+              section,
+              preset,
+              from: custom.from,
+              to: custom.to,
+              // Omitted rather than sent empty: an absent time means "the whole day",
+              // which is a different window from "00:00".
+              ...(custom.fromTime ? { fromTime: custom.fromTime } : {}),
+              ...(custom.toTime ? { toTime: custom.toTime } : {}),
+            }
+          : { section, preset };
+        const res = await managerPortalApi.reports(token, params, { profitToken: withProfit });
         setPayload(res || null);
         setStatus("ready");
       } catch {
         setStatus("error");
       }
     },
-    [token, section, preset, profitToken]
+    [token, section, preset, custom, profitToken]
   );
 
   useEffect(() => { void load(); }, [load]);
@@ -133,6 +177,35 @@ export default function PortalReports({ token, canViewProfit = false }) {
     setSection(next);
     setPayload(null);
   }, []);
+
+  /**
+   * Picking فترة مخصصة opens the panel on the last seven whole days rather than on empty
+   * boxes: a manager who only wants to change the end time should not have to type both
+   * dates first. Nothing is fetched until they apply it.
+   */
+  const switchPreset = useCallback((next) => {
+    if (next !== "custom") {
+      setPreset(next);
+      return;
+    }
+    setDraft((current) => {
+      if (current) return current;
+      const today = new Date();
+      const weekAgo = new Date(today.getTime() - 6 * 86_400_000);
+      return { from: isoDay(weekAgo), to: isoDay(today), fromTime: "", toTime: "" };
+    });
+    setPreset("custom");
+  }, []);
+
+  const customValid = Boolean(
+    draft?.from && draft?.to && `${draft.from} ${draft.fromTime || "00:00"}` < `${draft.to} ${draft.toTime || "23:59"}`
+  );
+
+  const applyCustom = useCallback(() => {
+    if (!customValid) return;
+    setPayload(null);
+    setCustom({ ...draft });
+  }, [customValid, draft]);
 
   const relock = useCallback(() => {
     if (relockTimer.current) { clearTimeout(relockTimer.current); relockTimer.current = null; }
@@ -184,12 +257,32 @@ export default function PortalReports({ token, canViewProfit = false }) {
     });
   }, [data, profitShown]);
 
+  // The chips and the custom panel sit above every state: a manager who lands on an
+  // unanswered custom period must be able to fix the dates, and one looking at an error
+  // must be able to change the period rather than only retry the one that failed.
+  const controls = (
+    <>
+      <SectionChips section={section} onChange={switchSection} t={t} />
+      <PeriodChips preset={preset} onChange={switchPreset} t={t} busy={status === "refreshing"} />
+      {preset === "custom" ? (
+        <CustomRange
+          draft={draft}
+          onChange={(patch) => setDraft((current) => ({ ...current, ...patch }))}
+          onApply={applyCustom}
+          valid={customValid}
+          t={t}
+        />
+      ) : null}
+    </>
+  );
+
   if (status === "loading" && !data) {
     return (
       <div className="manager-portal-tab manager-portal-tab--reports space-y-3">
-        <SectionChips section={section} onChange={switchSection} t={t} />
-        <PeriodChips preset={preset} onChange={setPreset} t={t} />
-        <div className="flex min-h-40 items-center justify-center"><Loader2 className="h-6 w-6 animate-spin text-text-muted" /></div>
+        {controls}
+        {preset === "custom" && !custom ? null : (
+          <div className="flex min-h-40 items-center justify-center"><Loader2 className="h-6 w-6 animate-spin text-text-muted" /></div>
+        )}
       </div>
     );
   }
@@ -197,7 +290,7 @@ export default function PortalReports({ token, canViewProfit = false }) {
   if (status === "error" && !data) {
     return (
       <div className="manager-portal-tab manager-portal-tab--reports space-y-3">
-        <SectionChips section={section} onChange={switchSection} t={t} />
+        {controls}
         <div className="rounded-[var(--radius-card)] border border-dashed border-border bg-surface px-4 py-6 text-center text-sm font-bold text-text-muted">
           {t("managerPortal.reports.failed")}
           <button type="button" onClick={() => void load()} className="mt-3 flex w-full items-center justify-center gap-2 rounded-[var(--radius-control)] border border-border bg-surface-soft px-3 py-2 text-sm font-black text-text">
@@ -211,13 +304,14 @@ export default function PortalReports({ token, canViewProfit = false }) {
 
   return (
     <div className="manager-portal-tab manager-portal-tab--reports space-y-3">
-      <SectionChips section={section} onChange={switchSection} t={t} />
-      <PeriodChips preset={preset} onChange={setPreset} t={t} busy={status === "refreshing"} />
+      {controls}
 
       <p className="px-1 text-[11px] font-bold leading-5 text-text-muted">
-        {range ? `${range.from} → ${range.to} · ` : ""}
+        {range ? `${rangeLabel(range)} · ` : ""}
         {payload?.branch?.name ? `${payload.branch.name} · ` : ""}
-        {t("managerPortal.reports.calendarNote")}
+        {/* The note describes midnight-to-midnight days. With a time on either end it
+            describes a different window than the one on screen, so it steps aside. */}
+        {range?.fromTime || range?.toTime ? "" : t("managerPortal.reports.calendarNote")}
       </p>
 
       {metrics.length ? (
@@ -276,6 +370,13 @@ export default function PortalReports({ token, canViewProfit = false }) {
             <CategoryList categories={data?.categories} language={language} t={t} />
           </PortalCard>
         </>
+      ) : section === "shifts" ? (
+        <ShiftList
+          shifts={payload?.shifts}
+          truncated={Boolean(payload?.meta?.truncated)}
+          language={language}
+          t={t}
+        />
       ) : (
         <PortalCard title={t(`managerPortal.reports.lists.${section}`)}>
           <RankedList
@@ -359,6 +460,188 @@ function SectionChips({ section, onChange, t }) {
         );
       })}
     </div>
+  );
+}
+
+/**
+ * What the screen says the window was.
+ *
+ * The server echoes the window it actually used, and this prints that back rather than
+ * what the manager typed — if the two ever differ, the one that produced the numbers is
+ * the one worth showing.
+ */
+function rangeLabel(range) {
+  const start = range.fromTime ? `${range.from} ${range.fromTime}` : range.from;
+  const end = range.toTime ? `${range.to} ${range.toTime}` : range.to;
+  return `${start} → ${end}`;
+}
+
+/**
+ * The custom window: two dates, and a time on each end that may be left empty.
+ *
+ * Native date and time inputs on purpose — a phone opens its own wheel picker for these,
+ * which beats anything this file could draw, and the value is already the `YYYY-MM-DD` /
+ * `HH:MM` the API wants.
+ *
+ * Applying is an explicit tap rather than a fetch per keystroke: a half-typed date is a
+ * different period, and answering it would flash numbers for a window nobody asked for.
+ */
+function CustomRange({ draft, onChange, onApply, valid, t }) {
+  if (!draft) return null;
+
+  const field = (label, type, key, placeholder) => (
+    <label className="flex min-w-0 flex-1 flex-col gap-1">
+      <span className="text-[10px] font-black text-text-muted">{label}</span>
+      <input
+        type={type}
+        value={draft[key] || ""}
+        onChange={(event) => onChange({ [key]: event.target.value })}
+        placeholder={placeholder}
+        className="w-full rounded-[var(--radius-control)] border border-border bg-surface-soft px-2 py-2 text-[13px] font-bold text-text outline-none"
+      />
+    </label>
+  );
+
+  return (
+    <section className="rounded-[var(--radius-card)] border border-border bg-surface p-3 shadow-[var(--shadow-card)]">
+      <div className="mb-2 text-xs font-black text-text">{t("managerPortal.reports.custom.title")}</div>
+
+      <div className="space-y-2">
+        <div className="flex items-end gap-2">
+          <span className="w-8 shrink-0 pb-2.5 text-[11px] font-black text-text-muted">{t("managerPortal.reports.custom.from")}</span>
+          {field(t("managerPortal.reports.custom.date"), "date", "from")}
+          {field(t("managerPortal.reports.custom.anyTime"), "time", "fromTime")}
+        </div>
+        <div className="flex items-end gap-2">
+          <span className="w-8 shrink-0 pb-2.5 text-[11px] font-black text-text-muted">{t("managerPortal.reports.custom.to")}</span>
+          {field(t("managerPortal.reports.custom.date"), "date", "to")}
+          {field(t("managerPortal.reports.custom.anyTimeEnd"), "time", "toTime")}
+        </div>
+      </div>
+
+      <p className="mt-2 text-[10px] font-bold leading-4 text-text-muted">{t("managerPortal.reports.custom.hint")}</p>
+      {valid ? null : (
+        <p className="mt-1 text-[10px] font-black leading-4 text-rose-500">{t("managerPortal.reports.custom.invalid")}</p>
+      )}
+
+      <button
+        type="button"
+        disabled={!valid}
+        onClick={onApply}
+        className="mt-2 w-full rounded-[var(--radius-control)] bg-amber-500 px-3 py-2 text-sm font-black text-slate-950 disabled:opacity-60"
+      >
+        {t("managerPortal.reports.custom.apply")}
+      </button>
+    </section>
+  );
+}
+
+/**
+ * One card per till session: when the drawer opened and closed, who had it, what was rung
+ * through it and what paid for it.
+ *
+ * Every figure is the server's. The methods are the ones that actually paid — a split
+ * invoice contributes to each of them — and the total is the server's own, not these rows
+ * added up on the phone, so the card can never disagree with the report it came from.
+ */
+function ShiftList({ shifts, truncated = false, language, t }) {
+  const rows = Array.isArray(shifts) ? shifts : [];
+  if (!rows.length) return <Empty label={t("managerPortal.reports.shifts.empty")} />;
+
+  return (
+    <div className="space-y-2">
+      <p className="px-1 text-[10px] font-bold leading-4 text-text-muted">{t("managerPortal.reports.shifts.note")}</p>
+
+      {rows.map((shift) => (
+        <section key={shift.id} className="rounded-[var(--radius-card)] border border-border bg-surface p-4 shadow-[var(--shadow-card)]">
+          <div className="flex items-baseline justify-between gap-2">
+            <span className="truncate text-[13px] font-black text-text">{shift.cashier || "—"}</span>
+            <span
+              className={`shrink-0 rounded-full px-2 py-px text-[9px] font-black ${
+                shift.status === "open" ? "bg-amber-500/15 text-amber-500" : "border border-border text-text-muted"
+              }`}
+            >
+              {shift.status === "open" ? t("managerPortal.reports.shifts.stillOpen") : t("managerPortal.reports.shifts.closed")}
+            </span>
+          </div>
+
+          <div className="mt-1 flex flex-wrap items-baseline gap-x-3 gap-y-0.5 text-[11px] font-bold text-text-muted">
+            <span>
+              {t("managerPortal.reports.shifts.opened")}: <span className="tabular-nums text-text">{formatStamp(shift.openedAt, language) || "—"}</span>
+            </span>
+            <span>
+              {t("managerPortal.reports.shifts.closed")}:{" "}
+              <span className="tabular-nums text-text">
+                {shift.closedAt ? formatStamp(shift.closedAt, language) : t("managerPortal.reports.shifts.stillOpen")}
+              </span>
+            </span>
+            {shift.branchName ? <span>{shift.branchName}</span> : null}
+          </div>
+
+          <ul className="mt-3 space-y-1.5 border-t border-border pt-2.5">
+            {(shift.payments?.rows || []).map((row) => (
+              <li key={row.method} className="flex items-baseline justify-between gap-2 text-[12px]">
+                <span className="flex min-w-0 items-baseline gap-1.5">
+                  <span className="truncate font-bold text-text">{paymentMethodLabel(row.method, language)}</span>
+                  {row.settlement !== "collected" ? (
+                    <span className="shrink-0 rounded-full border border-border px-1.5 py-px text-[9px] font-black text-text-muted">
+                      {t(`overview.paymentMix.chip.${row.settlement}`)}
+                    </span>
+                  ) : null}
+                </span>
+                <span className="shrink-0 font-black tabular-nums text-text">{formatMoney(row.amount, language)}</span>
+              </li>
+            ))}
+            {(shift.payments?.rows || []).length ? null : (
+              <li className="text-[11px] font-bold text-text-muted">{t("managerPortal.reports.emptySection")}</li>
+            )}
+          </ul>
+
+          <div className="mt-2 flex items-baseline justify-between gap-2 border-t border-border pt-2 text-[12px]">
+            <span className="flex items-baseline gap-1.5">
+              <span className="font-black text-text">{t("managerPortal.reports.shifts.total")}</span>
+              {shift.share === null || shift.share === undefined ? null : (
+                <span className="text-[10px] font-black tabular-nums text-text-muted">{formatPercentValue(shift.share, language)}</span>
+              )}
+            </span>
+            <span className="text-[15px] font-black tabular-nums text-text">
+              {formatMoney(shift.payments?.totals?.all, language) ?? "—"}
+            </span>
+          </div>
+
+          <div className="mt-2 grid grid-cols-2 gap-x-3 gap-y-1 text-[10px] font-bold text-text-muted">
+            <Line label={t("managerPortal.reports.shifts.orders")} value={formatNumber(shift.orders, language)} />
+            <Line label={t("managerPortal.reports.shifts.openingCash")} value={formatMoney(shift.openingCash, language)} />
+            <Line label={t("managerPortal.reports.shifts.expectedCash")} value={formatMoney(shift.expectedCash, language)} />
+            {shift.closingCash === null ? null : (
+              <Line label={t("managerPortal.reports.shifts.countedCash")} value={formatMoney(shift.closingCash, language)} />
+            )}
+            {shift.cashDifference === null || shift.cashDifference === 0 ? null : (
+              <Line
+                label={t("managerPortal.reports.shifts.difference")}
+                value={formatMoney(shift.cashDifference, language)}
+                tone={shift.cashDifference < 0 ? "bad" : "good"}
+              />
+            )}
+          </div>
+        </section>
+      ))}
+
+      {truncated ? (
+        <p className="px-1 text-[10px] font-black leading-4 text-amber-500">{t("managerPortal.reports.shifts.truncated")}</p>
+      ) : null}
+    </div>
+  );
+}
+
+function Line({ label, value, tone = "base" }) {
+  return (
+    <span className="flex items-baseline justify-between gap-1">
+      <span>{label}</span>
+      <span className={`font-black tabular-nums ${tone === "bad" ? "text-rose-500" : tone === "good" ? "text-emerald-500" : "text-text"}`}>
+        {value ?? "—"}
+      </span>
+    </span>
   );
 }
 

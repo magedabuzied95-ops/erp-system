@@ -102,7 +102,7 @@ export const NON_SIZED_VARIATION_MODES = Object.freeze(["color_only", "simple"])
  */
 const buildScope = ({ filters, columns }) => {
   const { orderColumns, itemColumns, productColumns, variantColumns, overrideColumns, purchaseColumns, purchaseItemColumns } = columns;
-  const { tenantId, from, to, comparison, branchId } = filters;
+  const { tenantId, windowStart, windowEnd, comparison, branchId } = filters;
 
   const params = [];
   const bind = (value) => {
@@ -111,10 +111,10 @@ const buildScope = ({ filters, columns }) => {
   };
   if (tenantId !== null) bind(tenantId);
 
-  const currentFrom = bind(from);
-  const currentTo = bind(to);
-  const previousFrom = comparison ? bind(comparison.from) : null;
-  const previousTo = comparison ? bind(comparison.to) : null;
+  const currentFrom = bind(windowStart);
+  const currentTo = bind(windowEnd);
+  const previousFrom = comparison ? bind(comparison.windowStart) : null;
+  const previousTo = comparison ? bind(comparison.windowEnd) : null;
 
   const orderClauses = [];
   if (tenantId !== null && orderColumns.has("tenant_id")) orderClauses.push("o.tenant_id = $1");
@@ -125,9 +125,9 @@ const buildScope = ({ filters, columns }) => {
   orderClauses.push(...orderFilterClauses({ filters, orderColumns, bind }).clauses);
   orderClauses.push(...canonicalOrderClauses(orderColumns).clauses);
 
-  const widestFrom = comparison && comparison.from < from ? previousFrom : currentFrom;
-  const widestTo = comparison && comparison.to > to ? previousTo : currentTo;
-  orderClauses.push(`o.created_at >= ${widestFrom}::date AND o.created_at < (${widestTo}::date + INTERVAL '1 day')`);
+  const widestFrom = comparison && comparison.windowStart < windowStart ? previousFrom : currentFrom;
+  const widestTo = comparison && comparison.windowEnd > windowEnd ? previousTo : currentTo;
+  orderClauses.push(`o.created_at >= ${widestFrom}::timestamptz AND o.created_at < ${widestTo}::timestamptz`);
 
   const costContext = buildCostContext({
     orderColumns, itemColumns, productColumns, variantColumns,
@@ -154,8 +154,8 @@ const buildScope = ({ filters, columns }) => {
     bind,
     costContext,
     currentFrom, currentTo, previousFrom, previousTo,
-    inCurrent: `o.created_at >= ${currentFrom}::date AND o.created_at < (${currentTo}::date + INTERVAL '1 day')`,
-    inPrevious: previousFrom ? `o.created_at >= ${previousFrom}::date AND o.created_at < (${previousTo}::date + INTERVAL '1 day')` : "FALSE",
+    inCurrent: `o.created_at >= ${currentFrom}::timestamptz AND o.created_at < ${currentTo}::timestamptz`,
+    inPrevious: previousFrom ? `o.created_at >= ${previousFrom}::timestamptz AND o.created_at < ${previousTo}::timestamptz` : "FALSE",
     orderWhere: whereSql(orderClauses),
     lineWhere: lineClauses.length ? `WHERE ${lineClauses.join(" AND ")}` : "",
     // The category ladder reads cat.name, so filtering by category requires the join
@@ -289,9 +289,9 @@ const buildReturnsQuery = ({ scope, returnItemColumns, orderColumns, tenantScope
   return `
     SELECT
       COALESCE(SUM(${nanSafe(refundExpr)}) FILTER (
-        WHERE r.created_at >= ${scope.currentFrom}::date AND r.created_at < (${scope.currentTo}::date + INTERVAL '1 day')), 0) AS returns_current,
+        WHERE r.created_at >= ${scope.currentFrom}::timestamptz AND r.created_at < ${scope.currentTo}::timestamptz), 0) AS returns_current,
       COALESCE(SUM(${nanSafe(refundExpr)}) FILTER (
-        WHERE ${scope.previousFrom ? `r.created_at >= ${scope.previousFrom}::date AND r.created_at < (${scope.previousTo}::date + INTERVAL '1 day')` : "FALSE"}), 0) AS returns_previous
+        WHERE ${scope.previousFrom ? `r.created_at >= ${scope.previousFrom}::timestamptz AND r.created_at < ${scope.previousTo}::timestamptz` : "FALSE"}), 0) AS returns_previous
     FROM return_items ri
     JOIN returns r ON r.id = ri.return_id
     JOIN orders o ON o.id = r.order_id
@@ -692,7 +692,7 @@ export const getSalesSummary = async ({ filters, permissions = {}, client = db }
 
   return {
     data: {
-      period: { from: filters.from, to: filters.to, days: filters.days, granularity },
+      period: { from: filters.from, to: filters.to, fromTime: filters.fromTime, toTime: filters.toTime, days: filters.days, granularity },
       comparison: filters.comparison ? { ...filters.comparison, mode: filters.comparisonMode } : null,
       kpis,
       trend,

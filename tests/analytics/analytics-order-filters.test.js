@@ -197,7 +197,7 @@ test("the options endpoint offers only values that exist in the caller's own dat
   // that would return an empty report when picked.
   assert.match(source, /o\.tenant_id = \$\{bind\(filters\.tenantId\)\}/);
   assert.match(source, /canonicalOrderClauses\(orderColumns\)\.clauses/);
-  assert.match(source, /o\.created_at >= \$\{bind\(filters\.from\)\}/);
+  assert.match(source, /o\.created_at >= \$\{bind\(filters\.windowStart\)\}/);
 
   // Every list joins to the table its id points at, so a label is a real name rather
   // than an id painted to look like one.
