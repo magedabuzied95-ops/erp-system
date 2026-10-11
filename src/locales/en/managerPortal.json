@@ -882,8 +882,8 @@
       "to": "To",
       "date": "Date",
       "time": "Time",
-      "anyTime": "Starts at the beginning of the day",
-      "anyTimeEnd": "Ends at the end of the day",
+      "anyTime": "Start of day",
+      "anyTimeEnd": "End of day",
       "apply": "Apply",
       "hint": "Leave a time empty to count the whole day. A time in the “To” box stops the count exactly there.",
       "invalid": "Both a start and an end date are needed, and the end must come after the start.",
@@ -904,7 +904,9 @@
       "note": "A shift that opened inside the period is shown with its whole figures, even if it closed after the period ended.",
       "truncated": "There are more shifts than shown. Narrow the period to see them all.",
       "empty": "No shift opened in this period.",
-      "periodTotals": "Period total by payment method",
+      "grandTotal": "Grand total",
+      "shiftCount": "Shifts",
+      "countedNote": "Counted cash and the difference cover the {{closed}} closed shifts only — nobody has counted a drawer that is still open.",
       "noSales": "Nothing was sold on this shift."
     }
   }

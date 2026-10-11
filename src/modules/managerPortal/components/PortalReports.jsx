@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useTranslation } from "react-i18next";
 
-import { AlertTriangle, ChevronDown, Eye, EyeOff, Loader2, Lock, RefreshCw, X } from "lucide-react";
+import { AlertTriangle, CalendarDays, ChevronDown, Clock, Eye, EyeOff, Loader2, Lock, RefreshCw, X } from "lucide-react";
 
 import { managerPortalApi } from "../services/managerPortalApi";
 import { formatMetricValue, formatMoney, formatPercentValue } from "../../reports/lib/metricFormat";
@@ -94,7 +94,16 @@ const formatStamp = (value, language) => {
   if (Number.isNaN(date.getTime())) return null;
   const locale = language || "ar-EG";
   return {
-    date: new Intl.DateTimeFormat(locale, { day: "2-digit", month: "2-digit" }).format(date),
+    // The year is spelled out, and `calendar: "gregory"` pins it: a manager reading a
+    // closed month wants the date that is on the invoice, and an Arabic locale left to
+    // its own default can resolve to a Hijri year — a number nothing else in the system
+    // counts in.
+    date: new Intl.DateTimeFormat(locale, {
+      calendar: "gregory",
+      day: "2-digit",
+      month: "2-digit",
+      year: "numeric",
+    }).format(date),
     time: new Intl.DateTimeFormat(locale, { hour: "2-digit", minute: "2-digit" }).format(date),
   };
 };
@@ -381,6 +390,7 @@ export default function PortalReports({ token, canViewProfit = false }) {
         <ShiftList
           shifts={payload?.shifts}
           totals={data?.totals}
+          summary={data?.summary}
           truncated={Boolean(payload?.meta?.truncated)}
           language={language}
           t={t}
@@ -511,18 +521,38 @@ function CustomRange({ draft, onChange, onApply, valid, t }) {
    * plain `1fr` the row would overflow again on a narrow phone rather than sharing what
    * space there is.
    */
+  /*
+   * One box. The overlay is the point: an EMPTY native time input draws nothing at all
+   * on this phone — the box was a blank grey rectangle with no hint that a time could go
+   * in it, and no hint that leaving it blank means the whole day. So when the field has
+   * no value the box says what blank MEANS, over an opaque panel that also covers the
+   * `--:--` other browsers draw there. `pointer-events-none` keeps the tap on the input,
+   * so the native picker still opens from anywhere in the box.
+   */
+  const box = (type, field, { aria, empty, icon: Icon }) => {
+    const value = draft[field] || "";
+    return (
+      <div className="relative min-w-0">
+        <input
+          type={type}
+          value={value}
+          onChange={(event) => onChange({ [field]: event.target.value })}
+          aria-label={aria}
+          className="h-11 w-full min-w-0 rounded-[var(--radius-control)] border border-border bg-surface-soft px-2 text-center text-[13px] font-black text-text outline-none focus:border-[var(--primary)]"
+        />
+        {value ? null : (
+          <span className="pointer-events-none absolute inset-px flex items-center justify-center gap-1 rounded-[var(--radius-control)] bg-surface-soft px-1.5 text-[11px] font-bold text-text-muted">
+            <Icon className="h-3.5 w-3.5 shrink-0" />
+            <span className="truncate">{empty}</span>
+          </span>
+        )}
+      </div>
+    );
+  };
+
   const end = (key, label) => {
     const timeKey = `${key}Time`;
     const time = draft[timeKey] || "";
-    const input = (type, field, aria) => (
-      <input
-        type={type}
-        value={draft[field] || ""}
-        onChange={(event) => onChange({ [field]: event.target.value })}
-        aria-label={`${label} — ${aria}`}
-        className="h-11 w-full min-w-0 rounded-[var(--radius-control)] border border-border bg-surface-soft px-2 text-center text-[13px] font-black text-text outline-none focus:border-[var(--primary)]"
-      />
-    );
 
     return (
       <div>
@@ -539,15 +569,19 @@ function CustomRange({ draft, onChange, onApply, valid, t }) {
               <X className="h-3 w-3" />
               {t("managerPortal.reports.custom.clearTime")}
             </button>
-          ) : (
-            <span className="truncate text-[10px] font-bold text-text-muted">
-              {t(`managerPortal.reports.custom.${key === "from" ? "anyTime" : "anyTimeEnd"}`)}
-            </span>
-          )}
+          ) : null}
         </div>
-        <div className="grid grid-cols-[minmax(0,1.35fr)_minmax(0,1fr)] gap-2">
-          {input("date", key, t("managerPortal.reports.custom.date"))}
-          {input("time", timeKey, t("managerPortal.reports.custom.time"))}
+        <div className="grid grid-cols-[minmax(0,1.3fr)_minmax(0,1fr)] gap-2">
+          {box("date", key, {
+            aria: `${label} — ${t("managerPortal.reports.custom.date")}`,
+            empty: t("managerPortal.reports.custom.date"),
+            icon: CalendarDays,
+          })}
+          {box("time", timeKey, {
+            aria: `${label} — ${t("managerPortal.reports.custom.time")}`,
+            empty: t(`managerPortal.reports.custom.${key === "from" ? "anyTime" : "anyTimeEnd"}`),
+            icon: Clock,
+          })}
         </div>
       </div>
     );
@@ -567,11 +601,15 @@ function CustomRange({ draft, onChange, onApply, valid, t }) {
         <p className="mt-1 text-[10px] font-black leading-4 text-rose-500">{t("managerPortal.reports.custom.invalid")}</p>
       )}
 
+      {/* The portal repaints raw Tailwind colour utilities onto its own palette, and a
+          `bg-amber-500` here came out as the card's own background — a primary action
+          that was nothing but floating text. The class below is painted from the theme
+          tokens in ManagerPortal.m1.css, which no remap can take away. */}
       <button
         type="button"
         disabled={!valid}
         onClick={onApply}
-        className="mt-2.5 w-full rounded-[var(--radius-control)] bg-amber-500 px-3 py-2.5 text-sm font-black text-slate-950 disabled:opacity-60"
+        className="manager-portal-apply-period mt-2.5 w-full rounded-[var(--radius-control)] px-3 py-2.5 text-sm font-black disabled:opacity-60"
       >
         {t("managerPortal.reports.custom.apply")}
       </button>
@@ -587,20 +625,12 @@ function CustomRange({ draft, onChange, onApply, valid, t }) {
  * invoice contributes to each of them — and the total is the server's own, not these rows
  * added up on the phone, so the card can never disagree with the report it came from.
  */
-function ShiftList({ shifts, totals, truncated = false, language, t }) {
+function ShiftList({ shifts, totals, summary, truncated = false, language, t }) {
   const rows = Array.isArray(shifts) ? shifts : [];
   if (!rows.length) return <Empty label={t("managerPortal.reports.shifts.empty")} />;
 
   return (
     <div className="space-y-2">
-      {/* The window's own split, above the sessions it is made of. With one shift on
-          screen it would just repeat that shift's card, so it waits for a second. */}
-      {rows.length > 1 && totals?.rows?.length ? (
-        <PortalCard title={t("managerPortal.reports.shifts.periodTotals")}>
-          <PaymentMixList paymentMix={totals} language={language} t={t} />
-        </PortalCard>
-      ) : null}
-
       <p className="px-1 text-[10px] font-bold leading-4 text-text-muted">{t("managerPortal.reports.shifts.note")}</p>
 
       {rows.map((shift) => (
@@ -679,6 +709,39 @@ function ShiftList({ shifts, totals, truncated = false, language, t }) {
           </div>
         </section>
       ))}
+
+      {/* The window added up, under the sessions it is made of — the last thing read on a
+          screen that is scrolled downwards. With one shift on screen it would only repeat
+          the card above it, so it waits for a second. */}
+      {rows.length > 1 && (totals?.rows?.length || summary) ? (
+        <PortalCard title={t("managerPortal.reports.shifts.grandTotal")}>
+          {totals?.rows?.length ? <PaymentMixList paymentMix={totals} language={language} t={t} /> : null}
+          <div className={`space-y-1 text-[11px] font-bold text-text-muted ${totals?.rows?.length ? "mt-3 border-t border-border pt-2.5" : ""}`}>
+            <Line label={t("managerPortal.reports.shifts.shiftCount")} value={formatNumber(summary?.shiftCount ?? rows.length, language)} />
+            <Line label={t("managerPortal.reports.shifts.orders")} value={formatNumber(summary?.orders, language)} />
+            <Line label={t("managerPortal.reports.shifts.openingCash")} value={formatMoney(summary?.openingCash, language)} />
+            <Line label={t("managerPortal.reports.shifts.expectedCash")} value={formatMoney(summary?.expectedCash, language)} />
+            {summary?.countedCash === null || summary?.countedCash === undefined ? null : (
+              <Line label={t("managerPortal.reports.shifts.countedCash")} value={formatMoney(summary.countedCash, language)} />
+            )}
+            {summary?.cashDifference ? (
+              <Line
+                label={t("managerPortal.reports.shifts.difference")}
+                value={formatMoney(summary.cashDifference, language)}
+                tone={summary.cashDifference < 0 ? "bad" : "good"}
+              />
+            ) : null}
+          </div>
+          {/* Said out loud when some drawer is still open: the counted line and the
+              difference cover the closed sessions only, and a total that silently left a
+              shift out is how a manager stops trusting the screen. */}
+          {summary && summary.countedShifts < summary.shiftCount ? (
+            <p className="mt-2 text-[10px] font-bold leading-4 text-amber-500">
+              {t("managerPortal.reports.shifts.countedNote", { closed: summary.countedShifts })}
+            </p>
+          ) : null}
+        </PortalCard>
+      ) : null}
 
       {truncated ? (
         <p className="px-1 text-[10px] font-black leading-4 text-amber-500">{t("managerPortal.reports.shifts.truncated")}</p>

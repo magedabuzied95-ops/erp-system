@@ -205,6 +205,53 @@ test("a period with no shift still carries the split's shape", async () => {
   const { result } = await run({ shiftRows: [] });
   assert.deepEqual(result.data.totals.rows, []);
   assert.equal(result.data.totals.totals.all, 0, "the screen must not have to branch on a missing object");
+  assert.equal(result.data.summary.shiftCount, 0, "the grand total exists even when there is nothing in it");
+  assert.equal(result.data.summary.countedCash, null);
+});
+
+/* ------------------------------------------------------------- the grand total */
+
+test("the grand total adds up the drawers the window holds", async () => {
+  const { result } = await run({
+    shiftRows: [
+      shiftRow({ id: 7, opening_cash: "500", expected_cash: "3500", closing_cash: "3450", cash_difference: "-50" }),
+      shiftRow({ id: 8, opening_cash: "200", expected_cash: "1200", closing_cash: "1230", cash_difference: "30" }),
+    ],
+    paymentRows: [
+      { shift_id: 7, method: "cash", amount: "3000", orders: 4, unusable: 0, shift_orders: 6, shift_net_sales: "3000" },
+      { shift_id: 8, method: "cash", amount: "1000", orders: 2, unusable: 0, shift_orders: 3, shift_net_sales: "1000" },
+    ],
+  });
+
+  const { summary } = result.data;
+  assert.equal(summary.shiftCount, 2);
+  assert.equal(summary.orders, 9, "the invoices of both sessions, not of one");
+  assert.equal(summary.openingCash, 700);
+  assert.equal(summary.expectedCash, 4700);
+  assert.equal(summary.countedCash, 4680);
+  assert.equal(summary.cashDifference, -20, "a shortage and a surplus net off, they do not both vanish");
+});
+
+test("an open drawer is counted in the takings but not in the cash count", async () => {
+  // Nobody has counted a drawer that is still running: folding its null in as a zero
+  // would report a shortage the size of the shift.
+  const { result } = await run({
+    shiftRows: [
+      shiftRow({ id: 7, opening_cash: "500", expected_cash: "3500", closing_cash: "3450", cash_difference: "-50" }),
+      shiftRow({ id: 8, status: "open", closed_at: null, opening_cash: "200", expected_cash: "1200", closing_cash: null, cash_difference: "0" }),
+    ],
+    paymentRows: [
+      { shift_id: 7, method: "cash", amount: "3000", orders: 4, unusable: 0, shift_orders: 6, shift_net_sales: "3000" },
+      { shift_id: 8, method: "cash", amount: "1000", orders: 2, unusable: 0, shift_orders: 3, shift_net_sales: "1000" },
+    ],
+  });
+
+  const { summary } = result.data;
+  assert.equal(summary.shiftCount, 2);
+  assert.equal(summary.countedShifts, 1, "the screen says which sessions the counted line covers");
+  assert.equal(summary.orders, 9, "an open shift's sales still happened");
+  assert.equal(summary.countedCash, 3450, "only the drawer somebody counted");
+  assert.equal(summary.cashDifference, -50);
 });
 
 /* --------------------------------------------------------------- what is refused */

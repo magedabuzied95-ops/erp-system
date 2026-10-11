@@ -226,7 +226,7 @@ export const getShiftsReport = async ({ filters, permissions = {}, client = db }
 
   if (!shifts.length) {
     return {
-      data: { kpis: buildKpis([]), shifts: [], totals },
+      data: { kpis: buildKpis([]), shifts: [], totals, summary: buildSummary([]) },
       meta: { window: { from: filters.windowStart, to: filters.windowEnd }, truncated: false },
       warnings: collector.list(),
     };
@@ -296,7 +296,7 @@ export const getShiftsReport = async ({ filters, permissions = {}, client = db }
   }
 
   return {
-    data: { kpis: buildKpis(shifts), shifts, totals },
+    data: { kpis: buildKpis(shifts), shifts, totals, summary: buildSummary(shifts) },
     meta: {
       window: { from: filters.windowStart, to: filters.windowEnd },
       // Named rather than silently cut: a reader whose window held more shifts than this
@@ -305,6 +305,35 @@ export const getShiftsReport = async ({ filters, permissions = {}, client = db }
       limit: MAX_SHIFTS,
     },
     warnings: collector.list(),
+  };
+};
+
+/**
+ * The drawer figures of every shift in the window, added up — the grand-total card at the
+ * foot of the list.
+ *
+ * Added here rather than on the phone for the reason every other figure is: one adder,
+ * one rounding, and a card that cannot drift from the sessions printed above it. The
+ * money split is NOT recomputed here — `totals` already carries it, assembled from the
+ * raw allocation rows.
+ *
+ * COUNTED CASH AND THE DIFFERENCE COUNT CLOSED DRAWERS ONLY. Nobody has counted an open
+ * drawer, so folding its null in as a zero would report a shortage that is really a shift
+ * still running. `countedShifts` says how many were counted, so the screen can say so
+ * instead of leaving the reader to wonder which sessions the line covers.
+ */
+const buildSummary = (shifts = []) => {
+  const counted = shifts.filter((shift) => shift.closingCash !== null && shift.closingCash !== undefined);
+  const sum = (rows, pick) => rows.reduce((total, shift) => total + addable(pick(shift)), 0);
+
+  return {
+    shiftCount: shifts.length,
+    countedShifts: counted.length,
+    orders: sum(shifts, (shift) => shift.orders),
+    openingCash: toMoney(sum(shifts, (shift) => shift.openingCash)),
+    expectedCash: toMoney(sum(shifts, (shift) => shift.expectedCash)),
+    countedCash: counted.length ? toMoney(sum(counted, (shift) => shift.closingCash)) : null,
+    cashDifference: counted.length ? toMoney(sum(counted, (shift) => shift.cashDifference)) : null,
   };
 };
 
