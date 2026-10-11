@@ -52,6 +52,13 @@ export const __clearShiftColumnCache = () => TABLE_COLUMN_CACHE.clear();
 /** Only for adding up figures the shift rows already carry; an unreadable one adds nothing. */
 const addable = (value) => toFiniteNumber(value) ?? 0;
 
+/** A payment split with nothing in it — the shape, so the screen never branches on null. */
+const EMPTY_MIX = () => ({
+  rows: [],
+  totals: { collected: 0, pending: 0, credit: 0, unattributed: 0, all: 0 },
+  netSales: null,
+});
+
 /**
  * The shift rows themselves. `closing_cash` and `actual_cash` are the same figure stored
  * twice (the second is the older column), so the newer one wins and the older one fills
@@ -210,12 +217,16 @@ export const getShiftsReport = async ({ filters, permissions = {}, client = db }
     orders: 0,
     netSales: 0,
     share: null,
-    payments: { rows: [], totals: { collected: 0, pending: 0, credit: 0, unattributed: 0, all: 0 }, netSales: null },
+    payments: EMPTY_MIX(),
   }));
+
+  // The window's split across payment methods, in the same shape the overview's payment
+  // mix card renders, so the screen draws it with the same component.
+  let totals = EMPTY_MIX();
 
   if (!shifts.length) {
     return {
-      data: { kpis: buildKpis([]), shifts: [] },
+      data: { kpis: buildKpis([]), shifts: [], totals },
       meta: { window: { from: filters.windowStart, to: filters.windowEnd }, truncated: false },
       warnings: collector.list(),
     };
@@ -258,13 +269,23 @@ export const getShiftsReport = async ({ filters, permissions = {}, client = db }
       shift.payments = assemblePaymentMix({ rows: entry.mix, netSales: shift.netSales, collector });
     }
 
+    /*
+     * The window's own payment split, across every shift in it.
+     *
+     * Built by handing the SAME assembler the SAME raw rows, concatenated — not by adding
+     * up the per-shift results. Re-adding rounded shift totals would drift from the
+     * period's own payment-mix card by a piastre here and there, and a manager comparing
+     * the two screens would be right to distrust both.
+     */
+    const allRows = [...byShift.values()].flatMap((entry) => entry.mix);
+    totals = assemblePaymentMix({ rows: allRows, netSales: null, collector });
+
     // What share of the window each session took. Computed here rather than on the
     // screen, so the percentage and the amount beside it come from one place — and null
     // rather than 0% when the whole window took nothing, because a share of nothing is
     // not a share.
-    const windowTotal = shifts.reduce((sum, shift) => sum + addable(shift.payments?.totals?.all), 0);
     for (const shift of shifts) {
-      shift.share = safeRatio(toFiniteNumber(shift.payments?.totals?.all), windowTotal);
+      shift.share = safeRatio(toFiniteNumber(shift.payments?.totals?.all), totals.totals.all);
     }
   } else {
     collector.add(
@@ -275,7 +296,7 @@ export const getShiftsReport = async ({ filters, permissions = {}, client = db }
   }
 
   return {
-    data: { kpis: buildKpis(shifts), shifts },
+    data: { kpis: buildKpis(shifts), shifts, totals },
     meta: {
       window: { from: filters.windowStart, to: filters.windowEnd },
       // Named rather than silently cut: a reader whose window held more shifts than this

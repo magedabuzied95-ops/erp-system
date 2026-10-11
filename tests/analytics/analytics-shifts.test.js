@@ -177,6 +177,36 @@ test("each shift's share of the window is the server's, and a window of nothing 
   assert.equal(empty.result.data.shifts[0].share, null, "a share of nothing is not 0%, it is unknown");
 });
 
+test("the period's own split is assembled from the rows, never by re-adding the shifts", async () => {
+  // Two shifts, each with cash and card. The period's card must merge across BOTH, and
+  // must do it from the raw rows: re-adding rounded shift totals drifts by piastres from
+  // the overview's payment-mix card, and a manager comparing the two would be right to
+  // distrust them both.
+  const { result } = await run({
+    shiftRows: [shiftRow(), shiftRow({ id: 8 })],
+    paymentRows: [
+      { shift_id: 7, method: "cash", amount: "1500.555", orders: 2, unusable: 0, shift_orders: 3, shift_net_sales: "2000.555" },
+      { shift_id: 7, method: "visa", amount: "500", orders: 1, unusable: 0, shift_orders: 3, shift_net_sales: "2000.555" },
+      { shift_id: 8, method: "cash", amount: "1000.444", orders: 1, unusable: 0, shift_orders: 2, shift_net_sales: "1200.444" },
+      { shift_id: 8, method: "card", amount: "200", orders: 1, unusable: 0, shift_orders: 2, shift_net_sales: "1200.444" },
+    ],
+  });
+
+  const { totals } = result.data;
+  const byMethod = (method) => totals.rows.find((row) => row.method === method);
+  assert.equal(byMethod("cash").amount, 2501, "1500.555 + 1000.444 rounded ONCE, not two roundings added");
+  assert.equal(byMethod("card").amount, 700, "visa and card merge across shifts too");
+  assert.equal(byMethod("cash").orders, 3);
+  assert.equal(totals.totals.all, 3201);
+  assert.equal(totals.totals.collected, 3201);
+});
+
+test("a period with no shift still carries the split's shape", async () => {
+  const { result } = await run({ shiftRows: [] });
+  assert.deepEqual(result.data.totals.rows, []);
+  assert.equal(result.data.totals.totals.all, 0, "the screen must not have to branch on a missing object");
+});
+
 /* --------------------------------------------------------------- what is refused */
 
 test("an open drawer has no counted cash and no difference, rather than a zero", async () => {

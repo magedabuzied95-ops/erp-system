@@ -215,6 +215,31 @@ html[data-theme="dark"] .manager-portal-shell :where([class*="text-slate-950"], 
   color: var(--text) !important;
 }
 
+/* NATIVE DATE / TIME PICKERS (the التقارير period picker).
+   A date input draws its own value, and the browser leaves it hugging the inline start
+   of a box that is much wider than `24 Sep 2026` — so in a centred, bordered control the
+   text sat off to one side and the boxes read as misaligned. `::-webkit-date-and-time-value`
+   is the only handle on that text; `text-align` on the input alone does nothing in
+   WebKit. */
+.manager-portal-shell :is(input[type="date"], input[type="time"], input[type="datetime-local"]) {
+  text-align: center;
+}
+
+.manager-portal-shell
+  :is(input[type="date"], input[type="time"], input[type="datetime-local"])::-webkit-date-and-time-value {
+  text-align: center;
+  margin-inline: auto;
+}
+
+/* The calendar and clock glyphs the browser paints are black by default, which is
+   invisible on the dark portal. `color-scheme` is the supported way to ask for the dark
+   set — a filter hack would also repaint the popup's own contents wrongly. */
+html[data-theme="dark"]
+  .manager-portal-shell
+  :is(input[type="date"], input[type="time"], input[type="datetime-local"]) {
+  color-scheme: dark;
+}
+
 .manager-portal-shell :where([class*="shadow-slate-"], [class*="shadow-xl"], [class*="shadow-2xl"]) {
   --tw-shadow-color: var(--shadow) !important;
 }

@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useTranslation } from "react-i18next";
 
-import { AlertTriangle, ChevronDown, Eye, EyeOff, Loader2, Lock, RefreshCw } from "lucide-react";
+import { AlertTriangle, ChevronDown, Eye, EyeOff, Loader2, Lock, RefreshCw, X } from "lucide-react";
 
 import { managerPortalApi } from "../services/managerPortalApi";
 import { formatMetricValue, formatMoney, formatPercentValue } from "../../reports/lib/metricFormat";
@@ -79,17 +79,24 @@ const TREND_SPEC = {
 const isoDay = (date) =>
   `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, "0")}-${String(date.getDate()).padStart(2, "0")}`;
 
-/** A clock reading the manager can read, on whatever locale the portal is in. */
+/**
+ * A clock reading the manager can read, in two pieces.
+ *
+ * Returned split rather than joined, and rendered inside `<bdi>` elements, because a
+ * single `25/09، 12:57 ص` string dropped into an Arabic sentence comes out reordered:
+ * the bidirectional algorithm resolves the leading digits against the paragraph, and the
+ * day jumps to the far end — the shift cards really did read `فتحت: /09، 12:57 ص25`.
+ * Two isolated runs, each labelled, cannot be reordered into nonsense.
+ */
 const formatStamp = (value, language) => {
   if (!value) return null;
   const date = new Date(value);
   if (Number.isNaN(date.getTime())) return null;
-  return new Intl.DateTimeFormat(language || "ar-EG", {
-    day: "2-digit",
-    month: "2-digit",
-    hour: "2-digit",
-    minute: "2-digit",
-  }).format(date);
+  const locale = language || "ar-EG";
+  return {
+    date: new Intl.DateTimeFormat(locale, { day: "2-digit", month: "2-digit" }).format(date),
+    time: new Intl.DateTimeFormat(locale, { hour: "2-digit", minute: "2-digit" }).format(date),
+  };
 };
 
 /** The series to draw, or null when there is nothing truthful to draw. */
@@ -373,6 +380,7 @@ export default function PortalReports({ token, canViewProfit = false }) {
       ) : section === "shifts" ? (
         <ShiftList
           shifts={payload?.shifts}
+          totals={data?.totals}
           truncated={Boolean(payload?.meta?.truncated)}
           language={language}
           t={t}
@@ -489,37 +497,72 @@ function rangeLabel(range) {
 function CustomRange({ draft, onChange, onApply, valid, t }) {
   if (!draft) return null;
 
-  const field = (label, type, key, placeholder) => (
-    <label className="flex min-w-0 flex-1 flex-col gap-1">
-      <span className="text-[10px] font-black text-text-muted">{label}</span>
+  /*
+   * One end of the window: its name on its own line, the date and the time side by side
+   * underneath.
+   *
+   * The name used to sit in a fixed column beside the two inputs, which left the date
+   * box about 120px wide on a phone — narrower than the `24 Sep 2026` a native picker
+   * writes into it, so the value was clipped and the row spilled past the card. Stacking
+   * the name gives each box half the card's full width, which fits with room to spare.
+   *
+   * The tracks are `minmax(0, …)` because a bare `1fr` grid track refuses to shrink below
+   * its child's min-content width, and a native date input's min-content is wide. With a
+   * plain `1fr` the row would overflow again on a narrow phone rather than sharing what
+   * space there is.
+   */
+  const end = (key, label) => {
+    const timeKey = `${key}Time`;
+    const time = draft[timeKey] || "";
+    const input = (type, field, aria) => (
       <input
         type={type}
-        value={draft[key] || ""}
-        onChange={(event) => onChange({ [key]: event.target.value })}
-        placeholder={placeholder}
-        className="w-full rounded-[var(--radius-control)] border border-border bg-surface-soft px-2 py-2 text-[13px] font-bold text-text outline-none"
+        value={draft[field] || ""}
+        onChange={(event) => onChange({ [field]: event.target.value })}
+        aria-label={`${label} — ${aria}`}
+        className="h-11 w-full min-w-0 rounded-[var(--radius-control)] border border-border bg-surface-soft px-2 text-center text-[13px] font-black text-text outline-none focus:border-[var(--primary)]"
       />
-    </label>
-  );
+    );
+
+    return (
+      <div>
+        <div className="mb-1.5 flex items-center justify-between gap-2">
+          <span className="text-[12px] font-black text-text">{label}</span>
+          {time ? (
+            // A native time picker has no obvious way back to "no time", and "no time"
+            // is a different window from midnight — so the way back is spelled out.
+            <button
+              type="button"
+              onClick={() => onChange({ [timeKey]: "" })}
+              className="flex shrink-0 items-center gap-1 rounded-full border border-border px-2 py-0.5 text-[10px] font-black text-text-muted"
+            >
+              <X className="h-3 w-3" />
+              {t("managerPortal.reports.custom.clearTime")}
+            </button>
+          ) : (
+            <span className="truncate text-[10px] font-bold text-text-muted">
+              {t(`managerPortal.reports.custom.${key === "from" ? "anyTime" : "anyTimeEnd"}`)}
+            </span>
+          )}
+        </div>
+        <div className="grid grid-cols-[minmax(0,1.35fr)_minmax(0,1fr)] gap-2">
+          {input("date", key, t("managerPortal.reports.custom.date"))}
+          {input("time", timeKey, t("managerPortal.reports.custom.time"))}
+        </div>
+      </div>
+    );
+  };
 
   return (
     <section className="rounded-[var(--radius-card)] border border-border bg-surface p-3 shadow-[var(--shadow-card)]">
-      <div className="mb-2 text-xs font-black text-text">{t("managerPortal.reports.custom.title")}</div>
+      <div className="mb-2.5 text-xs font-black text-text">{t("managerPortal.reports.custom.title")}</div>
 
-      <div className="space-y-2">
-        <div className="flex items-end gap-2">
-          <span className="w-8 shrink-0 pb-2.5 text-[11px] font-black text-text-muted">{t("managerPortal.reports.custom.from")}</span>
-          {field(t("managerPortal.reports.custom.date"), "date", "from")}
-          {field(t("managerPortal.reports.custom.anyTime"), "time", "fromTime")}
-        </div>
-        <div className="flex items-end gap-2">
-          <span className="w-8 shrink-0 pb-2.5 text-[11px] font-black text-text-muted">{t("managerPortal.reports.custom.to")}</span>
-          {field(t("managerPortal.reports.custom.date"), "date", "to")}
-          {field(t("managerPortal.reports.custom.anyTimeEnd"), "time", "toTime")}
-        </div>
+      <div className="space-y-3">
+        {end("from", t("managerPortal.reports.custom.from"))}
+        {end("to", t("managerPortal.reports.custom.to"))}
       </div>
 
-      <p className="mt-2 text-[10px] font-bold leading-4 text-text-muted">{t("managerPortal.reports.custom.hint")}</p>
+      <p className="mt-2.5 text-[10px] font-bold leading-4 text-text-muted">{t("managerPortal.reports.custom.hint")}</p>
       {valid ? null : (
         <p className="mt-1 text-[10px] font-black leading-4 text-rose-500">{t("managerPortal.reports.custom.invalid")}</p>
       )}
@@ -528,7 +571,7 @@ function CustomRange({ draft, onChange, onApply, valid, t }) {
         type="button"
         disabled={!valid}
         onClick={onApply}
-        className="mt-2 w-full rounded-[var(--radius-control)] bg-amber-500 px-3 py-2 text-sm font-black text-slate-950 disabled:opacity-60"
+        className="mt-2.5 w-full rounded-[var(--radius-control)] bg-amber-500 px-3 py-2.5 text-sm font-black text-slate-950 disabled:opacity-60"
       >
         {t("managerPortal.reports.custom.apply")}
       </button>
@@ -544,18 +587,26 @@ function CustomRange({ draft, onChange, onApply, valid, t }) {
  * invoice contributes to each of them — and the total is the server's own, not these rows
  * added up on the phone, so the card can never disagree with the report it came from.
  */
-function ShiftList({ shifts, truncated = false, language, t }) {
+function ShiftList({ shifts, totals, truncated = false, language, t }) {
   const rows = Array.isArray(shifts) ? shifts : [];
   if (!rows.length) return <Empty label={t("managerPortal.reports.shifts.empty")} />;
 
   return (
     <div className="space-y-2">
+      {/* The window's own split, above the sessions it is made of. With one shift on
+          screen it would just repeat that shift's card, so it waits for a second. */}
+      {rows.length > 1 && totals?.rows?.length ? (
+        <PortalCard title={t("managerPortal.reports.shifts.periodTotals")}>
+          <PaymentMixList paymentMix={totals} language={language} t={t} />
+        </PortalCard>
+      ) : null}
+
       <p className="px-1 text-[10px] font-bold leading-4 text-text-muted">{t("managerPortal.reports.shifts.note")}</p>
 
       {rows.map((shift) => (
         <section key={shift.id} className="rounded-[var(--radius-card)] border border-border bg-surface p-4 shadow-[var(--shadow-card)]">
           <div className="flex items-baseline justify-between gap-2">
-            <span className="truncate text-[13px] font-black text-text">{shift.cashier || "—"}</span>
+            <span className="min-w-0 truncate text-[13px] font-black text-text">{shift.cashier || "—"}</span>
             <span
               className={`shrink-0 rounded-full px-2 py-px text-[9px] font-black ${
                 shift.status === "open" ? "bg-amber-500/15 text-amber-500" : "border border-border text-text-muted"
@@ -565,17 +616,19 @@ function ShiftList({ shifts, truncated = false, language, t }) {
             </span>
           </div>
 
-          <div className="mt-1 flex flex-wrap items-baseline gap-x-3 gap-y-0.5 text-[11px] font-bold text-text-muted">
-            <span>
-              {t("managerPortal.reports.shifts.opened")}: <span className="tabular-nums text-text">{formatStamp(shift.openedAt, language) || "—"}</span>
-            </span>
-            <span>
-              {t("managerPortal.reports.shifts.closed")}:{" "}
-              <span className="tabular-nums text-text">
-                {shift.closedAt ? formatStamp(shift.closedAt, language) : t("managerPortal.reports.shifts.stillOpen")}
-              </span>
-            </span>
-            {shift.branchName ? <span>{shift.branchName}</span> : null}
+          {shift.branchName ? (
+            <div className="mt-0.5 truncate text-[11px] font-bold text-text-muted">{shift.branchName}</div>
+          ) : null}
+
+          {/* One clock per line. Crammed onto one wrapping line the two stamps ran into
+              each other and the digits re-ordered against the Arabic around them. */}
+          <div className="mt-2 space-y-1">
+            <Stamp label={t("managerPortal.reports.shifts.opened")} stamp={formatStamp(shift.openedAt, language)} />
+            <Stamp
+              label={t("managerPortal.reports.shifts.closed")}
+              stamp={formatStamp(shift.closedAt, language)}
+              fallback={t("managerPortal.reports.shifts.stillOpen")}
+            />
           </div>
 
           <ul className="mt-3 space-y-1.5 border-t border-border pt-2.5">
@@ -593,23 +646,23 @@ function ShiftList({ shifts, truncated = false, language, t }) {
               </li>
             ))}
             {(shift.payments?.rows || []).length ? null : (
-              <li className="text-[11px] font-bold text-text-muted">{t("managerPortal.reports.emptySection")}</li>
+              <li className="text-[11px] font-bold text-text-muted">{t("managerPortal.reports.shifts.noSales")}</li>
             )}
           </ul>
 
           <div className="mt-2 flex items-baseline justify-between gap-2 border-t border-border pt-2 text-[12px]">
             <span className="flex items-baseline gap-1.5">
               <span className="font-black text-text">{t("managerPortal.reports.shifts.total")}</span>
-              {shift.share === null || shift.share === undefined ? null : (
+              {shift.share ? (
                 <span className="text-[10px] font-black tabular-nums text-text-muted">{formatPercentValue(shift.share, language)}</span>
-              )}
+              ) : null}
             </span>
             <span className="text-[15px] font-black tabular-nums text-text">
               {formatMoney(shift.payments?.totals?.all, language) ?? "—"}
             </span>
           </div>
 
-          <div className="mt-2 grid grid-cols-2 gap-x-3 gap-y-1 text-[10px] font-bold text-text-muted">
+          <div className="mt-2 space-y-1 text-[10px] font-bold text-text-muted">
             <Line label={t("managerPortal.reports.shifts.orders")} value={formatNumber(shift.orders, language)} />
             <Line label={t("managerPortal.reports.shifts.openingCash")} value={formatMoney(shift.openingCash, language)} />
             <Line label={t("managerPortal.reports.shifts.expectedCash")} value={formatMoney(shift.expectedCash, language)} />
@@ -634,14 +687,36 @@ function ShiftList({ shifts, truncated = false, language, t }) {
   );
 }
 
+/**
+ * A labelled clock reading. The date and the time are separate `<bdi>` runs so neither
+ * can be re-ordered against the Arabic label beside them.
+ */
+function Stamp({ label, stamp, fallback = "—" }) {
+  return (
+    <div className="flex items-baseline justify-between gap-2 text-[11px] font-bold text-text-muted">
+      <span className="shrink-0">{label}</span>
+      {stamp ? (
+        // Date first, time second: in a flex row the first child sits where the reader
+        // starts, so this reads "25/09, 12:57 am" in Arabic and in English alike.
+        <span className="flex items-baseline gap-2 tabular-nums text-text">
+          <bdi>{stamp.date}</bdi>
+          <bdi className="font-black">{stamp.time}</bdi>
+        </span>
+      ) : (
+        <span className="text-text">{fallback}</span>
+      )}
+    </div>
+  );
+}
+
 function Line({ label, value, tone = "base" }) {
   return (
-    <span className="flex items-baseline justify-between gap-1">
+    <div className="flex items-baseline justify-between gap-2">
       <span>{label}</span>
-      <span className={`font-black tabular-nums ${tone === "bad" ? "text-rose-500" : tone === "good" ? "text-emerald-500" : "text-text"}`}>
+      <span className={`tabular-nums font-black ${tone === "bad" ? "text-rose-500" : tone === "good" ? "text-emerald-500" : "text-text"}`}>
         {value ?? "—"}
       </span>
-    </span>
+    </div>
   );
 }
 

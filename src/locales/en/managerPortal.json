@@ -882,12 +882,13 @@
       "to": "To",
       "date": "Date",
       "time": "Time",
-      "anyTime": "Start of day",
-      "anyTimeEnd": "End of day",
+      "anyTime": "Starts at the beginning of the day",
+      "anyTimeEnd": "Ends at the end of the day",
       "apply": "Apply",
       "hint": "Leave a time empty to count the whole day. A time in the “To” box stops the count exactly there.",
       "invalid": "Both a start and an end date are needed, and the end must come after the start.",
-      "summary": "From {{from}} to {{to}}"
+      "summary": "From {{from}} to {{to}}",
+      "clearTime": "Whole day"
     },
     "shifts": {
       "opened": "Opened",
@@ -902,7 +903,9 @@
       "difference": "Difference",
       "note": "A shift that opened inside the period is shown with its whole figures, even if it closed after the period ended.",
       "truncated": "There are more shifts than shown. Narrow the period to see them all.",
-      "empty": "No shift opened in this period."
+      "empty": "No shift opened in this period.",
+      "periodTotals": "Period total by payment method",
+      "noSales": "Nothing was sold on this shift."
     }
   }
 }
