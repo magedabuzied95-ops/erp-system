@@ -3701,6 +3701,11 @@ export default function AiInboxPwa({ portal = null } = {}) {
   const composerEditorRef = useRef(null);
   const pollRef = useRef(null);
   const restoreScrollStateRef = useRef(null);
+  // One <main> scrolls both screens. An open thread leaves it pinned to the
+  // bottom, so coming back used to drop the operator at the LAST conversation
+  // in the list instead of the one they just read. Remember where the list
+  // stood when a conversation was opened, and put it back on the way out.
+  const listScrollTopRef = useRef(0);
   const isLoadingOlderRef = useRef(false);
   const isHydratingConversationRef = useRef(false);
   const isAppendingNewMessageRef = useRef(false);
@@ -5730,6 +5735,7 @@ export default function AiInboxPwa({ portal = null } = {}) {
       const identifiers = conversationIdentifiers(conversation);
       const nextConversationId = clean(identifiers.conversationKey || identifiers.sessionId || identifiers.conversationId || "");
       if (!nextConversationId) return;
+      listScrollTopRef.current = Math.max(0, Math.round(mainScrollRef.current?.scrollTop || 0));
       restoreScrollStateRef.current = null;
       setComposerText("");
       updateUrlState({ nextConversationId, nextTab: "conversations" });
@@ -5762,6 +5768,48 @@ export default function AiInboxPwa({ portal = null } = {}) {
     window.addEventListener("popstate", onPopState);
     return () => window.removeEventListener("popstate", onPopState);
   }, [backToList, selectedConversation]);
+
+  // A different filter, tab or search is a different list: it starts at the top.
+  useEffect(() => {
+    listScrollTopRef.current = 0;
+  }, [accountFilter, favoriteFilter, filter, messagePlatformFilter, readFilter, search, tab]);
+
+  const conversationListScreen = isConversationMode && tab === "conversations" && !selectedConversation;
+  useLayoutEffect(() => {
+    if (!conversationListScreen) return undefined;
+    const target = listScrollTopRef.current;
+    const scroller = mainScrollRef.current;
+    if (!scroller || target <= 0) return undefined;
+
+    // The rows settle over a few frames (avatars, the sticky header height), so
+    // a single assignment lands short of where the operator was. Keep asking for
+    // the same offset until the list is tall enough to hold it - and stop the
+    // moment the operator scrolls themselves, so we never fight a finger.
+    let frame = 0;
+    let cancelled = false;
+    const deadline = Date.now() + 600;
+    const stop = () => {
+      cancelled = true;
+      if (frame) window.cancelAnimationFrame(frame);
+      frame = 0;
+    };
+    const apply = () => {
+      frame = 0;
+      if (cancelled) return;
+      const maxTop = Math.max(0, scroller.scrollHeight - scroller.clientHeight);
+      scroller.scrollTop = Math.min(target, maxTop);
+      if (maxTop < target && Date.now() < deadline) frame = window.requestAnimationFrame(apply);
+    };
+    apply();
+
+    scroller.addEventListener("wheel", stop, { passive: true });
+    scroller.addEventListener("touchstart", stop, { passive: true });
+    return () => {
+      stop();
+      scroller.removeEventListener("wheel", stop);
+      scroller.removeEventListener("touchstart", stop);
+    };
+  }, [conversationListScreen]);
 
   useEffect(() => {
     const sessionId = normalizeConversationSessionId(selectedConversation?.session_id, selectedConversation?.channel || selectedConversation?.source || selectedConversation?.provider || selectedConversation?.platform || "");
