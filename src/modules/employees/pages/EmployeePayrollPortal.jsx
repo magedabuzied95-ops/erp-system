@@ -3915,7 +3915,7 @@ export default function EmployeePayrollPortal() {
   return (
     <main dir={direction} className="employee-portal-shell employee-portal-min-screen overflow-x-hidden bg-background px-3 pb-[calc(128px+env(safe-area-inset-bottom))] text-text">
       <ChatRingOverlay ring={chatRing.incoming} onAnswer={answerRingAndOpenChat} onReply={answerRingAndOpenChat} onDismiss={chatRing.dismissIncoming} />
-      <div className="mx-auto w-full max-w-md md:max-w-3xl xl:max-w-5xl">
+      <div className="mx-auto w-full md:max-w-3xl xl:max-w-5xl">
         <header className="flex items-center justify-between gap-3 py-0.5">
           <div className="flex items-center gap-2 text-sm font-black text-text">
             <ShieldCheck className="h-4 w-4 text-success" />
@@ -4581,7 +4581,7 @@ export default function EmployeePayrollPortal() {
               />
             ) : null}
 
-            <nav className={`fixed inset-x-3 bottom-[calc(env(safe-area-inset-bottom)+12px)] z-40 mx-auto grid max-w-md ${NAV_GRID_COLUMNS[mobileTabs.length] || "grid-cols-7"} gap-1 rounded-[var(--radius-card)] border border-border bg-surface/95 p-1.5 shadow-[var(--shadow-card)] backdrop-blur`}>
+            <nav className={`fixed inset-x-3 bottom-[calc(env(safe-area-inset-bottom)+12px)] z-40 mx-auto grid md:max-w-md ${NAV_GRID_COLUMNS[mobileTabs.length] || "grid-cols-7"} gap-1 rounded-[var(--radius-card)] border border-border bg-surface/95 p-1.5 shadow-[var(--shadow-card)] backdrop-blur`}>
               {mobileTabs.map(([key, label, Icon]) => (
                 <button
                   key={key}
