@@ -1963,14 +1963,18 @@ export default function EmployeePortalInventory() {
         @media (prefers-reduced-motion: reduce) {
           .employee-portal-inventory .inventory-color-card--flash { animation: none; }
         }
-        /* The send button follows the thumb through a long count. */
+        /* The send button follows the thumb through a long count. The fade hides
+           the rows scrolling under it, so it has to end on the colour it is
+           actually drawn on: the bar lives INSIDE the white <main> panel, not on
+           the page background. Fading to --bg painted a beige wash across the
+           panel and left a beige strip under the two buttons. */
         .employee-portal-inventory .inventory-send-bar {
           position: sticky;
           bottom: 0;
           z-index: 20;
           margin: 0 -2px;
           padding: 8px 2px calc(8px + env(safe-area-inset-bottom, 0px));
-          background: linear-gradient(180deg, transparent 0%, color-mix(in srgb, var(--bg) 92%, transparent) 42%, var(--bg) 100%);
+          background: linear-gradient(180deg, transparent 0%, color-mix(in srgb, var(--surface) 92%, transparent) 42%, var(--surface) 100%);
         }
         /* The count header follows the sizes so progress and the sync state are
            always one glance away. */
