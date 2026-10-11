@@ -240,6 +240,27 @@ html[data-theme="dark"] .manager-portal-shell :where([class*="text-slate-950"], 
    WebKit. */
 .manager-portal-shell :is(input[type="date"], input[type="time"], input[type="datetime-local"]) {
   text-align: center;
+  /* These controls carry an intrinsic width — the longest value plus the browser's own
+     glyph — and will not go below it while they are in flow, so in a narrow grid track
+     they spill over the gap and paint on top of the control beside them. The period
+     picker positions them absolutely, which removes the problem at the root; these two
+     are the belt and braces for anywhere else that puts one in a tight row. */
+  min-width: 0;
+  max-width: 100%;
+}
+
+/* The period picker's own two fields. The wrapper around each one draws the border, the
+   background and the radius, so the control itself is stripped back to text: dropping the
+   native appearance is what stops iOS Safari imposing its own box, which is the version
+   of this control that will not shrink at all. The blanket input background a few rules
+   up has to be overridden by name, or it would paint over the wrapper it sits inside. */
+.manager-portal-shell .manager-portal-period-field {
+  -webkit-appearance: none;
+  appearance: none;
+  background: transparent !important;
+  border: 0 !important;
+  width: 100%;
+  min-width: 0;
 }
 
 .manager-portal-shell

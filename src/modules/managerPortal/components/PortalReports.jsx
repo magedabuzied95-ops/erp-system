@@ -528,20 +528,29 @@ function CustomRange({ draft, onChange, onApply, valid, t }) {
    * no value the box says what blank MEANS, over an opaque panel that also covers the
    * `--:--` other browsers draw there. `pointer-events-none` keeps the tap on the input,
    * so the native picker still opens from anywhere in the box.
+   *
+   * THE INPUT IS OUT OF FLOW, and that is load-bearing rather than tidy. A native date
+   * input carries an intrinsic width — "5 Oct 2026" plus the browser's own picker glyph —
+   * and as a grid item it refuses to go below it: the track shrinks, the control does
+   * not, and it spills over the gap and sits ON TOP of the box beside it. That is exactly
+   * what the date box was doing to the time box. `position: absolute` takes the control
+   * out of the grid's sizing entirely, so its width comes from this wrapper and nothing
+   * else; the wrapper is the visible box, and `overflow-hidden` on it means that even a
+   * control that somehow grew would be clipped rather than painted over its neighbour.
    */
   const box = (type, field, { aria, empty, icon: Icon }) => {
     const value = draft[field] || "";
     return (
-      <div className="relative min-w-0">
+      <div className="relative h-11 min-w-0 overflow-hidden rounded-[var(--radius-control)] border border-border bg-surface-soft focus-within:border-[var(--primary)]">
         <input
           type={type}
           value={value}
           onChange={(event) => onChange({ [field]: event.target.value })}
           aria-label={aria}
-          className="h-11 w-full min-w-0 rounded-[var(--radius-control)] border border-border bg-surface-soft px-2 text-center text-[13px] font-black text-text outline-none focus:border-[var(--primary)]"
+          className="manager-portal-period-field absolute inset-0 h-full w-full border-0 bg-transparent px-2 text-center text-[13px] font-black text-text outline-none"
         />
         {value ? null : (
-          <span className="pointer-events-none absolute inset-px flex items-center justify-center gap-1 rounded-[var(--radius-control)] bg-surface-soft px-1.5 text-[11px] font-bold text-text-muted">
+          <span className="pointer-events-none absolute inset-0 flex items-center justify-center gap-1 bg-surface-soft px-1.5 text-[11px] font-bold text-text-muted">
             <Icon className="h-3.5 w-3.5 shrink-0" />
             <span className="truncate">{empty}</span>
           </span>
