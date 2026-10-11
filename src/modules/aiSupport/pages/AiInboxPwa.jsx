@@ -5779,8 +5779,11 @@ export default function AiInboxPwa({ portal = null } = {}) {
     if (!conversationListScreen) return undefined;
     const target = listScrollTopRef.current;
     const scroller = mainScrollRef.current;
-    if (!scroller || target <= 0) return undefined;
+    if (!scroller) return undefined;
 
+    // Zero is a position like any other, and the one most threads are opened
+    // from: skipping it left the shared scroller wherever the thread had
+    // parked it, which dropped the operator into the middle of the list.
     // The rows settle over a few frames (avatars, the sticky header height), so
     // a single assignment lands short of where the operator was. Keep asking for
     // the same offset until the list is tall enough to hold it - and stop the
