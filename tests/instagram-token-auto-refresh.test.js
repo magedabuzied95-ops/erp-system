@@ -29,7 +29,9 @@ const decryptStored = (value = "") => {
 import db from "../server/database/db.js";
 import {
   getMetaIntegrationStatus,
+  removeInstagramBusinessAccessToken,
   runInstagramTokenAutoRefreshScan,
+  saveInstagramBusinessAccessToken,
 } from "../server/services/metaIntegrationService.js";
 
 const realQuery = db.query.bind(db);
@@ -205,6 +207,45 @@ test("a forced run renews a token that is nowhere near expiry", async () => {
 
   assert.equal(summary.refreshed, 1);
   assert.equal(requests.length, 1);
+});
+
+// A reconnect is the one moment the alarm MUST be able to ring again: if the
+// new token does not take, the 20-hour mute from the old alarm would hide it
+// for exactly the day you are watching.
+test("pasting a new token clears the old alarm and the stale failure reason", async () => {
+  const statements = stubPool(
+    baseRow({
+      instagram_token_status: "error",
+      instagram_token_refresh_error: "Session has expired",
+      instagram_token_alert_sent_at: new Date().toISOString(),
+    })
+  );
+  stubFetch((url) =>
+    url.includes("/me")
+      ? jsonResponse({ id: "178", user_id: "178", username: "m1store_egy", account_type: "BUSINESS" })
+      : jsonResponse({ success: true })
+  );
+
+  await saveInstagramBusinessAccessToken({ tenantId: 1, accessToken: "IG-TOKEN-FRESH" });
+
+  const saved = writesTo(statements, "instagram_access_token_encrypted = $4");
+  assert.equal(saved.length, 1, "the token save statement is gone");
+  assert.match(saved[0].text, /instagram_token_alert_sent_at = NULL/, "the old alarm would mute the next one for 20 hours");
+  assert.match(saved[0].text, /instagram_token_refresh_error = ''/, "a dead token's reason would survive onto a healthy one");
+});
+
+test("removing the token clears its health trail", async () => {
+  const statements = stubPool(
+    baseRow({ instagram_token_refresh_error: "Session has expired", instagram_token_alert_sent_at: new Date().toISOString() })
+  );
+
+  await removeInstagramBusinessAccessToken({ tenantId: 1 }).catch(() => {});
+
+  const cleared = writesTo(statements, "instagram_token_status = 'missing'");
+  assert.equal(cleared.length, 1);
+  assert.match(cleared[0].text, /instagram_token_alert_sent_at = NULL/);
+  assert.match(cleared[0].text, /instagram_token_refresh_error = ''/);
+  assert.match(cleared[0].text, /instagram_token_refreshed_at = NULL/);
 });
 
 // The whole outage came from a scheduler that ran daily and never looked at

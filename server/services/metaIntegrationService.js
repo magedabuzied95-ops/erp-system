@@ -11474,6 +11474,11 @@ export const saveInstagramBusinessAccessToken = async ({ tenantId, accessToken =
         instagram_token_expires_at = $5::timestamptz,
         instagram_token_status = 'active',
         instagram_token_last_validated_at = NOW(),
+        -- A fresh token starts with a clean slate. Leaving the old alarm's
+        -- timestamp here would mute the next alert for 20 hours — exactly the
+        -- window where a reconnect that did not take must be heard about.
+        instagram_token_refresh_error = '',
+        instagram_token_alert_sent_at = NULL,
         instagram_webhook_subscribed = $6,
         instagram_enabled = TRUE,
         instagram_dm_enabled = TRUE,
@@ -11508,6 +11513,9 @@ export const removeInstagramBusinessAccessToken = async ({ tenantId } = {}) => {
         instagram_token_expires_at = NULL,
         instagram_token_status = 'missing',
         instagram_token_last_validated_at = NULL,
+        instagram_token_refreshed_at = NULL,
+        instagram_token_refresh_error = '',
+        instagram_token_alert_sent_at = NULL,
         instagram_webhook_subscribed = FALSE,
         updated_at = NOW()
     WHERE tenant_id = $1
