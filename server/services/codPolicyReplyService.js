@@ -1,7 +1,7 @@
 import { governorateOptions, normalizeCodPolicy, resolveCodPolicy, resolveGovernorateId } from "../../shared/codPolicy.js";
 import { getSetting } from "./settingsService.js";
 import { loadCodPolicySettings, resolveStorefrontShippingQuote } from "./storefrontShippingService.js";
-import { confirmationFeeExempt as orderIsConfirmationFeeExempt } from "../modules/shipping/shippingFeeAdvance.js";
+import { confirmationFeeExempt as orderIsConfirmationFeeExempt, shippingFeeAdvanceWaived } from "../modules/shipping/shippingFeeAdvance.js";
 
 // What the customer is TOLD about the closing system, in one place: the AI's "how do I
 // pay" answer, its order summaries and confirmations, and the WhatsApp confirmation
@@ -87,9 +87,11 @@ export const buildShippingFeeAdvanceNotice = ({ policy, governorate = "", govern
   ].join("\n");
 };
 
-export const shippingFeeAdvanceNoticeFor = async ({ governorate = "", governorateId = "", shippingFee = 0, orderTotal = 0, compact = false, paymentCardFollows = false, confirmationFeeExempt = false } = {}) => {
+// `policy` is for a caller that already holds the loaded settings (and for tests, which then
+// need no database); everything in production leaves it out and the settings are loaded here.
+export const shippingFeeAdvanceNoticeFor = async ({ governorate = "", governorateId = "", shippingFee = 0, orderTotal = 0, compact = false, paymentCardFollows = false, confirmationFeeExempt = false, policy: givenPolicy = null } = {}) => {
   try {
-    const policy = await loadCodPolicySettings();
+    const policy = givenPolicy || (await loadCodPolicySettings());
     if (normalizeCodPolicy(policy).mode !== "restricted") return "";
     const transfer = compact || paymentCardFollows ? {} : await loadTransferDetails();
     return buildShippingFeeAdvanceNotice({ policy, governorate, governorateId, shippingFee, orderTotal, transfer, compact, paymentCardFollows, confirmationFeeExempt });
@@ -114,8 +116,11 @@ export const shippingFeeAdvanceNoticeForAddress = async ({ governorate = "", sub
   }
 };
 
-export const shippingFeeAdvanceNoticeForOrder = (order = {}, options = {}) =>
-  shippingFeeAdvanceNoticeFor({
+export const shippingFeeAdvanceNoticeForOrder = async (order = {}, options = {}) => {
+  // Staff waived this one ("اشحن من غير تحويل"): the confirmation request, the payment card and
+  // the AI all stop asking for money the order no longer owes.
+  if (shippingFeeAdvanceWaived(order)) return "";
+  return shippingFeeAdvanceNoticeFor({
     governorate: order.governorate || order.shipping_city_name_ar || order.shipping_city_name_en || "",
     governorateId: order.governorate_id || "",
     shippingFee: order.shipping_fee ?? order.delivery_fee ?? order.shipping_cost ?? 0,
@@ -124,6 +129,7 @@ export const shippingFeeAdvanceNoticeForOrder = (order = {}, options = {}) =>
     confirmationFeeExempt: orderIsConfirmationFeeExempt(order),
     ...options,
   });
+};
 
 /** The "how do I pay / is COD available" answer while the restricted system is on; "" otherwise. */
 export const buildRestrictedCodFaqAnswer = ({ policy, transfer = {} } = {}) => {

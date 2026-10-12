@@ -32,28 +32,46 @@ export const confirmationFeeExempt = (order = {}) =>
   || Boolean(exchangeParcelContextOf(order));
 
 export const DEPOSIT_REQUEST_TIMELINE_ACTION = "deposit_requested";
+export const SHIPPING_FEE_WAIVED_TIMELINE_ACTION = "shipping_fee_waived";
 
 /**
- * A deposit staff asked for by hand, kept on the order's timeline so it needs no column of its
- * own (production takes no runtime DDL). The newest ask wins, and anything already paid retires
- * it — the closing system never demanded this money, a person did.
+ * What a person decided about this order's advance, kept on the order's timeline so neither
+ * decision needs a column of its own (production takes no runtime DDL): a deposit staff asked
+ * for by hand, or a waiver — this customer ships now and the courier collects everything at
+ * the door. The NEWEST entry wins, so asking for a deposit after a waiver asks again, and
+ * waiving after an ask drops the ask. Null when nobody touched it and the closing system alone
+ * decides.
  */
-export const requestedDepositAmount = (order = {}) => {
+const advanceOverrideOf = (order = {}) => {
   const timeline = Array.isArray(order.timeline) ? order.timeline : [];
   for (let index = timeline.length - 1; index >= 0; index -= 1) {
-    const entry = timeline[index] || {};
-    if (text(entry.action) !== DEPOSIT_REQUEST_TIMELINE_ACTION) continue;
-    const asked = money(entry.amount);
-    const total = orderTotal(order);
-    return total > 0 ? Math.min(asked, total) : asked;
+    const action = text(timeline[index]?.action);
+    if (action === SHIPPING_FEE_WAIVED_TIMELINE_ACTION) return { waived: true, amount: 0 };
+    if (action === DEPOSIT_REQUEST_TIMELINE_ACTION) {
+      const asked = money(timeline[index]?.amount);
+      const total = orderTotal(order);
+      return { waived: false, amount: total > 0 ? Math.min(asked, total) : asked };
+    }
   }
-  return 0;
+  return null;
 };
 
+/** A deposit staff asked for; 0 when they asked for none, or waived the advance afterwards. */
+export const requestedDepositAmount = (order = {}) => {
+  const override = advanceOverrideOf(order);
+  return override && !override.waived ? override.amount : 0;
+};
+
+/** Staff said this one ships without the advance the closing system asks for. */
+export const shippingFeeAdvanceWaived = (order = {}) => advanceOverrideOf(order)?.waived === true;
+
 /**
- * status: "not_required" | "awaiting_payment" | "awaiting_review" | "paid"
+ * status: "not_required" | "awaiting_payment" | "awaiting_review" | "paid" | "waived"
  * `awaiting_review` is a transfer the customer says they made (a screenshot) that no
  * one has approved yet — it does not open the gate.
+ * `waived` is staff skipping the advance for this order: nothing is owed up front and no
+ * money is recorded, so every screen, badge and customer message goes quiet while the
+ * courier still collects the full amount (see `waiveShippingFeeAdvance`).
  */
 export const describeShippingFeeAdvance = ({ order = {}, city = null, policy } = {}) => {
   const shippingFee = orderShippingFee(order);
@@ -66,7 +84,11 @@ export const describeShippingFeeAdvance = ({ order = {}, city = null, policy } =
     confirmationFeeExempt: confirmationFeeExempt(order),
   });
   const paid = money(order.paid_amount);
-  const deposit = requestedDepositAmount(order);
+  const override = advanceOverrideOf(order);
+  // Waived: no money changed hands and none is owed before the parcel leaves. Reported as its
+  // own status rather than "not_required" so a screen can say WHY the fee card is gone.
+  if (override?.waived) return { required: false, status: "waived", waived: true, amount: 0, paid_amount: paid };
+  const deposit = override ? override.amount : 0;
   // The policy asks for the shipping fee; a person can ask for more (or ask at all, under the
   // open system). Whichever is larger is what this order owes before it moves.
   const amount = Math.max(cod.cod_allowed ? 0 : cod.advance_amount, deposit);
@@ -151,6 +173,79 @@ export const markShippingFeePaid = async ({ orderId, tenantId = null, method = "
       [order.id, nextPaid, remaining, paymentMethod, text(proofPath), text(reference), userId, timelineEntry]
     );
     if (ownsClient) await client.query("COMMIT");
+    return result.rows[0];
+  } catch (error) {
+    if (ownsClient) await client.query("ROLLBACK").catch(() => {});
+    throw error;
+  } finally {
+    if (ownsClient) client.release();
+  }
+};
+
+/**
+ * "اشحن من غير تحويل": skip the advance on ONE order — a customer the owner trusts, or one who
+ * settled it off the books. The exact opposite of markShippingFeePaid, which records money and
+ * therefore LOWERS what the courier collects: that is the one thing that must not happen here.
+ * Nothing is added to paid_amount, nothing is marked verified, no receipt is sent to the
+ * customer; cod_amount is rewritten to everything still owed, so the parcel leaves carrying the
+ * full collection. The order stays where it is in the flow — money only, like its opposite.
+ */
+export const waiveShippingFeeAdvance = async ({ orderId, tenantId = null, note = "", actorName = "", source = "orders", policy: givenPolicy = null, client: givenClient = null } = {}) => {
+  const client = givenClient || (await db.connect());
+  const ownsClient = !givenClient;
+  try {
+    if (ownsClient) await client.query("BEGIN");
+    const locked = await client.query(
+      `SELECT * FROM orders WHERE id = $1 AND ($2::bigint IS NULL OR tenant_id = $2::bigint OR tenant_id IS NULL) FOR UPDATE`,
+      [orderId, tenantId]
+    );
+    const order = locked.rows[0];
+    if (!order) throw httpError(404, "order_not_found", "Order not found");
+    if (["cancelled", "canceled", "returned", "delivered"].includes(text(order.status).toLowerCase())) {
+      throw httpError(409, "ORDER_LOCKED", "الأوردر ده مقفول.");
+    }
+    if (shippingFeeAdvanceWaived(order)) throw httpError(409, "ALREADY_WAIVED", "المقدّم متخطّي على الأوردر ده خلاص.");
+    const policy = givenPolicy || (await (await import("../../services/storefrontShippingService.js")).loadCodPolicySettings());
+    const advance = describeShippingFeeAdvance({ order, policy });
+    if (advance.status === "paid") throw httpError(409, "ALREADY_PAID", "الأوردر ده دفع المقدّم خلاص، مفيش حاجة تتخطّى.");
+    if (!advance.required) throw httpError(409, "ADVANCE_NOT_REQUIRED", "الأوردر ده مش مطلوب منه مقدّم.");
+    const total = orderTotal(order);
+    // Everything still owed goes on the parcel. On a website order the checkout had already
+    // taken the fee off (cod_amount = total - fee) in the expectation of a transfer that is
+    // now never coming, so this line is what stops the fee being lost at the door.
+    const owed = Math.max(0, money(total - money(order.paid_amount)));
+    // Bosta keeps the amount it was booked with, so raising the collection after the parcel
+    // exists would promise money nobody collects (mirrors FULL_PAYMENT_AFTER_SHIPMENT).
+    const booked = text(order.tracking_number || order.shipping_tracking_number || order.shipping_provider_delivery_id);
+    if (booked && Math.abs(owed - money(order.cod_amount)) > 0.009) {
+      throw httpError(409, "WAIVE_AFTER_SHIPMENT", "الشحنة محجوزة بمبلغ تحصيل أقل، عدّل التحصيل من الشحنة نفسها.");
+    }
+    const timelineEntry = JSON.stringify([{
+      action: SHIPPING_FEE_WAIVED_TIMELINE_ACTION,
+      status: text(order.status),
+      note: text(note),
+      source,
+      actor: actorName,
+      label: advance.kind === "confirmation_fee" ? "تخطّي رسوم تأكيد الأوردر" : "تخطّي رسوم الشحن",
+      // What was skipped, for the record. Read by nothing: only a deposit ask carries a
+      // demand, and this entry retires that ask rather than making one.
+      amount: advance.amount,
+      at: new Date().toISOString(),
+    }]);
+    const result = await client.query(
+      `
+      UPDATE orders
+      SET cod_amount = $2,
+          remaining_amount = $2,
+          timeline = COALESCE(timeline, '[]'::jsonb) || $3::jsonb,
+          updated_at = NOW()
+      WHERE id = $1
+      RETURNING *
+      `,
+      [order.id, owed, timelineEntry]
+    );
+    if (ownsClient) await client.query("COMMIT");
+    console.info("[shipping-fee-advance] waived", { orderId: order.id, skipped: advance.amount, collect_on_delivery: owed, source, actor: actorName });
     return result.rows[0];
   } catch (error) {
     if (ownsClient) await client.query("ROLLBACK").catch(() => {});

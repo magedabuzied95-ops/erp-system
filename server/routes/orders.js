@@ -28,6 +28,7 @@ import {
   archiveOrder,
   confirmShippingPayment,
   markOrderShippingFeePaid,
+  skipOrderShippingFeeAdvance,
   cancelOrder,
   deleteOrder,
   editOrder,
@@ -218,6 +219,15 @@ router.post(
     return next();
   }),
   markOrderShippingFeePaid
+);
+
+// The opposite of shipping-fee-paid: ship without the advance, and WITHOUT recording money
+// (so the courier still collects the full amount).
+router.post(
+  "/:id/shipping-fee-waived",
+  protect,
+  permit("orders", "edit"),
+  skipOrderShippingFeeAdvance
 );
 
 router.post(

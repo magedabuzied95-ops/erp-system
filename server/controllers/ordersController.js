@@ -12,7 +12,7 @@ import { adjustVariantStock, recordInventoryMovement } from "../services/invento
 import { createJournalEntry, ensureAccountingSchema, getCurrentCashDrawerShift, logAccountingAudit, postSaleEntry, postReturnEntry, postWalletLiabilityEntry, recordCashDrawerEvent, recordFinancialAccountActivity, resolveFinancialAccountForPayment, reverseMoneyTransactionsForReference } from "../services/accountingService.js";
 import { applyTransferPaymentConfirmation } from "../modules/walletTransfers/transferPaymentConfirmation.js";
 import { isWhatsappNumberMissingError, WHATSAPP_NUMBER_MISSING_MESSAGE } from "../utils/whatsappNotOnNumber.js";
-import { describeShippingFeeAdvance, markShippingFeePaid } from "../modules/shipping/shippingFeeAdvance.js";
+import { describeShippingFeeAdvance, markShippingFeePaid, waiveShippingFeeAdvance } from "../modules/shipping/shippingFeeAdvance.js";
 import { notifyPaymentProofApproved, sendShippingFeePaymentRequest } from "../modules/shipping/paymentProofLink.js";
 import { DELIVERED_CLOSES_CONFIRMATION_SQL } from "../modules/shipping/shipping.settlements.service.js";
 import { editedOnlineOrderPaymentMethod, isOnlineShippingOrder } from "../modules/shipping/onlineOrderSql.js";
@@ -6533,6 +6533,26 @@ export const markOrderShippingFeePaid = async (req, res) => {
     const status = error.status || 500;
     if (status >= 500) console.error("[orders.shipping-fee-paid] failed", { orderId: req.params.id, message: error?.message });
     return res.status(status).json({ success: false, code: error.code, message: error.message || "Failed to record the shipping payment" });
+  }
+};
+
+// "اشحن من غير تحويل": skip the advance for a customer we trust. No money is recorded and no
+// receipt goes out — the courier simply collects the whole amount at the door.
+export const skipOrderShippingFeeAdvance = async (req, res) => {
+  try {
+    const tenantId = isSuperAdminUser(req.user) ? null : getTenantId(req, req.user?.tenant_id);
+    const order = await waiveShippingFeeAdvance({
+      orderId: req.params.id,
+      tenantId,
+      note: String(req.body?.note || "").trim(),
+      actorName: String(req.user?.name || req.user?.full_name || req.user?.email || "").trim(),
+      source: "orders",
+    });
+    return res.json({ success: true, order });
+  } catch (error) {
+    const status = error.status || 500;
+    if (status >= 500) console.error("[orders.shipping-fee-waived] failed", { orderId: req.params.id, message: error?.message });
+    return res.status(status).json({ success: false, code: error.code, message: error.message || "Failed to skip the shipping advance" });
   }
 };
 

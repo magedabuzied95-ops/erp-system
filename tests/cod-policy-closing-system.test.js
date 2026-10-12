@@ -143,8 +143,8 @@ test("checkout stores a shipping-fee transfer as unpaid with the goods left to c
 });
 
 // ---- staff + AI side (2026-09-15)
-import { describeShippingFeeAdvance } from "../server/modules/shipping/shippingFeeAdvance.js";
-import { buildShippingFeeAdvanceNotice, buildRestrictedCodFaqAnswer } from "../server/services/codPolicyReplyService.js";
+import { describeShippingFeeAdvance, requestedDepositAmount, shippingFeeAdvanceWaived, waiveShippingFeeAdvance } from "../server/modules/shipping/shippingFeeAdvance.js";
+import { buildShippingFeeAdvanceNotice, buildRestrictedCodFaqAnswer, shippingFeeAdvanceNoticeForOrder } from "../server/services/codPolicyReplyService.js";
 import { buildCodOrderConfirmationMessage } from "../server/utils/orderConfirmationMessage.js";
 import { portalOrderActionsFor, shippingFeeAdvanceState } from "../src/shared/components/portalOnlineOrders/portalOrderActions.js";
 import { runPortalOrderAction } from "../server/modules/shipping/shipping.portal.actions.js";
@@ -185,6 +185,90 @@ test("the board offers تم دفع الشحن instead of the Bosta button while 
   const paid = { ...awaiting, money: { shipping_fee_advance: { required: true, status: "paid", amount: 90 } } };
   assert.deepEqual(portalOrderActionsFor(paid), ["ready_to_ship", "create_shipment"]);
   assert.equal(shippingFeeAdvanceState({ money: { shipping_fee_advance: { required: false } } }), null);
+});
+
+/*
+ * Skipping the advance ("اشحن من غير تحويل"). The whole point is that it is NOT the
+ * paid button: no money is recorded, so what the courier collects must stay whole.
+ */
+test("a waived order owes nothing up front, and the newest decision wins", () => {
+  const base = { governorate: "Cairo", shipping_fee: 90, total_amount: 1940, paid_amount: 0 };
+  const waived = { ...base, timeline: [{ action: "shipping_fee_waived", at: "2026-10-12T09:00:00.000Z" }] };
+  const advance = describeShippingFeeAdvance({ order: waived, policy: restricted });
+  assert.equal(advance.required, false);
+  assert.equal(advance.status, "waived");
+  assert.equal(advance.amount, 0);
+  assert.equal(shippingFeeAdvanceWaived(waived), true);
+  // A deposit asked for after the waiver asks again; waiving after an ask drops the ask.
+  const askedAgain = { ...base, timeline: [...waived.timeline, { action: "deposit_requested", amount: 500 }] };
+  assert.equal(describeShippingFeeAdvance({ order: askedAgain, policy: restricted }).amount, 500);
+  assert.equal(requestedDepositAmount(askedAgain), 500);
+  const waivedAgain = { ...base, timeline: [{ action: "deposit_requested", amount: 500 }, { action: "shipping_fee_waived" }] };
+  assert.equal(requestedDepositAmount(waivedAgain), 0);
+  assert.equal(describeShippingFeeAdvance({ order: waivedAgain, policy: restricted }).status, "waived");
+});
+
+test("waiving leaves the full amount on the parcel and records no payment", async () => {
+  const order = { id: 7, status: "confirmed", governorate: "Cairo", shipping_fee: 90, total_amount: 1940, paid_amount: 0, cod_amount: 1850, timeline: [] };
+  const statements = [];
+  const client = {
+    query: async (sql, params = []) => {
+      statements.push({ sql, params });
+      if (/FOR UPDATE/.test(sql)) return { rows: [order] };
+      return { rows: [{ ...order, cod_amount: params[1] }] };
+    },
+    release: () => {},
+  };
+  const updated = await waiveShippingFeeAdvance({ orderId: 7, policy: restricted, actorName: "Maged", client });
+  const update = statements.find((entry) => /UPDATE orders/.test(entry.sql));
+  // The checkout had taken the 90 off in the expectation of a transfer that never came.
+  assert.equal(update.params[1], 1940);
+  assert.equal(Number(updated.cod_amount), 1940);
+  assert.doesNotMatch(update.sql, /paid_amount/);
+  assert.doesNotMatch(update.sql, /transfer_proof_status/);
+  const entry = JSON.parse(update.params[2])[0];
+  assert.equal(entry.action, "shipping_fee_waived");
+  assert.equal(entry.actor, "Maged");
+  // The customer is told nothing, so the demand must stop coming from the message builders —
+  // the same order without the waiver still carries it.
+  assert.equal(await shippingFeeAdvanceNoticeForOrder({ ...order, timeline: [entry] }, { policy: restricted, compact: true }), "");
+  assert.match(await shippingFeeAdvanceNoticeForOrder(order, { policy: restricted, compact: true }), /رسوم الشحن 90 جنيه/);
+
+  const paid = { ...order, paid_amount: 90, transfer_proof_status: "approved" };
+  await assert.rejects(
+    waiveShippingFeeAdvance({ orderId: 7, policy: restricted, client: { ...client, query: async (sql) => (/FOR UPDATE/.test(sql) ? { rows: [paid] } : { rows: [paid] }) } }),
+    (error) => error.code === "ALREADY_PAID"
+  );
+  // Bosta keeps the amount it was booked with, so the collection cannot be raised afterwards.
+  const booked = { ...order, tracking_number: "BOSTA-1" };
+  await assert.rejects(
+    waiveShippingFeeAdvance({ orderId: 7, policy: restricted, client: { ...client, query: async (sql) => (/FOR UPDATE/.test(sql) ? { rows: [booked] } : { rows: [booked] }) } }),
+    (error) => error.code === "WAIVE_AFTER_SHIPMENT"
+  );
+});
+
+test("the portal's skip button waives instead of recording money", async () => {
+  const waives = [];
+  const paidCalls = [];
+  const order = { id: 9, group: "confirmed", status: "confirmed", order_number: "9", shipment: {}, customer: {} };
+  const result = await runPortalOrderAction({
+    actor: { id: 3, tenant_id: 2, full_name: "Mona" },
+    surface: "manager_portal",
+    orderId: 9,
+    action: "shipping_fee_waived",
+    deps: {
+      loadOrder: async () => order,
+      waiveShippingFeeAdvance: async (args) => { waives.push(args); return { cod_amount: 1940 }; },
+      markShippingFeePaid: async (args) => { paidCalls.push(args); },
+      audit: async () => {},
+    },
+  });
+  assert.equal(paidCalls.length, 0);
+  assert.equal(waives.length, 1);
+  assert.equal(waives[0].tenantId, 2);
+  assert.equal(waives[0].actorName, "Mona");
+  assert.equal(waives[0].source, "manager_portal");
+  assert.equal(result.collect_on_delivery, 1940);
 });
 
 test("the portal action records the fee with the method staff picked", async () => {

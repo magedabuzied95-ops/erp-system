@@ -929,7 +929,9 @@
       "feeScopeShipping": "Shipping fee only",
       "feeScopeOrder": "Whole order",
       "orderPaidConfirmTitle": "Did the customer pay the whole order ({{amount}})?",
-      "orderPaidConfirmBody": "Pick how it was paid. The whole order is recorded as paid and the courier collects nothing."
+      "orderPaidConfirmBody": "Pick how it was paid. The whole order is recorded as paid and the courier collects nothing.",
+      "shippingFeeWaive": "Ship without a transfer",
+      "shippingFeeWaiveHint": "No money is recorded; the courier collects all {{amount}}"
     },
     "detail": {
       "orderStatus": "Order status",
@@ -1004,6 +1006,7 @@
       "staff_confirmation_sent": "Confirmation message sent by {{actor}}",
       "staff_edited": "Order details edited by {{actor}}",
       "staff_shipping_fee_paid": "Recorded the shipping fee: {{actor}}",
+      "staff_shipping_fee_waived": "Shipped it without a transfer: {{actor}}",
       "staff_order_paid_in_full": "Recorded the whole order as paid: {{actor}}"
     },
     "providers": {
@@ -1020,6 +1023,7 @@
       "send_confirmation": "Confirmation message sent to the customer on WhatsApp",
       "send_confirmation_queued": "Confirmation message queued for sending",
       "shipping_fee_paid": "Shipping fee recorded as paid",
+      "shipping_fee_waived": "Advance skipped; the courier collects the full amount",
       "order_paid_in_full": "Whole order recorded as paid",
       "receiptDelayed": "the customer gets the payment receipt in {{minutes}} min"
     },
@@ -1054,6 +1058,9 @@
       "CUSTOMER_NAME_REQUIRED": "Customer name is required",
       "CUSTOMER_PHONE_INVALID": "The phone number is not valid",
       "NO_SHIPPING_FEE": "This order has no shipping fee",
+      "ALREADY_WAIVED": "The advance is already skipped on this order",
+      "ADVANCE_NOT_REQUIRED": "This order owes no advance",
+      "WAIVE_AFTER_SHIPMENT": "The parcel is booked for a smaller collection — change it on the shipment itself",
       "CUSTOMER_NOT_ON_WHATSAPP": "The customer's number has no WhatsApp — check the number and edit it"
     },
     "access": {
@@ -1203,9 +1210,15 @@
     "status": {
       "awaiting_payment": "This governorate is outside the cash-on-delivery list: the customer must pay the {{amount}} shipping fee before the order ships.",
       "awaiting_review": "The customer uploaded a shipping transfer ({{amount}}) — review and confirm it below so the order can ship.",
-      "paid": "Shipping fee paid ({{amount}}) — the order can ship and the courier collects only the rest."
+      "paid": "Shipping fee paid ({{amount}}) — the order can ship and the courier collects only the rest.",
+      "waived": "The advance was skipped on this order — nobody is waiting for a transfer, and the courier collects the full amount on delivery."
     },
     "markPaid": "Shipping fee paid",
+    "waive": "Ship without a transfer",
+    "waiveConfirm": "Nothing is taken up front: the order ships now and the courier collects {{amount}} on delivery. No money is recorded and the customer is not messaged.",
+    "waiveYes": "Confirm — ship without a transfer",
+    "waived": "Advance skipped; the courier now collects the full amount",
+    "waiveFailed": "Could not skip the advance",
     "method": "Payment method",
     "methods": {
       "vodafone_cash": "Vodafone Cash",

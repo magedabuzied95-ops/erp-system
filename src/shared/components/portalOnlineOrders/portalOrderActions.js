@@ -10,7 +10,9 @@ const lower = (value = "") => text(value).toLowerCase();
 // canCreateBostaShipmentFor accepts; anything else is another courier's parcel.
 const BOSTA_BOOKABLE_PROVIDERS = new Set(["", "bosta", "manual", "in_store_delivery", "in-store-delivery", "store_pickup", "none", "null"]);
 
-export const PORTAL_ORDER_ACTIONS = ["confirm", "send_confirmation", "ready_to_ship", "create_shipment", "print_awb", "shipping_fee_paid"];
+// "shipping_fee_waived" is offered inside the money step rather than as a button of its own:
+// it is the same decision seen from the other side (nobody paid the advance and nobody will).
+export const PORTAL_ORDER_ACTIONS = ["confirm", "send_confirmation", "ready_to_ship", "create_shipment", "print_awb", "shipping_fee_paid", "shipping_fee_waived"];
 
 // The restricted closing system (server: shippingFeeAdvance.js). "awaiting" covers both a fee
 // nobody paid and a transfer screenshot nobody reviewed — neither lets the parcel leave.
@@ -54,6 +56,9 @@ export const PORTAL_ACTION_ERROR_CODES = [
   "BOSTA_ZERO_COLLECTION",
   "SHIPPING_FEE_NOT_PAID",
   "NO_SHIPPING_FEE",
+  "ALREADY_WAIVED",
+  "ADVANCE_NOT_REQUIRED",
+  "WAIVE_AFTER_SHIPMENT",
   "BOSTA_NO_PRINTABLE_LABEL",
   "BOSTA_AWB_EMPTY",
   "ONLINE_ORDERS_ACTIONS_DISABLED",

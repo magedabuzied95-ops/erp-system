@@ -666,6 +666,19 @@ function OrderActionBar({ order, ui, state = {}, onAction, onCancelConfirm, canA
               </button>
             ))}
           </div>
+          {/*
+            * The other way out of this step: nobody transferred the advance and nobody is going
+            * to — a customer the owner trusts. Deliberately NOT one of the payment methods
+            * above: those record money and therefore lower what the courier collects, while
+            * this records nothing and leaves the full amount on the parcel.
+            */}
+          <button type="button" disabled={busy} onClick={() => onAction("shipping_fee_waived")} className="mt-2 inline-flex min-h-[var(--control-height-lg)] w-full flex-col items-center justify-center rounded-[var(--radius-control)] border border-border bg-surface px-3 py-1.5 text-text disabled:opacity-60">
+            <span className="inline-flex items-center gap-1.5 text-sm font-black">
+              {state.busy === "shipping_fee_waived" ? <Loader2 className="h-4 w-4 animate-spin" /> : <Truck className="h-4 w-4" />}
+              {ui.tb("actions.shippingFeeWaive")}
+            </span>
+            <span className="text-[11px] font-bold opacity-80">{ui.tb("actions.shippingFeeWaiveHint", { amount: ui.money(order.money?.total) })}</span>
+          </button>
           <button type="button" disabled={busy} onClick={onCancelConfirm} className="mt-2 inline-flex min-h-[var(--control-height-md)] w-full items-center justify-center rounded-[var(--radius-control)] border border-border bg-surface px-3 text-sm font-black text-text disabled:opacity-60">
             {ui.tb("actions.cancel")}
           </button>

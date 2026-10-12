@@ -4,7 +4,7 @@ import { recordEmployeePortalAudit } from "../../services/employeePayrollPortalS
 import { canCreateBostaShipmentFor } from "./shipping.center.service.js";
 import { getPortalOnlineOrder } from "./shipping.portal.service.js";
 import { createBostaShipmentForOrder, fetchBostaShipmentLabels } from "./shipping.service.js";
-import { markShippingFeePaid } from "./shippingFeeAdvance.js";
+import { markShippingFeePaid, waiveShippingFeeAdvance } from "./shippingFeeAdvance.js";
 import { markOrderPaidInFull } from "./markOrderPaidInFull.js";
 import { notifyPaymentProofApproved, PAYMENT_APPROVED_DELAY_MS } from "./paymentProofLink.js";
 import { isWhatsappNumberMissingError } from "../../utils/whatsappNotOnNumber.js";
@@ -19,7 +19,7 @@ import { isWhatsappNumberMissingError } from "../../utils/whatsappNotOnNumber.js
 // Bosta create with its duplicate guard and customer notification, the AWB fetch —
 // and records who pressed the button on the order timeline and in the portal audit log.
 
-export const PORTAL_ORDER_ACTIONS = ["confirm", "send_confirmation", "ready_to_ship", "create_shipment", "print_awb", "shipping_fee_paid"];
+export const PORTAL_ORDER_ACTIONS = ["confirm", "send_confirmation", "ready_to_ship", "create_shipment", "print_awb", "shipping_fee_paid", "shipping_fee_waived"];
 // Shipping the parcel and printing its airway bill are open to EVERY employee in the
 // employee portal (owner request 2026-09-10: whoever packs, ships). Confirming an
 // order stays with managers and the employees switched on.
@@ -102,6 +102,7 @@ const defaultDeps = {
   createShipment: createBostaShipmentForOrder,
   fetchLabels: fetchBostaShipmentLabels,
   markShippingFeePaid,
+  waiveShippingFeeAdvance,
   markOrderPaidInFull,
   appendTimeline: (entry) => appendTimeline(db, entry),
   audit: recordEmployeePortalAudit,
@@ -196,6 +197,17 @@ export const runPortalOrderAction = async ({ actor = {}, surface = "employee_por
     // just pressed this does not read the silence as a failure and press it again.
     if (paid) notifyPaymentProofApproved(paid).catch(() => {});
     result = { payment_receipt_delay_minutes: Math.round(PAYMENT_APPROVED_DELAY_MS / 60000) };
+  } else if (key === "shipping_fee_waived") {
+    // The other way past the advance: nobody paid it and nobody will. No money is recorded and
+    // the customer hears nothing — the courier collects the full amount at the door instead.
+    const waived = await deps.waiveShippingFeeAdvance({
+      orderId: order.id,
+      tenantId,
+      note: text(input?.note),
+      actorName,
+      source: surface,
+    });
+    result = { collect_on_delivery: Number(waived?.cod_amount ?? 0) || 0 };
   } else if (key === "print_awb") {
     if (!order.shipment.tracking_number && !order.shipment.delivery_id) {
       throw actionError(409, "BOSTA_NO_PRINTABLE_LABEL", "This order has no shipment to print yet");

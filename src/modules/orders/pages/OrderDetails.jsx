@@ -420,6 +420,8 @@ function OrderDetails() {
   const [reviewingPayment, setReviewingPayment] = useState(false);
   // "تم دفع الشحن" (restricted closing system): how it was paid, and an optional receipt.
   const [shippingFeeForm, setShippingFeeForm] = useState({ open: false, method: "vodafone_cash", file: null, saving: false });
+  // Skipping the advance takes a second tap: it is the decision to ship on trust.
+  const [shippingFeeWaive, setShippingFeeWaive] = useState({ open: false, saving: false });
   const [shipping, setShipping] = useState({
     provider: "",
     shipping_status: "pending",
@@ -835,6 +837,22 @@ function OrderDetails() {
     } catch (err) {
       toast.error(err?.responseBody?.message || err.message || t("orders.shippingFeeAdvance.failed"));
       setShippingFeeForm((current) => ({ ...current, saving: false }));
+    }
+  };
+
+  // The opposite of handleShippingFeePaid: no money is recorded, so the courier keeps
+  // collecting the full amount — the order just stops waiting for a transfer.
+  const handleShippingFeeWaive = async () => {
+    if (shippingFeeWaive.saving) return;
+    try {
+      setShippingFeeWaive({ open: true, saving: true });
+      await api.post(`/orders/${order.id}/shipping-fee-waived`, {});
+      toast.success(t("orders.shippingFeeAdvance.waived"));
+      setShippingFeeWaive({ open: false, saving: false });
+      await loadOrder();
+    } catch (err) {
+      toast.error(err?.responseBody?.message || err.message || t("orders.shippingFeeAdvance.waiveFailed"));
+      setShippingFeeWaive({ open: true, saving: false });
     }
   };
 
@@ -1367,8 +1385,10 @@ function OrderDetails() {
             </div>
           ) : null}
 
-          {order.shipping_fee_advance?.required ? (
-            <div className={`rounded-2xl border p-5 shadow-xl shadow-black/10 ${order.shipping_fee_advance.status === "paid" ? "border-emerald-500/25 bg-emerald-500/10" : "border-rose-500/25 bg-rose-500/10"}`}>
+          {/* "waived" is not required any more, but it still says so: a fee card that simply
+              vanished reads as a bug, and the next person needs to know nobody is waiting. */}
+          {order.shipping_fee_advance?.required || order.shipping_fee_advance?.status === "waived" ? (
+            <div className={`rounded-2xl border p-5 shadow-xl shadow-black/10 ${order.shipping_fee_advance.status === "paid" ? "border-emerald-500/25 bg-emerald-500/10" : order.shipping_fee_advance.status === "waived" ? "border-white/10 bg-white/5" : "border-rose-500/25 bg-rose-500/10"}`}>
               <div className="flex items-start justify-between gap-3">
                 <div className="min-w-0">
                   <h3 className="m1-section-title text-white">{t(order.shipping_fee_advance.kind === "confirmation_fee" ? "orders.shippingFeeAdvance.confirmationFee.title" : "orders.shippingFeeAdvance.title")}</h3>
@@ -1376,7 +1396,7 @@ function OrderDetails() {
                     {t(`orders.shippingFeeAdvance.${order.shipping_fee_advance.kind === "confirmation_fee" ? "confirmationFee" : "status"}.${order.shipping_fee_advance.status}`, { amount: formatCurrency(order.shipping_fee_advance.amount) })}
                   </p>
                 </div>
-                <Banknote className={`h-6 w-6 shrink-0 ${order.shipping_fee_advance.status === "paid" ? "text-emerald-300" : "text-rose-300"}`} />
+                <Banknote className={`h-6 w-6 shrink-0 ${order.shipping_fee_advance.status === "paid" ? "text-emerald-300" : order.shipping_fee_advance.status === "waived" ? "text-zinc-400" : "text-rose-300"}`} />
               </div>
               {order.shipping_fee_advance.status === "awaiting_payment" ? (
                 shippingFeeForm.open ? (
@@ -1425,14 +1445,53 @@ function OrderDetails() {
                     </div>
                   </div>
                 ) : (
-                  <button
-                    type="button"
-                    onClick={() => setShippingFeeForm((current) => ({ ...current, open: true }))}
-                    className="mt-4 inline-flex h-[var(--control-height-md)] w-full items-center justify-center gap-2 rounded-[var(--radius-control)] bg-primary px-4 text-sm font-black text-[var(--primary-contrast)]"
-                  >
-                    <Banknote className="h-4 w-4" />
-                    {t(order.shipping_fee_advance.kind === "confirmation_fee" ? "orders.shippingFeeAdvance.confirmationFee.markPaid" : "orders.shippingFeeAdvance.markPaid")}
-                  </button>
+                  <div className="mt-4 space-y-2">
+                    <button
+                      type="button"
+                      onClick={() => setShippingFeeForm((current) => ({ ...current, open: true }))}
+                      className="inline-flex h-[var(--control-height-md)] w-full items-center justify-center gap-2 rounded-[var(--radius-control)] bg-primary px-4 text-sm font-black text-[var(--primary-contrast)]"
+                    >
+                      <Banknote className="h-4 w-4" />
+                      {t(order.shipping_fee_advance.kind === "confirmation_fee" ? "orders.shippingFeeAdvance.confirmationFee.markPaid" : "orders.shippingFeeAdvance.markPaid")}
+                    </button>
+                    {/* Ship on trust. Separate from the button above on purpose: that one records
+                        the money (and takes it off the courier's collection), this one records
+                        nothing and leaves the whole amount to collect at the door. */}
+                    {shippingFeeWaive.open ? (
+                      <div className="rounded-[var(--radius-control)] border border-white/10 bg-black/20 p-3">
+                        <p className="text-sm font-bold leading-6 text-zinc-200">
+                          {t("orders.shippingFeeAdvance.waiveConfirm", { amount: formatCurrency(Math.max(0, Number(order.total_amount ?? order.total ?? 0) - Number(order.paid_amount || 0))) })}
+                        </p>
+                        <div className="mt-3 grid gap-2 sm:grid-cols-2">
+                          <button
+                            type="button"
+                            onClick={handleShippingFeeWaive}
+                            disabled={shippingFeeWaive.saving}
+                            className="inline-flex h-[var(--control-height-md)] items-center justify-center gap-2 rounded-[var(--radius-control)] bg-primary px-4 text-sm font-black text-[var(--primary-contrast)] disabled:opacity-50"
+                          >
+                            {shippingFeeWaive.saving ? <Loader2 className="h-4 w-4 animate-spin" /> : <Check className="h-4 w-4" />}
+                            {t("orders.shippingFeeAdvance.waiveYes")}
+                          </button>
+                          <button
+                            type="button"
+                            onClick={() => setShippingFeeWaive({ open: false, saving: false })}
+                            disabled={shippingFeeWaive.saving}
+                            className="h-[var(--control-height-md)] rounded-[var(--radius-control)] border border-white/10 bg-white/5 px-4 text-sm font-black text-white disabled:opacity-50"
+                          >
+                            {t("orders.shippingFeeAdvance.cancel")}
+                          </button>
+                        </div>
+                      </div>
+                    ) : (
+                      <button
+                        type="button"
+                        onClick={() => setShippingFeeWaive({ open: true, saving: false })}
+                        className="h-[var(--control-height-md)] w-full rounded-[var(--radius-control)] border border-white/10 bg-white/5 px-4 text-sm font-black text-white"
+                      >
+                        {t("orders.shippingFeeAdvance.waive")}
+                      </button>
+                    )}
+                  </div>
                 )
               ) : null}
             </div>
