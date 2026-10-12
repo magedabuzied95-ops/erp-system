@@ -871,8 +871,34 @@
       "confirmed": "Order confirmed",
       "ready_to_ship": "Ready to ship",
       "shipment_created": "Shipment created",
+      "picked_up": "Picked up by the courier",
+      "picked_up_bosta": "Picked up by Bosta",
       "out_for_delivery": "Out for delivery",
       "delivered": "Delivered"
+    },
+    "journeyTitle": "Parcel journey",
+    "journeyEmpty": "As soon as Bosta starts moving the parcel, every step shows here with its time.",
+    "promiseDate": "Expected on {{date}}",
+    "attempts": "Delivery attempts: {{count}}",
+    "courier": "Courier",
+    "callCourier": "Call the courier",
+    "chatOnWhatsapp": "Message us on WhatsApp",
+    "updatedAt": "Last update from Bosta: {{time}}",
+    "alerts": {
+      "failed_attempt": "The courier tried to deliver your parcel and could not, and will try again. To change the time or address, message us on WhatsApp.",
+      "contact_us": "We need to hear from you to finish the delivery. Message us on WhatsApp and we will sort it out quickly."
+    },
+    "journey": {
+      "created": "Shipment created with Bosta",
+      "picked_up": "Bosta picked up the parcel",
+      "at_warehouse": "Arrived at the Bosta warehouse",
+      "in_transit": "On its way to the Bosta hub near you",
+      "out_for_delivery": "Out for delivery with the courier",
+      "failed_attempt": "Delivery attempt did not go through",
+      "problem": "There is a problem with the parcel and our team is on it",
+      "delivered": "Parcel delivered",
+      "returned": "The parcel came back to us",
+      "cancelled": "The shipment was cancelled"
     }
   },
   "orders": {

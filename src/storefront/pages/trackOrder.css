@@ -292,6 +292,143 @@ body.storefront-shell .sft-address strong {
   font-weight: 600;
 }
 
+/* --------------------------------------------------------- parcel journey
+   Bosta's steps, newest on top. Same dot-and-line language as the stage bar,
+   smaller, so the two read as one page. */
+
+.sft-journey {
+  display: grid;
+  gap: var(--m1h-s3);
+  padding-top: var(--m1h-s3);
+  border-top: 1px solid var(--m1h-line);
+}
+
+.sft-promise,
+.sft-alert {
+  display: flex;
+  align-items: flex-start;
+  gap: var(--m1h-s2);
+}
+
+body.storefront-shell .sft-promise {
+  color: var(--m1h-text) !important;
+  font-weight: 600;
+}
+
+.sft-alert__body {
+  display: grid;
+  min-width: 0;
+  justify-items: start;
+  gap: var(--m1h-s2);
+}
+
+body.storefront-shell .sft-alert__text {
+  margin: 0;
+  color: var(--m1h-text) !important;
+  -webkit-text-fill-color: currentColor;
+  font-size: var(--m1h-t-sm);
+  font-weight: 600;
+  line-height: 1.6;
+}
+
+.sft-courier {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--m1h-s3);
+}
+
+body.storefront-shell .sft-courier__name {
+  text-align: start;
+}
+
+.sft-journey__head {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: var(--m1h-s2);
+}
+
+body.storefront-shell .sft-journey__title {
+  margin: 0;
+  color: var(--m1h-text) !important;
+  -webkit-text-fill-color: currentColor;
+  font-size: var(--m1h-t-base);
+  font-weight: 700;
+}
+
+.sft-events {
+  display: grid;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.sft-event {
+  position: relative;
+  display: flex;
+  align-items: flex-start;
+  gap: var(--m1h-s3);
+  padding-bottom: 14px;
+}
+
+.sft-event:last-child {
+  padding-bottom: 0;
+}
+
+body.storefront-shell .sft-event:not(:last-child)::after {
+  position: absolute;
+  top: 16px;
+  bottom: 0;
+  inset-inline-start: 5px;
+  width: 2px;
+  border-radius: 2px;
+  background: var(--m1h-line);
+  content: "";
+}
+
+body.storefront-shell .sft-event__dot {
+  position: relative;
+  z-index: 1;
+  width: 12px;
+  height: 12px;
+  flex: none;
+  margin-top: 5px;
+  border-radius: var(--m1h-r-pill);
+  background: var(--m1h-text-3) !important;
+}
+
+body.storefront-shell .sft-event--latest .sft-event__dot {
+  background: var(--m1h-accent) !important;
+  box-shadow: 0 0 0 4px var(--sfx-focus);
+}
+
+body.storefront-shell .sft-event--bad .sft-event__dot {
+  background: var(--sfx-danger) !important;
+}
+
+body.storefront-shell .sft-event__label {
+  color: var(--m1h-text-2) !important;
+  -webkit-text-fill-color: currentColor;
+  font-size: var(--m1h-t-base);
+  font-weight: 500;
+  line-height: 1.5;
+}
+
+body.storefront-shell .sft-event--latest .sft-event__label {
+  color: var(--m1h-text) !important;
+  font-weight: 700;
+}
+
+body.storefront-shell .sft-event__time {
+  display: block;
+  color: var(--m1h-text-3) !important;
+  -webkit-text-fill-color: currentColor;
+  font-size: var(--m1h-t-xs);
+  font-weight: 500;
+}
+
 /* --------------------------------------------------------- recently viewed */
 
 .sfr {

@@ -4,9 +4,11 @@ import { api } from "../../shared/api/api";
 import { readStorefrontCustomerAuth, storefrontCustomerRequest } from "../lib/storefrontCustomerAuth";
 import i18n from "../../i18n/i18n";
 import { localizeColorName, localizeSizeLabel } from "../lib/displayCopy";
-import { trackingStageKey } from "../lib/serverCopy";
+import { journeyStepKey, trackingStageKey } from "../lib/serverCopy";
 import { orderDueOnDelivery } from "../lib/checkoutGuards";
 import {
+  AlertTriangle,
+  CalendarDays,
   Check,
   Copy,
   ExternalLink,
@@ -14,6 +16,7 @@ import {
   MessageCircle,
   PackageSearch,
   PackageX,
+  Phone,
   Truck,
 } from "lucide-react";
 import "./trackOrder.css";
@@ -46,6 +49,111 @@ const trackingNumberOf = (order = {}) => String(order.shipping_tracking_number |
 const isBostaOrder = (order = {}) => [order.shipping_provider, order.shipping_provider_id, order.shipping_method]
   .some((value) => String(value || "").toLowerCase().includes("bosta"));
 
+// The shop runs on one Cairo clock: a step stamped 23:30 UTC happened the next morning here.
+// Latin digits in Arabic too, like the order date and the money on the same page.
+const journeyLocale = () => (String(i18n.language || "ar").startsWith("ar") ? "ar-EG-u-nu-latn" : "en-GB");
+const formatJourneyTime = (value) => {
+  if (!value) return "";
+  try {
+    return new Intl.DateTimeFormat(journeyLocale(), {
+      timeZone: "Africa/Cairo", weekday: "short", day: "numeric", month: "short", hour: "numeric", minute: "2-digit",
+    }).format(new Date(value));
+  } catch {
+    return "";
+  }
+};
+// The promise is a calendar day with no clock; read at noon UTC so no timezone moves it.
+const formatPromiseDay = (day) => {
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(String(day || ""))) return "";
+  try {
+    return new Intl.DateTimeFormat(journeyLocale(), { timeZone: "Africa/Cairo", weekday: "long", day: "numeric", month: "long" })
+      .format(new Date(`${day}T12:00:00Z`));
+  } catch {
+    return day;
+  }
+};
+
+/*
+ * Where the parcel is, step by step, the way Bosta's own messages tell it — newest on top.
+ * Everything here comes from the server's `shipment` block (publicShipmentJourney.js),
+ * already trimmed to what a customer may read.
+ */
+function ShipmentJourney({ shipment, sfText, supportHref, publicNumber }) {
+  const events = Array.isArray(shipment?.events) ? shipment.events : [];
+  const arabic = String(i18n.language || "ar").startsWith("ar");
+  const promise = formatPromiseDay(shipment?.promise_date);
+  const alert = shipment?.alert;
+  const courier = shipment?.courier;
+  return (
+    <div className="sft-journey">
+      {promise ? (
+        <div className="sft-promise sfx-notice sfx-notice--accent">
+          <CalendarDays className="h-5 w-5 shrink-0" aria-hidden="true" />
+          <span>{sfText("storefront.tracking.promiseDate", "متوقع توصل يوم {{date}}", { date: promise })}</span>
+        </div>
+      ) : null}
+
+      {alert ? (
+        <div className={`sft-alert sfx-notice ${alert.key === "failed_attempt" ? "sfx-notice--accent" : "sfx-notice--danger"}`} role="status">
+          <AlertTriangle className="h-5 w-5 shrink-0" aria-hidden="true" />
+          <div className="sft-alert__body">
+            <p className="sft-alert__text">{sfText(`storefront.tracking.alerts.${alert.key}`)}</p>
+            {/* Bosta's reason exists only in Arabic, worded for the customer. */}
+            {alert.reason && arabic ? <p className="sft-muted">{alert.reason}</p> : null}
+            <a href={supportHref(publicNumber)} target="_blank" rel="noopener noreferrer" className="sft-btn sfx-btn sfx-btn--whatsapp sfx-btn--sm">
+              <MessageCircle className="h-4 w-4" aria-hidden="true" />
+              {sfText("storefront.tracking.chatOnWhatsapp", "كلّمنا على واتساب")}
+            </a>
+          </div>
+        </div>
+      ) : null}
+
+      {courier ? (
+        <div className="sft-courier">
+          <div className="min-w-0">
+            <div className="sft-label">{sfText("storefront.tracking.courier", "المندوب")}</div>
+            {courier.name ? <div className="sft-value sft-courier__name">{courier.name}</div> : null}
+          </div>
+          {courier.phone ? (
+            <a href={`tel:${courier.phone}`} className="sft-btn sfx-btn sfx-btn--outline sfx-btn--sm">
+              <Phone className="h-4 w-4" aria-hidden="true" />
+              {sfText("storefront.tracking.callCourier", "كلّم المندوب")}
+            </a>
+          ) : null}
+        </div>
+      ) : null}
+
+      <div className="sft-journey__head">
+        <h3 className="sft-journey__title">{sfText("storefront.tracking.journeyTitle", "رحلة الشحنة")}</h3>
+        {shipment?.attempts > 1 ? <span className="sft-muted">{sfText("storefront.tracking.attempts", "عدد محاولات التسليم: {{count}}", { count: shipment.attempts })}</span> : null}
+      </div>
+      {events.length ? (
+        <ol className="sft-events">
+          {events.map((event, index) => {
+            const time = formatJourneyTime(event.at);
+            const copyKey = journeyStepKey(event);
+            return (
+              <li key={`${event.key}-${event.at || index}`} className={`sft-event${index === 0 ? " sft-event--latest" : ""}${event.key === "failed_attempt" || event.key === "problem" ? " sft-event--bad" : ""}`}>
+                <span className="sft-event__dot" aria-hidden="true" />
+                <div className="min-w-0">
+                  <div className="sft-event__label">{copyKey ? sfText(copyKey, event.label) : event.label}</div>
+                  {event.reason && arabic ? <div className="sft-muted">{event.reason}</div> : null}
+                  {time ? <time className="sft-event__time" dateTime={event.at}>{time}</time> : null}
+                </div>
+              </li>
+            );
+          })}
+        </ol>
+      ) : (
+        <p className="sft-muted sft-note">{sfText("storefront.tracking.journeyEmpty", "أول ما بوسطة تبدأ تحرّك الشحنة هتلاقي كل خطوة هنا بميعادها.")}</p>
+      )}
+      {shipment?.synced_at ? (
+        <p className="sft-muted sft-note">{sfText("storefront.tracking.updatedAt", "آخر تحديث من بوسطة: {{time}}", { time: formatJourneyTime(shipment.synced_at) })}</p>
+      ) : null}
+    </div>
+  );
+}
+
 function TrackingResult({ data, helpers, onSearchAnother }) {
   const { sfText, displayOrderNumber, statusCopy, formatDate, money, paymentCopy, shippingProviderCopy, supportHref, imageFor, fallbackProductImage, getStatusLabels } = helpers;
   const [copied, setCopied] = useState(false);
@@ -57,6 +165,9 @@ function TrackingResult({ data, helpers, onSearchAnother }) {
     : getStatusLabels().map((label, index) => ({ key: String(index), label, done: index === 0 }));
   const lang = i18n.language;
   const derailedKey = trackingDerailedKey(order);
+  // One failed visit that Bosta will retry is not "delivery did not go through" — the pill
+  // says what happened, in the warning tone, and the shipment card explains the retry.
+  const retrying = derailedKey === "failedTitle" && data.shipment?.alert?.key === "failed_attempt";
   // The stage the parcel is at: the last one lit. Everything before it is done.
   const currentIndex = timeline.reduce((last, step, index) => (step.done ? index : last), 0);
   const publicNumber = displayOrderNumber(order);
@@ -86,13 +197,15 @@ function TrackingResult({ data, helpers, onSearchAnother }) {
             <div className="sft-order-number" dir="ltr">{publicNumber}</div>
             <div className="sft-muted">{formatDate(order.created_at)}</div>
           </div>
-          <span className={`sft-pill sfx-badge ${derailedKey ? "sft-pill--bad sfx-badge--danger" : currentIndex === timeline.length - 1 ? "sft-pill--good sfx-badge--success" : "sfx-badge--accent"}`}>
-            {derailedKey ? sfText(`storefront.tracking.${derailedKey}`) : timeline[currentIndex]?.label || statusCopy(order.status || "pending")}
+          <span className={`sft-pill sfx-badge ${retrying ? "sfx-badge--accent" : derailedKey ? "sft-pill--bad sfx-badge--danger" : currentIndex === timeline.length - 1 ? "sft-pill--good sfx-badge--success" : "sfx-badge--accent"}`}>
+            {retrying
+              ? sfText("storefront.tracking.journey.failed_attempt")
+              : derailedKey ? sfText(`storefront.tracking.${derailedKey}`) : timeline[currentIndex]?.label || statusCopy(order.status || "pending")}
           </span>
         </div>
 
         {derailedKey ? (
-          <div className="sft-derailed sfx-notice sfx-notice--danger">
+          <div className={`sft-derailed sfx-notice ${retrying ? "sfx-notice--accent" : "sfx-notice--danger"}`}>
             <PackageX className="h-5 w-5 shrink-0" aria-hidden="true" />
             {/* The pill above already names what happened; this only says what to do. */}
             <p className="sft-muted">{sfText("storefront.tracking.derailedText", "لو عندك أي استفسار كلّمنا على واتساب وهنساعدك.")}</p>
@@ -136,6 +249,7 @@ function TrackingResult({ data, helpers, onSearchAnother }) {
             )}
           </div>
         </div>
+        {data.shipment ? <ShipmentJourney shipment={data.shipment} sfText={sfText} supportHref={supportHref} publicNumber={publicNumber} /> : null}
         {trackingNumber && bosta ? (
           <a href={`https://bosta.co/tracking/${encodeURIComponent(trackingNumber)}`} target="_blank" rel="noopener noreferrer" className="sft-btn sfx-btn sfx-btn--outline sfx-btn--lg sfx-btn--block">
             {sfText("storefront.tracking.trackOnBosta", "تابع الشحنة على موقع بوسطة")}

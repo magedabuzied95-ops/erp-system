@@ -67,6 +67,7 @@ import {
 } from "../utils/invoiceNumber.js";
 import { buildOrderItemInsertQuery, enrichOrderItemsInsertError } from "../utils/orderItemInsert.js";
 import { isOrderClosedForPayment, normalizeOrderLifecycleStatus, normalizeShippingLifecycleStatus } from "../../shared/orderStatus.js";
+import { buildPublicShipment, isBostaParcel, loadShipmentEvents, refreshShipmentForCustomer, trackingNumberOf } from "../modules/shipping/publicShipmentJourney.js";
 import { createPaymentIntention, isPaymobOnlineReady, paymobOnlineConfig } from "../services/paymobOnlineService.js";
 import { ensurePaymentTransactionsSchema } from "../services/paymobPosService.js";
 import { enqueueOrderCreatedEmails } from "../services/transactionalEmail/orderEmailService.js";
@@ -6763,9 +6764,17 @@ export const trackOrder = async (req, res) => {
     const tenantId = tenantFromRequest(req);
     const orderNumberValue = req.query.order_number || req.body?.order_number || req.params.orderNumber;
     const phone = req.query.phone || req.body?.phone || "";
-    const loaded = await loadPublicOrder({ tenantId, orderNumber: orderNumberValue, phone });
+    let loaded = await loadPublicOrder({ tenantId, orderNumber: orderNumberValue, phone });
     if (!loaded) return res.status(404).json({ success: false, message: "Order not found" });
-    res.json({ success: true, ...loaded, timeline: buildOrderTimeline(loaded.order) });
+    // A parcel we have not heard about in a while is asked about once, briefly, so the
+    // customer reads where it is now rather than where it was at the last webhook.
+    if (await refreshShipmentForCustomer(loaded.order)) {
+      loaded = (await loadPublicOrder({ tenantId, orderNumber: orderNumberValue, phone })) || loaded;
+    }
+    const shipment = isBostaParcel(loaded.order) && trackingNumberOf(loaded.order)
+      ? buildPublicShipment(loaded.order, { events: await loadShipmentEvents(loaded.order.id).catch(() => []) })
+      : null;
+    res.json({ success: true, ...loaded, timeline: buildOrderTimeline(loaded.order), shipment });
   } catch (error) {
     console.error("[storefront] track", error);
     res.status(500).json({ success: false, message: "Failed to track order" });
@@ -6802,12 +6811,15 @@ const ORDER_STAGE_RANK = {
 };
 
 // Order stage 1 == confirmed, shipping stage 1 == ready_to_ship, so the two scales are compared
-// against the timeline's own indexes rather than each other.
+// against the timeline's own indexes rather than each other. picked_up is the courier taking the
+// box from the shop — the order's own status never says that, so only an order already out for
+// delivery (order rank 4) lights it from the order side.
 const TIMELINE_STAGES = [
   { key: "received", label: "تم استلام الطلب", order: 0, shipping: 0 },
   { key: "confirmed", label: "تم تأكيد الطلب", order: 1, shipping: 1 },
   { key: "ready_to_ship", label: "جاهز للشحن", order: 2, shipping: 1 },
   { key: "shipment_created", label: "تم إنشاء الشحنة", order: 3, shipping: 2 },
+  { key: "picked_up", label: "شركة الشحن استلمت الشحنة", order: 4, shipping: 3 },
   { key: "out_for_delivery", label: "خرج للتسليم", order: 4, shipping: 4 },
   { key: "delivered", label: "تم التسليم", order: 5, shipping: 5 },
 ];
@@ -6821,9 +6833,14 @@ const buildOrderTimeline = (order = {}) => {
   // stages it never reached must not light up because the order ended somewhere else.
   const derailed = ["cancelled", "cancelled_by_customer", "returned", "failed_delivery"].includes(status)
     || ["cancelled", "returned", "failed_delivery"].includes(shipping);
+  // The customer knows the courier by name — "بوسطة استلمت الشحنة" is the line Bosta's own
+  // messages send, so the stage says it the same way.
+  const bosta = [order.shipping_provider, order.shipping_provider_id, order.shipping_method]
+    .some((value) => String(value || "").toLowerCase().includes("bosta"));
   return TIMELINE_STAGES.map((stage) => ({
     key: stage.key,
-    label: stage.label,
+    label: stage.key === "picked_up" && bosta ? "بوسطة استلمت الشحنة" : stage.label,
+    ...(stage.key === "picked_up" && bosta ? { courier: "bosta" } : {}),
     done: stage.key === "received" || (!derailed && (orderRank >= stage.order || shippingRank >= stage.shipping)),
   }));
 };

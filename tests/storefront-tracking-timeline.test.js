@@ -54,6 +54,16 @@ test("out_for_delivery lights its own stage", () => {
   assert.equal(stages[stageIndex("delivered")].done, false, "out for delivery is not delivered");
 });
 
+test("the courier's pickup is its own stage, and a Bosta parcel's names Bosta", () => {
+  const stages = buildOrderTimeline({ status: "confirmed", shipment_status: "picked_up", shipping_provider: "bosta" });
+  const pickedUp = stages[stageIndex("picked_up")];
+  assert.equal(pickedUp.done, true);
+  assert.equal(pickedUp.courier, "bosta");
+  assert.match(pickedUp.label, /بوسطة/);
+  assert.equal(stages[stageIndex("out_for_delivery")].done, false, "picked up is not out for delivery");
+  assert.equal(buildOrderTimeline({ status: "confirmed", shipment_status: "shipment_created" })[stageIndex("picked_up")].done, false);
+});
+
 test("the bar never skips a stage — reaching one implies every earlier one", () => {
   for (const state of ["shipment_created", "picked_up", "in_transit", "out_for_delivery", "delivered"]) {
     const stages = buildOrderTimeline({ status: "confirmed", shipment_status: state });

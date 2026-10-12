@@ -93,12 +93,24 @@ export const storefrontCheckoutErrorCopy = (error) => {
 };
 
 // The order tracking stages buildOrderTimeline sends, by key.
-export const STOREFRONT_TRACKING_STAGE_KEYS = ["received", "confirmed", "ready_to_ship", "shipment_created", "out_for_delivery", "delivered"];
+export const STOREFRONT_TRACKING_STAGE_KEYS = ["received", "confirmed", "ready_to_ship", "shipment_created", "picked_up", "out_for_delivery", "delivered"];
 
 /** The copy key for a timeline step the server sent, or "" when the step is not a known stage. */
 export const trackingStageKey = (step = {}) => {
   const key = String(step?.key || "").trim();
-  return STOREFRONT_TRACKING_STAGE_KEYS.includes(key) ? `storefront.tracking.stages.${key}` : "";
+  if (!STOREFRONT_TRACKING_STAGE_KEYS.includes(key)) return "";
+  // A Bosta parcel's pickup names Bosta, the way Bosta's own messages do.
+  if (key === "picked_up" && step?.courier === "bosta") return "storefront.tracking.stages.picked_up_bosta";
+  return `storefront.tracking.stages.${key}`;
+};
+
+// The parcel journey steps publicShipmentJourney.js sends, by key.
+export const STOREFRONT_JOURNEY_KEYS = ["created", "picked_up", "at_warehouse", "in_transit", "out_for_delivery", "failed_attempt", "problem", "delivered", "returned", "cancelled"];
+
+/** The copy key for a journey step, or "" for a step this page does not know. */
+export const journeyStepKey = (step = {}) => {
+  const key = String(step?.key || "").trim();
+  return STOREFRONT_JOURNEY_KEYS.includes(key) ? `storefront.tracking.journey.${key}` : "";
 };
 
 /** The copy key for a failed image search: too big, wrong/empty image, or the service being down. */
