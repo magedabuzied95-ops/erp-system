@@ -2,13 +2,15 @@ import { useCallback, useEffect, useMemo, useState } from "react";
 import { AlertTriangle, Check, Loader2, PackagePlus } from "lucide-react";
 import ThemedSelect from "../../ui/ThemedSelect";
 import { todayInAppTimezone } from "../../lib/appTimezone";
-import { Input, Sheet } from "./PortalOrderManage";
+import { Sheet } from "./PortalOrderManage";
 
 // طلب بيك أب inside أوردرات الشحن — the portal twin of the desktop shipping center's
 // PickupRequestModal. Locations, the bookable days and recent requests all come from
 // Bosta; the parcel count defaults to the parcels created and not collected yet.
 // `api` is { load, create, cancel } bound to the host portal's token.
 
+// One box for every field in the sheet, so the select, the date and the number line up.
+const FIELD_BOX = "mt-1 h-[var(--control-height-md)] w-full min-w-0 rounded-[var(--radius-control)] border border-border bg-surface px-3 text-sm font-bold text-text";
 const CANCELLABLE = ["requested", "route assigned"];
 const errorOf = (error, fallback) => error?.responseBody?.message || error?.message || fallback;
 
@@ -116,21 +118,47 @@ export default function PortalPickupSheet({ api, ui, onClose }) {
             <div className="space-y-3">
               <div>
                 <span className="text-[11px] font-black text-text-muted">{tp("location")}</span>
-                <ThemedSelect value={form.locationId} options={locationOptions} ariaLabel={tp("location")} onChange={(value) => setForm((current) => ({ ...current, locationId: value }))} />
+                <ThemedSelect value={form.locationId} options={locationOptions} ariaLabel={tp("location")} triggerClassName={FIELD_BOX} onChange={(value) => setForm((current) => ({ ...current, locationId: value }))} />
               </div>
-              <div className="grid grid-cols-2 gap-2">
-                <div>
+              {/* minmax(0,1fr): a plain 1fr track grows to its widest child. The date box is a
+                  wrapper with the native input absolutely inside it — iOS Safari will not
+                  shrink a date input below its intrinsic width and paints it over the
+                  neighbouring field otherwise. */}
+              <div className="grid grid-cols-[minmax(0,1fr)_minmax(0,1fr)] gap-2">
+                <div className="min-w-0">
                   <span className="text-[11px] font-black text-text-muted">{tp("date")}</span>
                   {dateOptions.length ? (
-                    <ThemedSelect value={form.date} options={dateOptions} ariaLabel={tp("date")} onChange={(value) => setForm((current) => ({ ...current, date: value }))} />
+                    <ThemedSelect value={form.date} options={dateOptions} ariaLabel={tp("date")} triggerClassName={FIELD_BOX} onChange={(value) => setForm((current) => ({ ...current, date: value }))} />
                   ) : (
-                    <input type="date" value={form.date} onChange={(event) => setForm((current) => ({ ...current, date: event.target.value }))} className="mt-1 min-h-[var(--control-height-md)] w-full rounded-[var(--radius-control)] border border-border bg-surface px-3 py-2 text-sm font-bold text-text" />
+                    <div className={`${FIELD_BOX} relative overflow-hidden px-0`}>
+                      <input
+                        type="date"
+                        aria-label={tp("date")}
+                        value={form.date}
+                        onChange={(event) => setForm((current) => ({ ...current, date: event.target.value }))}
+                        className="absolute inset-0 h-full w-full min-w-0 appearance-none border-0 !bg-transparent px-3 text-sm font-bold text-text outline-none [-webkit-appearance:none] [&::-webkit-date-and-time-value]:text-start"
+                      />
+                    </div>
                   )}
                 </div>
-                <Input label={tp("parcels")} type="number" dir="ltr" value={form.parcels} onChange={(value) => setForm((current) => ({ ...current, parcels: value }))} />
+                <label className="block min-w-0">
+                  <span className="text-[11px] font-black text-text-muted">{tp("parcels")}</span>
+                  <input
+                    type="number"
+                    inputMode="numeric"
+                    min="1"
+                    dir="ltr"
+                    value={form.parcels}
+                    onChange={(event) => setForm((current) => ({ ...current, parcels: event.target.value }))}
+                    className={`${FIELD_BOX} block`}
+                  />
+                </label>
               </div>
               {data?.ready_parcels ? <p className="text-xs font-bold text-text-muted">{tp("readyParcels", { total: ui.count(data.ready_parcels) })}</p> : null}
-              <Input label={tp("notes")} value={form.notes} onChange={(value) => setForm((current) => ({ ...current, notes: value }))} />
+              <label className="block">
+                <span className="text-[11px] font-black text-text-muted">{tp("notes")}</span>
+                <input value={form.notes} dir="auto" onChange={(event) => setForm((current) => ({ ...current, notes: event.target.value }))} className={`${FIELD_BOX} block`} />
+              </label>
             </div>
           ) : (
             <p className="rounded-[var(--radius-control)] border border-border bg-surface px-3 py-3 text-sm font-bold text-text-muted">{tp("noLocations")}</p>
