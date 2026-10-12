@@ -260,6 +260,16 @@
         "off": "Auto-renew turned off",
         "tag": "Auto",
         "unpaid": "Not paid — balance too low; it pays itself once it is enough"
+      },
+      "calibrate": {
+        "title": "Match Bosta",
+        "hint": "Open your current package on Bosta's dashboard and enter how many shipments it has used. Package #{{id}} here shows {{used}} of {{total}} — the system will match Bosta exactly, and the packages before it close and keep the shipments of their period.",
+        "used": "Used on Bosta (of {{total}})",
+        "submit": "Match",
+        "confirm": "The current package becomes {{used}} of {{total}} like Bosta, and earlier packages close. Continue?",
+        "done": "Package matched to Bosta",
+        "closedTag": "Closed",
+        "closedHint": "Closed when matching Bosta: its price is spread over the shipments of its period"
       }
     },
     "costs": {

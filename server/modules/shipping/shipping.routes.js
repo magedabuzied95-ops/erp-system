@@ -33,6 +33,7 @@ import {
   getCourierSettlementController,
   listCourierCollectionsController,
   listCourierSettlementsController,
+  calibrateCourierPackagesController,
   createCourierPackageController,
   getCourierCostReportController,
   listCourierPackagesController,
@@ -91,6 +92,7 @@ router.post("/settlements", protect, permit("orders", "edit"), createCourierSett
 router.get("/courier-costs/packages", protect, permit("orders", "view"), listCourierPackagesController);
 router.post("/courier-costs/packages", protect, permit("orders", "edit"), createCourierPackageController);
 router.post("/courier-costs/packages/:id/void", protect, permit("orders", "edit"), voidCourierPackageController);
+router.post("/courier-costs/packages/calibrate", protect, permit("orders", "edit"), calibrateCourierPackagesController);
 router.get("/courier-costs/report", protect, permit("orders", "view"), getCourierCostReportController);
 router.put("/courier-costs/settings", protect, permit("orders", "edit"), saveCourierCostSettingsController);
 

@@ -8,6 +8,7 @@ import {
   listCourierSettlements,
 } from "./shipping.settlements.service.js";
 import {
+  calibrateCourierPackages,
   createCourierPackage,
   getCourierCostReport,
   listCourierPackages,
@@ -174,6 +175,15 @@ export const saveCourierCostSettingsController = async (req, res) => {
       autoRenew: body.auto_renew,
     });
     res.json({ success: true, settings });
+  } catch (error) {
+    sendError(res, error);
+  }
+};
+
+export const calibrateCourierPackagesController = async (req, res) => {
+  try {
+    const body = req.body || {};
+    res.json({ success: true, ...(await calibrateCourierPackages({ tenantId: tenantOf(req), provider: body.provider || "bosta", used: body.used })) });
   } catch (error) {
     sendError(res, error);
   }

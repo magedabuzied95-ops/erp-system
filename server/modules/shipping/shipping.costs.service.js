@@ -87,14 +87,37 @@ export const pickupFeeFor = (parcels, settings = DEFAULT_COST_SETTINGS) => {
  * from the oldest package that still has one and was bought on or before the shipment's
  * day. A shipment older than every package stays unassigned — it was paid some other way.
  */
+//
+// Calibrated against Bosta ("the current package has used N"), two more rules apply:
+//  - a package with `starts_at` takes only shipments from that exact moment on — it is the
+//    moment of the N-th most recent shipment, so day granularity would let older ones in;
+//  - a closed package (everything before the calibrated one) is history: it absorbs every
+//    shipment of its period — from its day up to `closed_at` — with no unit limit, and the
+//    latest closed package whose period holds the shipment takes it. Its price is then
+//    spread over what it really carried, so the money spent equals the money expensed.
+const msOf = (value) => {
+  const time = value ? new Date(value).getTime() : NaN;
+  return Number.isFinite(time) ? time : null;
+};
 export const assignShipmentsToPackages = (shipments = [], packages = []) => {
-  const pool = packages.map((pkg) => ({ ...pkg, remaining: Math.max(0, (Number(pkg.shipments_count) || 0) - (Number(pkg.used) || 0)), day: dayKey(pkg.purchased_at) }));
+  const pool = packages.map((pkg) => ({
+    ...pkg,
+    remaining: Math.max(0, (Number(pkg.shipments_count) || 0) - (Number(pkg.used) || 0)),
+    day: dayKey(pkg.purchased_at),
+    startMs: msOf(pkg.starts_at),
+    closedMs: msOf(pkg.closed_at),
+  }));
+  const open = pool.filter((pkg) => pkg.closedMs === null);
+  const closed = pool.filter((pkg) => pkg.closedMs !== null).sort((a, b) => (a.day < b.day ? 1 : a.day > b.day ? -1 : 0));
   const assignments = [];
   for (const shipment of shipments) {
     const shipDay = dayKey(shipment.shipped_at);
-    const pkg = pool.find((candidate) => candidate.remaining > 0 && candidate.day && shipDay && candidate.day <= shipDay);
+    const shipMs = msOf(shipment.shipped_at);
+    if (!shipDay || shipMs === null) continue;
+    const history = closed.find((candidate) => candidate.day && candidate.day <= shipDay && shipMs < candidate.closedMs && (candidate.startMs === null || shipMs >= candidate.startMs));
+    const pkg = history || open.find((candidate) => candidate.remaining > 0 && candidate.day && candidate.day <= shipDay && (candidate.startMs === null || shipMs >= candidate.startMs));
     if (!pkg) continue;
-    pkg.remaining -= 1;
+    if (!history) pkg.remaining -= 1;
     assignments.push({ order_id: shipment.id, package_id: pkg.id, used_at: shipment.shipped_at });
   }
   return assignments;
@@ -238,6 +261,8 @@ export const ensureCourierCostSchema = async () => {
       await db.query(`ALTER TABLE IF EXISTS courier_settlements ADD COLUMN IF NOT EXISTS fee_expense_id BIGINT NULL`);
       await db.query(`ALTER TABLE IF EXISTS courier_packages ADD COLUMN IF NOT EXISTS source VARCHAR(20) NOT NULL DEFAULT 'manual'`);
       await db.query(`ALTER TABLE IF EXISTS courier_packages ADD COLUMN IF NOT EXISTS payment_note TEXT NULL`);
+      await db.query(`ALTER TABLE IF EXISTS courier_packages ADD COLUMN IF NOT EXISTS starts_at TIMESTAMPTZ NULL`);
+      await db.query(`ALTER TABLE IF EXISTS courier_packages ADD COLUMN IF NOT EXISTS closed_at TIMESTAMPTZ NULL`);
       await db.query(`ALTER TABLE IF EXISTS courier_cost_settings ADD COLUMN IF NOT EXISTS auto_renew_enabled BOOLEAN NOT NULL DEFAULT FALSE`);
       await db.query(`ALTER TABLE IF EXISTS courier_cost_settings ADD COLUMN IF NOT EXISTS auto_renew_price NUMERIC(12,2) NULL`);
       await db.query(`ALTER TABLE IF EXISTS courier_cost_settings ADD COLUMN IF NOT EXISTS auto_renew_shipments INTEGER NULL`);
@@ -385,7 +410,8 @@ export const reconcileCourierCosts = async ({ tenantId = null, provider = "bosta
     await client.query("SELECT pg_advisory_xact_lock(hashtext($1))", [`courier-costs:${tenantId ?? "global"}:${providerKey}`]);
 
     // 1. Units go back to their package when the parcel was cancelled before pickup, lost
-    //    its tracking number, or its package was voided.
+    //    its tracking number, its package was voided, or it falls outside its package's
+    //    calibrated window (before a starts_at, or at/after a closed package's cut-off).
     const releaseParams = [];
     const releaseTenant = tenantClause(tenantId, releaseParams);
     const released = await client.query(
@@ -394,7 +420,13 @@ export const reconcileCourierCosts = async ({ tenantId = null, provider = "bosta
       WHERE o.courier_package_id IS NOT NULL AND ${releaseTenant} AND (
         ${shipmentStatusSql()} IN (${sqlList(CANCELLED_SHIPMENT_STATUSES)})
         OR ${trackingSql()} = ''
-        OR EXISTS (SELECT 1 FROM courier_packages p WHERE p.id = o.courier_package_id AND p.voided_at IS NOT NULL)
+        OR EXISTS (
+          SELECT 1 FROM courier_packages p WHERE p.id = o.courier_package_id AND (
+            p.voided_at IS NOT NULL
+            OR (p.closed_at IS NOT NULL AND o.courier_package_used_at >= p.closed_at)
+            OR (p.starts_at IS NOT NULL AND o.courier_package_used_at < p.starts_at)
+          )
+        )
       )
       RETURNING o.id
       `,
@@ -406,7 +438,7 @@ export const reconcileCourierCosts = async ({ tenantId = null, provider = "bosta
     const pkgParams = [];
     const packages = (await client.query(
       `
-      SELECT p.id, p.purchased_at, p.price, p.shipments_count,
+      SELECT p.id, p.purchased_at, p.price, p.shipments_count, p.starts_at, p.closed_at,
         (SELECT COUNT(*)::int FROM orders o WHERE o.courier_package_id = p.id) AS used
       FROM courier_packages p
       WHERE ${packageScope(tenantId, providerKey, pkgParams)} AND p.voided_at IS NULL
@@ -416,7 +448,8 @@ export const reconcileCourierCosts = async ({ tenantId = null, provider = "bosta
     )).rows;
     let assigned = 0;
     let autoCreated = 0;
-    const open = packages.filter((pkg) => Number(pkg.used) < Number(pkg.shipments_count));
+    // Closed packages always take part: they hold their whole period, with no unit limit.
+    const open = packages.filter((pkg) => pkg.closed_at || Number(pkg.used) < Number(pkg.shipments_count));
     const settings = await getCourierCostSettings({ tenantId, provider: providerKey }, client);
     const renew = settings.auto_renew_enabled && settings.auto_renew_since ? settings : null;
     const sinceCandidates = [open[0]?.purchased_at, renew?.auto_renew_since].filter(Boolean).map((value) => new Date(value));
@@ -476,7 +509,9 @@ export const reconcileCourierCosts = async ({ tenantId = null, provider = "bosta
     await client.query(
       `
       WITH ranked AS (
-        SELECT o.id, p.price, p.shipments_count,
+        SELECT o.id, p.price,
+          -- A closed package's price is spread over what it really carried.
+          CASE WHEN p.closed_at IS NOT NULL THEN COUNT(*) OVER (PARTITION BY o.courier_package_id) ELSE p.shipments_count END AS shipments_count,
           ROW_NUMBER() OVER (PARTITION BY o.courier_package_id ORDER BY o.courier_package_used_at ASC, o.id ASC) AS n
         FROM orders o
         JOIN courier_packages p ON p.id = o.courier_package_id
@@ -637,6 +672,81 @@ export const createCourierPackage = async ({ tenantId = null, provider = "bosta"
 
 // A package entered by mistake: its units return, the shipments move to other packages
 // (or stay unassigned), and the money comes back to the account.
+/*
+ * "Bosta says the current package has used N." The latest package gets exactly the N most
+ * recent live shipments (it starts at the N-th one's moment), every package before it is
+ * closed at that moment and keeps the shipments of its own period, and the count from here
+ * on follows Bosta's. The packages entered by hand rarely line up with Bosta's real
+ * consumption (cancelled parcels, a forgotten package, a guessed date); this is the
+ * one-number fix.
+ */
+export const calibrateCourierPackages = async ({ tenantId = null, provider = "bosta", used } = {}) => {
+  await ensureCourierCostSchema();
+  const providerKey = text(provider).toLowerCase() || "bosta";
+  const count = Math.round(Number(used));
+  const client = await db.connect();
+  let result;
+  try {
+    await client.query("BEGIN");
+    await client.query("SELECT pg_advisory_xact_lock(hashtext($1))", [`courier-costs:${tenantId ?? "global"}:${providerKey}`]);
+    const pkgParams = [];
+    const current = (await client.query(
+      `SELECT p.* FROM courier_packages p WHERE ${packageScope(tenantId, providerKey, pkgParams)} AND p.voided_at IS NULL AND p.closed_at IS NULL ORDER BY p.purchased_at DESC, p.id DESC LIMIT 1 FOR UPDATE`,
+      pkgParams
+    )).rows[0];
+    if (!current) throw httpError("سجّل الباقة الحالية الأول، وبعدين اظبطها على بوسطة");
+    if (!Number.isFinite(count) || count < 0 || count > Number(current.shipments_count)) {
+      throw httpError(`اكتب عدد من 0 لـ ${current.shipments_count}`);
+    }
+    let startsAt = new Date();
+    if (count > 0) {
+      const shipParams = [];
+      const shipTenant = tenantClause(tenantId, shipParams);
+      shipParams.push(providerKey);
+      const providerParam = `$${shipParams.length}`;
+      shipParams.push(count);
+      const nth = (await client.query(
+        `
+        SELECT shipped_at FROM (
+          SELECT ${shippedAtSql()} AS shipped_at FROM orders o
+          WHERE ${shipTenant} AND ${providerSql()} = ${providerParam}
+            AND ${trackingSql()} <> '' AND ${shipmentStatusSql()} NOT IN (${sqlList(CANCELLED_SHIPMENT_STATUSES)})
+        ) s
+        ORDER BY s.shipped_at DESC
+        OFFSET $${shipParams.length} - 1 LIMIT 1
+        `,
+        shipParams
+      )).rows[0];
+      if (!nth) throw httpError(`مفيش ${count} شحنة متسجلة في السيستم`);
+      startsAt = new Date(nth.shipped_at);
+    }
+    // The package cannot have been bought after the first shipment it carries.
+    await client.query(
+      `UPDATE courier_packages SET starts_at = $2, purchased_at = LEAST(purchased_at, $2) WHERE id = $1`,
+      [current.id, startsAt.toISOString()]
+    );
+    const closeParams = [];
+    const closed = await client.query(
+      `UPDATE courier_packages p SET closed_at = $${closeParams.push(startsAt.toISOString())}
+       WHERE ${packageScope(tenantId, providerKey, closeParams)} AND p.voided_at IS NULL AND p.closed_at IS NULL AND p.id <> $${closeParams.push(current.id)}
+       RETURNING p.id`,
+      closeParams
+    );
+    // Every unit is placed again from scratch under the new windows.
+    const ids = [current.id, ...closed.rows.map((row) => row.id)];
+    await client.query(`UPDATE orders SET courier_package_id = NULL, courier_package_cost = NULL, courier_package_used_at = NULL WHERE courier_package_id = ANY($1::bigint[])`, [ids]);
+    await client.query("COMMIT");
+    result = { package_id: Number(current.id), starts_at: startsAt.toISOString(), closed: closed.rowCount };
+  } catch (error) {
+    await client.query("ROLLBACK").catch(() => {});
+    throw error;
+  } finally {
+    client.release();
+  }
+  const reconcile = await reconcileCourierCosts({ tenantId, provider: providerKey });
+  return { ...result, reconcile };
+};
+
 export const voidCourierPackage = async ({ tenantId = null, id, voidedBy = null } = {}) => {
   await ensureCourierCostSchema();
   const params = [Number(id)];
@@ -692,10 +802,10 @@ export const listCourierPackages = async ({ tenantId = null, provider = "bosta" 
   )).rows.map((row) => ({
     ...row,
     price: round2(row.price),
-    unit_cost: round2(Number(row.price) / Math.max(1, Number(row.shipments_count))),
+    unit_cost: round2(Number(row.price) / Math.max(1, row.closed_at ? Number(row.used) : Number(row.shipments_count))),
     used_cost: round2(row.used_cost),
-    remaining: row.voided_at ? 0 : Math.max(0, Number(row.shipments_count) - Number(row.used)),
-    remaining_value: row.voided_at ? 0 : round2(Number(row.price) - Number(row.used_cost || 0)),
+    remaining: row.voided_at || row.closed_at ? 0 : Math.max(0, Number(row.shipments_count) - Number(row.used)),
+    remaining_value: row.voided_at || row.closed_at ? 0 : round2(Number(row.price) - Number(row.used_cost || 0)),
   }));
 
   // Shipments no package covers, so their shipping cost is missing: since the first package,

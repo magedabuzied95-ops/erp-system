@@ -89,3 +89,23 @@ test("auto-renew never invents packages for shipments before its start day, or w
   assert.equal(off.created.length, 0);
   assert.equal(off.assignments.length, 0);
 });
+
+// "Bosta says the current package has used 2": the current package takes exactly the 2 most
+// recent shipments, and the closed package before it keeps everything of its own period —
+// with no unit limit — so no shipment is left without a cost.
+test("a calibrated package starts at its exact moment and closed packages hold their period", () => {
+  const shipments = [
+    { id: 1, shipped_at: "2026-09-01T10:00:00Z" },
+    { id: 2, shipped_at: "2026-09-02T10:00:00Z" },
+    { id: 3, shipped_at: "2026-09-03T10:00:00Z" },
+    { id: 4, shipped_at: "2026-10-05T09:00:00Z" },
+    { id: 5, shipped_at: "2026-10-05T11:00:00Z" },
+    { id: 6, shipped_at: "2026-10-06T10:00:00Z" },
+  ];
+  const packages = [
+    { id: 1, purchased_at: "2026-09-01T08:00:00Z", shipments_count: 2, used: 0, closed_at: "2026-10-05T11:00:00Z" },
+    { id: 2, purchased_at: "2026-09-30T10:00:00Z", shipments_count: 20, used: 0, starts_at: "2026-10-05T11:00:00Z" },
+  ];
+  const result = assignShipmentsToPackages(shipments, packages);
+  assert.deepEqual(result.map((a) => [a.order_id, a.package_id]), [[1, 1], [2, 1], [3, 1], [4, 1], [5, 2], [6, 2]]);
+});

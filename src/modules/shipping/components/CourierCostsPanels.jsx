@@ -2,7 +2,7 @@ import { dateKeyInAppTimezone } from "../../../shared/lib/appTimezone";
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { useTranslation } from "react-i18next";
 import { Link } from "react-router-dom";
-import { Ban, Boxes, Calculator, Loader2, PackagePlus, RefreshCw, Save, Search } from "lucide-react";
+import { Ban, Boxes, Calculator, Crosshair, Loader2, PackagePlus, RefreshCw, Save, Search } from "lucide-react";
 import toast from "react-hot-toast";
 import { api } from "../../../shared/api/api";
 import ThemedSelect from "../../../shared/ui/ThemedSelect";
@@ -37,6 +37,8 @@ export function CourierPackagesPanel({ provider = "bosta", accounts = [] }) {
   const [savingSettings, setSavingSettings] = useState(false);
   const [renew, setRenew] = useState({ enabled: false, price: "", shipments: "", accountId: "", since: "" });
   const [savingRenew, setSavingRenew] = useState(false);
+  const [calibrateUsed, setCalibrateUsed] = useState("");
+  const [calibrating, setCalibrating] = useState(false);
 
   const load = useCallback(async () => {
     setLoading(true);
@@ -130,6 +132,24 @@ export function CourierPackagesPanel({ provider = "bosta", accounts = [] }) {
     }
   };
 
+  const currentPackage = data.packages.find((pkg) => !pkg.voided_at && !pkg.closed_at) || null;
+  const calibrate = async (event) => {
+    event.preventDefault();
+    if (calibrateUsed === "" || !currentPackage) return;
+    if (!window.confirm(t("shipping.settlements.packages.calibrate.confirm", { used: calibrateUsed, total: currentPackage.shipments_count }))) return;
+    setCalibrating(true);
+    try {
+      await api.post("/shipping/courier-costs/packages/calibrate", { provider, used: Number(calibrateUsed) });
+      toast.success(t("shipping.settlements.packages.calibrate.done"));
+      setCalibrateUsed("");
+      await load();
+    } catch (error) {
+      toast.error(error.message);
+    } finally {
+      setCalibrating(false);
+    }
+  };
+
   const summary = data.summary || {};
   const accountOptions = useMemo(() => [{ value: "", label: t("shipping.settlements.form.accountAuto") }, ...accounts.map((account) => ({ value: String(account.id), label: `${account.name}${account.branch_name ? ` — ${account.branch_name}` : ""}` }))], [accounts, t]);
 
@@ -154,6 +174,21 @@ export function CourierPackagesPanel({ provider = "bosta", accounts = [] }) {
           </button>
         </div>
       </section>
+
+      {currentPackage ? (
+        <form onSubmit={calibrate} className={`${cardClass} flex flex-wrap items-end justify-between gap-3`}>
+          <div className="min-w-0 flex-1">
+            <div className="flex items-center gap-2 text-base font-black"><Crosshair className="h-5 w-5 text-emerald-300" /> {t("shipping.settlements.packages.calibrate.title")}</div>
+            <p className="mt-1 text-xs font-semibold leading-5 text-[var(--muted)]">{t("shipping.settlements.packages.calibrate.hint", { id: currentPackage.id, used: currentPackage.used, total: currentPackage.shipments_count })}</p>
+          </div>
+          <label className="block w-44 text-xs font-black text-[var(--text-tertiary)]">{t("shipping.settlements.packages.calibrate.used", { total: currentPackage.shipments_count })}
+            <input type="number" min="0" max={currentPackage.shipments_count} step="1" value={calibrateUsed} onChange={(event) => setCalibrateUsed(event.target.value)} className={`${inputClass} mt-1`} placeholder={String(currentPackage.used)} />
+          </label>
+          <button type="submit" disabled={calibrating || calibrateUsed === ""} className="inline-flex items-center gap-2 rounded-[var(--radius-control)] bg-primary px-4 py-2 text-sm font-black text-[var(--primary-contrast)] disabled:opacity-50">
+            {calibrating ? <Loader2 className="h-4 w-4 animate-spin" /> : <Crosshair className="h-4 w-4" />} {t("shipping.settlements.packages.calibrate.submit")}
+          </button>
+        </form>
+      ) : null}
 
       <section className={`${cardClass} space-y-3`}>
         <div className="flex flex-wrap items-center justify-between gap-3">
@@ -209,7 +244,7 @@ export function CourierPackagesPanel({ provider = "bosta", accounts = [] }) {
                     const pct = Math.min(100, Math.round((Number(pkg.used) / Math.max(1, Number(pkg.shipments_count))) * 100));
                     return (
                       <tr key={pkg.id} className={`border-t border-[var(--border)] ${pkg.voided_at ? "opacity-50" : ""}`}>
-                        <td className="px-3 py-3 font-black">#{pkg.id}{pkg.source === "auto" ? <div className="mt-1 w-fit rounded-full bg-sky-400/15 px-2 py-0.5 text-[10px] font-black text-sky-200">{t("shipping.settlements.packages.renew.tag")}</div> : null}</td>
+                        <td className="px-3 py-3 font-black">#{pkg.id}{pkg.source === "auto" ? <div className="mt-1 w-fit rounded-full bg-sky-400/15 px-2 py-0.5 text-[10px] font-black text-sky-200">{t("shipping.settlements.packages.renew.tag")}</div> : null}{pkg.closed_at ? <div className="mt-1 w-fit rounded-full border border-[var(--border)] px-2 py-0.5 text-[10px] font-black text-[var(--muted)]" title={t("shipping.settlements.packages.calibrate.closedHint")}>{t("shipping.settlements.packages.calibrate.closedTag")}</div> : null}</td>
                         <td className="px-3 py-3 text-xs"><div className="font-bold">{fmtDay(pkg.purchased_at)}</div>{pkg.reference ? <div className="font-mono text-[var(--muted)]">{pkg.reference}</div> : null}</td>
                         <td className="px-3 py-3 font-bold">{fmtMoney(pkg.price)}</td>
                         <td className="px-3 py-3">{fmtMoney(pkg.unit_cost)}</td>
