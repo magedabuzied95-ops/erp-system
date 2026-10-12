@@ -1445,54 +1445,62 @@ function OrderDetails() {
                     </div>
                   </div>
                 ) : (
-                  <div className="mt-4 space-y-2">
+                  <button
+                    type="button"
+                    onClick={() => setShippingFeeForm((current) => ({ ...current, open: true }))}
+                    className="mt-4 inline-flex h-[var(--control-height-md)] w-full items-center justify-center gap-2 rounded-[var(--radius-control)] bg-primary px-4 text-sm font-black text-[var(--primary-contrast)]"
+                  >
+                    <Banknote className="h-4 w-4" />
+                    {t(order.shipping_fee_advance.kind === "confirmation_fee" ? "orders.shippingFeeAdvance.confirmationFee.markPaid" : "orders.shippingFeeAdvance.markPaid")}
+                  </button>
+                )
+              ) : null}
+              {/*
+                * Ship on trust. Deliberately NOT inside the "awaiting_payment" branch above: a
+                * website transfer order is born with transfer_proof_status 'pending', so the
+                * commonest restricted order sits at "awaiting_review" — the one state where
+                * waiting for a transfer is exactly what we want to stop doing. It is also the
+                * opposite of the button above, which records money and takes it off the
+                * courier's collection; this records nothing and leaves the whole amount to
+                * collect at the door.
+                */}
+              {order.shipping_fee_advance.required && order.shipping_fee_advance.status !== "paid" && !shippingFeeForm.open ? (
+                <div className="mt-3">
+                  {shippingFeeWaive.open ? (
+                    <div className="rounded-[var(--radius-control)] border border-white/10 bg-black/20 p-3">
+                      <p className="text-sm font-bold leading-6 text-zinc-200">
+                        {t("orders.shippingFeeAdvance.waiveConfirm", { amount: formatCurrency(Math.max(0, Number(order.total_amount ?? order.total ?? 0) - Number(order.paid_amount || 0))) })}
+                      </p>
+                      <div className="mt-3 grid gap-2 sm:grid-cols-2">
+                        <button
+                          type="button"
+                          onClick={handleShippingFeeWaive}
+                          disabled={shippingFeeWaive.saving}
+                          className="inline-flex h-[var(--control-height-md)] items-center justify-center gap-2 rounded-[var(--radius-control)] bg-primary px-4 text-sm font-black text-[var(--primary-contrast)] disabled:opacity-50"
+                        >
+                          {shippingFeeWaive.saving ? <Loader2 className="h-4 w-4 animate-spin" /> : <Check className="h-4 w-4" />}
+                          {t("orders.shippingFeeAdvance.waiveYes")}
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => setShippingFeeWaive({ open: false, saving: false })}
+                          disabled={shippingFeeWaive.saving}
+                          className="h-[var(--control-height-md)] rounded-[var(--radius-control)] border border-white/10 bg-white/5 px-4 text-sm font-black text-white disabled:opacity-50"
+                        >
+                          {t("orders.shippingFeeAdvance.cancel")}
+                        </button>
+                      </div>
+                    </div>
+                  ) : (
                     <button
                       type="button"
-                      onClick={() => setShippingFeeForm((current) => ({ ...current, open: true }))}
-                      className="inline-flex h-[var(--control-height-md)] w-full items-center justify-center gap-2 rounded-[var(--radius-control)] bg-primary px-4 text-sm font-black text-[var(--primary-contrast)]"
+                      onClick={() => setShippingFeeWaive({ open: true, saving: false })}
+                      className="h-[var(--control-height-md)] w-full rounded-[var(--radius-control)] border border-white/10 bg-white/5 px-4 text-sm font-black text-white"
                     >
-                      <Banknote className="h-4 w-4" />
-                      {t(order.shipping_fee_advance.kind === "confirmation_fee" ? "orders.shippingFeeAdvance.confirmationFee.markPaid" : "orders.shippingFeeAdvance.markPaid")}
+                      {t("orders.shippingFeeAdvance.waive")}
                     </button>
-                    {/* Ship on trust. Separate from the button above on purpose: that one records
-                        the money (and takes it off the courier's collection), this one records
-                        nothing and leaves the whole amount to collect at the door. */}
-                    {shippingFeeWaive.open ? (
-                      <div className="rounded-[var(--radius-control)] border border-white/10 bg-black/20 p-3">
-                        <p className="text-sm font-bold leading-6 text-zinc-200">
-                          {t("orders.shippingFeeAdvance.waiveConfirm", { amount: formatCurrency(Math.max(0, Number(order.total_amount ?? order.total ?? 0) - Number(order.paid_amount || 0))) })}
-                        </p>
-                        <div className="mt-3 grid gap-2 sm:grid-cols-2">
-                          <button
-                            type="button"
-                            onClick={handleShippingFeeWaive}
-                            disabled={shippingFeeWaive.saving}
-                            className="inline-flex h-[var(--control-height-md)] items-center justify-center gap-2 rounded-[var(--radius-control)] bg-primary px-4 text-sm font-black text-[var(--primary-contrast)] disabled:opacity-50"
-                          >
-                            {shippingFeeWaive.saving ? <Loader2 className="h-4 w-4 animate-spin" /> : <Check className="h-4 w-4" />}
-                            {t("orders.shippingFeeAdvance.waiveYes")}
-                          </button>
-                          <button
-                            type="button"
-                            onClick={() => setShippingFeeWaive({ open: false, saving: false })}
-                            disabled={shippingFeeWaive.saving}
-                            className="h-[var(--control-height-md)] rounded-[var(--radius-control)] border border-white/10 bg-white/5 px-4 text-sm font-black text-white disabled:opacity-50"
-                          >
-                            {t("orders.shippingFeeAdvance.cancel")}
-                          </button>
-                        </div>
-                      </div>
-                    ) : (
-                      <button
-                        type="button"
-                        onClick={() => setShippingFeeWaive({ open: true, saving: false })}
-                        className="h-[var(--control-height-md)] w-full rounded-[var(--radius-control)] border border-white/10 bg-white/5 px-4 text-sm font-black text-white"
-                      >
-                        {t("orders.shippingFeeAdvance.waive")}
-                      </button>
-                    )}
-                  </div>
-                )
+                  )}
+                </div>
               ) : null}
             </div>
           ) : null}
