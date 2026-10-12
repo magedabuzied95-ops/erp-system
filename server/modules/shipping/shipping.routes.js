@@ -33,6 +33,11 @@ import {
   getCourierSettlementController,
   listCourierCollectionsController,
   listCourierSettlementsController,
+  createCourierPackageController,
+  getCourierCostReportController,
+  listCourierPackagesController,
+  saveCourierCostSettingsController,
+  voidCourierPackageController,
 } from "./shipping.settlements.controller.js";
 
 const router = express.Router();
@@ -83,5 +88,10 @@ router.post("/settlements/collections/backfill", protect, permit("orders", "edit
 router.get("/settlements", protect, permit("orders", "view"), listCourierSettlementsController);
 router.get("/settlements/:id", protect, permit("orders", "view"), getCourierSettlementController);
 router.post("/settlements", protect, permit("orders", "edit"), createCourierSettlementController);
+router.get("/courier-costs/packages", protect, permit("orders", "view"), listCourierPackagesController);
+router.post("/courier-costs/packages", protect, permit("orders", "edit"), createCourierPackageController);
+router.post("/courier-costs/packages/:id/void", protect, permit("orders", "edit"), voidCourierPackageController);
+router.get("/courier-costs/report", protect, permit("orders", "view"), getCourierCostReportController);
+router.put("/courier-costs/settings", protect, permit("orders", "edit"), saveCourierCostSettingsController);
 
 export default router;

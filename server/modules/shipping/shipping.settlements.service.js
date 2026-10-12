@@ -11,6 +11,7 @@
 // posted as an expense, and the net lands on the bank money account.
 import db from "../../database/db.js";
 import { postMoneyTransaction } from "../../services/accountingService.js";
+import { ensureCourierCostSchema, postSettlementFeeExpense } from "./shipping.costs.service.js";
 
 const text = (value) => String(value ?? "").trim();
 const round2 = (value) => Math.round((Number(value) || 0) * 100) / 100;
@@ -59,6 +60,9 @@ export const ensureCourierSettlementSchema = async () => {
         )
       `);
       await db.query(`CREATE INDEX IF NOT EXISTS idx_courier_settlements_tenant_time ON courier_settlements (tenant_id, settled_at DESC)`);
+      // Bosta's own per-parcel fees for the transfer, and the expense row its real fees became.
+      await db.query(`ALTER TABLE IF EXISTS courier_settlements ADD COLUMN IF NOT EXISTS expected_fees_amount NUMERIC(12,2) NULL`);
+      await db.query(`ALTER TABLE IF EXISTS courier_settlements ADD COLUMN IF NOT EXISTS fee_expense_id BIGINT NULL`);
     })().catch((error) => {
       schemaReady = null;
       throw error;
@@ -314,6 +318,7 @@ export const createCourierSettlement = async ({
   createdBy = null,
 } = {}) => {
   await ensureCourierSettlementSchema();
+  await ensureCourierCostSchema();
   const ids = [...new Set((Array.isArray(orderIds) ? orderIds : []).map(Number).filter((id) => Number.isFinite(id) && id > 0))];
   if (!ids.length) {
     const error = new Error("اختار الشحنات اللي دخلت في التحويل الأول");
@@ -374,24 +379,35 @@ export const createCourierSettlement = async ({
       throw error;
     }
 
+    // What Bosta's own per-parcel figures say it should keep. The gap to the real deduction
+    // stays visible on the settlement (small pickups, returns, anything unlisted) instead of
+    // vanishing into a proportional spread.
+    const knownFees = rows.rows.map((row) => (row.bosta_shipment_fees === null || row.bosta_shipment_fees === undefined ? null : round2(row.bosta_shipment_fees)));
+    const expectedFees = round2(knownFees.reduce((sum, value) => sum + (value || 0), 0));
+
     const inserted = await client.query(
       `
-      INSERT INTO courier_settlements (tenant_id, provider, reference, settled_at, gross_amount, fees_amount, net_amount, orders_count, money_account_id, notes, created_by)
-      VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11)
+      INSERT INTO courier_settlements (tenant_id, provider, reference, settled_at, gross_amount, fees_amount, net_amount, orders_count, money_account_id, notes, created_by, expected_fees_amount)
+      VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12)
       RETURNING *
       `,
-      [tenantId, text(provider) || "bosta", text(reference) || null, when.toISOString(), gross, fees, net, ids.length, toNumberOrNull(moneyAccountId), text(notes) || null, toNumberOrNull(createdBy)]
+      [tenantId, text(provider) || "bosta", text(reference) || null, when.toISOString(), gross, fees, net, ids.length, toNumberOrNull(moneyAccountId), text(notes) || null, toNumberOrNull(createdBy), expectedFees]
     );
     const settlement = inserted.rows[0];
 
-    // Fees are spread over the parcels in proportion to what each collected, so a
-    // per-order view (and a later return of one parcel) still carries its share.
+    // Each parcel carries the fee Bosta itself listed for it (when those fit inside what was
+    // deducted); the rest is spread in proportion to what each collected, so a per-order
+    // view (and a later return of one parcel) still carries its share.
     const feeShares = new Map();
+    const useKnown = expectedFees > 0 && expectedFees <= fees + 0.009;
+    const remainder = round2(fees - (useKnown ? expectedFees : 0));
     let allocated = 0;
     rows.rows.forEach((row, index) => {
       const collected = Number(row.courier_collected_amount) || 0;
+      const own = useKnown ? (knownFees[index] || 0) : 0;
       const isLast = index === rows.rows.length - 1;
-      const share = isLast ? round2(fees - allocated) : (gross > 0 ? round2((fees * collected) / gross) : 0);
+      const spread = gross > 0 ? (remainder * collected) / gross : remainder / rows.rows.length;
+      const share = isLast ? round2(fees - allocated) : round2(own + spread);
       allocated = round2(allocated + share);
       feeShares.set(Number(row.id), share);
     });
@@ -460,8 +476,15 @@ export const createCourierSettlement = async ({
         [settlement.id, moneyTransactionId, feeTransactionId, inbound?.account_id || null]
       );
     }
+    // The fee is a cost of the shop, so it goes to the expenses the profit report reads — the
+    // money movement alone lowered the bank balance and left the profit untouched.
+    let feeExpenseId = null;
+    if (fees > 0) {
+      feeExpenseId = await postSettlementFeeExpense(client, { tenantId, settlement });
+      if (feeExpenseId) await client.query(`UPDATE courier_settlements SET fee_expense_id = $2 WHERE id = $1`, [settlement.id, feeExpenseId]);
+    }
     await client.query("COMMIT");
-    return { ...settlement, money_transaction_id: moneyTransactionId, fee_transaction_id: feeTransactionId, order_ids: ids };
+    return { ...settlement, money_transaction_id: moneyTransactionId, fee_transaction_id: feeTransactionId, fee_expense_id: feeExpenseId, order_ids: ids };
   } catch (error) {
     await client.query("ROLLBACK");
     throw error;

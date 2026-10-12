@@ -138,7 +138,9 @@
     "tabs": {
       "pending": "Held by Bosta",
       "settled": "Settled",
-      "history": "Transfers"
+      "history": "Transfers",
+      "packages": "Bosta packages",
+      "costs": "Shipping cost"
     },
     "filters": {
       "search": "Search order, customer or tracking",
@@ -188,7 +190,9 @@
       "account": "Account",
       "by": "By",
       "view": "Details",
-      "close": "Close"
+      "close": "Close",
+      "gap": "Gap vs Bosta",
+      "gapHint": "Bosta's per-parcel fees: {{expected}}"
     },
     "bosta": {
       "unpaidTitle": "Money held by Bosta, not transferred yet",
@@ -196,7 +200,89 @@
       "unpaidUnknown": "Bosta's balance appears after the first pickup requested from the system (that is the only way Bosta reveals the account id).",
       "unpaidUnavailable": "Could not read Bosta's balance right now.",
       "feesColumn": "Bosta fees",
-      "feesPrefilled": "Fees were filled from Bosta's figures for the selected parcels ({{amount}}) — edit if the statement differs."
+      "feesPrefilled": "Fees were filled from Bosta's figures for the selected parcels ({{amount}}) — edit if the statement differs.",
+      "feesGap": "Bosta lists {{expected}} for these parcels — a gap of {{gap}} (small pickup, returns, or something to ask about). The figure you typed is what gets expensed."
+    },
+    "packages": {
+      "title": "Prepaid packages",
+      "empty": "No packages yet — record the first one from the form.",
+      "void": "Void",
+      "voidedTag": "Voided",
+      "voidConfirm": "Void package #{{id}}? The money returns to the account and its shipments move to another package if one is available.",
+      "voided": "Package voided",
+      "kpi": {
+        "remaining": "Left in packages",
+        "shipments": "{{count}} shipments",
+        "unit": "Cost per shipment now",
+        "unitHint": "From the oldest package with units left",
+        "uncovered": "Shipments without a package",
+        "uncoveredHint": "Shipped since {{date}} with no package covering them — record the missing package",
+        "noPackages": "Record your packages so every shipment carries its cost"
+      },
+      "table": {
+        "date": "Bought on",
+        "price": "Price",
+        "unit": "Per shipment",
+        "usage": "Used",
+        "remaining": "Left"
+      },
+      "settings": {
+        "title": "Small pickup fee",
+        "min": "Fewer than (parcels)",
+        "fee": "Fee (EGP)",
+        "save": "Save",
+        "saved": "Pickup settings saved"
+      },
+      "form": {
+        "title": "Record a package",
+        "hint": "The money leaves the account now, but it is expensed per shipment as each one ships (oldest package first). Record older packages with their dates so past shipments get their cost.",
+        "price": "Package price",
+        "count": "Shipments",
+        "unit": "Each shipment costs {{amount}}",
+        "date": "Bought on",
+        "account": "Paid from",
+        "submit": "Record package",
+        "invalid": "Enter the package price and number of shipments",
+        "success": "Package recorded — {{count}} shipments charged to it",
+        "failed": "Could not record the package"
+      }
+    },
+    "costs": {
+      "kpi": {
+        "total": "What Bosta took",
+        "totalSub": "{{count}} shipments · {{avg}} average",
+        "package": "From packages",
+        "packageSub": "Each shipment's share of its package",
+        "uncovered": "{{count}} shipments without a package — cost incomplete",
+        "fees": "Bosta fees (collection & extras)",
+        "pickups": "incl. {{count}} small pickups ≈ {{amount}}",
+        "margin": "Shipping profit/loss",
+        "charged": "Customers paid {{amount}} for shipping"
+      },
+      "reconcile": {
+        "title": "Transfers vs Bosta's figures",
+        "hint": "{{count}} transfers in range: Bosta deducted {{fees}}; its per-parcel figures said {{expected}}.",
+        "difference": "Gap"
+      },
+      "table": {
+        "shipped": "Shipped",
+        "package": "Package",
+        "fees": "Bosta fees",
+        "pickup": "Small pickup",
+        "total": "Cost",
+        "charged": "Customer paid",
+        "margin": "Margin",
+        "cancelled": "Cancelled",
+        "noPackage": "No package",
+        "settled": "Actually deducted",
+        "estimate": "Estimate",
+        "pickupParcels": "{{count}} parcels in pickup",
+        "insideSettled": "Inside the deduction"
+      },
+      "pickups": {
+        "title": "Pickup days that cost a fee",
+        "hint": "Days Bosta picked up fewer parcels than the threshold — the fee is deducted from the transfer and shared by that day's parcels."
+      }
     }
   }
 }

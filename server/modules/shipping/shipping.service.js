@@ -7,6 +7,7 @@ import { syncDeliveryOrderFavorite } from "../../services/deliveryOrderFavoriteS
 import { absolutePublicUploadUrl, getPublicBackendUrl } from "../../utils/publicUrl.js";
 import { createBostaClient } from "./providers/bosta.client.js";
 import { DELIVERED_CLOSES_CONFIRMATION_SQL, ensureCourierSettlementSchema, markCourierCollected } from "./shipping.settlements.service.js";
+import { reconcileCourierCostsSoon } from "./shipping.costs.service.js";
 import { exchangeParcelContextOf } from "../orders/exchangeParcel.js";
 import { isExternalMarketplaceOrder, marketplaceOrderLockedError } from "../amazon/amazonOrderGuards.js";
 import { BOSTA_OPEN_PACKAGE_IMAGE_LIMIT, bostaStateText, buildBostaAddressLine, extractBostaInsights, mapOrderToBostaDeliveryPayload, normalizeBostaAwbResponse, normalizeBostaDeliveryResponse, normalizeBostaMasterLocations, normalizeBostaStatus } from "./providers/bosta.mapper.js";
@@ -1136,6 +1137,8 @@ export const createBostaShipmentForOrder = async (orderId, options = {}) => {
     );
     await client.query("COMMIT");
     const updatedOrder = updateResult.rows[0];
+    // One package unit (and its share of the day's shipping expense) for the new parcel.
+    reconcileCourierCostsSoon({ tenantId: updatedOrder?.tenant_id ?? null, provider: "bosta" });
     sendShipmentCreated(updatedOrder).catch((error) => {
       console.warn("[whatsapp:shipment-notification-skipped]", { orderId: updatedOrder?.id, status, message: error?.message || String(error) });
     });
@@ -1393,6 +1396,8 @@ export const cancelBostaShipmentForOrder = async (orderId) => {
     `,
     [orderId, JSON.stringify([timelineEvent])]
   );
+  // The parcel no longer uses a package unit; the reconcile hands it back.
+  reconcileCourierCostsSoon({ tenantId: order.tenant_id ?? null, provider: "bosta" });
   return { success: true, provider: "bosta", status: "cancelled", order: updated.rows[0] };
 };
 

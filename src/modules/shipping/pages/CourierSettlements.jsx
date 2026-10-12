@@ -5,6 +5,7 @@ import { Link } from "react-router-dom";
 import { ArrowRight, Banknote, CheckCheck, Landmark, Loader2, RefreshCw, Search, Truck, X } from "lucide-react";
 import toast from "react-hot-toast";
 import { api } from "../../../shared/api/api";
+import { CourierCostsPanel, CourierPackagesPanel } from "../components/CourierCostsPanels";
 
 // The courier's money has two moments. Step one (delivered ⇒ collected) happens on
 // the webhook without anyone's hand; this page is step two: the bank transfer is
@@ -105,6 +106,7 @@ export default function CourierSettlements() {
   const [bostaBalance, setBostaBalance] = useState(null);
 
   const load = useCallback(async () => {
+    if (tab === "packages" || tab === "costs") return;
     setLoading(true);
     try {
       const [collections, settlements] = await Promise.all([
@@ -237,9 +239,11 @@ export default function CourierSettlements() {
           {tabButton("pending", t("shipping.settlements.tabs.pending"))}
           {tabButton("settled", t("shipping.settlements.tabs.settled"))}
           {tabButton("history", t("shipping.settlements.tabs.history"))}
+          {tabButton("packages", t("shipping.settlements.tabs.packages"))}
+          {tabButton("costs", t("shipping.settlements.tabs.costs"))}
         </div>
 
-        {tab !== "history" ? (
+        {tab === "packages" ? <CourierPackagesPanel provider={PROVIDER} accounts={accounts} /> : tab === "costs" ? <CourierCostsPanel provider={PROVIDER} /> : tab !== "history" ? (
           <div className={`grid gap-5 ${tab === "pending" ? "xl:grid-cols-[1fr_22rem]" : ""}`}>
             <section className="rounded-[var(--radius-card)] border border-[var(--border)] bg-[var(--surface)] p-4 shadow-2xl shadow-[var(--shadow)]">
               <div className="mb-4 grid gap-2 md:grid-cols-4">
@@ -297,6 +301,7 @@ export default function CourierSettlements() {
                 <label className="block text-xs font-black text-[var(--text-tertiary)]">{t("shipping.settlements.form.fees")}
                   <input type="number" min="0" step="0.01" value={form.fees} placeholder={feesPrefilled ? bostaFees.toFixed(2) : ""} onChange={(event) => setForm((prev) => ({ ...prev, fees: event.target.value }))} className={`${inputClass} mt-1`} />
                   {feesPrefilled ? <div className="mt-1 text-xs font-bold text-[var(--muted)]">{t("shipping.settlements.bosta.feesPrefilled", { amount: fmtMoney(bostaFees) })}</div> : null}
+                  {!feesPrefilled && selectedRows.length > 0 && Math.abs(fees - bostaFees) > 0.009 ? <div className="mt-1 text-xs font-bold text-amber-200">{t("shipping.settlements.bosta.feesGap", { expected: fmtMoney(bostaFees), gap: fmtMoney(fees - bostaFees) })}</div> : null}
                 </label>
                 <label className="block text-xs font-black text-[var(--text-tertiary)]">{t("shipping.settlements.form.net")}
                   <input type="number" min="0" step="0.01" value={form.net} placeholder={expectedNet.toFixed(2)} onChange={(event) => setForm((prev) => ({ ...prev, net: event.target.value }))} className={`${inputClass} mt-1 ${mismatch ? "border-rose-400/60" : ""}`} />
@@ -336,6 +341,7 @@ export default function CourierSettlements() {
                     <th className="px-3 py-3 text-start font-black">{t("shipping.settlements.history.orders")}</th>
                     <th className="px-3 py-3 text-start font-black">{t("shipping.settlements.history.gross")}</th>
                     <th className="px-3 py-3 text-start font-black">{t("shipping.settlements.history.fees")}</th>
+                    <th className="px-3 py-3 text-start font-black">{t("shipping.settlements.history.gap")}</th>
                     <th className="px-3 py-3 text-start font-black">{t("shipping.settlements.history.net")}</th>
                     <th className="px-3 py-3 text-start font-black">{t("shipping.settlements.history.account")}</th>
                     <th className="px-3 py-3 text-start font-black">{t("shipping.settlements.history.by")}</th>
@@ -351,13 +357,14 @@ export default function CourierSettlements() {
                       <td className="px-3 py-3">{row.orders_count}</td>
                       <td className="px-3 py-3 font-bold">{fmtMoney(row.gross_amount)}</td>
                       <td className="px-3 py-3 text-orange-200">{fmtMoney(row.fees_amount)}</td>
+                      <td className="px-3 py-3 text-xs font-black">{row.expected_fees_amount === null || row.expected_fees_amount === undefined ? "-" : <span className={Math.abs(Number(row.fees_amount || 0) - Number(row.expected_fees_amount || 0)) > 0.009 ? "text-rose-300" : "text-emerald-200"} title={t("shipping.settlements.history.gapHint", { expected: fmtMoney(row.expected_fees_amount) })}>{fmtMoney(Number(row.fees_amount || 0) - Number(row.expected_fees_amount || 0))}</span>}</td>
                       <td className="px-3 py-3 font-black text-emerald-200">{fmtMoney(row.net_amount)}</td>
                       <td className="px-3 py-3">{row.money_account_name || "-"}</td>
                       <td className="px-3 py-3 text-xs text-[var(--muted)]">{row.created_by_name || "-"}</td>
                       <td className="px-3 py-3"><button type="button" onClick={() => setDetailsId(row.id)} className="rounded-full border border-[var(--border)] bg-[var(--card)] px-2.5 py-1 text-xs font-black hover:text-emerald-300">{t("shipping.settlements.history.view")}</button></td>
                     </tr>
                   ))}
-                  {!history.length ? <tr><td colSpan={10} className="px-4 py-16 text-center text-sm font-bold text-[var(--text-tertiary)]">{t("shipping.settlements.history.empty")}</td></tr> : null}
+                  {!history.length ? <tr><td colSpan={11} className="px-4 py-16 text-center text-sm font-bold text-[var(--text-tertiary)]">{t("shipping.settlements.history.empty")}</td></tr> : null}
                 </tbody>
               </table>
             </div>
