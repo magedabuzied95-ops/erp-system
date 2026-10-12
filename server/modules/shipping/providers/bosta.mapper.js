@@ -366,7 +366,11 @@ export const buildBostaAddressLine = (order = {}) => {
 export const BOSTA_DELIVERY_TYPE_SEND = 10;
 export const BOSTA_DELIVERY_TYPE_EXCHANGE = 30;
 
-export const mapOrderToBostaDeliveryPayload = ({ order = {}, items = [], city = {}, zone = {}, district = {}, codAmount = 0, allowOpenPackage = null, webhookUrl = "", description = "", exchange = null }) => {
+// The only `deliveryImages` type Bosta supports today, and its own 1..10 cap per entry.
+export const BOSTA_OPEN_PACKAGE_IMAGE_TYPE = "ALLOW_TO_OPEN_THE_PACKAGE";
+export const BOSTA_OPEN_PACKAGE_IMAGE_LIMIT = 10;
+
+export const mapOrderToBostaDeliveryPayload = ({ order = {}, items = [], city = {}, zone = {}, district = {}, codAmount = 0, allowOpenPackage = null, webhookUrl = "", description = "", exchange = null, productImages = [] }) => {
   const names = text(order.customer_name || order.full_name || "Online Customer").split(/\s+/);
   const firstName = names.shift() || "Customer";
   const lastName = names.join(" ") || firstName;
@@ -386,6 +390,18 @@ export const mapOrderToBostaDeliveryPayload = ({ order = {}, items = [], city = 
   // specs, so an exchange with no returnSpecs is just an expensive delivery.
   const returnItemsCount = Math.max(1, Number(exchange?.items_count || 0) || 1);
   const returnDescription = text(exchange?.description) || "Exchanged item";
+  // Bosta refuses an open-package parcel that carries no photo of what is inside:
+  // `allowToOpenPackage: true` with no `deliveryImages` comes back as errorCode 2150, which
+  // is how three ready orders became unshippable. Only absolute http(s) URLs count — a
+  // relative /uploads path reaches Bosta as nothing at all — and ten is Bosta's own cap.
+  const openPackageImages = [...new Set(
+    (Array.isArray(productImages) ? productImages : [])
+      .map((value) => text(value))
+      .filter((value) => /^https?:[/][/]/i.test(value))
+  )].slice(0, BOSTA_OPEN_PACKAGE_IMAGE_LIMIT);
+  // Asking for the privilege without the pictures costs the whole shipment, so an order with
+  // no usable photo ships WITHOUT the open-package permission rather than not at all.
+  const allowOpenPackageDecision = allowOpenPackage === true && !openPackageImages.length ? false : allowOpenPackage;
   return {
     type: exchange ? BOSTA_DELIVERY_TYPE_EXCHANGE : BOSTA_DELIVERY_TYPE_SEND,
     cod: Math.max(0, Number(codAmount || 0)),
@@ -402,7 +418,14 @@ export const mapOrderToBostaDeliveryPayload = ({ order = {}, items = [], city = 
     ...(text(webhookUrl) ? { webHook: text(webhookUrl) } : {}),
     // Bosta keeps its own per-account default for this, so the flag is sent only
     // when the shop has actually decided. Omitting it is not the same as false.
-    ...(typeof allowOpenPackage === "boolean" ? { allowToOpenPackage: allowOpenPackage } : {}),
+    ...(typeof allowOpenPackageDecision === "boolean" ? { allowToOpenPackage: allowOpenPackageDecision } : {}),
+    // Sent on "inherit" too, not only on an explicit true: inherit leaves the decision to
+    // Bosta's account default, and if that default opens the package the photos have to be on
+    // the request already. A shop that said NO sends none — the entry is typed
+    // ALLOW_TO_OPEN_THE_PACKAGE, and that is not a permission to hand over by accident.
+    ...(openPackageImages.length && allowOpenPackageDecision !== false
+      ? { deliveryImages: [{ type: BOSTA_OPEN_PACKAGE_IMAGE_TYPE, images: openPackageImages }] }
+      : {}),
     specs: {
       packageType: "Parcel",
       size: "MEDIUM",

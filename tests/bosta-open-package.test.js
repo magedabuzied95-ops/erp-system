@@ -16,8 +16,11 @@ test("no instruction is sent when the shop has not decided", () => {
   assert.equal("allowToOpenPackage" in unset, false);
 });
 
+// "Allow" now also needs the photos Bosta demands with it — see bosta-open-package-images.test.js,
+// where the whole contract lives. Without one it is sent as false, because an unshippable parcel
+// is worse than a parcel the customer cannot open.
 test("a decision is sent as Bosta's own field", () => {
-  assert.equal(mapOrderToBostaDeliveryPayload({ order, codAmount: 1490, allowOpenPackage: true }).allowToOpenPackage, true);
+  assert.equal(mapOrderToBostaDeliveryPayload({ order, codAmount: 1490, allowOpenPackage: true, productImages: ["https://api.m1store-egy.com/uploads/products/a.jpg"] }).allowToOpenPackage, true);
   assert.equal(mapOrderToBostaDeliveryPayload({ order, codAmount: 1490, allowOpenPackage: false }).allowToOpenPackage, false);
 });
 

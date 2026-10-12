@@ -4,12 +4,12 @@ import { getSetting, setSetting } from "../../services/settingsService.js";
 import { buildPackingDescription, packingDetailsEnabled, stampPackingQrOnAirwayBill } from "./packingSlip.js";
 import { ensureWhatsappShippingSchema, sendShipmentCreated, sendShipmentNotificationForStatus } from "../../services/whatsappShippingService.js";
 import { syncDeliveryOrderFavorite } from "../../services/deliveryOrderFavoriteService.js";
-import { getPublicBackendUrl } from "../../utils/publicUrl.js";
+import { absolutePublicUploadUrl, getPublicBackendUrl } from "../../utils/publicUrl.js";
 import { createBostaClient } from "./providers/bosta.client.js";
 import { DELIVERED_CLOSES_CONFIRMATION_SQL, ensureCourierSettlementSchema, markCourierCollected } from "./shipping.settlements.service.js";
 import { exchangeParcelContextOf } from "../orders/exchangeParcel.js";
 import { isExternalMarketplaceOrder, marketplaceOrderLockedError } from "../amazon/amazonOrderGuards.js";
-import { bostaStateText, buildBostaAddressLine, extractBostaInsights, mapOrderToBostaDeliveryPayload, normalizeBostaAwbResponse, normalizeBostaDeliveryResponse, normalizeBostaMasterLocations, normalizeBostaStatus } from "./providers/bosta.mapper.js";
+import { BOSTA_OPEN_PACKAGE_IMAGE_LIMIT, bostaStateText, buildBostaAddressLine, extractBostaInsights, mapOrderToBostaDeliveryPayload, normalizeBostaAwbResponse, normalizeBostaDeliveryResponse, normalizeBostaMasterLocations, normalizeBostaStatus } from "./providers/bosta.mapper.js";
 
 // bosta.operations.js imports this module, so it is loaded lazily to keep the cycle out of
 // module evaluation.
@@ -952,6 +952,18 @@ const loadOrderShipmentContext = async (client, orderId) => {
   return { order, items: itemsResult.rows, city: cityResult.rows[0], zone: zoneResult.rows[0], district: districtResult.rows[0] };
 };
 
+// The photos Bosta demands before it will let a customer open the parcel. They have to be
+// absolute and on the BACKEND origin: /uploads is served by the API host and by nothing else,
+// so a relative path — or the storefront origin, which answers every unknown path with
+// index.html and a 200 — reaches Bosta as no picture at all. Products migrated to Cloudinary
+// already store an absolute URL and pass straight through.
+export const bostaOpenPackageImages = (items = []) =>
+  [...new Set(
+    (Array.isArray(items) ? items : [])
+      .map((item) => absolutePublicUploadUrl(text(item?.image_url)))
+      .filter(Boolean)
+  )].slice(0, BOSTA_OPEN_PACKAGE_IMAGE_LIMIT);
+
 export const createBostaShipmentForOrder = async (orderId, options = {}) => {
   await ensureShippingSchema();
   const client = await db.connect();
@@ -1014,25 +1026,41 @@ export const createBostaShipmentForOrder = async (orderId, options = {}) => {
     const allowOpenPackage = resolveOpenPackagePreference({ order, defaultMode: config.allowOpenPackage, override: options.allowOpenPackage });
 
     const bosta = createBostaClient(config);
+    // One read of the resolved lines serves both the label description and the open-package
+    // photos: order_items keeps only a snapshot, so the image has to be resolved through the
+    // variant, the colour gallery and the product the same way every other screen does.
+    // Dynamic import: shipping.portal.service.js imports this module back.
+    let resolvedItems = [];
+    try {
+      const { itemsForOrders } = await import("./shipping.portal.service.js");
+      resolvedItems = (await itemsForOrders([order.id], client)).get(String(order.id)) || [];
+    } catch (itemsError) {
+      console.warn("[bosta] resolved order lines unavailable", { orderId: order.id, message: itemsError?.message });
+    }
     // Every piece with colour, size and article code on the label (orders.bosta_awb_packing_details).
     let description = "";
     if (await packingDetailsEnabled()) {
       try {
-        const { itemsForOrders } = await import("./shipping.portal.service.js");
-        description = buildPackingDescription((await itemsForOrders([order.id], client)).get(String(order.id)) || []);
+        description = buildPackingDescription(resolvedItems);
       } catch (descriptionError) {
         console.warn("[bosta] detailed description skipped", { orderId: order.id, message: descriptionError?.message });
       }
+    }
+    // Bosta rejects allowToOpenPackage with no photo (errorCode 2150). The mapper drops the
+    // permission rather than the shipment, and this is the only line that says why.
+    const productImages = bostaOpenPackageImages(resolvedItems);
+    if (allowOpenPackage === true && !productImages.length) {
+      console.warn("[bosta] open package dropped: no product photo could be resolved for this order", { orderId: order.id, lines: resolvedItems.length, backend_origin: Boolean(getPublicBackendUrl()) });
     }
     // An exchange order ships as ONE two-way parcel: the replacement out, the returned
     // piece back on the same visit. Anything else and the courier arrives with no
     // instruction to collect, which is how a shop ends up chasing its own stock.
     const exchange = exchangeParcelContextOf(order);
-    const deliveryPayload = mapOrderToBostaDeliveryPayload({ order, items, city, zone, district, codAmount: collection.amount, allowOpenPackage, webhookUrl: await bostaWebhookCallbackUrl(), description, exchange });
+    const deliveryPayload = mapOrderToBostaDeliveryPayload({ order, items, city, zone, district, codAmount: collection.amount, allowOpenPackage, webhookUrl: await bostaWebhookCallbackUrl(), description, exchange, productImages });
     // Redacted: the callback carries the webhook secret in its query string, and this
     // line goes to the container log verbatim.
     console.log("[bosta-create-payload]", JSON.stringify(redactBostaPayload(deliveryPayload)));
-    console.log("[bosta] creating delivery", { orderId: order.id, exchange: Boolean(exchange), city: city.provider_city_id, zone: zone.provider_zone_id, district: district.provider_district_id, cod: collection.amount, cod_source: collection.source, allow_open_package: allowOpenPackage });
+    console.log("[bosta] creating delivery", { orderId: order.id, exchange: Boolean(exchange), city: city.provider_city_id, zone: zone.provider_zone_id, district: district.provider_district_id, cod: collection.amount, cod_source: collection.source, allow_open_package: deliveryPayload.allowToOpenPackage ?? allowOpenPackage, open_package_images: productImages.length });
     let rawBostaResponse;
     try {
       rawBostaResponse = await bosta.createDelivery(deliveryPayload);
@@ -1055,6 +1083,9 @@ export const createBostaShipmentForOrder = async (orderId, options = {}) => {
       throw bostaDeliveryError(response.raw_response, response.error || "Bosta delivery creation failed", 400);
     }
 
+    // What the courier was actually told, which is not the request when the photos were
+    // missing — the order must not claim a permission the parcel does not carry.
+    const allowOpenPackageSent = typeof deliveryPayload.allowToOpenPackage === "boolean" ? deliveryPayload.allowToOpenPackage : allowOpenPackage;
     const status = response.status || "created";
     const providerDeliveryId = response.provider_delivery_id || response.shipment_id;
     const bostaShipmentNumber = response.tracking_number || response.shipment_id || providerDeliveryId;
@@ -1071,7 +1102,8 @@ export const createBostaShipmentForOrder = async (orderId, options = {}) => {
       tracking_number: response.tracking_number,
       cod_amount: collection.amount,
       cod_source: collection.source,
-      allow_open_package: allowOpenPackage,
+      allow_open_package: allowOpenPackageSent,
+      open_package_images: productImages.length,
       ...(exchange ? { exchange_return_id: exchange.return_id || null, exchange_items_count: exchange.items_count } : {}),
       // The overwritten parcel stays named here, so a replacement is never a tracking
       // number that simply vanished from the order.
@@ -1100,7 +1132,7 @@ export const createBostaShipmentForOrder = async (orderId, options = {}) => {
       WHERE id = $1
       RETURNING *
       `,
-      [order.id, providerDeliveryId, bostaShipmentNumber, response.tracking_number, response.tracking_url, response.label_url, status, JSON.stringify(response.raw_response), JSON.stringify([timelineEvent]), collection.amount, allowOpenPackage]
+      [order.id, providerDeliveryId, bostaShipmentNumber, response.tracking_number, response.tracking_url, response.label_url, status, JSON.stringify(response.raw_response), JSON.stringify([timelineEvent]), collection.amount, allowOpenPackageSent]
     );
     await client.query("COMMIT");
     const updatedOrder = updateResult.rows[0];
