@@ -2,7 +2,7 @@ import { dateKeyInAppTimezone } from "../../../shared/lib/appTimezone";
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { useTranslation } from "react-i18next";
 import { Link } from "react-router-dom";
-import { Ban, Boxes, Calculator, Loader2, PackagePlus, Save, Search } from "lucide-react";
+import { Ban, Boxes, Calculator, Loader2, PackagePlus, RefreshCw, Save, Search } from "lucide-react";
 import toast from "react-hot-toast";
 import { api } from "../../../shared/api/api";
 import ThemedSelect from "../../../shared/ui/ThemedSelect";
@@ -35,6 +35,8 @@ export function CourierPackagesPanel({ provider = "bosta", accounts = [] }) {
   const [form, setForm] = useState({ price: "", count: "", purchasedAt: dateKeyInAppTimezone(new Date()), accountId: "", reference: "", notes: "" });
   const [settings, setSettings] = useState({ min: "", fee: "" });
   const [savingSettings, setSavingSettings] = useState(false);
+  const [renew, setRenew] = useState({ enabled: false, price: "", shipments: "", accountId: "", since: "" });
+  const [savingRenew, setSavingRenew] = useState(false);
 
   const load = useCallback(async () => {
     setLoading(true);
@@ -42,6 +44,16 @@ export function CourierPackagesPanel({ provider = "bosta", accounts = [] }) {
       const response = await api.get("/shipping/courier-costs/packages", { params: { provider } });
       setData({ packages: response?.packages || [], summary: response?.summary || {}, settings: response?.settings || {} });
       setSettings({ min: String(response?.settings?.pickup_min_parcels ?? ""), fee: String(response?.settings?.pickup_small_fee ?? "") });
+      const saved = response?.settings || {};
+      // Unset fields start from the last package entered by hand — usually the same deal.
+      const lastPackage = (response?.packages || []).find((pkg) => !pkg.voided_at);
+      setRenew({
+        enabled: Boolean(saved.auto_renew_enabled),
+        price: String(saved.auto_renew_price ?? lastPackage?.price ?? ""),
+        shipments: String(saved.auto_renew_shipments ?? lastPackage?.shipments_count ?? ""),
+        accountId: saved.auto_renew_account_id ? String(saved.auto_renew_account_id) : (lastPackage?.money_account_id ? String(lastPackage.money_account_id) : ""),
+        since: saved.auto_renew_since ? dateKeyInAppTimezone(new Date(saved.auto_renew_since)) : dateKeyInAppTimezone(new Date()),
+      });
     } catch (error) {
       toast.error(error.message);
     } finally {
@@ -100,6 +112,24 @@ export function CourierPackagesPanel({ provider = "bosta", accounts = [] }) {
     }
   };
 
+  const saveRenew = async (enabled) => {
+    if (enabled && (!(Number(renew.price) > 0) || !(Number(renew.shipments) > 0))) return toast.error(t("shipping.settlements.packages.form.invalid"));
+    setSavingRenew(true);
+    try {
+      const result = await api.put("/shipping/courier-costs/settings", {
+        provider,
+        auto_renew: { enabled, price: Number(renew.price) || null, shipments: Number(renew.shipments) || null, account_id: renew.accountId || null, since: renew.since ? new Date(`${renew.since}T00:00:00`).toISOString() : null },
+      });
+      const created = Number(result?.settings?.reconcile?.auto_packages || 0);
+      toast.success(enabled ? t("shipping.settlements.packages.renew.on", { count: created }) : t("shipping.settlements.packages.renew.off"));
+      await load();
+    } catch (error) {
+      toast.error(error.message);
+    } finally {
+      setSavingRenew(false);
+    }
+  };
+
   const summary = data.summary || {};
   const accountOptions = useMemo(() => [{ value: "", label: t("shipping.settlements.form.accountAuto") }, ...accounts.map((account) => ({ value: String(account.id), label: `${account.name}${account.branch_name ? ` — ${account.branch_name}` : ""}` }))], [accounts, t]);
 
@@ -122,6 +152,37 @@ export function CourierPackagesPanel({ provider = "bosta", accounts = [] }) {
           <button type="button" onClick={saveSettings} disabled={savingSettings} className="mt-2 inline-flex items-center gap-2 rounded-[var(--radius-control)] border border-[var(--border)] bg-[var(--card)] px-3 py-1.5 text-xs font-black hover:bg-[var(--table-hover)] disabled:opacity-60">
             {savingSettings ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Save className="h-3.5 w-3.5" />} {t("shipping.settlements.packages.settings.save")}
           </button>
+        </div>
+      </section>
+
+      <section className={`${cardClass} space-y-3`}>
+        <div className="flex flex-wrap items-center justify-between gap-3">
+          <div>
+            <div className="flex items-center gap-2 text-base font-black"><RefreshCw className="h-5 w-5 text-emerald-300" /> {t("shipping.settlements.packages.renew.title")}</div>
+            <p className="mt-1 text-xs font-semibold leading-5 text-[var(--muted)]">{t("shipping.settlements.packages.renew.hint")}</p>
+          </div>
+          <span className={`rounded-full px-3 py-1 text-xs font-black ${renew.enabled ? "bg-emerald-400/15 text-emerald-200" : "border border-[var(--border)] text-[var(--muted)]"}`}>{renew.enabled ? t("shipping.settlements.packages.renew.statusOn") : t("shipping.settlements.packages.renew.statusOff")}</span>
+        </div>
+        <div className="grid gap-2 sm:grid-cols-2 xl:grid-cols-4">
+          <label className="block text-xs font-black text-[var(--text-tertiary)]">{t("shipping.settlements.packages.form.price")}
+            <input type="number" min="0" step="0.01" value={renew.price} onChange={(event) => setRenew((prev) => ({ ...prev, price: event.target.value }))} className={`${inputClass} mt-1`} placeholder="2000" />
+          </label>
+          <label className="block text-xs font-black text-[var(--text-tertiary)]">{t("shipping.settlements.packages.form.count")}
+            <input type="number" min="1" step="1" value={renew.shipments} onChange={(event) => setRenew((prev) => ({ ...prev, shipments: event.target.value }))} className={`${inputClass} mt-1`} placeholder="20" />
+          </label>
+          <label className="block text-xs font-black text-[var(--text-tertiary)]">{t("shipping.settlements.packages.form.account")}
+            <div className="mt-1"><ThemedSelect value={renew.accountId} onChange={(value) => setRenew((prev) => ({ ...prev, accountId: value }))} options={accountOptions} ariaLabel={t("shipping.settlements.packages.form.account")} triggerClassName={inputClass} /></div>
+          </label>
+          <label className="block text-xs font-black text-[var(--text-tertiary)]">{t("shipping.settlements.packages.renew.since")}
+            <input type="date" value={renew.since} onChange={(event) => setRenew((prev) => ({ ...prev, since: event.target.value }))} className={`${inputClass} mt-1`} />
+          </label>
+        </div>
+        <p className="text-xs font-semibold text-[var(--muted)]">{t("shipping.settlements.packages.renew.sinceHint")}</p>
+        <div className="flex flex-wrap gap-2">
+          <button type="button" onClick={() => saveRenew(true)} disabled={savingRenew} className="inline-flex items-center gap-2 rounded-[var(--radius-control)] bg-primary px-4 py-2 text-sm font-black text-[var(--primary-contrast)] disabled:opacity-50">
+            {savingRenew ? <Loader2 className="h-4 w-4 animate-spin" /> : <RefreshCw className="h-4 w-4" />} {renew.enabled ? t("shipping.settlements.packages.renew.update") : t("shipping.settlements.packages.renew.enable")}
+          </button>
+          {renew.enabled ? <button type="button" onClick={() => saveRenew(false)} disabled={savingRenew} className="inline-flex items-center gap-2 rounded-[var(--radius-control)] border border-[var(--border)] bg-[var(--card)] px-4 py-2 text-sm font-black hover:bg-[var(--table-hover)] disabled:opacity-50">{t("shipping.settlements.packages.renew.disable")}</button> : null}
         </div>
       </section>
 
@@ -148,7 +209,7 @@ export function CourierPackagesPanel({ provider = "bosta", accounts = [] }) {
                     const pct = Math.min(100, Math.round((Number(pkg.used) / Math.max(1, Number(pkg.shipments_count))) * 100));
                     return (
                       <tr key={pkg.id} className={`border-t border-[var(--border)] ${pkg.voided_at ? "opacity-50" : ""}`}>
-                        <td className="px-3 py-3 font-black">#{pkg.id}</td>
+                        <td className="px-3 py-3 font-black">#{pkg.id}{pkg.source === "auto" ? <div className="mt-1 w-fit rounded-full bg-sky-400/15 px-2 py-0.5 text-[10px] font-black text-sky-200">{t("shipping.settlements.packages.renew.tag")}</div> : null}</td>
                         <td className="px-3 py-3 text-xs"><div className="font-bold">{fmtDay(pkg.purchased_at)}</div>{pkg.reference ? <div className="font-mono text-[var(--muted)]">{pkg.reference}</div> : null}</td>
                         <td className="px-3 py-3 font-bold">{fmtMoney(pkg.price)}</td>
                         <td className="px-3 py-3">{fmtMoney(pkg.unit_cost)}</td>
@@ -157,7 +218,7 @@ export function CourierPackagesPanel({ provider = "bosta", accounts = [] }) {
                           <div className="mt-1 h-1.5 w-28 overflow-hidden rounded-full bg-[var(--card-soft)]"><div className="h-full rounded-full bg-emerald-400" style={{ width: `${pct}%` }} /></div>
                         </td>
                         <td className="px-3 py-3 font-black">{pkg.voided_at ? t("shipping.settlements.packages.voidedTag") : `${pkg.remaining} · ${fmtMoney(pkg.remaining_value)}`}</td>
-                        <td className="px-3 py-3 text-xs">{pkg.money_account_name || "-"}</td>
+                        <td className="px-3 py-3 text-xs">{pkg.money_account_name || "-"}{pkg.payment_note && !pkg.money_transaction_id ? <div className="mt-1 font-black text-rose-300" title={pkg.payment_note}>{t("shipping.settlements.packages.renew.unpaid")}</div> : null}</td>
                         <td className="px-3 py-3">{!pkg.voided_at ? <button type="button" onClick={() => voidPackage(pkg)} className="inline-flex items-center gap-1 rounded-full border border-[var(--border)] bg-[var(--card)] px-2.5 py-1 text-xs font-black text-rose-300 hover:bg-[var(--table-hover)]"><Ban className="h-3.5 w-3.5" /> {t("shipping.settlements.packages.void")}</button> : null}</td>
                       </tr>
                     );

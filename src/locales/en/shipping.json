@@ -245,6 +245,21 @@
         "invalid": "Enter the package price and number of shipments",
         "success": "Package recorded — {{count}} shipments charged to it",
         "failed": "Could not record the package"
+      },
+      "renew": {
+        "title": "Auto-renew package",
+        "hint": "When a package runs out, the system records a new one at the same price and size, dated at the first shipment after it, and pays it from the account — no need to remember.",
+        "statusOn": "On",
+        "statusOff": "Off",
+        "since": "Cover shipments from",
+        "sinceHint": "Shipments before this date are never covered automatically. To cost past shipments, pick the date of the first one (e.g. the 1st of the month).",
+        "enable": "Turn on auto-renew",
+        "update": "Save changes",
+        "disable": "Turn off",
+        "on": "Auto-renew is on — {{count}} packages recorded",
+        "off": "Auto-renew turned off",
+        "tag": "Auto",
+        "unpaid": "Not paid — balance too low; it pays itself once it is enough"
       }
     },
     "costs": {

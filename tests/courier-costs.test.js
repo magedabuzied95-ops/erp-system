@@ -2,7 +2,7 @@ import test from "node:test";
 import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
 
-import { assignShipmentsToPackages, packageUnitCost, pickupFeeFor } from "../server/modules/shipping/shipping.costs.service.js";
+import { assignShipmentsToPackages, packageUnitCost, pickupFeeFor, planPackageUsage } from "../server/modules/shipping/shipping.costs.service.js";
 
 // A 2,000 EGP package of 20 shipments is 100 per shipment, and the units of any package
 // add back up to its price to the piastre — otherwise the expenses drift from the money paid.
@@ -60,4 +60,32 @@ test("a settlement posts its fees as an expense and keeps Bosta's expected fees"
 test("creating and cancelling a Bosta shipment reconciles package consumption", () => {
   const source = readFileSync(new URL("../server/modules/shipping/shipping.service.js", import.meta.url), "utf8");
   assert.equal((source.match(/reconcileCourierCostsSoon\(/g) || []).length, 2);
+});
+
+test("auto-renew opens a package of the usual size when the last one runs out", () => {
+  const renew = { auto_renew_price: 2000, auto_renew_shipments: 2, auto_renew_since: "2026-10-01T00:00:00Z" };
+  const plan = planPackageUsage(
+    [
+      { id: 1, shipped_at: "2026-10-02T10:00:00Z" },
+      { id: 2, shipped_at: "2026-10-03T10:00:00Z" },
+      { id: 3, shipped_at: "2026-10-04T10:00:00Z" },
+      { id: 4, shipped_at: "2026-10-05T10:00:00Z" },
+      { id: 5, shipped_at: "2026-10-06T10:00:00Z" },
+    ],
+    [{ id: 9, purchased_at: "2026-10-01T10:00:00Z", shipments_count: 20, used: 19 }],
+    renew
+  );
+  assert.equal(plan.created.length, 2);
+  assert.equal(plan.created[0].purchased_at, "2026-10-03T10:00:00Z");
+  assert.deepEqual(plan.assignments.map((a) => [a.order_id, a.package_id ?? a.package_key]), [[1, 9], [2, "auto-0"], [3, "auto-0"], [4, "auto-1"], [5, "auto-1"]]);
+});
+
+test("auto-renew never invents packages for shipments before its start day, or when off", () => {
+  const shipments = [{ id: 1, shipped_at: "2026-09-20T10:00:00Z" }, { id: 2, shipped_at: "2026-10-05T10:00:00Z" }];
+  const on = planPackageUsage(shipments, [], { auto_renew_price: 2000, auto_renew_shipments: 20, auto_renew_since: "2026-10-01T00:00:00Z" });
+  assert.deepEqual(on.assignments.map((a) => a.order_id), [2]);
+  assert.equal(on.created.length, 1);
+  const off = planPackageUsage(shipments, [], null);
+  assert.equal(off.created.length, 0);
+  assert.equal(off.assignments.length, 0);
 });

@@ -15,7 +15,7 @@
 //     the days parcels were picked up, so a settlement's gap can be explained and each
 //     order carries its share. Never posted as an expense on its own — that would count it twice.
 import db from "../../database/db.js";
-import { postMoneyTransaction, reverseMoneyTransactionsForReference } from "../../services/accountingService.js";
+import { ensureAccountingSchema, postMoneyTransaction, reverseMoneyTransactionsForReference } from "../../services/accountingService.js";
 import { getAppTimeZone } from "../../utils/appTimezone.js";
 
 const text = (value) => String(value ?? "").trim();
@@ -100,6 +100,89 @@ export const assignShipmentsToPackages = (shipments = [], packages = []) => {
   return assignments;
 };
 
+/*
+ * The whole consumption plan, pure: existing packages first (FIFO), then — only with
+ * auto-renew on — every shipment still uncovered on or after the auto-renew start day opens
+ * a new package of the usual size, dated that shipment's moment. Shipments before the start
+ * day are never covered automatically: switching auto-renew on must not invent packages for
+ * months of history nobody asked about.
+ */
+export const AUTO_RENEW_MAX_PER_RUN = 50;
+export const planPackageUsage = (shipments = [], packages = [], renew = null) => {
+  const assignments = assignShipmentsToPackages(shipments, packages);
+  const created = [];
+  const price = round2(renew?.auto_renew_price);
+  const count = Math.round(Number(renew?.auto_renew_shipments) || 0);
+  if (!renew || !(price > 0) || !(count > 0)) return { assignments, created };
+  const sinceDay = dayKey(renew.auto_renew_since);
+  const taken = new Set(assignments.map((a) => a.order_id));
+  let current = null;
+  for (const shipment of shipments) {
+    if (taken.has(shipment.id)) continue;
+    const day = dayKey(shipment.shipped_at);
+    if (!sinceDay || !day || day < sinceDay) continue;
+    if (!current || current.remaining <= 0) {
+      if (created.length >= AUTO_RENEW_MAX_PER_RUN) break;
+      current = { key: `auto-${created.length}`, purchased_at: shipment.shipped_at, price, shipments_count: count, remaining: count };
+      created.push(current);
+    }
+    current.remaining -= 1;
+    assignments.push({ order_id: shipment.id, package_key: current.key, used_at: shipment.shipped_at });
+  }
+  return { assignments, created: created.map(({ remaining, ...pkg }) => pkg) };
+};
+
+// An auto-renewed package is paid from the chosen account like a hand-entered one. When the
+// account cannot cover it the package is still recorded (the shipments did ship and cost
+// money) and says so, instead of failing the whole reconcile.
+const insertAutoPackage = async (client, { tenantId, provider, pkg, settings }) => {
+  const accountId = toNumberOrNull(settings.auto_renew_account_id);
+  const row = (await client.query(
+    `
+    INSERT INTO courier_packages (tenant_id, provider, purchased_at, price, shipments_count, money_account_id, notes, source)
+    VALUES ($1, $2, $3, $4, $5, $6, $7, 'auto')
+    RETURNING *
+    `,
+    [tenantId ?? null, provider, new Date(pkg.purchased_at).toISOString(), pkg.price, pkg.shipments_count, accountId, "اتسجلت تلقائي: الباقة اللي قبلها خلصت"]
+  )).rows[0];
+  await payAutoPackage(client, { tenantId, provider, pkg: row });
+  return row.id;
+};
+
+// Retried on every reconcile until it lands, so an account topped up later pays the
+// package it could not cover then. A savepoint keeps a refusal from aborting the reconcile.
+const payAutoPackage = async (client, { tenantId, provider, pkg }) => {
+  if (tenantId === null || tenantId === undefined) return false;
+  const accountId = toNumberOrNull(pkg.money_account_id);
+  await client.query("SAVEPOINT courier_auto_package");
+  try {
+    const outbound = await postMoneyTransaction(client, {
+      __inTransaction: true,
+      tenantId,
+      direction: "out",
+      amount: round2(pkg.price),
+      transactionType: "supplier_payment",
+      referenceType: "courier_package",
+      referenceId: pkg.id,
+      moneyAccountId: accountId,
+      accountType: accountId ? undefined : "bank",
+      paymentMethod: "bank_transfer",
+      notes: `باقة ${provider} تلقائية — ${pkg.shipments_count} شحنة`,
+      metadata: { provider, shipments: Number(pkg.shipments_count), price: round2(pkg.price), auto: true },
+    });
+    await client.query("RELEASE SAVEPOINT courier_auto_package");
+    if (outbound?.id) {
+      await client.query(`UPDATE courier_packages SET money_transaction_id = $2, money_account_id = COALESCE(money_account_id, $3), payment_note = NULL WHERE id = $1`, [pkg.id, outbound.id, outbound.account_id || null]);
+      return true;
+    }
+    return false;
+  } catch (error) {
+    await client.query("ROLLBACK TO SAVEPOINT courier_auto_package");
+    await client.query(`UPDATE courier_packages SET payment_note = $2 WHERE id = $1`, [pkg.id, text(error?.message) || "تعذّر الخصم من الحساب"]);
+    return false;
+  }
+};
+
 let schemaReady = null;
 export const ensureCourierCostSchema = async () => {
   if (!schemaReady) {
@@ -153,6 +236,13 @@ export const ensureCourierCostSchema = async () => {
       `);
       await db.query(`ALTER TABLE IF EXISTS courier_settlements ADD COLUMN IF NOT EXISTS expected_fees_amount NUMERIC(12,2) NULL`);
       await db.query(`ALTER TABLE IF EXISTS courier_settlements ADD COLUMN IF NOT EXISTS fee_expense_id BIGINT NULL`);
+      await db.query(`ALTER TABLE IF EXISTS courier_packages ADD COLUMN IF NOT EXISTS source VARCHAR(20) NOT NULL DEFAULT 'manual'`);
+      await db.query(`ALTER TABLE IF EXISTS courier_packages ADD COLUMN IF NOT EXISTS payment_note TEXT NULL`);
+      await db.query(`ALTER TABLE IF EXISTS courier_cost_settings ADD COLUMN IF NOT EXISTS auto_renew_enabled BOOLEAN NOT NULL DEFAULT FALSE`);
+      await db.query(`ALTER TABLE IF EXISTS courier_cost_settings ADD COLUMN IF NOT EXISTS auto_renew_price NUMERIC(12,2) NULL`);
+      await db.query(`ALTER TABLE IF EXISTS courier_cost_settings ADD COLUMN IF NOT EXISTS auto_renew_shipments INTEGER NULL`);
+      await db.query(`ALTER TABLE IF EXISTS courier_cost_settings ADD COLUMN IF NOT EXISTS auto_renew_account_id BIGINT NULL`);
+      await db.query(`ALTER TABLE IF EXISTS courier_cost_settings ADD COLUMN IF NOT EXISTS auto_renew_since TIMESTAMPTZ NULL`);
     })().catch((error) => {
       schemaReady = null;
       throw error;
@@ -163,26 +253,60 @@ export const ensureCourierCostSchema = async () => {
 
 export const getCourierCostSettings = async ({ tenantId = null, provider = "bosta" } = {}, client = db) => {
   await ensureCourierCostSchema();
-  const result = await client.query(`SELECT pickup_min_parcels, pickup_small_fee FROM courier_cost_settings WHERE tenant_key = $1 AND provider = $2`, [Number(tenantId) || 0, text(provider) || "bosta"]);
+  const result = await client.query(`SELECT * FROM courier_cost_settings WHERE tenant_key = $1 AND provider = $2`, [Number(tenantId) || 0, text(provider) || "bosta"]);
   const row = result.rows[0];
-  return row ? { pickup_min_parcels: Number(row.pickup_min_parcels), pickup_small_fee: round2(row.pickup_small_fee) } : { ...DEFAULT_COST_SETTINGS };
+  if (!row) return { ...DEFAULT_COST_SETTINGS, auto_renew_enabled: false, auto_renew_price: null, auto_renew_shipments: null, auto_renew_account_id: null, auto_renew_since: null };
+  return {
+    pickup_min_parcels: Number(row.pickup_min_parcels),
+    pickup_small_fee: round2(row.pickup_small_fee),
+    auto_renew_enabled: Boolean(row.auto_renew_enabled),
+    auto_renew_price: row.auto_renew_price === null || row.auto_renew_price === undefined ? null : round2(row.auto_renew_price),
+    auto_renew_shipments: row.auto_renew_shipments === null || row.auto_renew_shipments === undefined ? null : Number(row.auto_renew_shipments),
+    auto_renew_account_id: row.auto_renew_account_id === null || row.auto_renew_account_id === undefined ? null : Number(row.auto_renew_account_id),
+    auto_renew_since: row.auto_renew_since || null,
+  };
 };
 
-export const saveCourierCostSettings = async ({ tenantId = null, provider = "bosta", pickupMinParcels, pickupSmallFee } = {}) => {
+export const saveCourierCostSettings = async ({ tenantId = null, provider = "bosta", pickupMinParcels, pickupSmallFee, autoRenew = undefined } = {}) => {
   await ensureCourierCostSchema();
-  const min = Math.round(Number(pickupMinParcels));
-  const fee = round2(pickupSmallFee);
+  const current = await getCourierCostSettings({ tenantId, provider });
+  const min = pickupMinParcels === undefined ? current.pickup_min_parcels : Math.round(Number(pickupMinParcels));
+  const fee = pickupSmallFee === undefined ? current.pickup_small_fee : round2(pickupSmallFee);
   if (!Number.isFinite(min) || min < 0 || min > 100) throw httpError("الحد الأدنى لعدد الشحنات في البيك اب غير صحيح");
   if (!Number.isFinite(fee) || fee < 0) throw httpError("رسوم البيك اب الصغير غير صحيحة");
+  let renew = {
+    enabled: current.auto_renew_enabled,
+    price: current.auto_renew_price,
+    shipments: current.auto_renew_shipments,
+    accountId: current.auto_renew_account_id,
+    since: current.auto_renew_since,
+  };
+  if (autoRenew && typeof autoRenew === "object") {
+    const enabled = Boolean(autoRenew.enabled);
+    const price = round2(autoRenew.price);
+    const shipments = Math.round(Number(autoRenew.shipments));
+    if (enabled && !(price > 0)) throw httpError("اكتب سعر الباقة اللي بتتجدد");
+    if (enabled && !(shipments > 0 && shipments <= 100000)) throw httpError("اكتب عدد شحنات الباقة اللي بتتجدد");
+    const since = autoRenew.since ? new Date(autoRenew.since) : (current.auto_renew_since ? new Date(current.auto_renew_since) : new Date());
+    if (Number.isNaN(since.getTime())) throw httpError("تاريخ بداية التجديد غير صحيح");
+    renew = { enabled, price: price > 0 ? price : null, shipments: shipments > 0 ? shipments : null, accountId: toNumberOrNull(autoRenew.account_id), since: since.toISOString() };
+  }
   await db.query(
     `
-    INSERT INTO courier_cost_settings (tenant_key, provider, pickup_min_parcels, pickup_small_fee, updated_at)
-    VALUES ($1, $2, $3, $4, NOW())
-    ON CONFLICT (tenant_key, provider) DO UPDATE SET pickup_min_parcels = EXCLUDED.pickup_min_parcels, pickup_small_fee = EXCLUDED.pickup_small_fee, updated_at = NOW()
+    INSERT INTO courier_cost_settings (tenant_key, provider, pickup_min_parcels, pickup_small_fee, auto_renew_enabled, auto_renew_price, auto_renew_shipments, auto_renew_account_id, auto_renew_since, updated_at)
+    VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, NOW())
+    ON CONFLICT (tenant_key, provider) DO UPDATE SET
+      pickup_min_parcels = EXCLUDED.pickup_min_parcels, pickup_small_fee = EXCLUDED.pickup_small_fee,
+      auto_renew_enabled = EXCLUDED.auto_renew_enabled, auto_renew_price = EXCLUDED.auto_renew_price,
+      auto_renew_shipments = EXCLUDED.auto_renew_shipments, auto_renew_account_id = EXCLUDED.auto_renew_account_id,
+      auto_renew_since = EXCLUDED.auto_renew_since, updated_at = NOW()
     `,
-    [Number(tenantId) || 0, text(provider) || "bosta", min, fee]
+    [Number(tenantId) || 0, text(provider) || "bosta", min, fee, renew.enabled, renew.price, renew.shipments, renew.accountId, renew.since]
   );
-  return { pickup_min_parcels: min, pickup_small_fee: fee };
+  const saved = await getCourierCostSettings({ tenantId, provider });
+  // Turning auto-renew on (or moving its start back) covers the waiting shipments now.
+  const reconcile = renew.enabled ? await reconcileCourierCosts({ tenantId, provider }) : null;
+  return { ...saved, reconcile };
 };
 
 const expenseCategoryId = async (client, tenantId) => {
@@ -252,6 +376,9 @@ export const reconcileCourierCosts = async ({ tenantId = null, provider = "bosta
   await ensureCourierCostSchema();
   const providerKey = text(provider).toLowerCase() || "bosta";
   const tz = getAppTimeZone();
+  // The money ledger's own DDL must run before this transaction takes its locks: run inside
+  // it (an auto-renewed package pays from an account) it waits on this transaction forever.
+  if (tenantId !== null && tenantId !== undefined) await ensureAccountingSchema();
   const client = await db.connect();
   try {
     await client.query("BEGIN");
@@ -274,7 +401,8 @@ export const reconcileCourierCosts = async ({ tenantId = null, provider = "bosta
       releaseParams
     );
 
-    // 2. Unassigned live shipments draw from the packages, oldest first.
+    // 2. Unassigned live shipments draw from the packages, oldest first; with auto-renew on,
+    //    shipments no package covers open a new package of the usual size on their day.
     const pkgParams = [];
     const packages = (await client.query(
       `
@@ -287,13 +415,17 @@ export const reconcileCourierCosts = async ({ tenantId = null, provider = "bosta
       pkgParams
     )).rows;
     let assigned = 0;
+    let autoCreated = 0;
     const open = packages.filter((pkg) => Number(pkg.used) < Number(pkg.shipments_count));
-    if (open.length) {
+    const settings = await getCourierCostSettings({ tenantId, provider: providerKey }, client);
+    const renew = settings.auto_renew_enabled && settings.auto_renew_since ? settings : null;
+    const sinceCandidates = [open[0]?.purchased_at, renew?.auto_renew_since].filter(Boolean).map((value) => new Date(value));
+    if (sinceCandidates.length) {
       const shipParams = [];
       const shipTenant = tenantClause(tenantId, shipParams);
       shipParams.push(providerKey);
       const providerParam = `$${shipParams.length}`;
-      shipParams.push(new Date(open[0].purchased_at).toISOString());
+      shipParams.push(new Date(Math.min(...sinceCandidates.map((date) => date.getTime()))).toISOString());
       const sinceParam = `$${shipParams.length}`;
       const shipments = (await client.query(
         `
@@ -312,7 +444,20 @@ export const reconcileCourierCosts = async ({ tenantId = null, provider = "bosta
         `,
         shipParams
       )).rows;
-      const assignments = assignShipmentsToPackages(shipments, open);
+      const plan = planPackageUsage(shipments, open, renew);
+      const keyToId = new Map();
+      for (const pkg of plan.created) {
+        keyToId.set(pkg.key, await insertAutoPackage(client, { tenantId, provider: providerKey, pkg, settings }));
+      }
+      autoCreated = plan.created.length;
+      // Auto packages an account could not cover before get another try.
+      const unpaidParams = [];
+      const unpaid = (await client.query(
+        `SELECT p.* FROM courier_packages p WHERE ${packageScope(tenantId, providerKey, unpaidParams)} AND p.source = 'auto' AND p.voided_at IS NULL AND p.money_transaction_id IS NULL AND p.payment_note IS NOT NULL AND NOT (p.id = ANY($${unpaidParams.push([...keyToId.values()])}::bigint[])) ORDER BY p.purchased_at`,
+        unpaidParams
+      )).rows;
+      for (const pkg of unpaid) await payAutoPackage(client, { tenantId, provider: providerKey, pkg });
+      const assignments = plan.assignments.map((a) => ({ ...a, package_id: a.package_id ?? keyToId.get(a.package_key) })).filter((a) => a.package_id);
       if (assignments.length) {
         await client.query(
           `
@@ -409,7 +554,7 @@ export const reconcileCourierCosts = async ({ tenantId = null, provider = "bosta
     }
 
     await client.query("COMMIT");
-    return { released: released.rowCount, assigned, settlement_fees_posted: unposted.length };
+    return { released: released.rowCount, assigned, auto_packages: autoCreated, settlement_fees_posted: unposted.length };
   } catch (error) {
     await client.query("ROLLBACK").catch(() => {});
     throw error;

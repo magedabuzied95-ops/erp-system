@@ -171,6 +171,7 @@ export const saveCourierCostSettingsController = async (req, res) => {
       provider: body.provider || "bosta",
       pickupMinParcels: body.pickup_min_parcels,
       pickupSmallFee: body.pickup_small_fee,
+      autoRenew: body.auto_renew,
     });
     res.json({ success: true, settings });
   } catch (error) {
