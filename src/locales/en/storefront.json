@@ -881,6 +881,7 @@
     "promiseDate": "Expected on {{date}}",
     "attempts": "Delivery attempts: {{count}}",
     "courier": "Courier",
+    "deliveredBy": "Delivered by",
     "callCourier": "Call the courier",
     "chatOnWhatsapp": "Message us on WhatsApp",
     "updatedAt": "Last update from Bosta: {{time}}",

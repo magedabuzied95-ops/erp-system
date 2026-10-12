@@ -902,6 +902,7 @@
     "promiseDate": "متوقع توصل يوم {{date}}",
     "attempts": "عدد محاولات التسليم: {{count}}",
     "courier": "المندوب",
+    "deliveredBy": "المندوب اللي سلّمك",
     "callCourier": "كلّم المندوب",
     "chatOnWhatsapp": "كلّمنا على واتساب",
     "updatedAt": "آخر تحديث من بوسطة: {{time}}",

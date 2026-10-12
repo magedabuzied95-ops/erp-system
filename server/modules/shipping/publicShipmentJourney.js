@@ -139,6 +139,14 @@ const asObject = (value) => {
   return {};
 };
 
+// Bosta stores its couriers as "OB-Ahmed Mohammad Amin -Z": a hub prefix and a zone suffix
+// that mean nothing to the customer. The person's name is what is left between them.
+export const customerCourierName = (value) => text(value)
+  .replace(/^[A-Z]{1,4}\s*-\s*/, "")
+  .replace(/\s+-\s*[A-Z0-9]{1,3}$/, "")
+  .replace(/\s+/g, " ")
+  .trim();
+
 export const isBostaParcel = (order = {}) =>
   [order.shipping_provider, order.shipping_provider_id, order.shipping_method].some((value) => key(value).includes("bosta"));
 
@@ -252,7 +260,7 @@ export const buildPublicShipment = (order = {}, { events = [] } = {}) => {
       attempts: order.bosta_attempts ?? 0,
     })
     : null;
-  const courierName = text(order.bosta_courier_name);
+  const courierName = customerCourierName(order.bosta_courier_name);
   const courierPhone = text(order.bosta_courier_phone).replace(/[^\d+]/g, "");
   // A promise date on a parcel that already arrived (or came back) reads as "still coming".
   const promiseDate = calendarDay(order.bosta_promise_date);
@@ -271,9 +279,13 @@ export const buildPublicShipment = (order = {}, { events = [] } = {}) => {
         ...(bostaCustomerFailureReason(alert.code) ? { reason: bostaCustomerFailureReason(alert.code) } : {}),
       }
       : null,
+    // With the parcel: name and phone, so the customer can call. After delivery: the name
+    // only — whoever handed it over, with no number left to call (owner's choice).
     courier: stage === "out_for_delivery" && (courierName || courierPhone)
       ? { name: courierName, phone: courierPhone }
-      : null,
+      : stage === "delivered" && courierName
+        ? { name: courierName, phone: "" }
+        : null,
     events: steps,
     synced_at: toIso(order.bosta_details_synced_at || order.shipping_last_synced_at) || null,
   };

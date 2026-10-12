@@ -111,7 +111,11 @@ function ShipmentJourney({ shipment, sfText, supportHref, publicNumber }) {
       {courier ? (
         <div className="sft-courier">
           <div className="min-w-0">
-            <div className="sft-label">{sfText("storefront.tracking.courier", "المندوب")}</div>
+            <div className="sft-label">
+              {shipment?.stage === "delivered"
+                ? sfText("storefront.tracking.deliveredBy", "المندوب اللي سلّمك")
+                : sfText("storefront.tracking.courier", "المندوب")}
+            </div>
             {courier.name ? <div className="sft-value sft-courier__name">{courier.name}</div> : null}
           </div>
           {courier.phone ? (

@@ -4,6 +4,7 @@ import fs from "node:fs";
 import {
   JOURNEY_LABELS,
   buildPublicShipment,
+  customerCourierName,
   mergeJourneySteps,
   shouldRefreshForCustomer,
 } from "../server/modules/shipping/publicShipmentJourney.js";
@@ -55,10 +56,20 @@ test("only customer-safe fields leave: no payload, no staff reason, courier only
   const out = buildPublicShipment(bostaOrder({ shipment_status: "out_for_delivery", bosta_details: { state_code: 41, history: [] } }));
   assert.equal(out.stage, "out_for_delivery");
   assert.deepEqual(out.courier, { name: "Ahmed", phone: "+201000000000" });
+  const delivered = buildPublicShipment(bostaOrder({ shipment_status: "delivered", bosta_details: { state_code: 45 }, bosta_courier_name: "OB-Ahmed Mohammad Amin -Z" }));
+  assert.deepEqual(delivered.courier, { name: "Ahmed Mohammad Amin", phone: "" }, "after delivery: the name only, no number to call");
   const serialized = JSON.stringify(buildPublicShipment(bostaOrder({ bosta_exception_reason: "staff-only words" }), {
     events: [{ status: "in_transit", created_at: "2026-10-11T22:00:00Z", payload: { state: 30, secret: "raw-bosta-body" } }],
   }));
   assert.doesNotMatch(serialized, /raw-bosta-body|staff-only words/);
+});
+
+test("Bosta's hub prefix and zone suffix come off the courier's name, a real hyphenated name stays", () => {
+  assert.equal(customerCourierName("OB-Ahmed Mohammad Amin -Z"), "Ahmed Mohammad Amin");
+  assert.equal(customerCourierName("GZ - Mahmoud Saeed - 12"), "Mahmoud Saeed");
+  assert.equal(customerCourierName("Ali-Hassan"), "Ali-Hassan");
+  assert.equal(customerCourierName("محمود سعيد"), "محمود سعيد");
+  assert.equal(customerCourierName(null), "");
 });
 
 test("webhook rows carry Bosta's code and its own timestamp", () => {
