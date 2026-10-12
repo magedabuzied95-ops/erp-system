@@ -1176,6 +1176,9 @@ export const fetchBostaShipmentLabels = async (orderIds = []) => {
     `
     SELECT o.id,
            COALESCE(o.public_order_number, o.display_order_number, o.invoice_number, 'ORD-' || o.id::text) AS order_number,
+           -- What was sent to Bosta as businessReference, so a label can be matched to its own
+           -- order by what Bosta printed on it rather than by its position in the merged PDF.
+           COALESCE(o.invoice_number, '') AS invoice_number,
            COALESCE(o.shipping_provider_id, o.shipping_provider, '') AS provider,
            COALESCE(o.shipping_provider_delivery_id, '') AS delivery_id,
            COALESCE(o.shipping_tracking_number, o.tracking_number, '') AS tracking_number
@@ -1195,7 +1198,7 @@ export const fetchBostaShipmentLabels = async (orderIds = []) => {
       skipped.push({ order_id: id, order_number: "", reason: "order_not_found" });
       continue;
     }
-    const entry = { order_id: Number(row.id), order_number: row.order_number, tracking_number: row.tracking_number };
+    const entry = { order_id: Number(row.id), order_number: row.order_number, invoice_number: row.invoice_number, tracking_number: row.tracking_number };
     if (normalizeKey(row.provider) !== "bosta") {
       skipped.push({ ...entry, reason: "provider_unsupported", provider: text(row.provider) });
       continue;
@@ -1250,7 +1253,13 @@ export const fetchBostaShipmentLabels = async (orderIds = []) => {
     try {
       packingQr = await stampPackingQrOnAirwayBill(awb.pdf_base64, printable);
       pdfBase64 = packingQr.pdf_base64 || awb.pdf_base64;
-      if (!packingQr.stamped) console.warn("[bosta] awb packing QR not stamped", { reason: packingQr.reason, pages: packingQr.pages, orders: packingQr.orders });
+      if (packingQr.stamped) {
+        // The page order Bosta actually returned, proved off each label. Printed so a parcel
+        // that goes out with the wrong QR can be traced to the print that made it.
+        console.log("[bosta] awb packing QR stamped", { placement: packingQr.placement, qr_size: packingQr.qr_size, requested: printable.map((row) => row.order_id), pages: packingQr.matched });
+      } else {
+        console.warn("[bosta] awb packing QR not stamped", { reason: packingQr.reason, pages: packingQr.pages, orders: packingQr.orders });
+      }
     } catch (stampError) {
       console.warn("[bosta] awb packing QR failed; printing the plain label", { message: stampError?.message });
       pdfBase64 = awb.pdf_base64;

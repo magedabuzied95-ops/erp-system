@@ -231,6 +231,9 @@ const readPageInk = (page) => {
         break;
       }
       case "h": break;
+      // An image or form is ink too. Bosta's own label has none, but a page that was already
+      // stamped once must not get a second QR printed over the first.
+      case "Do": strokes.push(matApply(ctm, 0, 0), matApply(ctm, 1, 0), matApply(ctm, 0, 1), matApply(ctm, 1, 1), matApply(ctm, 0.5, 0.5)); break;
       // A path reaches the page here. Rules and boxes are the label's own frame and may be
       // drawn over; everything else is somebody's ink. Clipping paths (W n) mark nothing.
       case "W": clipping = true; break;
@@ -298,6 +301,126 @@ const findQrSquare = (cell, ink) => {
   return null;
 };
 
+/* ------------------------------------------------------- which label is which */
+
+// Bosta's merged PDF does NOT come back in the order the delivery ids were sent: a four-label
+// print came back sorted its own way, and matching pages to orders by position put the QR of
+// one parcel on another parcel's label. So every page is identified by what Bosta printed ON
+// it — its tracking number, else its order reference — and a page that cannot be identified
+// gets no QR at all. A plain label is a small loss; a QR that opens the wrong parcel's models
+// is a picker sending the wrong shoe.
+
+// /ToUnicode is a CMap from glyph code to text. Every font on a Bosta label carries one.
+const parseToUnicodeCMap = (cmap) => {
+  const map = new Map();
+  const fromHex = (hex) => {
+    let out = "";
+    for (let index = 0; index + 4 <= hex.length; index += 4) out += String.fromCharCode(parseInt(hex.slice(index, index + 4), 16));
+    return out;
+  };
+  for (const block of cmap.matchAll(/beginbfchar([\s\S]*?)endbfchar/g)) {
+    for (const pair of block[1].matchAll(/<([0-9A-Fa-f]+)>\s*<([0-9A-Fa-f]+)>/g)) map.set(parseInt(pair[1], 16), fromHex(pair[2]));
+  }
+  for (const block of cmap.matchAll(/beginbfrange([\s\S]*?)endbfrange/g)) {
+    for (const row of block[1].matchAll(/<([0-9A-Fa-f]+)>\s*<([0-9A-Fa-f]+)>\s*<([0-9A-Fa-f]+)>/g)) {
+      const from = parseInt(row[1], 16);
+      const to = Math.min(parseInt(row[2], 16), from + 1024);
+      const start = parseInt(row[3], 16);
+      for (let code = from; code <= to; code += 1) map.set(code, String.fromCodePoint(start + (code - from)));
+    }
+  }
+  return map;
+};
+
+const pageFontMaps = (page) => {
+  const maps = new Map();
+  const fonts = page.node.Resources()?.get(PDFName.of("Font"));
+  if (!fonts || typeof fonts.entries !== "function") return maps;
+  for (const [name, ref] of fonts.entries()) {
+    const font = page.node.context.lookup(ref);
+    const toUnicode = font?.get?.(PDFName.of("ToUnicode"));
+    const stream = toUnicode ? page.node.context.lookup(toUnicode) : null;
+    if (typeof stream?.getContents !== "function") continue;
+    const bytes = Buffer.from(stream.getContents());
+    const filter = String(stream.dict?.get?.(PDFName.of("Filter")) ?? "");
+    try {
+      maps.set(String(name).split("/").join(""), parseToUnicodeCMap((filter.includes("FlateDecode") ? inflateSync(bytes) : bytes).toString("latin1")));
+    } catch {
+      continue;
+    }
+  }
+  return maps;
+};
+
+// Only what can be read as plain text is kept: tracking numbers and order references are ASCII,
+// and the Arabic on the label is drawn reversed glyph by glyph and would only add noise.
+const readPageText = (page, content) => {
+  const fonts = pageFontMaps(page);
+  const tokens = content.match(CONTENT_TOKEN);
+  if (!tokens) return "";
+  let current = null;
+  let out = "";
+  let operands = [];
+  // Two string forms, because two renderers. Bosta writes two-byte hex codes through a
+  // ToUnicode CMap; a plain-font PDF writes the characters themselves.
+  const show = (operand) => {
+    if (operand.startsWith("<")) {
+      const hex = operand.slice(1, -1).replace(/\s+/g, "");
+      const step = current ? 4 : 2;
+      for (let index = 0; index + step <= hex.length; index += step) {
+        const code = parseInt(hex.slice(index, index + step), 16);
+        out += current ? current.get(code) ?? "" : String.fromCharCode(code);
+      }
+      return;
+    }
+    const body = operand.slice(1, -1).replace(/\\([\\()])/g, "$1");
+    for (const character of body) out += current ? current.get(character.charCodeAt(0)) ?? character : character;
+  };
+  for (const token of tokens) {
+    if (token === "Tf") {
+      const name = operands.filter((operand) => typeof operand === "string" && operand.startsWith("/")).pop();
+      current = fonts.get(String(name).split("/").join("")) || null;
+      operands = [];
+      continue;
+    }
+    if (token === "Tj" || token === "TJ" || token === "'" || token === '"') {
+      for (const operand of operands) {
+        if (typeof operand === "string" && (operand.startsWith("<") || operand.startsWith("("))) show(operand);
+      }
+      operands = [];
+      continue;
+    }
+    if (/^[-+]?[\d.]+$/.test(token)) { operands.push(Number(token)); continue; }
+    if (/^[([<\]/]/.test(token)) { operands.push(token); continue; }
+    operands = [];
+  }
+  return out.replace(/[^\x20-\x7E]/g, "").toUpperCase();
+};
+
+// A reference worth matching on: long enough that it cannot collide by accident.
+const matchKeys = (entry = {}) => [text(entry.tracking_number), text(entry.order_number), text(entry.invoice_number)]
+  .map((value) => value.replace(/[^A-Za-z0-9]/g, "").toUpperCase())
+  .filter((value) => value.length >= 6);
+
+// Page i belongs to order `pages[i]`, or null when that cannot be proved for every page: one
+// page matching two orders, or two pages matching one, is exactly the mix-up this prevents.
+export const matchLabelPagesToOrders = (texts = [], printed = []) => {
+  if (texts.length !== printed.length) return null;
+  const keys = printed.map(matchKeys);
+  if (keys.some((entry) => !entry.length)) return null;
+  const byPage = texts.map((pageText) => {
+    const hits = [];
+    for (let index = 0; index < keys.length; index += 1) {
+      if (keys[index].some((key) => pageText.includes(key))) hits.push(index);
+    }
+    return hits;
+  });
+  if (byPage.some((hits) => hits.length !== 1)) return null;
+  const chosen = byPage.map((hits) => hits[0]);
+  if (new Set(chosen).size !== printed.length) return null;
+  return chosen;
+};
+
 // Where this page can take the QR, or null when it cannot take one at all. Exported because
 // it is the whole decision: everything below it just draws.
 export const findPackingQrSpot = (page) => {
@@ -335,6 +458,17 @@ export const stampPackingQrOnAirwayBill = async (pdfBase64 = "", printed = []) =
   const urls = printed.map((row) => packingPageUrl(row.order_id));
   if (urls.some((url) => !url)) return { pdf_base64: pdfBase64, stamped: false, reason: "no_public_backend_url" };
 
+  // Which label is which, proved off the page itself. Bosta returns its merged PDF in its own
+  // order, so position means nothing — a four-label print came back with two labels swapped.
+  const owner = (() => {
+    try {
+      return matchLabelPagesToOrders(pages.map((page) => readPageText(page, pageContentStream(page))), printed);
+    } catch {
+      return null;
+    }
+  })();
+  if (!owner) return { pdf_base64: pdfBase64, stamped: false, reason: "pages_not_identified", pages: pages.length, orders: printed.length };
+
   // One print, one page size. A job fed two page heights is a job the printer either scales
   // or jams, so the whole batch goes inside the labels or the whole batch gets the strip.
   const spots = pages.map((page) => findPackingQrSpot(page));
@@ -343,7 +477,9 @@ export const stampPackingQrOnAirwayBill = async (pdfBase64 = "", printed = []) =
 
   for (let index = 0; index < pages.length; index += 1) {
     const page = pages[index];
-    const png = await QRCode.toBuffer(urls[index], { type: "png", errorCorrectionLevel: "M", margin: 1, width: 600 });
+    // `owner[index]` and never `index`: the QR belongs to the order printed on THIS page.
+    const order = printed[owner[index]];
+    const png = await QRCode.toBuffer(urls[owner[index]], { type: "png", errorCorrectionLevel: "M", margin: 1, width: 600 });
     const qr = await pdf.embedPng(png);
     if (inNotesBox) {
       const spot = spots[index];
@@ -354,7 +490,7 @@ export const stampPackingQrOnAirwayBill = async (pdfBase64 = "", printed = []) =
       continue;
     }
     // The embedded standard font has no Arabic glyphs; an order number is ASCII in practice.
-    const label = text(printed[index].order_number || printed[index].order_id).replace(/[^\x20-\x7E]/g, "").trim() || `#${printed[index].order_id}`;
+    const label = text(order.order_number || order.order_id).replace(/[^\x20-\x7E]/g, "").trim() || `#${order.order_id}`;
     drawQrStrip(page, qr, label, font);
   }
   const bytes = await pdf.save();
@@ -363,5 +499,7 @@ export const stampPackingQrOnAirwayBill = async (pdfBase64 = "", printed = []) =
     stamped: true,
     placement: inNotesBox ? "notes_box" : "strip",
     qr_size: inNotesBox ? Math.round(spots[0].size) : STRIP_HEIGHT - 12,
+    // Page order as proved off the labels, so a print can be audited after the fact.
+    matched: owner.map((index) => printed[index].order_id),
   };
 };
