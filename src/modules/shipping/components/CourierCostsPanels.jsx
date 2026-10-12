@@ -249,8 +249,15 @@ export function CourierPackagesPanel({ provider = "bosta", accounts = [] }) {
                         <td className="px-3 py-3 font-bold">{fmtMoney(pkg.price)}</td>
                         <td className="px-3 py-3">{fmtMoney(pkg.unit_cost)}</td>
                         <td className="px-3 py-3">
-                          <div className="text-xs font-black">{pkg.used} / {pkg.shipments_count}</div>
-                          <div className="mt-1 h-1.5 w-28 overflow-hidden rounded-full bg-[var(--card-soft)]"><div className="h-full rounded-full bg-emerald-400" style={{ width: `${pct}%` }} /></div>
+                          {/* A closed package holds its whole period, so "31 / 20" would read as an overdraft. */}
+                          {pkg.closed_at ? (
+                            <div className="text-xs font-black">{t("shipping.settlements.packages.calibrate.carried", { count: Number(pkg.used) })}</div>
+                          ) : (
+                            <>
+                              <div className="text-xs font-black">{pkg.used} / {pkg.shipments_count}</div>
+                              <div className="mt-1 h-1.5 w-28 overflow-hidden rounded-full bg-[var(--card-soft)]"><div className="h-full rounded-full bg-emerald-400" style={{ width: `${pct}%` }} /></div>
+                            </>
+                          )}
                         </td>
                         <td className="px-3 py-3 font-black">{pkg.voided_at ? t("shipping.settlements.packages.voidedTag") : `${pkg.remaining} · ${fmtMoney(pkg.remaining_value)}`}</td>
                         <td className="px-3 py-3 text-xs">{pkg.money_account_name || "-"}{pkg.payment_note && !pkg.money_transaction_id ? <div className="mt-1 font-black text-rose-300" title={pkg.payment_note}>{t("shipping.settlements.packages.renew.unpaid")}</div> : null}</td>

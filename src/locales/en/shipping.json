@@ -269,7 +269,8 @@
         "confirm": "The current package becomes {{used}} of {{total}} like Bosta, and earlier packages close. Continue?",
         "done": "Package matched to Bosta",
         "closedTag": "Closed",
-        "closedHint": "Closed when matching Bosta: its price is spread over the shipments of its period"
+        "closedHint": "Closed when matching Bosta: its price is spread over the shipments of its period",
+        "carried": "Carried {{count}} shipments in its period"
       }
     },
     "costs": {
