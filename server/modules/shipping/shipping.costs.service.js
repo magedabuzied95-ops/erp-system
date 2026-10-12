@@ -553,31 +553,35 @@ export const listCourierPackages = async ({ tenantId = null, provider = "bosta" 
     remaining_value: row.voided_at ? 0 : round2(Number(row.price) - Number(row.used_cost || 0)),
   }));
 
-  // Shipments since the first package that no package covers: the account is shipping on
-  // credit (or a package was never entered) and those parcels have no shipping cost yet.
+  // Shipments no package covers, so their shipping cost is missing: since the first package,
+  // or every live shipment when no package was entered yet (it used to read 0 then, which
+  // looked like "all covered" on exactly the account that had nothing covered).
   const active = rows.filter((row) => !row.voided_at);
-  let uncovered = { count: 0, since: null };
-  if (active.length) {
-    const firstPurchase = active.reduce((min, row) => (new Date(row.purchased_at) < new Date(min) ? row.purchased_at : min), active[0].purchased_at);
-    const tz = getAppTimeZone();
-    const uParams = [];
-    const uTenant = tenantClause(tenantId, uParams);
-    uParams.push(text(provider).toLowerCase() || "bosta");
-    const providerParam = `$${uParams.length}`;
+  const firstPurchase = active.length ? active.reduce((min, row) => (new Date(row.purchased_at) < new Date(min) ? row.purchased_at : min), active[0].purchased_at) : null;
+  const tz = getAppTimeZone();
+  const uParams = [];
+  const uTenant = tenantClause(tenantId, uParams);
+  uParams.push(text(provider).toLowerCase() || "bosta");
+  const providerParam = `$${uParams.length}`;
+  let sinceFilter = "TRUE";
+  if (firstPurchase) {
     uParams.push(new Date(firstPurchase).toISOString());
-    const sinceParam = `$${uParams.length}`;
-    const result = await db.query(
-      `
-      SELECT COUNT(*)::int AS count FROM (
-        SELECT ${shippedAtSql()} AS shipped_at FROM orders o
-        WHERE ${uTenant} AND o.courier_package_id IS NULL AND ${providerSql()} = ${providerParam}
-          AND ${trackingSql()} <> '' AND ${shipmentStatusSql()} NOT IN (${sqlList(CANCELLED_SHIPMENT_STATUSES)})
-      ) s WHERE s.shipped_at >= ((${sinceParam}::timestamptz AT TIME ZONE '${tz}')::date)::timestamp AT TIME ZONE '${tz}'
-      `,
-      uParams
-    );
-    uncovered = { count: Number(result.rows[0]?.count || 0), since: firstPurchase };
+    sinceFilter = `s.shipped_at >= (($${uParams.length}::timestamptz AT TIME ZONE '${tz}')::date)::timestamp AT TIME ZONE '${tz}'`;
   }
+  const uncoveredResult = await db.query(
+    `
+    SELECT COUNT(*)::int AS count, MIN(s.shipped_at) AS first_shipped_at FROM (
+      SELECT ${shippedAtSql()} AS shipped_at FROM orders o
+      WHERE ${uTenant} AND o.courier_package_id IS NULL AND ${providerSql()} = ${providerParam}
+        AND ${trackingSql()} <> '' AND ${shipmentStatusSql()} NOT IN (${sqlList(CANCELLED_SHIPMENT_STATUSES)})
+    ) s WHERE ${sinceFilter}
+    `,
+    uParams
+  );
+  const uncovered = {
+    count: Number(uncoveredResult.rows[0]?.count || 0),
+    since: firstPurchase || uncoveredResult.rows[0]?.first_shipped_at || null,
+  };
 
   return {
     packages: rows,
