@@ -1907,6 +1907,11 @@ export default function ManagerPortal() {
   const printOnlineOrderLabels = useCallback((orderIds) => managerPortalApi.onlineOrdersPrintLabels(token, orderIds), [token]);
   const editOnlineOrder = useCallback((orderId, fields) => managerPortalApi.onlineOrderEdit(token, orderId, fields), [token]);
   const deleteOnlineOrder = useCallback((orderId, reason) => managerPortalApi.onlineOrderDelete(token, orderId, reason), [token]);
+  const onlineOrderPickups = useMemo(() => ({
+    load: () => managerPortalApi.bostaPickups(token),
+    create: (body) => managerPortalApi.bostaPickupCreate(token, body),
+    cancel: (pickupId) => managerPortalApi.bostaPickupCancel(token, pickupId),
+  }), [token]);
 
   useEffect(() => {
     const invoiceId = searchParams.get("invoice_id") || searchParams.get("invoiceId") || "";
@@ -4628,6 +4633,7 @@ export default function ManagerPortal() {
                     printLabels={printOnlineOrderLabels}
                     editOrder={editOnlineOrder}
                     deleteOrder={deleteOnlineOrder}
+                    pickups={onlineOrderPickups}
                     bulkBarOffset={isMobilePortal ? "calc(env(safe-area-inset-bottom) + 5.75rem)" : "1rem"}
                   />
                 </Suspense>

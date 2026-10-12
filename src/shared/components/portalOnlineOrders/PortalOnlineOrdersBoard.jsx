@@ -13,6 +13,7 @@ import {
   MapPin,
   MessageCircle,
   Package,
+  PackagePlus,
   Phone,
   Printer,
   Receipt,
@@ -34,6 +35,7 @@ import { getConfirmationState } from "../../../modules/orders/components/Confirm
 import { PORTAL_ACTION_ERROR_CODES, pdfUrlFromBase64, portalOrderActionsFor, shippingFeeAdvanceState } from "./portalOrderActions";
 import { currentBuildId } from "../../lib/portalBuildUpdate";
 import { OrderDeleteSheet, OrderEditSheet, OrderManageMenu } from "./PortalOrderManage";
+import PortalPickupSheet from "./PortalPickupSheet";
 
 // أوردرات الشحن — one board, mounted by both the employee portal (its own page) and
 // the manager portal (a tab). The host only supplies how to fetch; everything the
@@ -1007,6 +1009,9 @@ export default function PortalOnlineOrdersBoard({
   // whether this employee has messages access (permissions.can_open_inbox); without it,
   // or without a thread on the order, the واتساب button stays a wa.me link.
   openConversation = null,
+  // طلب بيك أب: { load, create, cancel } bound to the portal token. Shown to whoever may
+  // book parcels (permissions.can_ship), like the desktop shipping center's button.
+  pickups = null,
   // Where the multi-select bar floats: above the manager portal's bottom nav, or at the
   // screen edge on the employee page, which has none.
   bulkBarOffset = "calc(env(safe-area-inset-bottom) + 0.75rem)",
@@ -1237,6 +1242,8 @@ export default function PortalOnlineOrdersBoard({
 
   // Multi-select only books and prints, so it follows the shipping permission.
   const canBulk = canShip && Boolean(runAction);
+  const [pickupOpen, setPickupOpen] = useState(false);
+  const canPickup = canShip && Boolean(pickups);
 
   // ---- ⋮ edit / delete (manager portal only).
   const [manageTarget, setManageTarget] = useState(null);
@@ -1320,6 +1327,17 @@ export default function PortalOnlineOrdersBoard({
           </button>
         ) : null}
       </div>
+
+      {canPickup ? (
+        <button
+          type="button"
+          onClick={() => setPickupOpen(true)}
+          className="inline-flex min-h-[var(--control-height-lg)] w-full items-center justify-center gap-2 rounded-[var(--radius-control)] border border-border bg-surface px-3 text-sm font-black text-text"
+        >
+          <PackagePlus className="h-4 w-4" />
+          {ui.t("shipping.center.pickups.open")}
+        </button>
+      ) : null}
 
       <div className="-mx-1 flex gap-1.5 overflow-x-auto px-1 pb-0.5 [scrollbar-width:none]">
         {RANGES.map((key) => (
@@ -1532,6 +1550,8 @@ export default function PortalOnlineOrdersBoard({
           {currentBuildId() ? <span dir="ltr"> · {ui.tb("version", { build: currentBuildId().slice(0, 7) })}</span> : null}
         </div>
       ) : null}
+
+      {pickupOpen && canPickup ? <PortalPickupSheet api={pickups} ui={ui} onClose={() => setPickupOpen(false)} /> : null}
 
       {manageTarget?.mode === "edit" ? (
         <OrderEditSheet order={manageTarget.order} ui={ui} onClose={() => setManageTarget(null)} onSave={saveEdit} errorText={actionErrorText} />

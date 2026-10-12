@@ -25,6 +25,9 @@ export const managerPortalApi = {
   onlineOrderEdit: (token, orderId, fields = {}) => api.post(`${tokenPath(token)}/online-orders/${encodeURIComponent(orderId)}/edit`, { fields }, { suppressErrorStatuses: [400, 404, 409] }),
   onlineOrderDelete: (token, orderId, reason = "") => api.post(`${tokenPath(token)}/online-orders/${encodeURIComponent(orderId)}/delete`, { reason }, { suppressErrorStatuses: [400, 404, 409] }),
   onlineOrdersPrintLabels: (token, orderIds = []) => api.post(`${tokenPath(token)}/online-orders/print-labels`, { order_ids: orderIds }, { suppressErrorStatuses: [400, 403, 404, 409, 422, 502] }),
+  bostaPickups: (token) => api.get(`${tokenPath(token)}/bosta-pickups`, { cache: "no-store", suppressErrorStatuses: [400, 404, 422, 502] }),
+  bostaPickupCreate: (token, body) => api.post(`${tokenPath(token)}/bosta-pickups`, body, { suppressErrorStatuses: [400, 404, 422, 502] }),
+  bostaPickupCancel: (token, pickupId) => api.delete(`${tokenPath(token)}/bosta-pickups/${encodeURIComponent(pickupId)}`, { suppressErrorStatuses: [400, 404, 422, 502] }),
   onlineOrderAction: (token, orderId, action, input = {}) => api.post(`${tokenPath(token)}/online-orders/${encodeURIComponent(orderId)}/actions/${encodeURIComponent(action)}`, input || {}, { suppressErrorStatuses: [400, 403, 404, 409, 422, 502] }),
   // The executive overview. `profitToken` is optional: without it the server masks
   // profit, margin, cost and inventory value rather than sending them to be hidden.

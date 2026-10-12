@@ -24,3 +24,10 @@ export const getEmployeePortalOnlineOrder = (token, orderId) =>
     cache: "no-store",
     suppressErrorStatuses: [404, 422],
   });
+
+// طلب بيك أب — book / cancel a Bosta courier to the shop.
+export const employeePortalPickupsApi = (token) => ({
+  load: () => api.get(`${tokenPath(token)}/bosta-pickups`, { cache: "no-store", suppressErrorStatuses: [400, 404, 422, 502] }),
+  create: (body) => api.post(`${tokenPath(token)}/bosta-pickups`, body, { suppressErrorStatuses: [400, 404, 422, 502] }),
+  cancel: (pickupId) => api.delete(`${tokenPath(token)}/bosta-pickups/${encodeURIComponent(pickupId)}`, { suppressErrorStatuses: [400, 404, 422, 502] }),
+});

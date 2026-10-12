@@ -68,7 +68,7 @@ export function OrderManageMenu({ order, ui, onEdit, onDelete }) {
   );
 }
 
-function Sheet({ title, ui, onClose, children, footer }) {
+export function Sheet({ title, ui, onClose, children, footer }) {
   useEffect(() => {
     const onKey = (event) => { if (event.key === "Escape") onClose(); };
     window.addEventListener("keydown", onKey);
@@ -96,7 +96,7 @@ function Sheet({ title, ui, onClose, children, footer }) {
   );
 }
 
-function Input({ label, value, onChange, type = "text", dir = "auto", multiline = false, required = false }) {
+export function Input({ label, value, onChange, type = "text", dir = "auto", multiline = false, required = false }) {
   const className = "mt-1 w-full rounded-[var(--radius-control)] border border-border bg-surface px-3 py-2 text-sm font-bold text-text";
   return (
     <label className="block">

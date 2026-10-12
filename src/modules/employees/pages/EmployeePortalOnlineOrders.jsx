@@ -1,10 +1,10 @@
-import { useCallback } from "react";
+import { useCallback, useMemo } from "react";
 import { useNavigate, useParams } from "react-router-dom";
 import { useEmployeePortalArabic } from "../lib/employeePortalLanguage";
 import { Truck } from "lucide-react";
 import EmployeePortalNavControls, { buildEmployeePortalHomePath, canNavigateEmployeePortalBack } from "../components/EmployeePortalNavControls";
 import PortalOnlineOrdersBoard from "../../../shared/components/portalOnlineOrders/PortalOnlineOrdersBoard";
-import { getEmployeePortalOnlineOrder, getEmployeePortalOnlineOrders, printEmployeePortalOnlineOrderLabels, runEmployeePortalOnlineOrderAction } from "../services/employeePortalOnlineOrdersApi";
+import { employeePortalPickupsApi, getEmployeePortalOnlineOrder, getEmployeePortalOnlineOrders, printEmployeePortalOnlineOrderLabels, runEmployeePortalOnlineOrderAction } from "../services/employeePortalOnlineOrdersApi";
 import usePageTitle from "../../../shared/hooks/usePageTitle";
 
 // أوردرات الشحن in the employee portal. Every employee sees it (owner decision,
@@ -20,6 +20,7 @@ export default function EmployeePortalOnlineOrders() {
   // The server decides whether this employee may act (permissions.can_act on the list).
   const runAction = useCallback((orderId, action, input) => runEmployeePortalOnlineOrderAction(token, orderId, action, input), [token]);
   const printLabels = useCallback((orderIds) => printEmployeePortalOnlineOrderLabels(token, orderIds), [token]);
+  const pickups = useMemo(() => employeePortalPickupsApi(token), [token]);
   const loadDetail = useCallback(async (orderId) => {
     const response = await getEmployeePortalOnlineOrder(token, orderId);
     return response?.order || null;
@@ -62,7 +63,7 @@ export default function EmployeePortalOnlineOrders() {
           </div>
         </header>
 
-        <PortalOnlineOrdersBoard loadList={loadList} loadDetail={loadDetail} runAction={runAction} printLabels={printLabels} openConversation={openConversation} />
+        <PortalOnlineOrdersBoard loadList={loadList} loadDetail={loadDetail} runAction={runAction} printLabels={printLabels} openConversation={openConversation} pickups={pickups} />
       </div>
     </main>
   );

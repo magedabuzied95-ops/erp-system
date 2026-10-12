@@ -64,6 +64,7 @@ import { getSalesOpportunitiesForScope, loadEmployeeSalesBoard } from "../servic
 import { getPortalOnlineOrder, listPortalOnlineOrders } from "../modules/shipping/shipping.portal.service.js";
 import { PORTAL_SHIP_ACTIONS, runPortalBulkPrint, runPortalOrderAction } from "../modules/shipping/shipping.portal.actions.js";
 import { employeeCanActOnOnlineOrders } from "../modules/shipping/shipping.portal.access.js";
+import { mountPortalPickupRoutes } from "../modules/shipping/shipping.portal.pickups.js";
 import { employeePortalInboxEnabled, mintPortalInboxSession } from "../modules/aiInboxPortal/portalInboxAccess.js";
 import { protect } from "../middleware/authMiddleware.js";
 import permit from "../middleware/permissionMiddleware.js";
@@ -785,6 +786,10 @@ router.post("/:token/online-orders/print-labels", async (req, res) => {
     return res.status(error.status || 500).json({ success: false, code: error.code, message: error.message || "Print failed", payload: error.payload || null });
   }
 });
+
+// طلب بيك أب: book / cancel a Bosta courier to the shop — every employee, like the
+// parcel itself.
+mountPortalPickupRoutes(router, { loadActor: loadVerifiedEmployee, surface: "employee-portal" });
 
 // Compact product cards (no variant arrays / no images blobs / no price) — the
 // fast Warehouse Request list + size-filter path. POS endpoint untouched.

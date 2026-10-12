@@ -58,6 +58,7 @@ import { getLinkPreview } from "../services/linkPreviewService.js";
 import { getPortalOnlineOrder, listPortalOnlineOrders } from "../modules/shipping/shipping.portal.service.js";
 import { runPortalBulkPrint, runPortalOrderAction } from "../modules/shipping/shipping.portal.actions.js";
 import { deletePortalOnlineOrder, editPortalOnlineOrder } from "../modules/shipping/shipping.portal.manage.js";
+import { mountPortalPickupRoutes } from "../modules/shipping/shipping.portal.pickups.js";
 import {
   getManagerPortalPushPublicKey,
   getManagerPortalPushSubscriptionDebug,
@@ -408,6 +409,9 @@ router.post("/:token/online-orders/print-labels", async (req, res) => {
     return res.status(error.status || 500).json({ success: false, code: error.code, message: error.message || "Print failed", payload: error.payload || null });
   }
 });
+
+// طلب بيك أب — the same Bosta pickup calls the desktop shipping center makes.
+mountPortalPickupRoutes(router, { loadActor: loadVerifiedManager, surface: "manager-portal" });
 
 router.get("/:token/staff", async (req, res) => {
   try {
