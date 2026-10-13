@@ -40,6 +40,7 @@ import {
   resolveExistingVariantIdFromContext,
 } from "../utils/variantSaveContext.js";
 import { resolveCurrentSellingPrice } from "../services/currentSellingPriceResolver.js";
+import { AD_FEED_PURCHASE_COLUMNS, AD_FEED_PURCHASE_CTES, AD_FEED_PURCHASE_JOINS } from "../services/adFeedPurchaseLinesSql.js";
 import {
   issueProductEntryToken,
   hasAnyStaffPin,
@@ -4124,6 +4125,39 @@ export const getProductsAdminList = async (req, res) => {
       manufacturerFacetValues
     );
 
+    // The discount typed on a purchase invoice lands on the SIZE rows (and on the invoice line),
+    // never on products.sale_price — which is all the query above can see. Read each size's
+    // discount the way the shop does (shared invoice-line definition), for this page only.
+    const listSalePricesByProduct = new Map();
+    const pageProductIds = (result.rows || []).map((row) => Number(row.id)).filter((id) => id > 0);
+    if (pageProductIds.length) {
+      const salePricesResult = await db.query(
+        `
+        WITH ${AD_FEED_PURCHASE_CTES},
+        sized AS (
+          SELECT pv.product_id, ${AD_FEED_PURCHASE_COLUMNS}
+          FROM product_variants pv
+          JOIN products p ON p.id = pv.product_id
+          ${AD_FEED_PURCHASE_JOINS}
+          WHERE pv.product_id = ANY($1::bigint[])
+            AND pv.is_active IS DISTINCT FROM FALSE
+            AND pv.deleted_at IS NULL
+        )
+        SELECT product_id, ARRAY_AGG(DISTINCT variant_line_sale_price ORDER BY variant_line_sale_price) AS sale_prices
+        FROM sized
+        WHERE COALESCE(variant_line_sale_price, 0) > 0
+        GROUP BY product_id
+        `,
+        [pageProductIds]
+      ).catch((error) => {
+        console.error("[products/admin-list] sale price lookup failed", { message: error?.message });
+        return { rows: [] };
+      });
+      for (const saleRow of salePricesResult.rows || []) {
+        listSalePricesByProduct.set(Number(saleRow.product_id), (saleRow.sale_prices || []).map(Number).filter((value) => value > 0));
+      }
+    }
+
     const rows = (result.rows || []).map((row) => {
       const currentSellingPrice = resolveAdminListCurrentSellingPrice(row);
       // The colour rows carry the real factory; the product-level manufacturer is
@@ -4144,6 +4178,7 @@ export const getProductsAdminList = async (req, res) => {
       thumbnail_url: row.cover_image_url || "",
       photo_url: row.cover_image_url || "",
       variants: [],
+      list_sale_prices: listSalePricesByProduct.get(Number(row.id)) || [],
       color_images: [],
       product_audiences: Array.isArray(row.product_audiences) ? row.product_audiences : [],
       audiences: Array.isArray(row.product_audiences) ? row.product_audiences : [],

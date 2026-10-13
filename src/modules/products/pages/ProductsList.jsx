@@ -1121,9 +1121,11 @@ const getCatalogPriceDisplay = (row = {}) => {
     ? variants.map((variant) => positivePrice(variant.selling_price, variant.regular_price, variant.price, variant.variant_sale_price))
     : [positivePrice(row.selling_price, row.regular_price, row.price)];
 
+  // admin-list ships no variants; it sends the sizes' discounts (from the purchase invoice) instead.
+  const listSalePrices = Array.isArray(row.list_sale_prices) ? row.list_sale_prices : [];
   const saleValues = useVariants
     ? variants.map(activeSalePrice)
-    : [activeSalePrice(row)];
+    : listSalePrices.length ? listSalePrices : [activeSalePrice(row)];
 
   const costUnique = uniquePriceValues(costValues);
   const sellUnique = uniquePriceValues(sellValues);

@@ -22,3 +22,13 @@ test("Products List API falls back to the selected variant purchase suggestion w
     list_variant_purchase_selling_price: 1100,
   }), 1100);
 });
+
+test("Products List shows the discount typed on the purchase invoice, read from the size rows like the shop", async () => {
+  const { readFileSync } = await import("node:fs");
+  const controller = readFileSync(new URL("../server/controllers/productsController.js", import.meta.url), "utf8");
+  const listBody = controller.slice(controller.indexOf("export const getProductsAdminList"), controller.indexOf("export const getProducts = "));
+  assert.match(listBody, /AD_FEED_PURCHASE_CTES/, "admin-list must price discounts through the shared invoice-line definition");
+  assert.match(listBody, /list_sale_prices:/);
+  const page = readFileSync(new URL("../src/modules/products/pages/ProductsList.jsx", import.meta.url), "utf8");
+  assert.match(page, /row\.list_sale_prices/, "the list card must read the sizes' discounts, not only products.sale_price");
+});
