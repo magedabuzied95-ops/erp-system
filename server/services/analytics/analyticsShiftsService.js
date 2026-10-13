@@ -168,6 +168,65 @@ const buildShiftPaymentsQuery = ({ orderColumns, tenantScoped, shiftIdsParam }) 
 };
 
 /**
+ * What left the drawer during a shift, line by line.
+ *
+ * `expenses.shift_id` is the key, exactly as the POS close screen reads it
+ * (`buildPosShiftReport` in posController.js), so the two reports cannot disagree about
+ * which expense belonged to which session. The expense routes set that column from the
+ * drawer event they just wrote, so it is recorded fact rather than a time-range guess.
+ *
+ * A rejected or cancelled expense is not money that left: those statuses drop out, the
+ * same four the POS report drops.
+ *
+ * EMPLOYEE ADVANCES ARE EXPENSES HERE. A سلفة paid in cash left the till like any other
+ * payment, and a manager counting the drawer needs it in the figure; the POS report keeps
+ * them in a column of their own because payroll later deducts them, which is a different
+ * question from "what went out tonight". Each line carries its own type, so an advance
+ * still reads as an advance with the employee's name beside it.
+ *
+ * No type normalisation happens here. The expense routes normalise on write, so the
+ * stored `expense_type` is already the enum the Arabic dictionary is keyed on; a second
+ * normaliser at read time would be a second rule to keep in step.
+ */
+const EXPENSE_EXCLUDED_STATUSES = Object.freeze(["rejected", "cancelled", "canceled", "void"]);
+
+const buildShiftExpensesQuery = ({ expenseColumns, employeeColumns, tenantScoped, shiftIdsParam }) => {
+  const has = (column) => expenseColumns.has(column);
+  const joinEmployees = has("employee_id") && employeeColumns.size > 0;
+  const employeeName = joinEmployees
+    ? `COALESCE(NULLIF(emp.full_name, ''), ${employeeColumns.has("employee_code") ? "NULLIF(emp.employee_code, '')," : ""} '')`
+    : "''";
+
+  const clauses = [
+    `ex.shift_id = ANY(${shiftIdsParam}::bigint[])`,
+    ...(tenantScoped && has("tenant_id") ? ["ex.tenant_id = $1"] : []),
+    ...(has("status")
+      ? [`LOWER(COALESCE(ex.status, '')) NOT IN (${EXPENSE_EXCLUDED_STATUSES.map((status) => `'${status}'`).join(", ")})`]
+      : []),
+  ];
+
+  return `
+    SELECT
+      ex.id,
+      ex.shift_id,
+      ${has("title") ? "COALESCE(ex.title, '')" : "''"}                                  AS title,
+      COALESCE(ex.amount, 0)                                                             AS amount,
+      ${has("expense_type") ? "LOWER(TRIM(COALESCE(ex.expense_type, '')))" : "''"}        AS expense_type,
+      ${has("category") ? "LOWER(TRIM(COALESCE(ex.category, '')))" : "''"}                AS category,
+      ${has("payment_method") ? "LOWER(TRIM(COALESCE(ex.payment_method, 'cash')))" : "'cash'"} AS payment_method,
+      ${has("created_at") ? "ex.created_at" : "NULL::timestamptz"}                        AS created_at,
+      ${employeeName}                                                                     AS employee_name
+    FROM expenses ex
+    ${joinEmployees ? "LEFT JOIN employees emp ON emp.id = ex.employee_id" : ""}
+    WHERE ${clauses.join(" AND ")}
+    ORDER BY ex.shift_id, ${has("created_at") ? "ex.created_at ASC," : ""} ex.id ASC
+  `;
+};
+
+/** A shift with nothing paid out — the shape, so the screen never branches on null. */
+const EMPTY_EXPENSES = () => ({ total: 0, cash: 0, count: 0, rows: [] });
+
+/**
  * @returns {Promise<{ data: object, meta: object, warnings: Array }>}
  */
 export const getShiftsReport = async ({ filters, permissions = {}, client = db } = {}) => {
@@ -218,6 +277,7 @@ export const getShiftsReport = async ({ filters, permissions = {}, client = db }
     netSales: 0,
     share: null,
     payments: EMPTY_MIX(),
+    expenses: EMPTY_EXPENSES(),
   }));
 
   // The window's split across payment methods, in the same shape the overview's payment
@@ -295,6 +355,63 @@ export const getShiftsReport = async ({ filters, permissions = {}, client = db }
     );
   }
 
+  const expenseColumns = await getTableColumns(client, "expenses");
+  if (expenseColumns.has("shift_id")) {
+    const employeeColumns = await getTableColumns(client, "employees");
+    const expenseParams = [
+      ...(tenantScoped && expenseColumns.has("tenant_id") ? [filters.tenantId] : []),
+      shifts.map((shift) => shift.id),
+    ];
+    const expenseRows = (
+      await client.query(
+        buildShiftExpensesQuery({
+          expenseColumns,
+          employeeColumns,
+          tenantScoped,
+          shiftIdsParam: `$${expenseParams.length}`,
+        }),
+        expenseParams
+      )
+    ).rows;
+
+    const byShift = new Map();
+    for (const row of expenseRows) {
+      const id = Number(row.shift_id);
+      const entry = byShift.get(id) || EMPTY_EXPENSES();
+      const amount = addable(row.amount);
+      entry.total += amount;
+      // The cash part is the only part the drawer ever held, so it is the one that has to
+      // reconcile against expected_cash; an expense paid on a card never touched the till.
+      if (row.payment_method === "cash") entry.cash += amount;
+      entry.count += 1;
+      entry.rows.push({
+        id: Number(row.id),
+        type: row.expense_type || row.category || "",
+        category: row.category || "",
+        // Kept as written: it is what the till printed, and it is the only label left for
+        // an expense whose type the dictionary does not know.
+        title: row.title || "",
+        employee: row.employee_name || "",
+        paymentMethod: row.payment_method || "cash",
+        amount: toMoney(row.amount),
+        at: row.created_at,
+      });
+      byShift.set(id, entry);
+    }
+
+    for (const shift of shifts) {
+      const entry = byShift.get(shift.id);
+      if (!entry) continue;
+      shift.expenses = { ...entry, total: toMoney(entry.total), cash: toMoney(entry.cash) };
+    }
+  } else {
+    collector.add(
+      WARNING_CODES.SHIFT_EXPENSES_UNAVAILABLE,
+      "Expenses do not record which till shift paid them, so the per-shift expense figure cannot be produced.",
+      {}
+    );
+  }
+
   return {
     data: { kpis: buildKpis(shifts), shifts, totals, summary: buildSummary(shifts) },
     meta: {
@@ -334,6 +451,11 @@ const buildSummary = (shifts = []) => {
     expectedCash: toMoney(sum(shifts, (shift) => shift.expectedCash)),
     countedCash: counted.length ? toMoney(sum(counted, (shift) => shift.closingCash)) : null,
     cashDifference: counted.length ? toMoney(sum(counted, (shift) => shift.cashDifference)) : null,
+    // Every shift is counted here, open or closed: an expense is paid the moment it is
+    // recorded, so unlike the counted cash there is nothing still to come.
+    expenses: toMoney(sum(shifts, (shift) => shift.expenses?.total)),
+    expensesCash: toMoney(sum(shifts, (shift) => shift.expenses?.cash)),
+    expenseCount: sum(shifts, (shift) => shift.expenses?.count),
   };
 };
 
@@ -346,11 +468,13 @@ const buildKpis = (shifts = []) => {
   const total = shifts.reduce((sum, shift) => sum + addable(shift.payments?.totals?.all), 0);
   const collected = shifts.reduce((sum, shift) => sum + addable(shift.payments?.totals?.collected), 0);
   const orders = shifts.reduce((sum, shift) => sum + addable(shift.orders), 0);
+  const expenses = shifts.reduce((sum, shift) => sum + addable(shift.expenses?.total), 0);
 
   return {
     shiftCount: { current: shifts.length, previous: null, delta: null },
     shiftCollected: { current: toMoney(collected), previous: null, delta: null },
     shiftPaid: { current: toMoney(total), previous: null, delta: null },
     orders: { current: orders, previous: null, delta: null },
+    shiftExpenses: { current: toMoney(expenses), previous: null, delta: null },
   };
 };

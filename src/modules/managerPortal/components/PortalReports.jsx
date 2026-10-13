@@ -716,6 +716,8 @@ function ShiftList({ shifts, totals, summary, truncated = false, language, t }) 
               />
             )}
           </div>
+
+          <ShiftExpenses expenses={shift.expenses} language={language} t={t} />
         </section>
       ))}
 
@@ -740,6 +742,13 @@ function ShiftList({ shifts, totals, summary, truncated = false, language, t }) 
                 tone={summary.cashDifference < 0 ? "bad" : "good"}
               />
             ) : null}
+            {summary?.expenseCount ? (
+              <Line
+                label={t("managerPortal.reports.shifts.expenses")}
+                value={formatMoney(summary.expenses, language)}
+                tone="bad"
+              />
+            ) : null}
           </div>
           {/* Said out loud when some drawer is still open: the counted line and the
               difference cover the closed sessions only, and a total that silently left a
@@ -755,6 +764,67 @@ function ShiftList({ shifts, totals, summary, truncated = false, language, t }) 
       {truncated ? (
         <p className="px-1 text-[10px] font-black leading-4 text-amber-500">{t("managerPortal.reports.shifts.truncated")}</p>
       ) : null}
+    </div>
+  );
+}
+
+/**
+ * What an expense is called.
+ *
+ * The stored `expense_type` is already the enum the expenses screen is keyed on, so the
+ * label comes from THAT screen's dictionary rather than a second one under
+ * `managerPortal.*` — "سلفة موظف" has to read identically wherever it appears. The
+ * category is tried next for the older rows that carried only that, and the title the
+ * till wrote is the last resort: an expense type nobody has translated still has to say
+ * something, and "أخرى" for all of them would hide which was which.
+ */
+const expenseLabel = (row, t) => {
+  const byType = row.type ? t(`expenses.centerOptions.type.${row.type}`, { defaultValue: "" }) : "";
+  if (byType) return byType;
+  const byCategory = row.category ? t(`expenses.centerOptions.category.${row.category}`, { defaultValue: "" }) : "";
+  if (byCategory) return byCategory;
+  return row.title || row.type || row.category || "—";
+};
+
+/**
+ * What left the drawer on this shift, and what each line of it was.
+ *
+ * Employee advances are in the total on purpose: a سلفة paid in cash left the till like
+ * any other payment, and a manager counting the drawer needs it in the figure. Each line
+ * still names itself, so an advance reads as an advance with the employee beside it.
+ *
+ * The cash part is spelled out only when it differs from the total — that is the part the
+ * drawer ever held, so it is the one that reconciles against the expected cash above, and
+ * a card-paid expense never touched the till.
+ */
+function ShiftExpenses({ expenses, language, t }) {
+  const rows = expenses?.rows || [];
+  if (!rows.length) return null;
+
+  return (
+    <div className="mt-2 border-t border-border pt-2">
+      <div className="flex items-baseline justify-between gap-2 text-[12px]">
+        <span className="font-black text-text">{t("managerPortal.reports.shifts.expenses")}</span>
+        <span className="font-black tabular-nums text-rose-500">{formatMoney(expenses.total, language) ?? "—"}</span>
+      </div>
+
+      <ul className="mt-1.5 space-y-1">
+        {rows.map((row) => (
+          <li key={row.id} className="flex items-baseline justify-between gap-2 text-[10px] font-bold text-text-muted">
+            <span className="min-w-0 truncate">
+              {expenseLabel(row, t)}
+              {row.employee ? <span className="text-text-muted"> · {row.employee}</span> : null}
+            </span>
+            <span className="shrink-0 tabular-nums text-text">{formatMoney(row.amount, language)}</span>
+          </li>
+        ))}
+      </ul>
+
+      {expenses.cash === expenses.total ? null : (
+        <div className="mt-1.5 text-[10px] font-bold text-text-muted">
+          <Line label={t("managerPortal.reports.shifts.expensesCashPart")} value={formatMoney(expenses.cash, language)} />
+        </div>
+      )}
     </div>
   );
 }

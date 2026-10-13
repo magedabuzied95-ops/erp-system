@@ -62,6 +62,7 @@ export const METRIC_KIND = Object.freeze({
   shiftCount: "integer",
   shiftCollected: "currency",
   shiftPaid: "currency",
+  shiftExpenses: "currency",
 });
 
 const isNumber = (value) => typeof value === "number" && Number.isFinite(value);

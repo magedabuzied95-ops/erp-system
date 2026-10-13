@@ -19,6 +19,11 @@ const ORDER_COLUMNS = [
   "id", "tenant_id", "shift_id", "created_at", "status", "deleted_at",
   "total_amount", "subtotal", "discount_amount", "payment_method", "payment_breakdown", "is_personal_transaction",
 ];
+const EXPENSE_COLUMNS = [
+  "id", "tenant_id", "shift_id", "title", "amount", "expense_type", "category",
+  "payment_method", "status", "employee_id", "created_at",
+];
+const EMPLOYEE_COLUMNS = ["id", "full_name", "employee_code"];
 
 const filters = {
   tenantId: 1,
@@ -31,22 +36,48 @@ const filters = {
  * A client that answers the two information_schema probes and then the two real queries,
  * recording every SQL string and parameter list it was handed.
  */
-const fakeClient = ({ shiftRows = [], paymentRows = [], shiftColumns = SHIFT_COLUMNS, orderColumns = ORDER_COLUMNS } = {}) => {
+const fakeClient = ({
+  shiftRows = [],
+  paymentRows = [],
+  expenseRows = [],
+  shiftColumns = SHIFT_COLUMNS,
+  orderColumns = ORDER_COLUMNS,
+  expenseColumns = EXPENSE_COLUMNS,
+  employeeColumns = EMPLOYEE_COLUMNS,
+} = {}) => {
   const calls = [];
+  const schema = {
+    orders: orderColumns,
+    cash_drawer_shifts: shiftColumns,
+    expenses: expenseColumns,
+    employees: employeeColumns,
+  };
   return {
     calls,
     query: async (sql, params = []) => {
       calls.push({ sql, params });
       if (/information_schema\.columns/.test(sql)) {
-        const table = params[0];
-        const columns = table === "orders" ? orderColumns : table === "cash_drawer_shifts" ? shiftColumns : [];
-        return { rows: columns.map((column_name) => ({ column_name })) };
+        return { rows: (schema[params[0]] || []).map((column_name) => ({ column_name })) };
       }
       if (/FROM cash_drawer_shifts/.test(sql)) return { rows: shiftRows };
+      if (/FROM expenses/.test(sql)) return { rows: expenseRows };
       return { rows: paymentRows };
     },
   };
 };
+
+const expenseRow = (overrides = {}) => ({
+  id: 1,
+  shift_id: 7,
+  title: "POS expense - shipping",
+  amount: "150",
+  expense_type: "shipping",
+  category: "shipping",
+  payment_method: "cash",
+  created_at: "2026-09-30T21:00:00.000Z",
+  employee_name: "",
+  ...overrides,
+});
 
 const shiftRow = (overrides = {}) => ({
   id: 7,
@@ -252,6 +283,98 @@ test("an open drawer is counted in the takings but not in the cash count", async
   assert.equal(summary.orders, 9, "an open shift's sales still happened");
   assert.equal(summary.countedCash, 3450, "only the drawer somebody counted");
   assert.equal(summary.cashDifference, -50);
+});
+
+/* ------------------------------------------------------------------- expenses */
+
+test("the expenses on a shift are the ones that shift paid, and rejected ones are not money", async () => {
+  const { client } = await run({ shiftRows: [shiftRow()] });
+  const query = client.calls.find((call) => /FROM expenses/.test(call.sql));
+
+  // Keyed on expenses.shift_id — the column the expense routes set from the drawer event
+  // they just wrote — exactly as buildPosShiftReport reads it. A time-range guess would
+  // put a late expense on the wrong session.
+  assert.match(query.sql, /ex\.shift_id = ANY\(\$2::bigint\[\]\)/);
+  assert.match(query.sql, /ex\.tenant_id = \$1/);
+  for (const status of ["rejected", "cancelled", "canceled", "void"]) {
+    assert.ok(query.sql.includes(`'${status}'`), `${status} must drop out: it is not money that left`);
+  }
+  assert.deepEqual(query.params, [1, [7]]);
+});
+
+test("what went out is totalled, and every line says what it was", async () => {
+  const { result } = await run({
+    shiftRows: [shiftRow()],
+    expenseRows: [
+      expenseRow({ id: 1, amount: "150", expense_type: "shipping" }),
+      expenseRow({ id: 2, amount: "3000", expense_type: "employee_advance", category: "employee_advance", employee_name: "Omar Ayoub", title: "POS employee advance - Omar Ayoub" }),
+    ],
+  });
+
+  const { expenses } = result.data.shifts[0];
+  assert.equal(expenses.total, 3150);
+  assert.equal(expenses.count, 2);
+  assert.deepEqual(expenses.rows.map((row) => row.type), ["shipping", "employee_advance"]);
+  // The employee rides along so an advance reads as that person's advance, not as a
+  // nameless 3,000 missing from the drawer.
+  assert.equal(expenses.rows[1].employee, "Omar Ayoub");
+  assert.equal(expenses.rows[1].amount, 3000);
+});
+
+test("an advance counts as money out, because that is what it was", async () => {
+  // The POS close screen keeps advances in a column of their own because payroll later
+  // deducts them. That is a different question from "what left the till tonight", which
+  // is the one this card answers.
+  const { result } = await run({
+    shiftRows: [shiftRow()],
+    expenseRows: [expenseRow({ id: 2, amount: "500", expense_type: "employee_advance", employee_name: "Sara" })],
+  });
+  assert.equal(result.data.shifts[0].expenses.total, 500);
+  assert.equal(result.data.shifts[0].expenses.cash, 500);
+});
+
+test("only the cash part ever touched the drawer", async () => {
+  const { result } = await run({
+    shiftRows: [shiftRow()],
+    expenseRows: [
+      expenseRow({ id: 1, amount: "150", payment_method: "cash" }),
+      expenseRow({ id: 2, amount: "400", payment_method: "instapay" }),
+    ],
+  });
+
+  const { expenses } = result.data.shifts[0];
+  assert.equal(expenses.total, 550, "both are expenses");
+  assert.equal(expenses.cash, 150, "only one of them left the till, and only that one reconciles");
+});
+
+test("the window's expense total is the sum of the shifts, counted once", async () => {
+  const { result } = await run({
+    shiftRows: [shiftRow(), shiftRow({ id: 8 })],
+    expenseRows: [
+      expenseRow({ id: 1, shift_id: 7, amount: "150.555" }),
+      expenseRow({ id: 2, shift_id: 8, amount: "200.444", payment_method: "card" }),
+    ],
+  });
+
+  assert.equal(result.data.summary.expenses, 351);
+  assert.equal(result.data.summary.expensesCash, 150.56, "the cash line follows the same split");
+  assert.equal(result.data.summary.expenseCount, 2);
+  assert.equal(result.data.kpis.shiftExpenses.current, 351, "the tile and the card cannot disagree");
+});
+
+test("a shift that paid nothing out carries the shape, not a null", async () => {
+  const { result } = await run({ shiftRows: [shiftRow()], expenseRows: [] });
+  assert.deepEqual(result.data.shifts[0].expenses, { total: 0, cash: 0, count: 0, rows: [] });
+});
+
+test("expenses that do not record their shift produce a warning, never a silent zero", async () => {
+  const { result } = await run({
+    shiftRows: [shiftRow()],
+    expenseColumns: EXPENSE_COLUMNS.filter((column) => column !== "shift_id"),
+  });
+
+  assert.equal(result.data.shifts[0].expenses.total, 0);
+  assert.ok(result.warnings.some((warning) => warning.code === "SHIFT_EXPENSES_UNAVAILABLE"));
 });
 
 /* --------------------------------------------------------------- what is refused */

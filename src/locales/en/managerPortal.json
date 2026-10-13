@@ -907,7 +907,10 @@
       "grandTotal": "Grand total",
       "shiftCount": "Shifts",
       "countedNote": "Counted cash and the difference cover the {{closed}} closed shifts only — nobody has counted a drawer that is still open.",
-      "noSales": "Nothing was sold on this shift."
+      "noSales": "Nothing was sold on this shift.",
+      "expenses": "Expenses",
+      "expensesCashPart": "Of which cash, out of the drawer",
+      "expensesNote": "Employee advances are counted here too — anything that left the drawer."
     }
   }
 }

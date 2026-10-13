@@ -164,6 +164,20 @@ test("the portal screen computes no figure of its own", async () => {
   assert.ok(!/reduce\(\(sum/.test(screen), "totals come from the server, never re-added on the phone");
 });
 
+test("an expense is named from the expenses screen's own dictionary, not a second one", async () => {
+  const screen = await read("../../src/modules/managerPortal/components/PortalReports.jsx");
+
+  // "سلفة موظف" has to read identically on the expenses screen and on a shift card, so
+  // the label comes from that screen's keys. A `managerPortal.reports.shifts.type.*`
+  // dictionary would be a second copy, and the day it drifts one screen starts lying.
+  assert.match(screen, /expenses\.centerOptions\.type\./);
+  assert.match(screen, /expenses\.centerOptions\.category\./, "older rows carried only a category");
+
+  // And the figure beside it is the server's, never the lines re-added on the phone.
+  assert.match(screen, /formatMoney\(expenses\.total, language\)/);
+  assert.ok(!/reduce\(\(sum/.test(screen), "totals come from the server");
+});
+
 test("the screen masks nothing itself — it renders what the server sent", async () => {
   const screen = await read("../../src/modules/managerPortal/components/PortalReports.jsx");
   // The gate is `payload.profit_unlocked`, which only the server sets. A screen that
