@@ -37,12 +37,18 @@ const formatClock = (value) => {
   if (Number.isNaN(date.getTime())) return "—";
   return new Intl.DateTimeFormat("ar-EG", { timeZone: ATTENDANCE_TZ, hour: "2-digit", minute: "2-digit" }).format(date);
 };
+// Spelled out ("١٤ ساعة و٣٧ دقيقة") in the same Arabic digits as the other
+// stats: the old "14 س 37 د" mixed Latin digits with one-letter units, and
+// the bidi algorithm reordered it into "س 37 د 14".
+const formatHours = (h) => (h === 1 ? "ساعة" : h === 2 ? "ساعتين" : `${formatNumber(h)} ساعة`);
+const formatMins = (m) => (m === 1 ? "دقيقة" : m === 2 ? "دقيقتين" : `${formatNumber(m)} دقيقة`);
 const formatMinutes = (minutes) => {
   const m = Math.max(0, Math.round(Number(minutes || 0)));
-  if (!m) return "0 د";
+  if (!m) return "٠";
   const h = Math.floor(m / 60);
   const r = m % 60;
-  return h ? `${h} س ${r ? `${r} د` : ""}`.trim() : `${r} د`;
+  if (!h) return formatMins(r);
+  return r ? `${formatHours(h)} و${formatMins(r)}` : formatHours(h);
 };
 const todayKey = () => new Intl.DateTimeFormat("en-CA", { timeZone: ATTENDANCE_TZ, year: "numeric", month: "2-digit", day: "2-digit" }).format(new Date());
 const monthLabel = (month) => {
@@ -72,7 +78,7 @@ const Row = ({ label, value, tone = "" }) => (
 const Stat = ({ label, value, tone = "text-slate-950" }) => (
   <div className="rounded-[var(--radius-card)] border border-slate-200 bg-white px-3 py-2 text-right">
     <div className="text-[10px] font-black text-slate-500">{label}</div>
-    <div className={`mt-0.5 truncate text-sm font-black tabular-nums ${tone}`}>{value}</div>
+    <div dir="auto" className={`mt-0.5 truncate text-sm font-black tabular-nums ${tone}`}>{value}</div>
   </div>
 );
 
@@ -744,7 +750,7 @@ export default function EmployeeDetailsSheet({ token, employee, initialTab = "ov
                   ) : null}
                   <div className="grid grid-cols-2 gap-2">
                     <Stat label={tt("managerPortal.employeeDetails.attendanceDays")} value={formatNumber(d.attendance.totals.days)} />
-                    <Stat label={tt("managerPortal.employeeDetails.workHours")} value={`${formatNumber(d.attendance.totals.work_hours)} س`} />
+                    <Stat label={tt("managerPortal.employeeDetails.workHours")} value={formatMinutes(Number(d.attendance.totals.work_hours || 0) * 60)} />
                     <Stat label={tt("managerPortal.employeeDetails.lateTotal")} value={`${formatMinutes(d.attendance.totals.late_minutes)} (${formatNumber(d.attendance.totals.late_days)} ${tt("managerPortal.employeeDetails.days")})`} tone="text-rose-700" />
                     <Stat label={tt("managerPortal.employeeDetails.overtimeTotal")} value={formatMinutes(d.attendance.totals.overtime_minutes)} tone="text-emerald-700" />
                   </div>
