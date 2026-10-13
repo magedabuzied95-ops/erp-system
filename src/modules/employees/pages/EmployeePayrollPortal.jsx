@@ -81,6 +81,7 @@ import { useEmployeePortalArabic } from "../lib/employeePortalLanguage";
 import { getEmployeePortalInboxAccess } from "../services/employeePortalInboxApi";
 import EmployeeDisplayAuditPanel from "../components/EmployeeDisplayAuditPanel";
 import AttendanceRulesPanel from "../components/AttendanceRulesPanel";
+import EmployeeMonthSheet from "../components/EmployeeMonthSheet";
 import { getEmployeeSalesOpportunities, getEmployeeSalesBoard } from "../services/salesOpportunitiesApi";
 import usePageTitle from "../../../shared/hooks/usePageTitle";
 import { useTheme } from "../../../theme/useTheme";
@@ -1418,7 +1419,7 @@ function EmployeeStatsCards({ cards = [] }) {
 
   return (
     <div className="relative z-0 mt-0 grid grid-cols-2 gap-2 [transform:none]">
-      {cards.map(({ label, value, subtitle, Icon, numeric, accent }) => {
+      {cards.map(({ label, value, subtitle, Icon, numeric, accent, onClick }) => {
         const accentClasses = {
           green: {
             stripe: "bg-primary",
@@ -1441,8 +1442,14 @@ function EmployeeStatsCards({ cards = [] }) {
           iconWrap: "bg-surface-soft text-text",
         };
 
+        // A card with onClick opens its sheet; it is a real button so it is reachable and announced.
+        const Tag = onClick ? "button" : "div";
         return (
-          <div key={label} className="relative min-h-[84px] overflow-hidden rounded-[var(--radius-card)] border border-border bg-surface px-3 py-2.5 shadow-sm">
+          <Tag
+            key={label}
+            {...(onClick ? { type: "button", onClick, "aria-haspopup": "dialog" } : {})}
+            className={`relative block min-h-[84px] w-full overflow-hidden rounded-[var(--radius-card)] border border-border bg-surface px-3 py-2.5 text-start shadow-sm ${onClick ? "cursor-pointer transition active:scale-[0.98]" : ""}`}
+          >
             <span className={`absolute inset-y-3 right-0 w-1 rounded-l-full ${accentClasses.stripe}`} aria-hidden="true" />
             <div className="flex items-start justify-between gap-2">
               <div className="text-[10px] font-black leading-4 text-text-muted">{label}</div>
@@ -1452,7 +1459,8 @@ function EmployeeStatsCards({ cards = [] }) {
             </div>
             <div className={`mt-3 break-words text-[16px] font-black leading-5 tabular-nums text-text ${numeric ? "text-start" : ""}`} dir={numeric ? "ltr" : "auto"}>{value}</div>
             {subtitle ? <div className="mt-1 text-[10px] font-bold leading-4 text-text-muted">{subtitle}</div> : null}
-          </div>
+            {onClick ? <div className="mt-1 text-[10px] font-black leading-4 text-text-muted underline underline-offset-2">اضغط للتفاصيل</div> : null}
+          </Tag>
         );
       })}
     </div>
@@ -2795,6 +2803,10 @@ export default function EmployeePayrollPortal() {
     }
   }, [displayRefillAlerts, displayRefillBarcodeSettings.autoPrintWhenDisplayed, printDisplayRefillBarcode, showPortalToast, token]);
 
+  // Which home card's sheet is open: "attendance" | "advances" | "".
+  const [monthSheet, setMonthSheet] = useState("");
+  const closeMonthSheet = useCallback(() => setMonthSheet(""), []);
+
   const attendanceSummaryCards = useMemo(() => {
     if (!portal) return [];
     return [
@@ -2804,6 +2816,7 @@ export default function EmployeePayrollPortal() {
         subtitle: `${ui("fromTotalDays")} ${expectedDays} ${ui("daysUnit")}`,
         Icon: CalendarDays,
         accent: "green",
+        onClick: () => setMonthSheet("attendance"),
       },
       {
         label: ui("pendingTasks"),
@@ -2818,6 +2831,7 @@ export default function EmployeePayrollPortal() {
         Icon: CreditCard,
         numeric: true,
         accent: "amber",
+        onClick: () => setMonthSheet("advances"),
       },
       {
         label: text.netSalary,
@@ -4798,6 +4812,14 @@ export default function EmployeePayrollPortal() {
             {activeTab === "attendance" ? (
               <>
                 <EmployeeStatsCards cards={attendanceSummaryCards} />
+                <EmployeeMonthSheet
+                  kind={monthSheet}
+                  onClose={closeMonthSheet}
+                  timeline={portal?.attendance?.timeline || []}
+                  monthDays={portal?.attendance?.month_days || { month: portal?.current_payroll_period }}
+                  advances={wallet.advances_breakdown || []}
+                  advancesTotal={wallet.total_advances ?? portal?.advances ?? 0}
+                />
 
                 <AttendancePanel
                   attendanceSaving={attendanceSaving}

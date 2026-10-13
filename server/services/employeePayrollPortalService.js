@@ -875,19 +875,35 @@ export const advanceOutstandingAmount = (row = {}) => {
   return Math.max(0, toNumber(row.amount) - toNumber(row.deducted_amount));
 };
 
-// The card's total covers every advance, not just the 20 the list shows.
-const getOutstandingAdvancesTotal = async ({ tenantId, employeeId }) => {
+// The card's total covers every advance, not just the 20 the list shows. The rows behind the card's
+// sheet: everything taken this month, plus anything from earlier months still owed.
+const getOutstandingAdvances = async ({ tenantId, employeeId, monthStart }) => {
   try {
     const result = await db.query(
       `
-      SELECT amount, deducted_amount, remaining_amount, status, deduction_status
+      SELECT id, amount, deducted_amount, remaining_amount, status, deduction_status, deduction_month, created_at,
+             (created_at AT TIME ZONE 'Africa/Cairo')::date::text AS taken_on
       FROM employee_advances
       WHERE employee_id::text = $1::text
         AND ($2::bigint IS NULL OR tenant_id = $2::bigint)
+      ORDER BY created_at DESC, id DESC
       `,
       [employeeId, tenantId]
     );
-    return Number(result.rows.reduce((sum, row) => sum + advanceOutstandingAmount(row), 0).toFixed(2));
+    const rows = result.rows.map((row) => ({
+      id: row.id,
+      amount: toNumber(row.amount),
+      deducted_amount: toNumber(row.deducted_amount),
+      outstanding_amount: advanceOutstandingAmount(row),
+      deduction_month: row.deduction_month || "",
+      taken_on: row.taken_on,
+      this_month: String(row.taken_on || "") >= monthStart,
+      cancelled: [row.status, row.deduction_status].some((value) => ["cancelled", "canceled"].includes(String(value || "").toLowerCase())),
+    }));
+    return {
+      total: Number(rows.reduce((sum, row) => sum + row.outstanding_amount, 0).toFixed(2)),
+      rows: rows.filter((row) => !row.cancelled && (row.this_month || row.outstanding_amount > 0)),
+    };
   } catch {
     return null;
   }
@@ -2090,9 +2106,9 @@ export const buildEmployeePayrollPortalPayload = async ({ employee, includeOptio
     : (livePayroll || {});
   const attendanceSnapshot = snapshot.attendance_deductions || snapshot;
   startedAt = nowMs();
-  const [recentAdvances, outstandingAdvancesTotal, pendingCommissions, currentShift, scheduledShifts] = await Promise.all([
+  const [recentAdvances, outstandingAdvances, pendingCommissions, currentShift, scheduledShifts] = await Promise.all([
     getRecentAdvances({ tenantId: employee.tenant_id, employeeId: employee.id }),
-    getOutstandingAdvancesTotal({ tenantId: employee.tenant_id, employeeId: employee.id }),
+    getOutstandingAdvances({ tenantId: employee.tenant_id, employeeId: employee.id, monthStart: bounds.start }),
     getPendingCommissionsTotal({ tenantId: employee.tenant_id, employeeId: employee.id }),
     getActiveEmployeeShift({ tenantId: employee.tenant_id, employeeId: employee.id }),
     getEmployeeScheduledShifts({ tenantId: employee.tenant_id, employeeId: employee.id, timeZone }),
@@ -2220,7 +2236,8 @@ export const buildEmployeePayrollPortalPayload = async ({ employee, includeOptio
     : "not_generated";
   const walletSummary = {
     current_net_salary: monthNetSalary,
-    total_advances: outstandingAdvancesTotal ?? recentAdvances.reduce((sum, row) => sum + toNumber(row.outstanding_amount), 0),
+    total_advances: outstandingAdvances?.total ?? recentAdvances.reduce((sum, row) => sum + toNumber(row.outstanding_amount), 0),
+    advances_breakdown: outstandingAdvances?.rows || null,
     pending_commissions: pendingCommissions,
     total_deductions: totalDeductions,
     payroll_status: payrollStatus,
@@ -2353,6 +2370,17 @@ export const buildEmployeePayrollPortalPayload = async ({ employee, includeOptio
         deducted_absence_amount: absenceDeduction,
       },
       timeline: attendanceTimeline,
+      // The days behind the أيام الحضور card's sheet, from payroll itself so the employee sees the
+      // same absences the salary charges and the manager portal shows. Falls back to the portal's
+      // own absence guess only when payroll gave nothing.
+      month_days: {
+        month: period,
+        absent_dates: Array.isArray(attendanceSnapshot.missing_attendance_dates)
+          ? attendanceSnapshot.missing_attendance_dates
+          : (attendanceSummary.absence_dates || []),
+        leave_dates: Array.isArray(attendanceSnapshot.leave_dates) ? attendanceSnapshot.leave_dates : [],
+        from_payroll: Array.isArray(attendanceSnapshot.missing_attendance_dates),
+      },
     },
     employee_requests: employeeRequests,
     attendance_policy: attendancePolicy,
