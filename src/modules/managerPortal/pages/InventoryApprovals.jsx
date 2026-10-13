@@ -420,8 +420,10 @@ export default function InventoryApprovalsPage() {
 
         {view === "coverage" ? <InventoryCoverage token={token} /> : null}
 
-        <section className={`grid gap-4 xl:grid-cols-[360px_minmax(0,1fr)] ${view === "coverage" ? "hidden" : ""}`}>
-          <div className="manager-inventory-panel rounded-[var(--radius-card)] border border-border bg-surface-soft p-4 shadow-xl backdrop-blur">
+        {/* minmax(0,1fr): an implicit auto track grows to the status chips'
+            full width, pushing every card off the phone's left edge. */}
+        <section className={`grid grid-cols-[minmax(0,1fr)] gap-4 xl:grid-cols-[360px_minmax(0,1fr)] ${view === "coverage" ? "hidden" : ""}`}>
+          <div className="manager-inventory-panel min-w-0 rounded-[var(--radius-card)] border border-border bg-surface-soft p-4 shadow-xl backdrop-blur">
             <div className="mb-3 flex gap-1 overflow-x-auto pb-1">
               {[
                 { id: "pending_review", label: "مستني المراجعة", count: summary.pending_review_count },
@@ -528,7 +530,7 @@ export default function InventoryApprovalsPage() {
             />
           </div>
 
-          <div ref={detailRef} className="manager-inventory-panel scroll-mt-3 rounded-[var(--radius-card)] border border-border bg-surface-soft p-3 shadow-xl backdrop-blur sm:rounded-[var(--radius-card)] sm:p-4">
+          <div ref={detailRef} className="manager-inventory-panel min-w-0 scroll-mt-3 rounded-[var(--radius-card)] border border-border bg-surface-soft p-3 shadow-xl backdrop-blur sm:rounded-[var(--radius-card)] sm:p-4">
             {selectedLoading ? (
               <div className="flex min-h-[28rem] items-center justify-center text-text-muted">
                 <Loader2 className="h-5 w-5 animate-spin" />
