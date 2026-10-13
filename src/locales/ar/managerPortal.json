@@ -813,7 +813,10 @@
     "advanceCashOut": "تم — {{amount}} طلعوا من الدرج",
     "advanceFromInvoice": "السلفة دي من فاتورة آجل، بتتعدل من الفاتورة",
     "advanceOpenInvoice": "افتح الفاتورة",
-    "leaveDays": "منها إجازات: {{paid}} من {{total}} مدفوعة، {{deducted}} مخصومة"
+    "leaveDays": "منها إجازات: {{paid}} من {{total}} مدفوعة، {{deducted}} مخصومة",
+    "absentDay": "غياب",
+    "leaveDay": "إجازة",
+    "absentCount": "{{count}} غياب"
   },
   "weekdays": {
     "0": "الأحد",

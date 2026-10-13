@@ -813,7 +813,10 @@
     "advanceCashOut": "Done — {{amount}} taken from the drawer",
     "advanceFromInvoice": "This advance comes from a deferred invoice; change it from the invoice",
     "advanceOpenInvoice": "Open invoice",
-    "leaveDays": "Of which leave: {{paid}} of {{total}} paid, {{deducted}} deducted"
+    "leaveDays": "Of which leave: {{paid}} of {{total}} paid, {{deducted}} deducted",
+    "absentDay": "Absent",
+    "leaveDay": "Leave",
+    "absentCount": "{{count}} absent"
   },
   "weekdays": {
     "0": "Sun",

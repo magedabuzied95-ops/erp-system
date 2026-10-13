@@ -1145,6 +1145,7 @@ export const calculateAttendancePayrollDeductions = async ({ tenantId = null, em
     absence_penalty_days: Number(absencePenaltyDays.toFixed(2)),
     attendance_policy: policy,
     missing_attendance_dates: missingAttendanceDates,
+    leave_dates: [...new Set([...leaveDates, ...vacationDates])].filter((item) => periodDates.includes(item)).sort(),
     open_attendance_logs: openAttendanceLogs,
   };
 };

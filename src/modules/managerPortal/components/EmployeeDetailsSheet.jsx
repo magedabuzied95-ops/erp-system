@@ -145,6 +145,21 @@ export default function EmployeeDetailsSheet({ token, employee, initialTab = "ov
   const name = d?.employee?.name || employee?.employee_name || tt("managerPortal.common.employee");
   const isCurrentMonth = month === currentMonth();
 
+  // Payroll's own absent days (working days with no attendance) and approved leave days, slotted
+  // between the attended days so the month reads day by day. A leave day is never shown as absent.
+  const attendanceRows = d?.attendance?.rows || [];
+  const attendedKeys = new Set(attendanceRows.map((row) => toDateKey(row.date)));
+  const leaveKeys = new Set((d?.attendance?.leave_dates || []).map((value) => String(value).slice(0, 10)));
+  const absentKeys = (d?.attendance?.absent_dates || [])
+    .map((value) => String(value).slice(0, 10))
+    .filter((key) => !attendedKeys.has(key) && !leaveKeys.has(key));
+  const absentDayCount = absentKeys.length;
+  const attendanceTableRows = [
+    ...attendanceRows,
+    ...absentKeys.map((key) => ({ date: key, kind: "absent" })),
+    ...[...leaveKeys].filter((key) => !attendedKeys.has(key)).map((key) => ({ date: key, kind: "leave" })),
+  ].sort((a, b) => toDateKey(b.date).localeCompare(toDateKey(a.date)));
+
   // اعتماد المرتب — the month's salary is frozen server-side, its advances settled, and any
   // advance taken afterwards is recorded on the next month.
   const [approving, setApproving] = useState(false);
@@ -765,7 +780,7 @@ export default function EmployeeDetailsSheet({ token, employee, initialTab = "ov
                     <Stat label={tt("managerPortal.employeeDetails.lateTotal")} value={`${formatMinutes(d.attendance.totals.late_minutes)} (${formatNumber(d.attendance.totals.late_days)} ${tt("managerPortal.employeeDetails.days")})`} tone="text-rose-700" />
                     <Stat label={tt("managerPortal.employeeDetails.overtimeTotal")} value={formatMinutes(d.attendance.totals.overtime_minutes)} tone="text-emerald-700" />
                   </div>
-                  {d.attendance.rows.length ? (
+                  {attendanceTableRows.length ? (
                     <div className="overflow-x-auto rounded-[var(--radius-card)] border border-slate-200 bg-white">
                       {/* No `tabular-nums` class here: index.css forces every `.tabular-nums`
                           to direction ltr + text-align left in Arabic, which pulled these
@@ -783,7 +798,23 @@ export default function EmployeeDetailsSheet({ token, employee, initialTab = "ov
                           </tr>
                         </thead>
                         <tbody className="divide-y divide-slate-100 font-bold text-slate-800">
-                          {d.attendance.rows.map((row) => (
+                          {attendanceTableRows.map((row) => row.kind ? (
+                            <tr key={`${row.kind}-${row.date}`} className={row.kind === "absent" ? "bg-rose-50/60" : "bg-sky-50/60"}>
+                              <td className="px-2 py-2 whitespace-nowrap">{formatDay(row.date)}</td>
+                              <td className="px-2 py-2" colSpan={5}>
+                                <span className={`inline-flex rounded-full px-2 py-0.5 text-[11px] font-black ${row.kind === "absent" ? "bg-rose-100 text-rose-700" : "bg-sky-100 text-sky-700"}`}>
+                                  {row.kind === "absent" ? tt("managerPortal.employeeDetails.absentDay") : tt("managerPortal.employeeDetails.leaveDay")}
+                                </span>
+                              </td>
+                              <td className="px-1 py-1 text-left">
+                                {row.kind === "absent" ? (
+                                  <button type="button" aria-label={tt("managerPortal.employeeDetails.editAttendance")} onClick={() => openAttendanceEditor({ date: row.date })} className="inline-flex h-7 w-7 items-center justify-center rounded-lg border border-slate-200 bg-white text-slate-600">
+                                    <Pencil className="h-3.5 w-3.5" />
+                                  </button>
+                                ) : null}
+                              </td>
+                            </tr>
+                          ) : (
                             <tr key={String(row.date)}>
                               <td className="px-2 py-2 whitespace-nowrap">{formatDay(row.date)}</td>
                               <td className="px-2 py-2 [font-variant-numeric:tabular-nums]">{formatClock(row.check_in)}</td>
@@ -809,7 +840,10 @@ export default function EmployeeDetailsSheet({ token, employee, initialTab = "ov
                         <tfoot className="bg-slate-50 text-[11px] font-black text-slate-900">
                           <tr>
                             <td className="px-2 py-2">{tt("managerPortal.employeeDetails.total")}</td>
-                            <td className="px-2 py-2" colSpan={2}>{formatNumber(d.attendance.totals.days)} {tt("managerPortal.employeeDetails.days")}</td>
+                            <td className="px-2 py-2" colSpan={2}>
+                              {formatNumber(d.attendance.totals.days)} {tt("managerPortal.employeeDetails.days")}
+                              {absentDayCount ? <span className="ms-1 text-rose-700">· {tt("managerPortal.employeeDetails.absentCount", { count: formatNumber(absentDayCount) })}</span> : null}
+                            </td>
                             <td className="px-2 py-2 [font-variant-numeric:tabular-nums]">{formatNumber(d.attendance.totals.work_hours)}</td>
                             <td className="px-2 py-2 [font-variant-numeric:tabular-nums] text-rose-700">{formatMinutes(d.attendance.totals.late_minutes)}</td>
                             <td className="px-2 py-2 [font-variant-numeric:tabular-nums] text-emerald-700">{formatMinutes(d.attendance.totals.overtime_minutes)}</td>

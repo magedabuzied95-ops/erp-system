@@ -3423,7 +3423,14 @@ export const getManagerPortalEmployeeDetails = async ({ manager = {}, employeeId
     },
     bonuses: { total: sum(monthBonuses), rows: monthBonuses },
     penalties: { total: sum(monthPenalties), rows: monthPenalties },
-    attendance: { totals: attendanceTotals, rows: attendance },
+    attendance: {
+      totals: attendanceTotals,
+      rows: attendance,
+      // The days payroll itself counts as absence (working days with no attendance), and the
+      // approved leave days, so the table shows every day the salary treats differently.
+      absent_dates: Array.isArray(snapshot.attendance_deductions?.missing_attendance_dates) ? snapshot.attendance_deductions.missing_attendance_dates : [],
+      leave_dates: Array.isArray(snapshot.attendance_deductions?.leave_dates) ? snapshot.attendance_deductions.leave_dates : [],
+    },
   };
 };
 
