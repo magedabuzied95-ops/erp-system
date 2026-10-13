@@ -863,6 +863,36 @@ const getLatestPayrollRun = async ({ tenantId, employeeId }) => {
   return result.rows[0] || null;
 };
 
+// What the employee still owes on one advance. Payroll sets remaining_amount to 0 once it is
+// fully deducted; `remaining_amount || amount` read that 0 as missing and showed the whole
+// advance again. Only a NULL remaining (rows older than the column) falls back to the arithmetic.
+export const advanceOutstandingAmount = (row = {}) => {
+  const state = [row.status, row.deduction_status].map((value) => String(value || "").toLowerCase());
+  if (state.includes("cancelled") || state.includes("canceled")) return 0;
+  if (row.remaining_amount !== null && row.remaining_amount !== undefined && row.remaining_amount !== "") {
+    return Math.max(0, toNumber(row.remaining_amount));
+  }
+  return Math.max(0, toNumber(row.amount) - toNumber(row.deducted_amount));
+};
+
+// The card's total covers every advance, not just the 20 the list shows.
+const getOutstandingAdvancesTotal = async ({ tenantId, employeeId }) => {
+  try {
+    const result = await db.query(
+      `
+      SELECT amount, deducted_amount, remaining_amount, status, deduction_status
+      FROM employee_advances
+      WHERE employee_id::text = $1::text
+        AND ($2::bigint IS NULL OR tenant_id = $2::bigint)
+      `,
+      [employeeId, tenantId]
+    );
+    return Number(result.rows.reduce((sum, row) => sum + advanceOutstandingAmount(row), 0).toFixed(2));
+  } catch {
+    return null;
+  }
+};
+
 const getRecentAdvances = async ({ tenantId, employeeId }) => {
   try {
     const result = await db.query(
@@ -881,6 +911,7 @@ const getRecentAdvances = async ({ tenantId, employeeId }) => {
       amount: toNumber(row.amount),
       deducted_amount: toNumber(row.deducted_amount),
       remaining_amount: toNumber(row.remaining_amount),
+      outstanding_amount: advanceOutstandingAmount(row),
       deduction_month: row.deduction_month,
       status: row.status || row.deduction_status || "pending",
       created_at: row.created_at,
@@ -1676,7 +1707,7 @@ const getWalletTransactions = async ({ tenantId, employeeId, payrollRun, recentA
       id: `advance-${row.id}`,
       type: "advance",
       label: "Advance",
-      amount: row.remaining_amount || row.amount,
+      amount: row.amount,
       direction: "debit",
       status: row.status || "pending",
       date: row.created_at,
@@ -2031,8 +2062,9 @@ export const buildEmployeePayrollPortalPayload = async ({ employee, includeOptio
   const snapshot = payrollRun?.snapshot && typeof payrollRun.snapshot === "object" ? payrollRun.snapshot : {};
   const attendanceSnapshot = snapshot.attendance_deductions || {};
   startedAt = nowMs();
-  const [recentAdvances, pendingCommissions, currentShift, scheduledShifts] = await Promise.all([
+  const [recentAdvances, outstandingAdvancesTotal, pendingCommissions, currentShift, scheduledShifts] = await Promise.all([
     getRecentAdvances({ tenantId: employee.tenant_id, employeeId: employee.id }),
+    getOutstandingAdvancesTotal({ tenantId: employee.tenant_id, employeeId: employee.id }),
     getPendingCommissionsTotal({ tenantId: employee.tenant_id, employeeId: employee.id }),
     getActiveEmployeeShift({ tenantId: employee.tenant_id, employeeId: employee.id }),
     getEmployeeScheduledShifts({ tenantId: employee.tenant_id, employeeId: employee.id, timeZone }),
@@ -2158,7 +2190,7 @@ export const buildEmployeePayrollPortalPayload = async ({ employee, includeOptio
     : "not_generated";
   const walletSummary = {
     current_net_salary: payrollRun ? toNumber(payrollRun.net_pay) : null,
-    total_advances: recentAdvances.reduce((sum, row) => sum + toNumber(row.remaining_amount || row.amount), 0),
+    total_advances: outstandingAdvancesTotal ?? recentAdvances.reduce((sum, row) => sum + toNumber(row.outstanding_amount), 0),
     pending_commissions: pendingCommissions,
     total_deductions: totalDeductions,
     payroll_status: payrollStatus,

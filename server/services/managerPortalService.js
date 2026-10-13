@@ -1134,6 +1134,8 @@ export const getManagerPortalStaff = async ({ manager = {} } = {}) => {
             ROW_NUMBER() OVER (PARTITION BY ea.employee_id ORDER BY ea.created_at DESC, ea.id DESC) AS row_number
           FROM employee_advances ea
           WHERE ($1::bigint IS NULL OR ea.tenant_id = $1::bigint)
+            AND LOWER(COALESCE(ea.status, '')) NOT IN ('cancelled', 'canceled')
+            AND LOWER(COALESCE(ea.deduction_status, '')) NOT IN ('cancelled', 'canceled')
         ) ranked
         WHERE ranked.row_number <= 20
         GROUP BY ranked.employee_id
