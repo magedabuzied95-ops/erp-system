@@ -2055,12 +2055,40 @@ const getEmployeeAttendancePolicy = async ({ employee, timeZone = "Africa/Cairo"
 export const buildEmployeePayrollPortalPayload = async ({ employee, includeOptional = false, timings = null, timeZone = "Africa/Cairo" } = {}) => {
   const warnings = [];
   let startedAt = nowMs();
-  const payrollRun = await getLatestPayrollRun({ tenantId: employee.tenant_id, employeeId: employee.id });
+  const latestPayrollRun = await getLatestPayrollRun({ tenantId: employee.tenant_id, employeeId: employee.id });
   recordTiming(timings, "payroll_summary_ms", startedAt);
-  const period = payrollRun?.payroll_period || localIsoDate(new Date(), timeZone).slice(0, 7);
+  // The portal is about the month the employee is living in. It used to follow the last approved
+  // run, so all of October showed September's attendance and September's net salary. Until this
+  // month is approved its figures are payroll's own live preview up to today.
+  const todayKey = localIsoDate(new Date(), timeZone);
+  const period = todayKey.slice(0, 7);
   const bounds = monthBounds(period, timeZone);
-  const snapshot = payrollRun?.snapshot && typeof payrollRun.snapshot === "object" ? payrollRun.snapshot : {};
-  const attendanceSnapshot = snapshot.attendance_deductions || {};
+  const payrollRun = latestPayrollRun?.payroll_period === period ? latestPayrollRun : null;
+  startedAt = nowMs();
+  const livePayroll = payrollRun
+    ? null
+    : await optionalSection({
+      name: "live_payroll",
+      warnings,
+      fallback: null,
+      timeoutMs: 6000,
+      fn: async () => {
+        const { getPayrollPreview } = await import("./salesCommissionService.js");
+        const preview = await getPayrollPreview({
+          tenantId: employee.tenant_id,
+          employeeId: employee.id,
+          filters: { month: period, startDate: bounds.start, endDate: todayKey < bounds.end ? todayKey : bounds.end },
+        });
+        return preview?.payroll || null;
+      },
+    });
+  recordTiming(timings, "live_payroll_ms", startedAt);
+  // An approved run keeps its figures in columns + a nested snapshot; the live preview is flat.
+  const monthFigures = payrollRun || livePayroll || null;
+  const snapshot = payrollRun
+    ? (payrollRun.snapshot && typeof payrollRun.snapshot === "object" ? payrollRun.snapshot : {})
+    : (livePayroll || {});
+  const attendanceSnapshot = snapshot.attendance_deductions || snapshot;
   startedAt = nowMs();
   const [recentAdvances, outstandingAdvancesTotal, pendingCommissions, currentShift, scheduledShifts] = await Promise.all([
     getRecentAdvances({ tenantId: employee.tenant_id, employeeId: employee.id }),
@@ -2174,14 +2202,16 @@ export const buildEmployeePayrollPortalPayload = async ({ employee, includeOptio
   if (!includeOptional) warnings.push({ section: "leaderboard", code: "lazy", message: "Leaderboard is loaded lazily." });
   recordTiming(timings, "leaderboard_ms", startedAt);
 
-  const baseSalary = toNumber(payrollRun?.base_salary, toNumber(employee.salary));
-  const commissions = toNumber(payrollRun?.commissions);
-  const bonuses = toNumber(payrollRun?.bonuses);
-  const advanceDeductions = toNumber(payrollRun?.advance_deductions);
-  const penalties = toNumber(payrollRun?.penalties_total);
-  const absenceDeduction = toNumber(payrollRun?.attendance_deduction_total, toNumber(attendanceSnapshot.attendance_deduction_total));
-  const otherDeductions = toNumber(payrollRun?.manual_deductions);
-  const totalDeductions = toNumber(payrollRun?.total_deductions, advanceDeductions + penalties + absenceDeduction + otherDeductions);
+  const baseSalary = toNumber(monthFigures?.base_salary, toNumber(employee.salary));
+  const commissions = toNumber(monthFigures?.commissions);
+  const bonuses = toNumber(monthFigures?.bonuses);
+  const advanceDeductions = toNumber(monthFigures?.advance_deductions);
+  const penalties = toNumber(monthFigures?.penalties_total);
+  const absenceDeduction = toNumber(monthFigures?.attendance_deduction_total, toNumber(attendanceSnapshot.attendance_deduction_total));
+  const otherDeductions = toNumber(monthFigures?.manual_deductions);
+  const totalDeductions = toNumber(monthFigures?.total_deductions ?? monthFigures?.deductions, advanceDeductions + penalties + absenceDeduction + otherDeductions);
+  // Approved: the run's figure. Not yet: payroll's preview so far this month (null if it failed).
+  const monthNetSalary = monthFigures && monthFigures.net_pay !== undefined && monthFigures.net_pay !== null ? toNumber(monthFigures.net_pay) : null;
   const payrollStatus = payrollRun
     ? String(payrollRun.status || (payrollRun.paid_at ? "paid" : payrollRun.approved_at ? "approved" : "calculated")).toLowerCase()
     : "draft";
@@ -2189,7 +2219,7 @@ export const buildEmployeePayrollPortalPayload = async ({ employee, includeOptio
     ? String(payrollRun.payment_status || (payrollStatus === "paid" ? "paid" : payrollStatus === "approved" ? "pending_payment" : "not_generated")).toLowerCase()
     : "not_generated";
   const walletSummary = {
-    current_net_salary: payrollRun ? toNumber(payrollRun.net_pay) : null,
+    current_net_salary: monthNetSalary,
     total_advances: outstandingAdvancesTotal ?? recentAdvances.reduce((sum, row) => sum + toNumber(row.outstanding_amount), 0),
     pending_commissions: pendingCommissions,
     total_deductions: totalDeductions,
@@ -2198,10 +2228,11 @@ export const buildEmployeePayrollPortalPayload = async ({ employee, includeOptio
   const recentWalletTransactions = await getWalletTransactions({
     tenantId: employee.tenant_id,
     employeeId: employee.id,
-    payrollRun,
+    // History: what the last APPROVED salary applied, not this month's running preview.
+    payrollRun: latestPayrollRun,
     recentAdvances,
-    attendanceDeductionTotal: absenceDeduction,
-    bonuses,
+    attendanceDeductionTotal: toNumber(latestPayrollRun?.attendance_deduction_total),
+    bonuses: toNumber(latestPayrollRun?.bonuses),
   });
   const payslip = {
     employee_name: employee.full_name,
@@ -2219,7 +2250,7 @@ export const buildEmployeePayrollPortalPayload = async ({ employee, includeOptio
     absence_deduction: absenceDeduction,
     other_deductions: otherDeductions,
     total_deductions: totalDeductions,
-    net_salary: payrollRun ? toNumber(payrollRun.net_pay) : null,
+    net_salary: monthNetSalary,
     payroll_status: payrollStatus,
     finalized_at: payrollRun?.finalized_at || null,
     payroll_reference: payrollRun?.payroll_reference || "",
@@ -2355,7 +2386,7 @@ export const buildEmployeePayrollPortalPayload = async ({ employee, includeOptio
     absence_deduction: absenceDeduction,
     other_deductions: otherDeductions,
     total_deductions: totalDeductions,
-    net_salary: payrollRun ? toNumber(payrollRun.net_pay) : null,
+    net_salary: monthNetSalary,
     finalized_at: payrollRun?.finalized_at || null,
     recent_advances: recentAdvances,
     recent_attendance_summary: {

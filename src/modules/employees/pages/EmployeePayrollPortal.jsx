@@ -553,6 +553,7 @@ Object.assign(labels.ar, {
   displayRefillShort: "عرض",
   pendingTasks: "مهام معلقة",
   salaryNotGenerated: "لم يتم إنشاء راتب هذا الشهر بعد",
+  salarySoFar: "لحد النهارده — لسه ما اتعتمدش",
   payrollSummary: "ملخص الراتب",
   employeeName: "اسم الموظف",
   payrollMonth: "شهر المرتب",
@@ -644,6 +645,7 @@ Object.assign(labels.en, {
   displayRefillShort: "Display",
   pendingTasks: "Pending Tasks",
   salaryNotGenerated: "This month salary has not been generated yet.",
+  salarySoFar: "So far this month — not approved yet",
   payrollSummary: "Payroll summary",
   employeeName: "Employee name",
   payrollMonth: "Payroll month",
@@ -2123,6 +2125,9 @@ export default function EmployeePayrollPortal() {
     portal?.payroll_status === "approved" ||
     portal?.payroll_status === "paid"
   );
+  // Not approved yet: the server sends payroll's running preview for this month, or null if it failed.
+  const runningNetSalary = wallet.current_net_salary ?? portal?.net_salary ?? null;
+  const hasRunningNetSalary = !payrollExists && runningNetSalary !== null && Number.isFinite(Number(runningNetSalary));
   const payrollStatusValue = payrollExists ? (wallet.payroll_status || portal?.payment_status) : "draft";
   const profile = portal?.employee_profile || portal?.employee || {};
   const rawProfilePhotoUrl = [
@@ -2816,14 +2821,14 @@ export default function EmployeePayrollPortal() {
       },
       {
         label: text.netSalary,
-        value: payrollExists ? money(wallet.current_net_salary ?? portal.net_salary) : "-",
-        subtitle: portal.current_payroll_period || ui("currentMonthSubtitle"),
+        value: payrollExists || hasRunningNetSalary ? money(wallet.current_net_salary ?? portal.net_salary) : "-",
+        subtitle: payrollExists ? (portal.current_payroll_period || ui("currentMonthSubtitle")) : hasRunningNetSalary ? ui("salarySoFar") : ui("salaryNotGenerated"),
         Icon: WalletCards,
         numeric: true,
         accent: "blue",
       },
     ];
-  }, [expectedDays, payrollExists, pendingTasks.length, portal, presentDays, text, ui, wallet]);
+  }, [expectedDays, hasRunningNetSalary, payrollExists, pendingTasks.length, portal, presentDays, text, ui, wallet]);
 
   const payslipCards = useMemo(() => {
     if (!portal) return [];
@@ -4622,7 +4627,7 @@ export default function EmployeePayrollPortal() {
                       { label: ui("attendanceDeductions"), value: money(portal?.absence_deduction ?? attendance?.deducted_absence_amount ?? portal?.payslip?.absence_deduction ?? 0), subtitle: text.absenceDeductions },
                       { label: text.advances, value: money(wallet.total_advances ?? portal?.advances) },
                       { label: ui("totalDeductions"), value: money(wallet.total_deductions ?? portal?.total_deductions) },
-                      { label: ui("netSalary"), value: payrollExists ? money(wallet.current_net_salary ?? portal?.net_salary ?? portal?.payslip?.net_salary) : "-", subtitle: payrollExists ? (portal?.current_payroll_period || ui("currentMonthSubtitle")) : ui("salaryNotGenerated") },
+                      { label: ui("netSalary"), value: payrollExists || hasRunningNetSalary ? money(wallet.current_net_salary ?? portal?.net_salary ?? portal?.payslip?.net_salary) : "-", subtitle: payrollExists ? (portal?.current_payroll_period || ui("currentMonthSubtitle")) : hasRunningNetSalary ? ui("salarySoFar") : ui("salaryNotGenerated") },
                     ].map((item) => (
                       <div key={item.label} className="rounded-[var(--radius-control)] bg-surface-soft px-3 py-2.5">
                         <div className="text-[11px] font-black text-text-muted">{item.label}</div>
