@@ -42,6 +42,7 @@ export const managerPortalApi = {
   stockAlerts: (token, options = {}) => api.get(`${tokenPath(token)}/stock-alerts`, options),
   daySummary: (token, params = {}, options = {}) => api.get(`${tokenPath(token)}/day-summary`, { ...options, params }),
   inventoryApprovals: (token, params = {}, options = {}) => api.get(`${tokenPath(token)}/inventory-approvals`, { ...options, params }),
+  inventoryCoverage: (token, params = {}, options = {}) => api.get(`${tokenPath(token)}/inventory-coverage`, { ...options, params }),
   inventoryApproval: (token, sessionId) => api.get(`${tokenPath(token)}/inventory-approvals/${encodeURIComponent(sessionId)}`),
   approveInventoryApproval: (token, sessionId) => api.post(`${tokenPath(token)}/inventory-approvals/${encodeURIComponent(sessionId)}/approve`),
   rejectInventoryApproval: (token, sessionId, payload = {}) => api.post(`${tokenPath(token)}/inventory-approvals/${encodeURIComponent(sessionId)}/reject`, payload),

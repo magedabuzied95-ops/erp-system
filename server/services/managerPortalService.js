@@ -2671,10 +2671,14 @@ export const getManagerPortalInventoryApprovals = async ({ manager = {}, query =
   const page = Math.max(1, Number(query.page || 1) || 1);
   const limit = Math.min(Math.max(Number(query.limit || 10) || 10, 1), 50);
   const search = clean(query.search || "");
+  // Approving or rejecting used to drop a count off the page for good: the list only
+  // ever asked for pending_review. The manager picks which ones to see now.
+  const requestedStatus = String(query.status || "pending_review").toLowerCase();
+  const status = requestedStatus === "all" ? "" : ["pending_review", "in_progress", "completed", "rejected"].includes(requestedStatus) ? requestedStatus : "pending_review";
   const [sessionsResult, countsResult] = await Promise.all([
     listInventoryCountSessions(db, {
       tenantId,
-      status: "pending_review",
+      status,
       search,
       page,
       limit,
@@ -2693,6 +2697,9 @@ export const getManagerPortalInventoryApprovals = async ({ manager = {}, query =
       SELECT
         COUNT(*) FILTER (WHERE s.status = 'pending_review')::int AS pending_review_count,
         COUNT(*) FILTER (WHERE s.status = 'rejected')::int AS rejected_count,
+        COUNT(*) FILTER (WHERE s.status IN ('in_progress', 'draft'))::int AS in_progress_count,
+        COUNT(*) FILTER (WHERE s.status = 'completed')::int AS completed_count,
+        COUNT(*) FILTER (WHERE s.status <> 'cancelled')::int AS all_count,
         COUNT(*) FILTER (WHERE s.status = 'completed' AND s.completed_at >= date_trunc('day', NOW()))::int AS completed_today_count,
         COALESCE(SUM(CASE WHEN s.status = 'completed' AND s.completed_at >= date_trunc('day', NOW()) THEN item_totals.abs_diff_total ELSE 0 END), 0)::int AS today_difference_total
       FROM inventory_count_sessions s
@@ -2705,9 +2712,13 @@ export const getManagerPortalInventoryApprovals = async ({ manager = {}, query =
 
   const summary = countsResult.rows[0] || {};
   return {
+    status: status || "all",
     summary: {
       pending_review_count: Number(summary.pending_review_count || 0),
       rejected_count: Number(summary.rejected_count || 0),
+      in_progress_count: Number(summary.in_progress_count || 0),
+      completed_count: Number(summary.completed_count || 0),
+      all_count: Number(summary.all_count || 0),
       completed_today_count: Number(summary.completed_today_count || 0),
       today_difference_total: Number(summary.today_difference_total || 0),
     },

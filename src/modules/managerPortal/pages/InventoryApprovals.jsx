@@ -25,6 +25,7 @@ import usePageTitle from "../../../shared/hooks/usePageTitle";
 import { resolveProductImageUrl } from "../../../shared/lib/imageUrls";
 import { Pagination } from "../../../shared/ui";
 import { countSessionTitle } from "../../employees/services/employeeDrafts/countSessionTitle";
+import InventoryCoverage from "../components/InventoryCoverage";
 import "./ManagerPortal.m1.css";
 
 import i18n from "../../../i18n/i18n";
@@ -115,6 +116,11 @@ export default function InventoryApprovalsPage() {
   const [rejecting, setRejecting] = useState(false);
   // "variance" opens the session on what moved; "all" shows every counted size.
   const [itemFilter, setItemFilter] = useState("variance");
+  // Which counts the list shows. Approved and rejected counts stay reachable here;
+  // before this the list only ever held pending_review, so a decision made a count vanish.
+  const [statusFilter, setStatusFilter] = useState("pending_review");
+  // "sessions" is the review queue; "coverage" is which models were counted this month.
+  const [view, setView] = useState("sessions");
   const detailRef = useRef(null);
   const lastPortalUrl = typeof window !== "undefined" ? String(window.localStorage.getItem("manager_portal_last_url") || "").trim() : "";
 
@@ -218,6 +224,7 @@ export default function InventoryApprovalsPage() {
         page: overrides.page || pagination.page || 1,
         limit: overrides.limit || pagination.limit || 10,
         search,
+        status: overrides.status || statusFilter,
       });
       const payload = response?.inventoryApprovals || {};
       setSummary(payload.summary || {});
@@ -285,15 +292,26 @@ export default function InventoryApprovalsPage() {
       setApproving(true);
       await managerPortalApi.approveInventoryApproval(token, selectedSessionId);
       toast.success(tt("managerPortal.stockCount.toasts.approved"));
-      setSelectedSessionId("");
-      setSelectedApproval(null);
-      await loadApprovals();
-      if (typeof window !== "undefined") window.scrollTo({ top: 0, behavior: "smooth" });
+      await showDecided(selectedSessionId, "completed");
     } catch (err) {
       toast.error(err?.responseBody?.message || err?.message || tt("managerPortal.stockCount.errors.approve"));
     } finally {
       setApproving(false);
     }
+  };
+
+  // After a decision the count moves to the list it now belongs to and stays open,
+  // so the manager sees it approved / rejected instead of watching it disappear.
+  const showDecided = async (sessionId, status) => {
+    setStatusFilter(status);
+    await loadApprovals(sessionId, { page: 1, status });
+    await loadDetail(sessionId);
+  };
+
+  const changeStatusFilter = (status) => {
+    if (status === statusFilter) return;
+    setStatusFilter(status);
+    void loadApprovals("", { page: 1, status });
   };
 
   const openRejectDialog = () => {
@@ -312,10 +330,7 @@ export default function InventoryApprovalsPage() {
       toast.success(tt("managerPortal.stockCount.toasts.rejected"));
       setRejectOpen(false);
       setRejectReason("");
-      setSelectedSessionId("");
-      setSelectedApproval(null);
-      await loadApprovals();
-      if (typeof window !== "undefined") window.scrollTo({ top: 0, behavior: "smooth" });
+      await showDecided(selectedSessionId, "rejected");
     } catch (err) {
       toast.error(err?.responseBody?.message || err?.message || tt("managerPortal.stockCount.errors.reject"));
     } finally {
@@ -386,8 +401,45 @@ export default function InventoryApprovalsPage() {
           <StatCard title={tt("managerPortal.stockCount.stats.varianceToday")} value={summary.today_difference_total || 0} icon={Package} tone="sky" />
         </section>
 
-        <section className="grid gap-4 xl:grid-cols-[360px_minmax(0,1fr)]">
+        <div className="grid grid-cols-2 gap-1 rounded-[var(--radius-control)] border border-border bg-surface-soft p-1">
+          {[
+            { id: "sessions", label: "جلسات الجرد", icon: ClipboardList },
+            { id: "coverage", label: "الموديلات اللي اتجردت", icon: Package },
+          ].map((option) => (
+            <button
+              key={option.id}
+              type="button"
+              onClick={() => setView(option.id)}
+              className={`inline-flex items-center justify-center gap-2 rounded-[var(--radius-control)] px-3 py-2.5 text-sm font-black transition ${view === option.id ? "bg-primary text-[var(--primary-contrast)]" : "text-text-muted hover:bg-surface-hover"}`}
+            >
+              <option.icon className="h-4 w-4" />
+              {option.label}
+            </button>
+          ))}
+        </div>
+
+        {view === "coverage" ? <InventoryCoverage token={token} /> : null}
+
+        <section className={`grid gap-4 xl:grid-cols-[360px_minmax(0,1fr)] ${view === "coverage" ? "hidden" : ""}`}>
           <div className="manager-inventory-panel rounded-[var(--radius-card)] border border-border bg-surface-soft p-4 shadow-xl backdrop-blur">
+            <div className="mb-3 flex gap-1 overflow-x-auto pb-1">
+              {[
+                { id: "pending_review", label: "مستني المراجعة", count: summary.pending_review_count },
+                { id: "in_progress", label: "لسه شغال", count: summary.in_progress_count },
+                { id: "completed", label: "معتمد", count: summary.completed_count },
+                { id: "rejected", label: "مرفوض", count: summary.rejected_count },
+                { id: "all", label: "الكل", count: summary.all_count },
+              ].map((chip) => (
+                <button
+                  key={chip.id}
+                  type="button"
+                  onClick={() => changeStatusFilter(chip.id)}
+                  className={`shrink-0 whitespace-nowrap rounded-full border px-3 py-1.5 text-xs font-black transition ${statusFilter === chip.id ? "border-primary bg-primary text-[var(--primary-contrast)]" : "border-border bg-surface text-text-muted hover:bg-surface-hover"}`}
+                >
+                  {chip.label}{chip.count === undefined ? "" : ` (${formatNumber(chip.count)})`}
+                </button>
+              ))}
+            </div>
             <form onSubmit={handleSearch} className="mb-4">
               <label className="mb-2 block text-xs font-black uppercase tracking-[0.18em] text-text-muted">{tt("managerPortal.actions.search")}</label>
               <div className="flex gap-2">
@@ -438,7 +490,7 @@ export default function InventoryApprovalsPage() {
                       </div>
                       <div className="flex shrink-0 flex-col items-center gap-2">
                         <span className={`manager-portal-status-pill whitespace-nowrap rounded-full border px-2.5 py-1 text-[11px] font-black ${statusTone(session.status)}`}>
-                          {session.status === "pending_review" ? tt("managerPortal.stockCount.status.underReview") : session.status === "rejected" ? tt("managerPortal.stockCount.status.rejected") : session.status === "completed" ? tt("managerPortal.stockCount.status.completed") : session.status}
+                          {session.status === "pending_review" ? tt("managerPortal.stockCount.status.underReview") : session.status === "rejected" ? tt("managerPortal.stockCount.status.rejected") : session.status === "completed" ? tt("managerPortal.stockCount.status.completed") : ["in_progress", "draft"].includes(session.status) ? "لسه شغال" : session.status}
                         </span>
                         <div className="h-14 w-14 overflow-hidden rounded-[var(--radius-control)] border border-border bg-surface">
                           {session.cover_image_url ? (
@@ -496,7 +548,7 @@ export default function InventoryApprovalsPage() {
                     </div>
                   </div>
                   <span className={`manager-portal-status-pill rounded-full border px-3 py-1 text-xs font-black ${statusTone(selectedSession.status)}`}>
-                    {selectedSession.status === "pending_review" ? tt("managerPortal.stockCount.awaitingManager") : selectedSession.status === "rejected" ? tt("managerPortal.stockCount.status.rejected") : selectedSession.status === "completed" ? tt("managerPortal.stockCount.status.completed") : selectedSession.status}
+                    {selectedSession.status === "pending_review" ? tt("managerPortal.stockCount.awaitingManager") : selectedSession.status === "rejected" ? tt("managerPortal.stockCount.status.rejected") : selectedSession.status === "completed" ? tt("managerPortal.stockCount.status.completed") : ["in_progress", "draft"].includes(selectedSession.status) ? "لسه شغال" : selectedSession.status}
                   </span>
                 </div>
 

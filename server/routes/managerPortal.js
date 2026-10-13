@@ -55,6 +55,7 @@ import {
 } from "../services/managerPortalService.js";
 import { getManagerPortalReports } from "../services/managerPortalReportsService.js";
 import { getManagerPortalEmployeePerformance } from "../services/managerPortalEmployeePerformanceService.js";
+import { getManagerPortalInventoryCoverage } from "../services/managerPortalInventoryCoverageService.js";
 import { getLinkPreview } from "../services/linkPreviewService.js";
 import { getPortalOnlineOrder, listPortalOnlineOrders } from "../modules/shipping/shipping.portal.service.js";
 import { runPortalBulkPrint, runPortalOrderAction } from "../modules/shipping/shipping.portal.actions.js";
@@ -662,6 +663,19 @@ router.get("/:token/inventory-approvals", async (req, res) => {
   } catch (error) {
     console.error("[manager-portal] inventory approvals error", error);
     return res.status(error.status || 500).json({ success: false, message: error.message || "Failed to load inventory approvals" });
+  }
+});
+
+// تغطية الجرد: which models were counted this month and which were not, by audience.
+router.get("/:token/inventory-coverage", async (req, res) => {
+  try {
+    const manager = await loadVerifiedManager(req, res);
+    if (!manager) return;
+    const coverage = await getManagerPortalInventoryCoverage({ manager, month: req.query.month, audience: req.query.audience });
+    return res.json({ success: true, coverage });
+  } catch (error) {
+    console.error("[manager-portal] inventory coverage error", error);
+    return res.status(error.status || 500).json({ success: false, message: error.message || "Failed to load inventory coverage" });
   }
 });
 
