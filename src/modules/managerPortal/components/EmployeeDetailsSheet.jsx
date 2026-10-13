@@ -145,14 +145,41 @@ export default function EmployeeDetailsSheet({ token, employee, initialTab = "ov
   const nextAdvanceMonth = d?.payroll?.next_advance_month || shiftMonth(month, 1);
   const hardBlockers = (d?.payroll?.blockers || [])
     .filter((blocker) => String(blocker?.severity || "").toLowerCase() === "hard" && (blocker.message || blocker.type));
+  // How much of the outstanding advances this payroll takes. Empty = all of it;
+  // whatever is left is carried to next month's payroll by the server.
+  const [advanceTake, setAdvanceTake] = useState("");
+  useEffect(() => { setAdvanceTake(""); }, [month, employeeId, payrollRun?.id]);
+  const advanceDue = !payrollRun ? Number(d?.salary?.advance_outstanding ?? d?.salary?.advance_deductions ?? 0) : 0;
+  const takeInput = advanceTake.trim();
+  const takeNumber = takeInput === "" ? advanceDue : Number(takeInput);
+  const takeValid = Number.isFinite(takeNumber) && takeNumber >= 0 && takeNumber <= advanceDue + 0.009;
+  const advanceTaken = takeValid ? Math.min(takeNumber, advanceDue) : advanceDue;
+  const advanceCarried = Number((advanceDue - advanceTaken).toFixed(2));
+  const carryMonth = shiftMonth(month, 1);
+  // The preview was priced with every due advance taken; the sheet shows the chosen split.
+  const salaryView = d && !payrollRun && advanceDue > 0
+    ? {
+        ...d.salary,
+        advance_deductions: advanceTaken,
+        deductions: Number(d.salary.deductions || 0) - advanceDue + advanceTaken,
+        net_pay: d.salary.net_pay === null ? null : Number(d.salary.net_pay) + advanceDue - advanceTaken,
+      }
+    : d?.salary;
+
   const approvePayroll = async () => {
-    if (!d || approving || payrollRun) return;
-    const net = d.salary.net_pay === null ? "—" : formatCurrency(d.salary.net_pay);
-    if (!window.confirm(tt("managerPortal.employeeDetails.payrollApproveConfirm", { month: monthLabel(month), net, next: monthLabel(nextAdvanceMonth) }))) return;
+    if (!d || approving || payrollRun || !takeValid) return;
+    const net = salaryView.net_pay === null ? "—" : formatCurrency(salaryView.net_pay);
+    const confirmText = advanceCarried > 0
+      ? tt("managerPortal.employeeDetails.payrollApproveConfirmCarry", { month: monthLabel(month), net, take: formatCurrency(advanceTaken), carry: formatCurrency(advanceCarried), carryMonth: monthLabel(carryMonth) })
+      : tt("managerPortal.employeeDetails.payrollApproveConfirm", { month: monthLabel(month), net, next: monthLabel(nextAdvanceMonth) });
+    if (!window.confirm(confirmText)) return;
     try {
       setApproving(true);
       setApproveNotice({ tone: "", text: "", blockers: [] });
-      await managerPortalApi.approveEmployeePayroll(token, employeeId, { month });
+      await managerPortalApi.approveEmployeePayroll(token, employeeId, {
+        month,
+        ...(advanceDue > 0 ? { advance_deduction_amount: Number(advanceTaken.toFixed(2)) } : {}),
+      });
       setApproveNotice({ tone: "ok", text: tt("managerPortal.employeeDetails.payrollApprovedNow", { month: monthLabel(month) }), blockers: [] });
       await load();
       onChanged?.();
@@ -424,7 +451,7 @@ export default function EmployeeDetailsSheet({ token, employee, initialTab = "ov
                     <Stat label={tt("managerPortal.employeeDetails.monthSales")} value={formatCurrency(d.sales.total)} />
                     <Stat label={tt("managerPortal.employeeDetails.invoices")} value={formatNumber(d.sales.invoices)} />
                     <Stat label={tt("managerPortal.employeeDetails.baseSalary")} value={formatCurrency(d.salary.base_salary)} />
-                    <Stat label={tt("managerPortal.employeeDetails.netPay")} value={d.salary.net_pay === null ? "—" : formatCurrency(d.salary.net_pay)} tone="text-emerald-700" />
+                    <Stat label={tt("managerPortal.employeeDetails.netPay")} value={salaryView.net_pay === null ? "—" : formatCurrency(salaryView.net_pay)} tone="text-emerald-700" />
                   </div>
                   <div className="rounded-[var(--radius-card)] border border-slate-200 bg-white px-3 divide-y divide-slate-100">
                     <Row label={tt("managerPortal.employeeDetails.baseSalary")} value={formatCurrency(d.salary.base_salary)} />
@@ -432,10 +459,10 @@ export default function EmployeeDetailsSheet({ token, employee, initialTab = "ov
                     <Row label={tt("managerPortal.employeeDetails.bonuses")} value={`+ ${formatCurrency(d.salary.bonuses)}`} tone="text-emerald-700" />
                     <Row label={tt("managerPortal.employeeDetails.overtimePay")} value={`+ ${formatCurrency(d.salary.approved_overtime_pay)}`} tone="text-emerald-700" />
                     <Row label={tt("managerPortal.employeeDetails.penalties")} value={`- ${formatCurrency(d.salary.penalties_total)}`} tone="text-rose-700" />
-                    <Row label={tt("managerPortal.employeeDetails.advanceDeductions")} value={`- ${formatCurrency(d.salary.advance_deductions)}`} tone="text-rose-700" />
+                    <Row label={tt("managerPortal.employeeDetails.advanceDeductions")} value={`- ${formatCurrency(salaryView.advance_deductions)}`} tone="text-rose-700" />
                     <Row label={tt("managerPortal.employeeDetails.attendanceDeductions")} value={`- ${formatCurrency(d.salary.attendance_deduction_total)}`} tone="text-rose-700" />
-                    <Row label={tt("managerPortal.employeeDetails.totalDeductions")} value={`- ${formatCurrency(d.salary.deductions)}`} tone="text-rose-700" />
-                    <Row label={tt("managerPortal.employeeDetails.netPay")} value={d.salary.net_pay === null ? "—" : formatCurrency(d.salary.net_pay)} tone="text-slate-950 text-base" />
+                    <Row label={tt("managerPortal.employeeDetails.totalDeductions")} value={`- ${formatCurrency(salaryView.deductions)}`} tone="text-rose-700" />
+                    <Row label={tt("managerPortal.employeeDetails.netPay")} value={salaryView.net_pay === null ? "—" : formatCurrency(salaryView.net_pay)} tone="text-slate-950 text-base" />
                   </div>
                   <div className={`rounded-[var(--radius-card)] border px-3 py-3 ${payrollRun ? "border-emerald-200 bg-emerald-50" : "border-amber-200 bg-amber-50"}`}>
                     <div className="flex items-center justify-between gap-2">
@@ -495,9 +522,43 @@ export default function EmployeeDetailsSheet({ token, employee, initialTab = "ov
                         {/* Outside the list above: closing the last open day empties it, and the
                             manager still needs to read what was just saved. */}
                         {fixNotice ? <div className="mt-1.5 text-[11px] font-bold text-slate-700">{fixNotice}</div> : null}
+                        {advanceDue > 0 ? (
+                          <div className="mt-2 rounded-[var(--radius-card)] border border-slate-200 bg-white px-2.5 py-2">
+                            <div className="flex items-center justify-between gap-2 text-[11px] font-black text-slate-700">
+                              <span>{tt("managerPortal.employeeDetails.payrollAdvanceTake")}</span>
+                              <span className="text-slate-500">{tt("managerPortal.employeeDetails.payrollAdvanceDue", { total: formatCurrency(advanceDue) })}</span>
+                            </div>
+                            <div className="mt-1.5 flex items-center gap-1.5">
+                              <input
+                                type="number"
+                                inputMode="decimal"
+                                min="0"
+                                max={advanceDue}
+                                step="0.01"
+                                value={advanceTake === "" ? String(advanceDue) : advanceTake}
+                                onChange={(event) => setAdvanceTake(event.target.value)}
+                                aria-label={tt("managerPortal.employeeDetails.payrollAdvanceTake")}
+                                className="h-[var(--control-height-md)] min-w-0 flex-1 rounded-[var(--radius-control)] border border-slate-200 bg-white px-2 text-sm font-black tabular-nums text-slate-950"
+                              />
+                              <button type="button" onClick={() => setAdvanceTake(String(advanceDue))} className="h-[var(--control-height-md)] shrink-0 rounded-[var(--radius-control)] border border-slate-200 bg-white px-2.5 text-xs font-black text-slate-800">
+                                {tt("managerPortal.employeeDetails.payrollAdvanceAll")}
+                              </button>
+                              <button type="button" onClick={() => setAdvanceTake("0")} className="h-[var(--control-height-md)] shrink-0 rounded-[var(--radius-control)] border border-slate-200 bg-white px-2.5 text-xs font-black text-slate-800">
+                                {tt("managerPortal.employeeDetails.payrollAdvanceNone")}
+                              </button>
+                            </div>
+                            <div className={`mt-1 text-[11px] font-bold ${takeValid ? "text-slate-600" : "text-rose-700"}`}>
+                              {!takeValid
+                                ? tt("managerPortal.employeeDetails.payrollAdvanceInvalid", { max: formatCurrency(advanceDue) })
+                                : advanceCarried > 0
+                                  ? tt("managerPortal.employeeDetails.payrollAdvanceCarry", { amount: formatCurrency(advanceCarried), month: monthLabel(carryMonth) })
+                                  : tt("managerPortal.employeeDetails.payrollAdvanceAllTaken")}
+                            </div>
+                          </div>
+                        ) : null}
                         <button
                           type="button"
-                          disabled={approving || hardBlockers.length > 0 || d.salary.net_pay === null}
+                          disabled={approving || hardBlockers.length > 0 || d.salary.net_pay === null || !takeValid}
                           onClick={approvePayroll}
                           className="mt-2 inline-flex h-[var(--control-height-md)] w-full items-center justify-center gap-2 rounded-[var(--radius-control)] bg-slate-950 px-3 text-sm font-black text-slate-50 disabled:opacity-50"
                         >
@@ -550,8 +611,9 @@ export default function EmployeeDetailsSheet({ token, employee, initialTab = "ov
               {tab === "advances" ? (
                 <div className="space-y-3">
                   <div className="grid grid-cols-2 gap-2">
-                    <Stat label={tt("managerPortal.employeeDetails.advancesTaken")} value={formatCurrency(d.advances.total_taken)} />
-                    <Stat label={tt("managerPortal.employeeDetails.advancesOutstanding")} value={formatCurrency(d.advances.total_outstanding)} tone="text-amber-700" />
+                    {/* What the employee still owes is the headline; what salary already took sits beside it. */}
+                    <Stat label={tt("managerPortal.employeeDetails.advancesTaken")} value={formatCurrency(d.advances.total_outstanding)} tone="text-amber-700" />
+                    <Stat label={tt("managerPortal.employeeDetails.advancesDeducted")} value={formatCurrency(d.advances.total_deducted ?? Math.max(Number(d.advances.total_taken || 0) - Number(d.advances.total_outstanding || 0), 0))} tone="text-emerald-700" />
                   </div>
                   {advNotice ? <div className="text-xs font-bold text-slate-600">{advNotice}</div> : null}
                   {d.advances.rows.length ? d.advances.rows.map((row) => {

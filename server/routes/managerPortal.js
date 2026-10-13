@@ -455,6 +455,7 @@ router.post("/:token/staff/:employeeId/payroll/approve", verifyManagerPortalToke
       manager: req.managerPortalManager,
       employeeId: req.params.employeeId,
       month: req.body?.month || req.query?.month,
+      advanceDeductionAmount: req.body?.advance_deduction_amount,
     });
     return res.status(result.created ? 201 : 200).json({ success: true, ...result });
   } catch (error) {

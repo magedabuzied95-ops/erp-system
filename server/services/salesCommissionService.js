@@ -9,6 +9,8 @@ import { getAttendanceTimeZone } from "../utils/attendanceTimezone.js";
 import { parseManualAttendanceTimestamp } from "../utils/attendanceManualEntry.js";
 import { ensureForeignKeyConstraint } from "../utils/schemaConstraints.js";
 import { sendEmployeePortalPush } from "./employeePortalPushService.js";
+import { nextMonth } from "../utils/advanceDeductionMonth.js";
+import { planAdvanceDeductions } from "../utils/advanceDeductionPlan.js";
 
 const DEFAULT_SETTINGS = {
   allow_sale_without_salesperson: true,
@@ -2605,6 +2607,7 @@ export const getPayrollPreview = async ({ tenantId = null, employeeId, filters =
   const manualBonuses = toNumber(filters.bonuses);
   const manualDeductions = toNumber(filters.deductions);
   let advanceDeductions = 0;
+  let advanceOutstanding = 0;
   let advanceRows = [];
   const deductionMonth = String(filters.deduction_month || filters.deductionMonth || filters.month || new Date().toISOString().slice(0, 7)).slice(0, 7);
   const periodBounds = monthBounds(deductionMonth);
@@ -2682,7 +2685,12 @@ export const getPayrollPreview = async ({ tenantId = null, employeeId, filters =
         )
     `, [employeeId, tenantId]);
     advanceRows = await listActiveEmployeeAdvancesForPayroll({ tenantId, employeeId, deductionMonth });
-    advanceDeductions = advanceRows.reduce((sum, row) => sum + toNumber(row.outstanding_amount), 0);
+    // The approver may take only part of what is outstanding this month; the
+    // rest is carried to the next month. Oldest advance is paid off first.
+    const advancePlan = planAdvanceDeductions(advanceRows, filters.advance_deduction_amount ?? filters.advanceDeductionAmount);
+    advanceRows = advancePlan.rows;
+    advanceDeductions = advancePlan.total;
+    advanceOutstanding = advancePlan.outstanding;
     for (const row of advanceRows) {
       console.log("[payroll-advance-settlement]", {
         employee_id: employeeId,
@@ -2704,44 +2712,64 @@ export const getPayrollPreview = async ({ tenantId = null, employeeId, filters =
       advance_ids: advanceRows.map((row) => row.id),
     });
     if (shouldFinalize && advanceRows.length) {
-      const advanceIds = advanceRows.map((row) => Number(row.id)).filter((id) => Number.isInteger(id));
-      const deductionByAdvanceId = new Map(advanceRows.map((row) => [String(row.id), toNumber(row.outstanding_amount)]));
-      const settlement = await db.query(
-        `
-        UPDATE employee_advances
-        SET deduction_status = 'settled',
-            deducted_amount = amount,
-            remaining_amount = 0,
-            status = 'settled',
-            deducted_at = NOW(),
-            payroll_reference = $3,
-            updated_at = NOW()
-        WHERE id = ANY($1::bigint[])
-          AND ($2::bigint IS NULL OR tenant_id = $2::bigint)
-          AND deduction_status = ANY($4::text[])
-          AND employee_id::text = $5::text
-          AND GREATEST(COALESCE(remaining_amount, amount - COALESCE(deducted_amount, 0)), 0) > 0
-        RETURNING id, employee_id, amount, deducted_amount, remaining_amount, deduction_status, status, payroll_reference, created_at, updated_at
-        `,
-        [advanceIds, tenantId, payrollReference, ACTIVE_ADVANCE_STATUSES, employeeId]
-      );
+      const carryMonth = nextMonth(deductionMonth) || deductionMonth;
+      const settled = [];
+      for (const planned of advanceRows) {
+        const take = toNumber(planned.payroll_deduction_amount);
+        // Whatever this payroll does not take moves to the next month's payroll,
+        // so the sheet says where it will be deducted and that month picks it up.
+        const result = await db.query(
+          `
+          UPDATE employee_advances
+          SET deducted_amount = CASE WHEN ($8::boolean OR COALESCE(deducted_amount, 0) + $3::numeric >= amount - 0.009) THEN amount ELSE LEAST(amount, COALESCE(deducted_amount, 0) + $3::numeric) END,
+              remaining_amount = CASE WHEN ($8::boolean OR COALESCE(deducted_amount, 0) + $3::numeric >= amount - 0.009) THEN 0 ELSE GREATEST(amount - COALESCE(deducted_amount, 0) - $3::numeric, 0) END,
+              deduction_status = CASE
+                WHEN ($8::boolean OR COALESCE(deducted_amount, 0) + $3::numeric >= amount - 0.009) THEN 'settled'
+                WHEN COALESCE(deducted_amount, 0) + $3::numeric > 0 THEN 'partial'
+                ELSE deduction_status
+              END,
+              status = CASE
+                WHEN ($8::boolean OR COALESCE(deducted_amount, 0) + $3::numeric >= amount - 0.009) THEN 'settled'
+                WHEN COALESCE(deducted_amount, 0) + $3::numeric > 0 THEN 'partial'
+                ELSE status
+              END,
+              deduction_month = CASE WHEN ($8::boolean OR COALESCE(deducted_amount, 0) + $3::numeric >= amount - 0.009) THEN deduction_month ELSE $6::text END,
+              deducted_at = CASE WHEN $3::numeric > 0 THEN NOW() ELSE deducted_at END,
+              payroll_reference = CASE WHEN $3::numeric > 0 THEN $4 ELSE payroll_reference END,
+              updated_at = NOW()
+          WHERE id = $1::bigint
+            AND ($2::bigint IS NULL OR tenant_id = $2::bigint)
+            AND deduction_status = ANY($5::text[])
+            AND employee_id::text = $7::text
+            AND GREATEST(COALESCE(remaining_amount, amount - COALESCE(deducted_amount, 0)), 0) > 0
+          RETURNING id, employee_id, amount, deducted_amount, remaining_amount, deduction_month, deduction_status, status, payroll_reference, created_at, updated_at
+          `,
+          [planned.id, tenantId, take, payrollReference, ACTIVE_ADVANCE_STATUSES, carryMonth, employeeId, toNumber(planned.carried_amount) <= 0]
+        );
+        const row = result.rows[0];
+        if (!row) continue;
+        settled.push({
+          ...row,
+          amount: toNumber(row.amount),
+          deducted_amount: toNumber(row.deducted_amount),
+          remaining_amount: toNumber(row.remaining_amount),
+          outstanding_amount: toNumber(row.remaining_amount),
+          payroll_deduction_amount: take,
+          carried_amount: toNumber(row.remaining_amount),
+          status: row.status,
+          advance_status: row.status,
+          settlement_status: row.status,
+        });
+      }
       console.log("[payroll] advance settlement update", {
         employee_id: employeeId,
         payroll_reference: payrollReference,
-        settled_count: settlement.rowCount,
-        advances: settlement.rows,
+        deducted_total: advanceDeductions,
+        carried_to: carryMonth,
+        advances: settled.map((row) => ({ id: row.id, deducted: row.payroll_deduction_amount, carried: row.carried_amount, status: row.status })),
       });
-      advanceRows = settlement.rows.map((row) => ({
-        ...row,
-        amount: toNumber(row.amount),
-        deducted_amount: toNumber(row.deducted_amount),
-        remaining_amount: toNumber(row.remaining_amount),
-        outstanding_amount: toNumber(row.remaining_amount),
-        payroll_deduction_amount: deductionByAdvanceId.get(String(row.id)) || toNumber(row.amount),
-        status: "settled",
-        advance_status: "settled",
-        settlement_status: "settled",
-      }));
+      advanceRows = settled;
+      advanceDeductions = Number(settled.reduce((sum, row) => sum + toNumber(row.payroll_deduction_amount), 0).toFixed(2));
     }
   } catch (error) {
     console.warn("[payroll] employee advances deduction skipped", error.message);
@@ -2829,6 +2857,7 @@ export const getPayrollPreview = async ({ tenantId = null, employeeId, filters =
     approved_overtime_hours: toNumber(attendanceDeductions.approved_overtime_hours),
     manual_deductions: manualDeductions,
     advance_deductions: advanceDeductions,
+    advance_outstanding: advanceOutstanding,
     penalties_total: penaltyDeductions,
     attendance_deductions: attendanceDeductions,
     deductions,
@@ -2837,6 +2866,7 @@ export const getPayrollPreview = async ({ tenantId = null, employeeId, filters =
       id: row.id,
       amount: toNumber(row.amount),
       payroll_deduction_amount: toNumber(row.payroll_deduction_amount ?? row.outstanding_amount ?? row.remaining_amount),
+      carried_amount: toNumber(row.carried_amount),
       remaining_amount: toNumber(row.remaining_amount),
       deduction_status: row.deduction_status,
       settlement_status: row.settlement_status || row.status || row.deduction_status,
@@ -3046,6 +3076,8 @@ export const getPayrollPreview = async ({ tenantId = null, employeeId, filters =
       bonuses,
       manual_deductions: manualDeductions,
       advance_deductions: advanceDeductions,
+      // Everything due by this month; advance_deductions is the part this payroll takes.
+      advance_outstanding: advanceOutstanding,
       penalty_deductions: penaltyDeductions,
       penalties_total: penaltyDeductions,
       absence_days: attendanceDeductions.absence_days,

@@ -3190,6 +3190,8 @@ export const getManagerPortalEmployeeDetails = async ({ manager = {}, employeeId
     : (payrollPreview?.payroll || payrollPreview?.snapshot || payrollPreview || {});
   const approvalBlockers = payrollRun ? [] : (Array.isArray(payrollPreview?.approval_blockers) ? payrollPreview.approval_blockers : []);
   const { dayRate, workingDays } = await dayRatePromise;
+  const isCancelledAdvance = (row) => [row.status, row.deduction_status].some((value) => String(value || "").toLowerCase() === "cancelled");
+  const liveAdvances = advanceRows.filter((row) => !isCancelledAdvance(row));
   return {
     month: range.month,
     period: { start: range.start, end: range.end },
@@ -3217,6 +3219,8 @@ export const getManagerPortalEmployeeDetails = async ({ manager = {}, employeeId
       bonuses: Number(snapshot.bonuses ?? sum(monthBonuses)),
       approved_overtime_pay: Number(snapshot.approved_overtime_pay || 0),
       advance_deductions: Number(snapshot.advance_deductions || 0),
+      // All advances due by this month. Approving may take less and carry the rest.
+      advance_outstanding: Number(snapshot.advance_outstanding ?? snapshot.advance_deductions ?? 0),
       penalties_total: Number(snapshot.penalties_total ?? sum(monthPenalties)),
       attendance_deduction_total: Number(snapshot.attendance_deductions?.attendance_deduction_total || snapshot.attendance_deduction_total || 0),
       deductions: Number(snapshot.deductions || 0),
@@ -3243,8 +3247,9 @@ export const getManagerPortalEmployeeDetails = async ({ manager = {}, employeeId
       hard_blocked: approvalBlockers.some((blocker) => String(blocker.severity || "").toLowerCase() === "hard"),
     },
     advances: {
-      total_outstanding: sum(advanceRows.filter((r) => r.status !== "cancelled"), "remaining_amount"),
-      total_taken: sum(advanceRows.filter((r) => r.status !== "cancelled")),
+      total_outstanding: sum(liveAdvances, "remaining_amount"),
+      total_deducted: sum(liveAdvances, "deducted_amount"),
+      total_taken: sum(liveAdvances),
       rows: advanceRows.map((row) => ({
         id: row.id,
         amount: Number(row.amount || 0),
@@ -3270,7 +3275,7 @@ export const getManagerPortalEmployeeDetails = async ({ manager = {}, employeeId
 // outstanding advance dated up to this month, and posts the approval journal. Approving is
 // what closes the month — from then on a new advance rolls to the next month
 // (resolveAdvanceDeductionMonth), which is the whole point of doing it here.
-export const approveManagerPortalEmployeePayroll = async ({ manager = {}, employeeId, month = "" } = {}) => {
+export const approveManagerPortalEmployeePayroll = async ({ manager = {}, employeeId, month = "", advanceDeductionAmount } = {}) => {
   const { employee, tenantId } = await loadScopedEmployee({ manager, employeeId });
   const range = monthRange(month);
   const todayIso = cairoToday();
@@ -3300,6 +3305,8 @@ export const approveManagerPortalEmployeePayroll = async ({ manager = {}, employ
       startDate: range.start,
       endDate: previewEnd,
       markAdvancesDeducted: "true",
+      // Omitted = every outstanding advance; a smaller amount carries the rest to next month.
+      ...(advanceDeductionAmount === undefined || advanceDeductionAmount === null || advanceDeductionAmount === "" ? {} : { advanceDeductionAmount }),
       createdBy: manager.user_id || null,
     },
   });
@@ -3323,7 +3330,8 @@ export const approveManagerPortalEmployeePayroll = async ({ manager = {}, employ
     month: range.month,
     run: describePayrollRun(result.payroll_run),
     next_advance_month: nextPayrollMonth(range.month),
-    settled_advances: (result.employee_advances || []).map((row) => ({ id: row.id, amount: Number(row.amount || 0) })),
+    settled_advances: (result.employee_advances || []).map((row) => ({ id: row.id, amount: Number(row.amount || 0), deducted: Number(row.payroll_deduction_amount || 0), carried: Number(row.carried_amount || 0) })),
+    advance_deductions: Number(result.payroll?.advance_deductions || 0),
   };
 };
 
