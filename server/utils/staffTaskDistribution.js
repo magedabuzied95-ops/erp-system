@@ -5,9 +5,8 @@
 // Two modes:
 // - Rotation ("round_robin"): every employee of the branch takes a turn. The
 //   turn belongs to whoever did this routine least recently, and the task waits
-//   for that person. Somebody on approved leave is skipped; somebody who simply
-//   does not turn up loses the turn only once arrivals have stopped — and since
-//   they still have the oldest turn, it comes back to them next time.
+//   for that person, across days if they are absent. Only approved leave
+//   passes the turn to the next person.
 // - Arrival share (everything else): each employee who checks in takes one
 //   task, or catches up to the busiest colleague already on shift. The first
 //   person through the door used to inherit the whole day's list.
@@ -49,13 +48,13 @@ export const rotationOrder = (employees = [], lastDoneById = new Map()) =>
   });
 
 // order: rotationOrder output. offIds: approved leave today. presentIds: checked
-// in right now. settled: arrivals have stopped (or the task is nearly due).
-export const pickRotationAssignee = ({ order = [], offIds = new Set(), presentIds = new Set(), settled = false } = {}) => {
+// in right now. The turn holder is never replaced by whoever happens to be in:
+// if they are absent the task waits — for days if need be — and goes to them
+// the moment they check in. Only approved leave passes the turn on.
+export const pickRotationAssignee = ({ order = [], offIds = new Set(), presentIds = new Set() } = {}) => {
   const holder = order.find((employee) => !offIds.has(idKey(employee.id)));
   if (holder && presentIds.has(idKey(holder.id))) return { employee: holder, reason: "rotation_turn" };
-  if (!settled) return null;
-  const standIn = order.find((employee) => presentIds.has(idKey(employee.id)));
-  return standIn ? { employee: standIn, reason: "rotation_turn_passed" } : null;
+  return null;
 };
 
 // How many shared tasks the arriving employee should hold: one, or as many as

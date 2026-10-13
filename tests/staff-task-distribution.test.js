@@ -36,14 +36,12 @@ test("rotation: approved leave passes the turn straight away", () => {
   assert.equal(pick.reason, "rotation_turn");
 });
 
-test("rotation: a no-show loses the turn only after arrivals stop, and keeps the oldest slot", () => {
+test("rotation: a no-show keeps the turn — the task waits for them, however long", () => {
   const order = [sara, ahmed, omar];
-  const pick = pickRotationAssignee({ order, presentIds: ids(omar), settled: true });
-  assert.equal(pick.employee, omar);
-  assert.equal(pick.reason, "rotation_turn_passed");
-  // Next week Sara still has the oldest turn, so it comes back to her.
-  const lastDone = new Map([["3", "2026-10-13T09:00:00Z"], ["1", "2026-10-06T09:00:00Z"]]);
-  assert.equal(rotationOrder([ahmed, sara, omar], lastDone)[0], sara);
+  // Everyone else is in and arrivals stopped long ago: still nobody else takes it.
+  assert.equal(pickRotationAssignee({ order, presentIds: ids(ahmed, omar), settled: true }), null);
+  // The day Sara finally checks in, it is hers.
+  assert.equal(pickRotationAssignee({ order, presentIds: ids(sara, ahmed) }).employee, sara);
 });
 
 test("arrival share: the first person in takes one task, not all of them", () => {

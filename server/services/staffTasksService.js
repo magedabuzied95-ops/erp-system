@@ -528,6 +528,7 @@ const runStaffTasksSchemaDDL = async (clientOrPool = db) => {
       AND assigned_employee_id IS NULL
       AND status = 'overdue'
       AND due_at < CURRENT_TIMESTAMP - INTERVAL '7 days'
+      AND LOWER(COALESCE(auto_assign_mode, '')) <> 'round_robin'
   `);
   await clientOrPool.query(`
     UPDATE staff_task_assignments
@@ -1259,6 +1260,9 @@ export const markDueTasksOverdue = async ({ tenantId = null } = {}) => {
       AND due_at IS NOT NULL
       AND due_at < NOW()
       AND status IN ('pending','in_progress')
+      -- Rotation work still waiting for its turn holder is not late yet; it
+      -- gets a fresh deadline on the day it is handed over.
+      AND NOT (current_assignee_id IS NULL AND LOWER(COALESCE(auto_assign_mode, '')) = '${ROTATION_MODE}')
     RETURNING *
     `,
     [tenantId]
@@ -2921,6 +2925,13 @@ const claimAttendanceTaskForEmployee = async (client, task, assignee, metadata =
         assignment_event_id = $3::bigint,
         auto_assign_mode = COALESCE($4::text, auto_assign_mode, 'attendance_first_checkin'),
         metadata = metadata || $5::jsonb,
+        -- A rotation task that waited days for its turn holder keeps its clock
+        -- time but moves to the day it is finally handed over.
+        due_at = CASE
+          WHEN $7::date IS NOT NULL AND due_at IS NOT NULL AND assigned_date < $7::date
+            THEN ($7::date + (due_at AT TIME ZONE $8::text)::time) AT TIME ZONE $8::text
+          ELSE due_at
+        END,
         updated_at = NOW()
     WHERE id = $6::bigint
       AND current_assignee_id IS NULL
@@ -2935,6 +2946,8 @@ const claimAttendanceTaskForEmployee = async (client, task, assignee, metadata =
       metadata.auto_assign_mode || "attendance_first_checkin",
       JSON.stringify(metadata),
       task.id,
+      metadata.rebase_due_to || null,
+      getAttendanceTimeZone(),
     ]
   );
   if (!updated.rows[0]) return null;
@@ -2971,10 +2984,13 @@ const autoWaitingTaskSql = `(
 )`;
 
 // Today's waiting rows. Weekly rows generated before the per-day stamping carry
-// the week start, so those are still looked up there.
+// the week start, so those are still looked up there. A rotation task from an
+// earlier day is still waiting for its turn holder, so it carries over until
+// they check in — the owner wants the turn kept, not handed to whoever is in.
 const waitingTaskDateSql = (dateParam, weekStartParam) => `(
   sta.assigned_date = ${dateParam}::date
   OR (sta.assigned_date = ${weekStartParam}::date AND sta.source_ref_type = 'weekly_task_template')
+  OR (sta.assigned_date < ${dateParam}::date AND ${taskAssignModeSql} = '${ROTATION_MODE}')
 )`;
 
 const loadWaitingBranchTasks = async (client, { tenantId, branchId, attendanceDate }) => {
@@ -2995,6 +3011,7 @@ const loadWaitingBranchTasks = async (client, { tenantId, branchId, attendanceDa
       AND ${autoWaitingTaskSql}
     ORDER BY
       is_opening_task DESC,
+      sta.assigned_date ASC,
       CASE sta.priority WHEN 'critical' THEN 0 WHEN 'high' THEN 1 WHEN 'medium' THEN 2 ELSE 3 END,
       sta.due_at NULLS LAST,
       sta.id ASC
@@ -3142,7 +3159,7 @@ const distributeWaitingBranchTasks = async ({ tenantId, branchId, attendanceDate
           lastDoneByTemplate.set(templateKey, await loadRotationLastDone(client, { tenantId: safeTenantId, templateId: task.template_id }));
         }
         const order = rotationOrder(roster.filter((employee) => employeeFitsTask(employee, task)), lastDoneByTemplate.get(templateKey));
-        pick = pickRotationAssignee({ order, offIds: onLeave, presentIds, settled });
+        pick = pickRotationAssignee({ order, offIds: onLeave, presentIds });
       } else {
         const eligible = present.filter((employee) => employeeFitsTask(employee, task));
         pick = pickArrivalAssignee({
@@ -3153,12 +3170,14 @@ const distributeWaitingBranchTasks = async ({ tenantId, branchId, attendanceDate
         });
       }
       if (!pick?.employee) {
-        if (settled) stuck += 1;
+        // A rotation task waiting for its turn holder is not stuck — it is waiting.
+        if (settled && !isRotation) stuck += 1;
         continue;
       }
       const employee = pick.employee;
       const updated = await claimAttendanceTaskForEmployee(client, task, employee, {
         assignment_reason: pick.reason,
+        rebase_due_to: isRotation ? safeDate : null,
         auto_assign_mode: mode || "least_tasks_today",
         attendance_date: safeDate,
         branch_id: safeBranchId,
@@ -3547,6 +3566,9 @@ export const reassignOverdueTasks = async ({ tenantId = null } = {}) => {
     WHERE ($1::bigint IS NULL OR tenant_id = $1::bigint)
       AND due_at < NOW()
       AND status IN ('pending','in_progress')
+      -- Rotation work still waiting for its turn holder is not late yet; it
+      -- gets a fresh deadline on the day it is handed over.
+      AND NOT (current_assignee_id IS NULL AND LOWER(COALESCE(auto_assign_mode, '')) = '${ROTATION_MODE}')
     RETURNING *
     `,
     [tenantId]

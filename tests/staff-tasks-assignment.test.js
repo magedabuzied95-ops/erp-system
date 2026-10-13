@@ -114,6 +114,28 @@ test("a check-in hands out one share, not the whole day's list", () => {
   assert.match(distributeBody, /FOR UPDATE|loadWaitingBranchTasks\(client/, "claims must run inside the locked transaction");
 });
 
+test("a rotation task waits across days for its turn holder", () => {
+  const dateBody = functionBody(tasksService, "const waitingTaskDateSql =");
+  assert.match(
+    dateBody,
+    /sta\.assigned_date < \$\{dateParam\}::date AND \$\{taskAssignModeSql\} = '\$\{ROTATION_MODE\}'/,
+    "an absent turn holder's task must still be found on the day they come back"
+  );
+  const overdueBody = functionBody(tasksService, "export const reassignOverdueTasks =");
+  assert.match(
+    overdueBody,
+    /AND NOT \(current_assignee_id IS NULL AND LOWER\(COALESCE\(auto_assign_mode, ''\)\) = '\$\{ROTATION_MODE\}'\)/,
+    "a waiting rotation task must not be marked overdue — it would drop out of the waiting search"
+  );
+  assert.match(
+    tasksService,
+    /AND due_at < CURRENT_TIMESTAMP - INTERVAL '7 days'\s+AND LOWER\(COALESCE\(auto_assign_mode, ''\)\) <> 'round_robin'/,
+    "the boot-time stale sweep must not cancel rotation work still waiting for its turn holder"
+  );
+  const claimBody = functionBody(tasksService, "const claimAttendanceTaskForEmployee =");
+  assert.match(claimBody, /assigned_date < \$7::date/, "a carried-over task gets its deadline moved to the day it is handed over");
+});
+
 test("a late task stays with its owner", () => {
   const overdueBody = functionBody(tasksService, "export const reassignOverdueTasks =");
   assert.ok(!/redistributeTasks\(/.test(overdueBody), "the owner decided overdue work is not moved to somebody else");
