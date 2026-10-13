@@ -472,6 +472,17 @@ export default function EmployeeDetailsSheet({ token, employee, initialTab = "ov
                     <Row label={tt("managerPortal.employeeDetails.penalties")} value={`- ${formatCurrency(d.salary.penalties_total)}`} tone="text-rose-700" />
                     <Row label={tt("managerPortal.employeeDetails.advanceDeductions")} value={`- ${formatCurrency(salaryView.advance_deductions)}`} tone="text-rose-700" />
                     <Row label={tt("managerPortal.employeeDetails.attendanceDeductions")} value={`- ${formatCurrency(d.salary.attendance_deduction_total)}`} tone="text-rose-700" />
+                    {Number(d.salary.attendance_breakdown?.leave_days) > 0 ? (
+                      <Row
+                        label={tt("managerPortal.employeeDetails.leaveDays", {
+                          paid: formatNumber(d.salary.attendance_breakdown.paid_leave_days || 0),
+                          total: formatNumber(d.salary.attendance_breakdown.monthly_paid_leave_days ?? 3),
+                          deducted: formatNumber(d.salary.attendance_breakdown.deducted_leave_days || 0),
+                        })}
+                        value={Number(d.salary.attendance_breakdown.leave_deduction) > 0 ? `- ${formatCurrency(d.salary.attendance_breakdown.leave_deduction)}` : formatCurrency(0)}
+                        tone={Number(d.salary.attendance_breakdown.leave_deduction) > 0 ? "text-rose-700" : "text-slate-600"}
+                      />
+                    ) : null}
                     <Row label={tt("managerPortal.employeeDetails.totalDeductions")} value={`- ${formatCurrency(salaryView.deductions)}`} tone="text-rose-700" />
                     <Row label={tt("managerPortal.employeeDetails.netPay")} value={salaryView.net_pay === null ? "—" : formatCurrency(salaryView.net_pay)} tone="text-slate-950 text-base" />
                   </div>

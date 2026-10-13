@@ -1200,9 +1200,12 @@ export const getManagerPortalStaff = async ({ manager = {} } = {}) => {
     .map((request) => ({ ...request, request_type: "late_permission", allowed_minutes: Number(request.amount || 0) }));
 
   // Vacations were sent from the employee portal but never listed here, so nobody could approve them.
-  const vacationRequests = (pendingPortalRequests || [])
-    .filter((request) => isVacationRequest(request) && staffEmployeeIds.has(String(request.employee_id)))
-    .map((request) => ({ ...request, days: vacationRequestDays(request) }));
+  const vacationRequests = await attachVacationBalances({
+    tenantId,
+    requests: (pendingPortalRequests || [])
+      .filter((request) => isVacationRequest(request) && staffEmployeeIds.has(String(request.employee_id)))
+      .map((request) => ({ ...request, days: vacationRequestDays(request) })),
+  });
 
   return {
     summary: taskDashboard?.summary || {},
@@ -1264,6 +1267,103 @@ const vacationRequestDays = (request = {}) => {
   if (!start) return 1;
   const span = Math.round((Date.parse(`${end}T00:00:00Z`) - Date.parse(`${start}T00:00:00Z`)) / 864e5) + 1;
   return Number.isFinite(span) && span > 0 ? span : 1;
+};
+
+const vacationRequestDayKeys = (request = {}) => {
+  const start = requestDateKey(request.request_date);
+  if (!start) return [];
+  const end = requestDateKey(request.end_date) || start;
+  const keys = [];
+  for (let cursor = Date.parse(`${start}T00:00:00Z`), stop = Date.parse(`${end}T00:00:00Z`); cursor <= stop && keys.length < 62; cursor += 864e5) {
+    keys.push(new Date(cursor).toISOString().slice(0, 10));
+  }
+  return keys;
+};
+
+// What approving does to the employee's pay, counted exactly the way payroll counts it
+// (calculateLeavePayrollImpactForEmployee): approved paid-type leave days in the month, the
+// first monthly_paid_leave_days of them are paid, each one after costs a day's pay.
+export const attachVacationBalances = async ({ tenantId = null, requests = [] } = {}) => {
+  if (!requests.length) return requests;
+  const employeeIds = [...new Set(requests.map((request) => String(request.employee_id)))];
+  const allDays = requests.flatMap(vacationRequestDayKeys).sort();
+  if (!allDays.length) return requests;
+  const rangeStart = `${allDays[0].slice(0, 7)}-01`;
+  const rangeEnd = allDays[allDays.length - 1];
+  const [settingsRows, usedRows, employeeRows] = await Promise.all([
+    safeQuery(
+      `SELECT COALESCE(monthly_paid_leave_days, 3)::int AS monthly_paid_leave_days FROM hr_attendance_settings WHERE ($1::bigint IS NOT NULL AND tenant_id = $1::bigint) LIMIT 1`,
+      [tenantId],
+      []
+    ),
+    safeQuery(
+      `
+      SELECT DISTINCT employee_id::text AS employee_id, leave_day::date::text AS leave_day
+      FROM (
+        SELECT l.employee_id, generate_series(COALESCE(l.leave_date, l.start_date), COALESCE(l.leave_date, l.end_date, l.start_date), interval '1 day') AS leave_day,
+          COALESCE(l.leave_type, 'paid') AS kind, l.status
+        FROM employee_leaves l
+        WHERE ($1::bigint IS NULL OR l.tenant_id = $1::bigint) AND l.employee_id::text = ANY($2::text[])
+        UNION ALL
+        SELECT v.employee_id, generate_series(COALESCE(v.vacation_date, v.start_date), COALESCE(v.vacation_date, v.end_date, v.start_date), interval '1 day'),
+          COALESCE(v.vacation_type, 'annual'), v.status
+        FROM employee_vacations v
+        WHERE ($1::bigint IS NULL OR v.tenant_id = $1::bigint) AND v.employee_id::text = ANY($2::text[])
+      ) days
+      WHERE LOWER(COALESCE(status, 'pending')) = 'approved'
+        AND LOWER(COALESCE(kind, 'paid')) NOT IN ('unpaid', 'no_pay', 'deducted', 'غير مدفوعة', 'بدون راتب')
+        AND leave_day >= $3::date
+        AND leave_day < (date_trunc('month', $4::date) + interval '1 month')
+      `,
+      [tenantId, employeeIds, rangeStart, rangeEnd],
+      null
+    ),
+    safeQuery(
+      `SELECT id::text AS employee_id, COALESCE(salary, 0) AS salary, COALESCE(NULLIF(working_days_per_month, 0), 26) AS working_days_per_month FROM employees WHERE id::text = ANY($1::text[])`,
+      [employeeIds],
+      []
+    ),
+  ]);
+  // Without the used days a balance would read as untouched; show none rather than a wrong one.
+  if (!usedRows) return requests;
+  const allowance = Math.max(0, Number(settingsRows[0]?.monthly_paid_leave_days ?? 3));
+  const takenByEmployee = new Map();
+  usedRows.forEach((row) => {
+    if (!takenByEmployee.has(row.employee_id)) takenByEmployee.set(row.employee_id, new Set());
+    takenByEmployee.get(row.employee_id).add(String(row.leave_day).slice(0, 10));
+  });
+  const payByEmployee = new Map(employeeRows.map((row) => [row.employee_id, row]));
+
+  return requests.map((request) => {
+    const employeeId = String(request.employee_id);
+    const taken = takenByEmployee.get(employeeId) || new Set();
+    const usedInMonth = (month) => [...taken].filter((day) => day.startsWith(month)).length;
+    const dayKeys = vacationRequestDayKeys(request);
+    const firstMonth = (dayKeys[0] || "").slice(0, 7);
+    const runningByMonth = new Map();
+    let fromBalance = 0;
+    let deducted = 0;
+    dayKeys.forEach((day) => {
+      if (taken.has(day)) return; // already an approved leave day: approving again changes nothing
+      const month = day.slice(0, 7);
+      const used = runningByMonth.has(month) ? runningByMonth.get(month) : usedInMonth(month);
+      if (used < allowance) fromBalance += 1;
+      else deducted += 1;
+      runningByMonth.set(month, used + 1);
+    });
+    const pay = payByEmployee.get(employeeId);
+    const dailyRate = pay ? Number(pay.salary || 0) / Math.max(1, Number(pay.working_days_per_month || 26)) : 0;
+    const used = firstMonth ? usedInMonth(firstMonth) : 0;
+    return {
+      ...request,
+      paid_leave_total: allowance,
+      paid_leave_used: used,
+      paid_leave_left: Math.max(0, allowance - used),
+      days_from_balance: fromBalance,
+      days_deducted: deducted,
+      deduction_estimate: Number((deducted * dailyRate).toFixed(2)),
+    };
+  });
 };
 
 export const reviewManagerPortalVacationRequest = async ({ manager = {}, requestId, status, adminNote = "" } = {}) => {

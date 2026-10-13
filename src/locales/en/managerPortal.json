@@ -812,7 +812,8 @@
     "advanceCashBack": "Done — {{amount}} back in the drawer",
     "advanceCashOut": "Done — {{amount}} taken from the drawer",
     "advanceFromInvoice": "This advance comes from a deferred invoice; change it from the invoice",
-    "advanceOpenInvoice": "Open invoice"
+    "advanceOpenInvoice": "Open invoice",
+    "leaveDays": "Of which leave: {{paid}} of {{total}} paid, {{deducted}} deducted"
   },
   "weekdays": {
     "0": "Sun",
@@ -868,7 +869,11 @@
     "empty": "No leave requests waiting",
     "approve": "Approve",
     "range": "{{from}} to {{to}}",
-    "days": "{{count}} day(s)"
+    "days": "{{count}} day(s)",
+    "balance": "Leave balance this month: {{left}} of {{total}} left",
+    "fromBalance": "{{count}} day(s) from the balance — no deduction",
+    "deducted": "{{count}} day(s) beyond the balance — deducted from salary",
+    "deductedWithAmount": "{{count}} day(s) beyond the balance — {{amount}} deducted from salary"
   },
   "reports": {
     "title": "Reports",

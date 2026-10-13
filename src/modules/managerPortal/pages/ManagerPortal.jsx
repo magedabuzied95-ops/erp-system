@@ -3647,6 +3647,24 @@ export default function ManagerPortal() {
                             </div>
                           </div>
                           {request.message ? <div className="mt-2 rounded-lg bg-slate-50 px-2.5 py-2 text-xs font-semibold text-slate-600 dark:bg-black/20 dark:text-slate-300">{portalText(request.message)}</div> : null}
+                          {request.paid_leave_total !== undefined ? (
+                            <div className="mt-2 space-y-1">
+                              <div className="text-[11px] font-black text-slate-600 dark:text-slate-300">
+                                {tt("managerPortal.vacations.balance", { left: formatNumber(request.paid_leave_left), total: formatNumber(request.paid_leave_total) })}
+                              </div>
+                              {Number(request.days_deducted) > 0 ? (
+                                <div className="rounded-lg bg-rose-50 px-2.5 py-2 text-xs font-black text-rose-700 dark:bg-rose-500/10 dark:text-rose-300">
+                                  {Number(request.deduction_estimate) > 0
+                                    ? tt("managerPortal.vacations.deductedWithAmount", { count: Number(request.days_deducted), amount: formatCurrency(request.deduction_estimate) })
+                                    : tt("managerPortal.vacations.deducted", { count: Number(request.days_deducted) })}
+                                </div>
+                              ) : Number(request.days_from_balance) > 0 ? (
+                                <div className="rounded-lg bg-emerald-50 px-2.5 py-2 text-xs font-black text-emerald-700 dark:bg-emerald-500/10 dark:text-emerald-300">
+                                  {tt("managerPortal.vacations.fromBalance", { count: Number(request.days_from_balance) })}
+                                </div>
+                              ) : null}
+                            </div>
+                          ) : null}
                           <div className="mt-3 grid grid-cols-2 gap-2">
                             <button type="button" disabled={reviewing} onClick={() => reviewVacationRequest(request.id, "rejected")} className="rounded-[var(--radius-control)] border border-rose-300 px-3 py-2.5 text-xs font-black text-rose-700 disabled:opacity-50 dark:border-rose-400/30 dark:text-rose-300">{tt("managerPortal.actions.reject")}</button>
                             <button type="button" disabled={reviewing} onClick={() => reviewVacationRequest(request.id, "approved")} className="rounded-[var(--radius-control)] bg-primary px-3 py-2.5 text-xs font-black text-[var(--primary-contrast)] disabled:opacity-50">{reviewing ? tt("managerPortal.common.processing") : tt("managerPortal.vacations.approve")}</button>

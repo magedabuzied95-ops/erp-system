@@ -812,7 +812,8 @@
     "advanceCashBack": "تم — {{amount}} رجعوا الدرج",
     "advanceCashOut": "تم — {{amount}} طلعوا من الدرج",
     "advanceFromInvoice": "السلفة دي من فاتورة آجل، بتتعدل من الفاتورة",
-    "advanceOpenInvoice": "افتح الفاتورة"
+    "advanceOpenInvoice": "افتح الفاتورة",
+    "leaveDays": "منها إجازات: {{paid}} من {{total}} مدفوعة، {{deducted}} مخصومة"
   },
   "weekdays": {
     "0": "الأحد",
@@ -868,7 +869,11 @@
     "empty": "لا توجد طلبات إجازة قيد المراجعة",
     "approve": "موافقة",
     "range": "من {{from}} لـ {{to}}",
-    "days": "{{count}} يوم"
+    "days": "{{count}} يوم",
+    "balance": "رصيد الإجازات الشهر ده: فاضل {{left}} من {{total}}",
+    "fromBalance": "{{count}} يوم من الرصيد — من غير خصم",
+    "deducted": "{{count}} يوم برّه الرصيد — هيتخصم من المرتب",
+    "deductedWithAmount": "{{count}} يوم برّه الرصيد — هيتخصم {{amount}} من المرتب"
   },
   "reports": {
     "title": "التقارير",
