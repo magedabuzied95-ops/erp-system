@@ -78,7 +78,7 @@ const Row = ({ label, value, tone = "" }) => (
 const Stat = ({ label, value, tone = "text-slate-950" }) => (
   <div className="rounded-[var(--radius-card)] border border-slate-200 bg-white px-3 py-2 text-right">
     <div className="text-[10px] font-black text-slate-500">{label}</div>
-    <div dir="auto" className={`mt-0.5 truncate text-sm font-black tabular-nums ${tone}`}>{value}</div>
+    <div dir="auto" className={`mt-0.5 truncate text-sm font-black [font-variant-numeric:tabular-nums] ${tone}`}>{value}</div>
   </div>
 );
 
@@ -756,15 +756,18 @@ export default function EmployeeDetailsSheet({ token, employee, initialTab = "ov
                   </div>
                   {d.attendance.rows.length ? (
                     <div className="overflow-x-auto rounded-[var(--radius-card)] border border-slate-200 bg-white">
+                      {/* No `tabular-nums` class here: index.css forces every `.tabular-nums`
+                          to direction ltr + text-align left in Arabic, which pulled these
+                          cells off their column and reversed "١٤ ساعة و٣٧ دقيقة". */}
                       <table className="w-full min-w-[520px] text-xs">
                         <thead className="bg-slate-50 text-[10px] font-black text-slate-500">
                           <tr>
-                            <th className="px-2 py-2 text-right">{tt("managerPortal.employeeDetails.day")}</th>
-                            <th className="px-2 py-2 text-right">{tt("managerPortal.employeeDetails.checkIn")}</th>
-                            <th className="px-2 py-2 text-right">{tt("managerPortal.employeeDetails.checkOut")}</th>
-                            <th className="px-2 py-2 text-right">{tt("managerPortal.employeeDetails.hours")}</th>
-                            <th className="px-2 py-2 text-right">{tt("managerPortal.employeeDetails.late")}</th>
-                            <th className="px-2 py-2 text-right">{tt("managerPortal.employeeDetails.overtime")}</th>
+                            <th className="px-2 py-2 text-start">{tt("managerPortal.employeeDetails.day")}</th>
+                            <th className="px-2 py-2 text-start">{tt("managerPortal.employeeDetails.checkIn")}</th>
+                            <th className="px-2 py-2 text-start">{tt("managerPortal.employeeDetails.checkOut")}</th>
+                            <th className="px-2 py-2 text-start">{tt("managerPortal.employeeDetails.hours")}</th>
+                            <th className="px-2 py-2 text-start">{tt("managerPortal.employeeDetails.late")}</th>
+                            <th className="px-2 py-2 text-start">{tt("managerPortal.employeeDetails.overtime")}</th>
                             <th className="px-2 py-2" />
                           </tr>
                         </thead>
@@ -772,8 +775,8 @@ export default function EmployeeDetailsSheet({ token, employee, initialTab = "ov
                           {d.attendance.rows.map((row) => (
                             <tr key={String(row.date)}>
                               <td className="px-2 py-2 whitespace-nowrap">{formatDay(row.date)}</td>
-                              <td className="px-2 py-2 tabular-nums">{formatClock(row.check_in)}</td>
-                              <td className="px-2 py-2 tabular-nums whitespace-nowrap">
+                              <td className="px-2 py-2 [font-variant-numeric:tabular-nums]">{formatClock(row.check_in)}</td>
+                              <td className="px-2 py-2 [font-variant-numeric:tabular-nums] whitespace-nowrap">
                                 {formatClock(row.check_out)}
                                 {isOvernightRow(row.check_in, row.check_out) ? (
                                   <sup className="ms-0.5 text-[9px] font-black text-amber-600" title={tt("managerPortal.employeeDetails.checkOutNextDay")}>
@@ -781,9 +784,9 @@ export default function EmployeeDetailsSheet({ token, employee, initialTab = "ov
                                   </sup>
                                 ) : null}
                               </td>
-                              <td className="px-2 py-2 tabular-nums">{formatNumber(row.work_hours)}</td>
-                              <td className={`px-2 py-2 tabular-nums ${row.late_minutes > 0 ? "text-rose-700" : "text-slate-400"}`}>{formatMinutes(row.late_minutes)}</td>
-                              <td className={`px-2 py-2 tabular-nums ${row.overtime_minutes > 0 ? "text-emerald-700" : "text-slate-400"}`}>{formatMinutes(row.overtime_minutes)}</td>
+                              <td className="px-2 py-2 [font-variant-numeric:tabular-nums]">{formatNumber(row.work_hours)}</td>
+                              <td className={`px-2 py-2 [font-variant-numeric:tabular-nums] ${row.late_minutes > 0 ? "text-rose-700" : "text-slate-400"}`}>{formatMinutes(row.late_minutes)}</td>
+                              <td className={`px-2 py-2 [font-variant-numeric:tabular-nums] ${row.overtime_minutes > 0 ? "text-emerald-700" : "text-slate-400"}`}>{formatMinutes(row.overtime_minutes)}</td>
                               <td className="px-1 py-1 text-left">
                                 <button type="button" aria-label={tt("managerPortal.employeeDetails.editAttendance")} onClick={() => openAttendanceEditor(row)} className="inline-flex h-7 w-7 items-center justify-center rounded-lg border border-slate-200 bg-white text-slate-600">
                                   <Pencil className="h-3.5 w-3.5" />
@@ -796,9 +799,9 @@ export default function EmployeeDetailsSheet({ token, employee, initialTab = "ov
                           <tr>
                             <td className="px-2 py-2">{tt("managerPortal.employeeDetails.total")}</td>
                             <td className="px-2 py-2" colSpan={2}>{formatNumber(d.attendance.totals.days)} {tt("managerPortal.employeeDetails.days")}</td>
-                            <td className="px-2 py-2 tabular-nums">{formatNumber(d.attendance.totals.work_hours)}</td>
-                            <td className="px-2 py-2 tabular-nums text-rose-700">{formatMinutes(d.attendance.totals.late_minutes)}</td>
-                            <td className="px-2 py-2 tabular-nums text-emerald-700">{formatMinutes(d.attendance.totals.overtime_minutes)}</td>
+                            <td className="px-2 py-2 [font-variant-numeric:tabular-nums]">{formatNumber(d.attendance.totals.work_hours)}</td>
+                            <td className="px-2 py-2 [font-variant-numeric:tabular-nums] text-rose-700">{formatMinutes(d.attendance.totals.late_minutes)}</td>
+                            <td className="px-2 py-2 [font-variant-numeric:tabular-nums] text-emerald-700">{formatMinutes(d.attendance.totals.overtime_minutes)}</td>
                             <td />
                           </tr>
                         </tfoot>
