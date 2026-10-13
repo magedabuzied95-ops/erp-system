@@ -121,6 +121,9 @@ export default function InventoryApprovalsPage() {
   const [statusFilter, setStatusFilter] = useState("pending_review");
   // "sessions" is the review queue; "coverage" is which models were counted this month.
   const [view, setView] = useState("sessions");
+  // Below xl the list and the detail can't sit side by side, so a tapped count
+  // opens as a sheet over the list instead of landing far down the page.
+  const [detailSheetOpen, setDetailSheetOpen] = useState(false);
   const detailRef = useRef(null);
   const lastPortalUrl = typeof window !== "undefined" ? String(window.localStorage.getItem("manager_portal_last_url") || "").trim() : "";
 
@@ -282,9 +285,30 @@ export default function InventoryApprovalsPage() {
   const selectSession = (sessionId) => {
     setSelectedSessionId(String(sessionId));
     if (typeof window !== "undefined" && window.matchMedia("(max-width: 1279px)").matches) {
-      window.setTimeout(() => detailRef.current?.scrollIntoView({ behavior: "smooth", block: "start" }), 80);
+      setDetailSheetOpen(true);
+      window.setTimeout(() => { if (detailRef.current) detailRef.current.scrollTop = 0; }, 0);
     }
   };
+
+  useEffect(() => {
+    if (!detailSheetOpen || typeof window === "undefined") return undefined;
+    const previousOverflow = document.body.style.overflow;
+    document.body.style.overflow = "hidden";
+    const onKeyDown = (event) => {
+      if (event.key === "Escape" && !rejectOpen) setDetailSheetOpen(false);
+    };
+    // Growing past xl puts the detail back beside the list; drop the sheet so
+    // the body scroll lock doesn't outlive it.
+    const desktop = window.matchMedia("(min-width: 1280px)");
+    const onBreakpoint = () => { if (desktop.matches) setDetailSheetOpen(false); };
+    window.addEventListener("keydown", onKeyDown);
+    desktop.addEventListener?.("change", onBreakpoint);
+    return () => {
+      document.body.style.overflow = previousOverflow;
+      window.removeEventListener("keydown", onKeyDown);
+      desktop.removeEventListener?.("change", onBreakpoint);
+    };
+  }, [detailSheetOpen, rejectOpen]);
 
   const handleApprove = async () => {
     if (!token || !selectedSessionId) return;
@@ -530,7 +554,29 @@ export default function InventoryApprovalsPage() {
             />
           </div>
 
-          <div ref={detailRef} className="manager-inventory-panel min-w-0 scroll-mt-3 rounded-[var(--radius-card)] border border-border bg-surface-soft p-3 shadow-xl backdrop-blur sm:rounded-[var(--radius-card)] sm:p-4">
+          {detailSheetOpen ? (
+            // Inline scrim: M1 remaps bg-black/* to a light surface on this page.
+            <div className="fixed inset-0 z-[80] xl:hidden" style={{ background: "rgba(0, 0, 0, 0.55)" }} onClick={() => setDetailSheetOpen(false)} aria-hidden="true" />
+          ) : null}
+          <div
+            ref={detailRef}
+            role={detailSheetOpen ? "dialog" : undefined}
+            aria-modal={detailSheetOpen ? "true" : undefined}
+            className={`manager-inventory-panel min-w-0 border border-border bg-surface-soft p-3 shadow-xl sm:p-4 xl:static xl:z-auto xl:block xl:max-h-none xl:overflow-visible xl:rounded-[var(--radius-card)] xl:pb-4 ${detailSheetOpen ? "fixed inset-x-0 bottom-0 z-[85] max-h-[92dvh] overflow-y-auto overscroll-contain rounded-t-[var(--radius-card)] pb-[max(0.75rem,env(safe-area-inset-bottom))]" : "hidden"}`}
+          >
+            {detailSheetOpen ? (
+              <div className="sticky -top-3 z-30 -mx-3 -mt-3 mb-3 flex items-center justify-center border-b border-border bg-surface px-3 py-3 sm:-top-4 sm:-mx-4 sm:-mt-4 xl:hidden">
+                <span className="h-1.5 w-10 rounded-full bg-border" aria-hidden="true" />
+                <button
+                  type="button"
+                  onClick={() => setDetailSheetOpen(false)}
+                  aria-label={tt("managerPortal.actions.close")}
+                  className="absolute end-3 top-1/2 inline-flex h-9 w-9 -translate-y-1/2 items-center justify-center rounded-full border border-border bg-surface-soft text-text"
+                >
+                  <X className="h-4 w-4" />
+                </button>
+              </div>
+            ) : null}
             {selectedLoading ? (
               <div className="flex min-h-[28rem] items-center justify-center text-text-muted">
                 <Loader2 className="h-5 w-5 animate-spin" />
