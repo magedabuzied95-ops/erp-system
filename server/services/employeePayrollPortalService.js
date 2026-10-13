@@ -3621,7 +3621,10 @@ const createAdvanceFromPortalRequest = async ({ request, reviewedBy = null, clie
   return result.rows[0] || null;
 };
 
+// pg hands a DATE back as a Date at UTC midnight (bootstrapTimezone.js). Stringifying that gave
+// "Tue Oct 20 …", which never parsed, so every approved leave request silently wrote no vacation.
 const parseDateOnly = (value) => {
+  if (value instanceof Date) return Number.isFinite(value.getTime()) ? value.toISOString().slice(0, 10) : null;
   const raw = clean(value);
   if (!raw) return null;
   const date = new Date(`${raw.slice(0, 10)}T00:00:00Z`);
@@ -3687,7 +3690,11 @@ const createVacationFromPortalRequest = async ({ request, reviewedBy = null, ove
   if (!request || !["vacation", "leave"].includes(clean(request.request_type)) || clean(request.status) !== "approved") return null;
   const startDate = parseDateOnly(request.request_date || request.created_at);
   const endDate = parseDateOnly(request.end_date || request.request_date || request.created_at);
-  if (!startDate) return null;
+  if (!startDate) {
+    const error = new Error("Vacation request has no valid date");
+    error.status = 400;
+    throw error;
+  }
   const blockedDates = await assertLeaveRequestAllowed({
     tenantId: request.tenant_id,
     startDate,
