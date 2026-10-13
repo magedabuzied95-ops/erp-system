@@ -639,7 +639,10 @@ export default function EmployeeDetailsSheet({ token, employee, initialTab = "ov
                           ) : null}
                         </div>
                       </div>
-                      <div className="mt-1 flex flex-wrap items-center justify-between gap-x-3 gap-y-0.5 text-[11px] font-bold text-slate-500">
+                      {/* A fixed grid, not a wrapping row: wrapping moved "المخصوم" and "المتبقي"
+                          to different corners on different cards, and a fully deducted advance
+                          read as untouched. */}
+                      <div className="mt-1 grid grid-cols-2 gap-x-3 gap-y-0.5 text-[11px] font-bold text-slate-500">
                         <span>{tt("managerPortal.employeeDetails.takenOn")}: {formatDate(row.created_at)}</span>
                         <span>{tt("managerPortal.employeeDetails.deductionMonth")}: {monthLabel(row.deduction_month)}</span>
                         <span>{tt("managerPortal.employeeDetails.deducted")}: {formatCurrency(row.deducted_amount)}</span>
