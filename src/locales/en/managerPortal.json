@@ -281,7 +281,8 @@
     "updateAdvance": "Unable to update the advance request",
     "partialLoad": "Some data could not be loaded",
     "deleteTask": "Could not delete task",
-    "updateLatePermission": "Could not review the late permission"
+    "updateLatePermission": "Could not review the late permission",
+    "updateVacation": "Could not review the leave request"
   },
   "toasts": {
     "copied": "Copied",
@@ -298,7 +299,9 @@
     "templateUpdated": "Routine updated",
     "templateDeleted": "Routine deleted",
     "latePermissionApproved": "Late permission approved",
-    "latePermissionRejected": "Late permission rejected"
+    "latePermissionRejected": "Late permission rejected",
+    "vacationApproved": "Leave approved",
+    "vacationRejected": "Leave request rejected"
   },
   "push": {
     "unsupportedDetail": "This browser does not support web push notifications.",
@@ -858,6 +861,14 @@
     "day": "Day",
     "minutes": "{{count}} min",
     "wholeLateness": "Whole lateness"
+  },
+  "vacations": {
+    "title": "Leave requests",
+    "subtitle": "Approved: the leave is recorded for the employee right away",
+    "empty": "No leave requests waiting",
+    "approve": "Approve",
+    "range": "{{from}} to {{to}}",
+    "days": "{{count}} day(s)"
   },
   "reports": {
     "title": "Reports",

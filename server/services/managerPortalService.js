@@ -1199,11 +1199,17 @@ export const getManagerPortalStaff = async ({ manager = {} } = {}) => {
     .filter((request) => isLatePermissionRequest(request) && staffEmployeeIds.has(String(request.employee_id)))
     .map((request) => ({ ...request, request_type: "late_permission", allowed_minutes: Number(request.amount || 0) }));
 
+  // Vacations were sent from the employee portal but never listed here, so nobody could approve them.
+  const vacationRequests = (pendingPortalRequests || [])
+    .filter((request) => isVacationRequest(request) && staffEmployeeIds.has(String(request.employee_id)))
+    .map((request) => ({ ...request, days: vacationRequestDays(request) }));
+
   return {
     summary: taskDashboard?.summary || {},
     staff,
     advance_requests: advanceRequests,
     late_permission_requests: latePermissionRequests,
+    vacation_requests: vacationRequests,
     recent_tasks: taskDashboard?.recentTasks || [],
     history: taskDashboard?.history || [],
   };
@@ -1242,6 +1248,46 @@ const LEGACY_LATE_PERMISSION_RE = /^\s*(إذن تأخير|اذن تأخير|late
 const isLatePermissionRequest = (request = {}) => {
   const type = clean(request.request_type).toLowerCase();
   return type === "late_permission" || (type === "hr_note" && LEGACY_LATE_PERMISSION_RE.test(String(request.message || "")));
+};
+
+const isVacationRequest = (request = {}) => ["vacation", "leave"].includes(clean(request.request_type).toLowerCase());
+
+const requestDateKey = (value) => {
+  if (!value) return "";
+  if (value instanceof Date) return Number.isFinite(value.getTime()) ? value.toISOString().slice(0, 10) : "";
+  return String(value).slice(0, 10);
+};
+
+const vacationRequestDays = (request = {}) => {
+  const start = requestDateKey(request.request_date);
+  const end = requestDateKey(request.end_date) || start;
+  if (!start) return 1;
+  const span = Math.round((Date.parse(`${end}T00:00:00Z`) - Date.parse(`${start}T00:00:00Z`)) / 864e5) + 1;
+  return Number.isFinite(span) && span > 0 ? span : 1;
+};
+
+export const reviewManagerPortalVacationRequest = async ({ manager = {}, requestId, status, adminNote = "" } = {}) => {
+  const tenantId = numberOrNull(manager.tenant_id);
+  const requestedStatus = clean(status).toLowerCase();
+  if (!["approved", "rejected"].includes(requestedStatus)) {
+    const error = new Error("Status must be approved or rejected");
+    error.status = 400;
+    throw error;
+  }
+  const staffState = await getManagerPortalStaff({ manager });
+  const request = (staffState.vacation_requests || []).find((item) => String(item.id) === String(requestId));
+  if (!request) {
+    const error = new Error("Vacation request not found or already reviewed");
+    error.status = 404;
+    throw error;
+  }
+  return reviewEmployeePortalRequest({
+    tenantId,
+    requestId,
+    status: requestedStatus,
+    adminNote,
+    reviewedBy: manager.user_id || manager.id || null,
+  });
 };
 
 export const reviewManagerPortalLatePermissionRequest = async ({ manager = {}, requestId, status, adminNote = "" } = {}) => {

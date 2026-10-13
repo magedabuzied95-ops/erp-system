@@ -951,10 +951,13 @@ export const sendManagerProductEditedPush = async ({
 // an advance or a late permission. Before this only the ERP notifications list heard of them.
 export const sendManagerEmployeeRequestPush = async ({ request = {}, employee = {} } = {}) => {
   const type = text(request.request_type).toLowerCase();
-  if (!["advance", "late_permission"].includes(type)) return { sent: 0, skipped: true };
+  if (!["advance", "late_permission", "vacation"].includes(type)) return { sent: 0, skipped: true };
   const name = text(employee.full_name || employee.name || employee.employee_code) || "موظف";
   const isAdvance = type === "advance";
-  const date = request.request_date ? String(request.request_date instanceof Date ? request.request_date.toISOString() : request.request_date).slice(0, 10) : "";
+  const isVacation = type === "vacation";
+  const dayKey = (value) => (value ? String(value instanceof Date ? value.toISOString() : value).slice(0, 10) : "");
+  const date = dayKey(request.request_date);
+  const endDate = dayKey(request.end_date);
   const note = text(request.message);
   return sendToManagerSubscriptions({
     tenantId: numberOrNull(employee.tenant_id || request.tenant_id),
@@ -966,10 +969,12 @@ export const sendManagerEmployeeRequestPush = async ({ request = {}, employee = 
       failed: "[manager-push:employee-request-failed]",
     },
     buildPayload: (row) => ({
-      title: isAdvance ? `طلب سلفة من ${name}` : `طلب إذن تأخير من ${name}`,
+      title: isAdvance ? `طلب سلفة من ${name}` : isVacation ? `طلب إجازة من ${name}` : `طلب إذن تأخير من ${name}`,
       body: isAdvance
         ? `${Number(request.amount || 0)} ج.م${note ? ` — ${note}` : ""}`
-        : [date, Number(request.amount) > 0 ? `${Number(request.amount)} دقيقة` : "", note].filter(Boolean).join(" — ") || "افتح البوابة للموافقة أو الرفض",
+        : isVacation
+          ? [endDate && endDate !== date ? `من ${date} لـ ${endDate}` : date, note].filter(Boolean).join(" — ") || "افتح البوابة للموافقة أو الرفض"
+          : [date, Number(request.amount) > 0 ? `${Number(request.amount)} دقيقة` : "", note].filter(Boolean).join(" — ") || "افتح البوابة للموافقة أو الرفض",
       tag: `manager-employee-request-${request.id}`,
       data: {
         type: "employee_portal_request",

@@ -33,6 +33,7 @@ import {
   correctManagerPortalAttendance,
   reviewManagerPortalAdvanceRequest,
   reviewManagerPortalLatePermissionRequest,
+  reviewManagerPortalVacationRequest,
   getManagerPortalStockAlerts,
   getManagerPortalDaySummary,
   markManagerPortalChatRead,
@@ -571,6 +572,23 @@ router.patch("/:token/late-permission-requests/:requestId", async (req, res) => 
   } catch (error) {
     if (!error?.status) console.error("[manager-portal] late permission review error", error);
     return res.status(error.status || 500).json({ success: false, message: error.message || "Failed to review late permission request" });
+  }
+});
+
+router.patch("/:token/vacation-requests/:requestId", async (req, res) => {
+  try {
+    const manager = await loadVerifiedManager(req, res);
+    if (!manager) return;
+    const request = await reviewManagerPortalVacationRequest({
+      manager,
+      requestId: req.params.requestId,
+      status: req.body?.status,
+      adminNote: req.body?.admin_note || "",
+    });
+    return res.json({ success: true, request });
+  } catch (error) {
+    if (!error?.status) console.error("[manager-portal] vacation review error", error);
+    return res.status(error.status || 500).json({ success: false, message: error.message || "Failed to review vacation request" });
   }
 });
 

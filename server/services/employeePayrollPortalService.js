@@ -2447,7 +2447,7 @@ export const createEmployeePortalRequest = async ({ employee, data = {}, audit =
     type: "employee_portal_request",
     category: "employees",
     priority: requestType === "advance" ? "high" : "medium",
-    title: requestType === "advance" ? "طلب سلفة" : requestType === "late_permission" ? "طلب إذن تأخير" : "Employee wallet request",
+    title: requestType === "advance" ? "طلب سلفة" : requestType === "late_permission" ? "طلب إذن تأخير" : requestType === "vacation" ? "طلب إجازة" : "Employee wallet request",
     message: requestType === "advance"
       ? `${employee.full_name || employee.name || "موظف"} طلب سلفة ${amount} ج.م`
       : requestType === "late_permission"
@@ -2469,7 +2469,7 @@ export const createEmployeePortalRequest = async ({ employee, data = {}, audit =
       end_date: endDate,
     },
   }).catch((error) => debugEmployeePortal("[employee-payroll-portal] admin notification skipped", { error: error?.message || error }));
-  if (["advance", "late_permission"].includes(requestType)) {
+  if (["advance", "late_permission", "vacation"].includes(requestType)) {
     import("./managerPortalPushService.js")
       .then(({ sendManagerEmployeeRequestPush }) => sendManagerEmployeeRequestPush({ request: { ...request, tenant_id: employee.tenant_id, employee_id: employee.id }, employee }))
       .catch((error) => console.warn("[employee-payroll-portal] manager request push skipped", error?.message || error));
