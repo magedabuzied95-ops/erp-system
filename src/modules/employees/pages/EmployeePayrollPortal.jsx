@@ -11,6 +11,10 @@ import {
   Banknote,
   Bell,
   CalendarDays,
+
+  CalendarX,
+
+  Clock,
   CheckCheck,
   CheckCircle2,
   ClipboardList,
@@ -82,6 +86,7 @@ import { getEmployeePortalInboxAccess } from "../services/employeePortalInboxApi
 import EmployeeDisplayAuditPanel from "../components/EmployeeDisplayAuditPanel";
 import AttendanceRulesPanel from "../components/AttendanceRulesPanel";
 import EmployeeMonthSheet from "../components/EmployeeMonthSheet";
+import { buildMonthDays, monthDayKey } from "../lib/employeeMonthDays";
 import { getEmployeeSalesOpportunities, getEmployeeSalesBoard } from "../services/salesOpportunitiesApi";
 import usePageTitle from "../../../shared/hooks/usePageTitle";
 import { useTheme } from "../../../theme/useTheme";
@@ -1128,16 +1133,6 @@ const formatIsoDateLocal = (value, language = "en", fallback = "-") => {
 const attendanceLocalDate = (row, language = "en") => {
   const source = row?.attendance_date || row?.date || row?.check_in || row?.check_out;
   return formatIsoDateLocal(source, language);
-};
-
-// attendance_logs stores a machine status ('checked_in' / 'checked_out'), and
-// printing it raw put English words in front of employees who read Arabic only.
-const attendanceStatusLabel = (row = {}, text = labels.ar) => {
-  const status = String(row?.status || "").trim().toLowerCase();
-  if (status === "absent") return text.absent;
-  if (row?.check_out) return text.checkedOut;
-  if (row?.check_in) return text.checkedIn;
-  return text.absent;
 };
 
 const todayIsoLocal = (language = "en") => formatIsoDateLocal(new Date(), language);
@@ -2803,6 +2798,13 @@ export default function EmployeePayrollPortal() {
     }
   }, [displayRefillAlerts, displayRefillBarcodeSettings.autoPrintWhenDisplayed, printDisplayRefillBarcode, showPortalToast, token]);
 
+  // The absent days this month, counted exactly as the أيام الحضور sheet lists them.
+  const monthAbsentCount = useMemo(() => {
+    const monthDays = portal?.attendance?.month_days;
+    if (!monthDays) return Number(attendance.absence_days || 0);
+    return buildMonthDays({ timeline: portal?.attendance?.timeline || [], monthDays, today: monthDayKey(new Date(), getAppTimezone()), timeZone: getAppTimezone() }).counts.absent;
+  }, [attendance.absence_days, portal?.attendance?.month_days, portal?.attendance?.timeline]);
+
   // Which home card's sheet is open: "attendance" | "advances" | "".
   const [monthSheet, setMonthSheet] = useState("");
   const closeMonthSheet = useCallback(() => setMonthSheet(""), []);
@@ -2817,6 +2819,22 @@ export default function EmployeePayrollPortal() {
         Icon: CalendarDays,
         accent: "green",
         onClick: () => setMonthSheet("attendance"),
+      },
+      {
+        // Same count the أيام الحضور sheet lists: payroll's absent days so far this month.
+        label: text.absentDays,
+        value: `${monthAbsentCount} ${ui("daysUnit")}`,
+        Icon: CalendarX,
+        accent: monthAbsentCount > 0 ? "amber" : "green",
+        onClick: () => setMonthSheet("attendance"),
+      },
+      {
+        label: text.overtimeHours,
+        value: `${Number(attendance.overtime_hours || 0)}`,
+        subtitle: ui("currentMonthSubtitle"),
+        Icon: Clock,
+        numeric: true,
+        accent: "blue",
       },
       {
         label: ui("pendingTasks"),
@@ -2842,7 +2860,7 @@ export default function EmployeePayrollPortal() {
         accent: "blue",
       },
     ];
-  }, [expectedDays, hasRunningNetSalary, payrollExists, pendingTasks.length, portal, presentDays, text, ui, wallet]);
+  }, [attendance.overtime_hours, expectedDays, hasRunningNetSalary, monthAbsentCount, payrollExists, pendingTasks.length, portal, presentDays, text, ui, wallet]);
 
   const payslipCards = useMemo(() => {
     if (!portal) return [];
@@ -4871,33 +4889,6 @@ export default function EmployeePayrollPortal() {
                 </div>
               </>
             ) : null}
-
-            {activeTab === "attendance" ? <div className="grid gap-3">
-              <div className="flex items-center justify-between gap-3 rounded-[var(--radius-card)] border border-border bg-surface p-3 shadow-sm">
-                <h3 className="m1-section-title">{text.attendanceTimeline}</h3>
-                <CalendarDays className="h-5 w-5 text-text-muted" />
-              </div>
-              <div className="grid gap-2.5">
-                {attendanceRows.length ? attendanceRows.map((row) => (
-                  <div key={`${row.date}-${row.check_in || ""}`} className="rounded-[var(--radius-card)] border border-border bg-surface-soft p-3 text-sm font-bold">
-                    <div className="flex items-center justify-between gap-3">
-                      <div className="font-black tabular-nums"><DateSafe>{formatEmployeePortalDate(row.attendance_date || row.date || row.check_in || row.check_out, language)}</DateSafe></div>
-                      <span className="rounded-full bg-surface px-2.5 py-1 text-xs font-black text-text">{attendanceStatusLabel(row, text)}</span>
-                    </div>
-                    <div className="mt-3 grid grid-cols-2 gap-2 text-xs text-text-muted">
-                      <div className="col-span-2"><span className="font-black text-text">{text.shift}: </span><span dir="auto">{formatShiftLabelLocal(row, language)}</span></div>
-                      <div><span className="font-black text-text">{text.checkIn}: </span><DateSafe>{formatTimeLocal(row.check_in, language)}</DateSafe></div>
-                      <div><span className="font-black text-text">{text.checkOut}: </span><DateSafe>{formatTimeLocal(row.check_out, language)}</DateSafe></div>
-                      <div><span className="font-black text-text">{text.lateMinutes}: </span><span dir="ltr">{row.late_minutes || 0}</span></div>
-                      <div><span className="font-black text-text">{text.overtimeHours}: </span><span dir="ltr">{row.overtime_hours || 0}</span></div>
-                    </div>
-                    {row.notes ? <div className="mt-2 text-xs leading-5 text-text-muted" dir="auto">{text.notes}: {row.notes}</div> : null}
-                  </div>
-                )) : (
-                  <div className="rounded-[var(--radius-card)] border border-dashed border-border bg-surface-soft px-3 py-5 text-center text-sm font-bold text-text-muted">{text.noAttendance}</div>
-                )}
-              </div>
-            </div> : null}
 
             {activeTab === "tasks" ? (
               // Heading and list at the page inset, not inside a padded panel —
