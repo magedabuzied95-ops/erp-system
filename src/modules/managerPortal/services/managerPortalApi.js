@@ -8,6 +8,7 @@ export const managerPortalApi = {
   invoice: (token, invoiceId) => api.get(`${tokenPath(token)}/invoices/${encodeURIComponent(invoiceId)}`),
   staff: (token, options = {}) => api.get(`${tokenPath(token)}/staff`, options),
   employeeDetails: (token, employeeId, params = {}, options = {}) => api.get(`${tokenPath(token)}/staff/${encodeURIComponent(employeeId)}/details`, { ...options, params }),
+  employeePerformance: (token, employeeId, params = {}, options = {}) => api.get(`${tokenPath(token)}/staff/${encodeURIComponent(employeeId)}/performance`, { ...options, params }),
   createEmployeeAdjustment: (token, employeeId, payload) => api.post(`${tokenPath(token)}/staff/${encodeURIComponent(employeeId)}/adjustments`, payload),
   deleteEmployeeAdjustment: (token, employeeId, kind, adjustmentId) => api.delete(`${tokenPath(token)}/staff/${encodeURIComponent(employeeId)}/adjustments/${encodeURIComponent(kind)}/${encodeURIComponent(adjustmentId)}`),
   updateEmployeeAdvance: (token, employeeId, advanceId, payload) => api.patch(`${tokenPath(token)}/staff/${encodeURIComponent(employeeId)}/advances/${encodeURIComponent(advanceId)}`, payload),

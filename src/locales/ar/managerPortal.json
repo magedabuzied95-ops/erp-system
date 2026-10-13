@@ -711,6 +711,8 @@
       "sales": "المبيعات",
       "advances": "السلف",
       "attendance": "الحضور",
+      "counts": "الجرد",
+      "performance": "التقييم",
       "adjustments": "إضافة / خصم"
     },
     "monthSales": "مبيعات الشهر",

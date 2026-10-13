@@ -711,6 +711,8 @@
       "sales": "Sales",
       "advances": "Advances",
       "attendance": "Attendance",
+      "counts": "Stock counts",
+      "performance": "Evaluation",
       "adjustments": "Bonus / Deduction"
     },
     "monthSales": "Month sales",

@@ -54,6 +54,7 @@ import {
   loadManagerPortalByToken,
 } from "../services/managerPortalService.js";
 import { getManagerPortalReports } from "../services/managerPortalReportsService.js";
+import { getManagerPortalEmployeePerformance } from "../services/managerPortalEmployeePerformanceService.js";
 import { getLinkPreview } from "../services/linkPreviewService.js";
 import { getPortalOnlineOrder, listPortalOnlineOrders } from "../modules/shipping/shipping.portal.service.js";
 import { runPortalBulkPrint, runPortalOrderAction } from "../modules/shipping/shipping.portal.actions.js";
@@ -434,6 +435,20 @@ router.get("/:token/staff/:employeeId/details", async (req, res) => {
   } catch (error) {
     console.error("[manager-portal] employee details error", error);
     return res.status(error.status || 500).json({ success: false, message: error.message || "Failed to load employee details" });
+  }
+});
+
+// الجرد + التقييم tabs of the employee sheet: what the employee counted this month,
+// and where the month's sales sit in the branch.
+router.get("/:token/staff/:employeeId/performance", async (req, res) => {
+  try {
+    const manager = await loadVerifiedManager(req, res);
+    if (!manager) return;
+    const performance = await getManagerPortalEmployeePerformance({ manager, employeeId: req.params.employeeId, month: req.query.month });
+    return res.json({ success: true, performance });
+  } catch (error) {
+    console.error("[manager-portal] employee performance error", error);
+    return res.status(error.status || 500).json({ success: false, message: error.message || "Failed to load employee performance" });
   }
 });
 

@@ -2,6 +2,7 @@ import { useEffect, useMemo, useState } from "react";
 import { Loader2, X, Plus, Minus, ChevronRight, ChevronLeft, Trash2, Pencil } from "lucide-react";
 import i18n from "../../../i18n/i18n";
 import { managerPortalApi } from "../services/managerPortalApi";
+import { EmployeeCountsTab, EmployeePerformanceTab, useEmployeePerformance } from "./EmployeePerformanceTabs";
 import { formatCurrency } from "../../../shared/lib/currency";
 import { resolveEmployeeProfileImageUrl } from "../../../shared/lib/imageUrls";
 import {
@@ -59,7 +60,7 @@ const currentMonth = () => {
   return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}`;
 };
 
-const TABS = ["overview", "sales", "advances", "attendance", "adjustments"];
+const TABS = ["overview", "sales", "advances", "attendance", "counts", "performance", "adjustments"];
 
 const Row = ({ label, value, tone = "" }) => (
   <div className="flex items-center justify-between gap-3 py-2 text-sm">
@@ -130,6 +131,8 @@ export default function EmployeeDetailsSheet({ token, employee, initialTab = "ov
 
   useEffect(() => { load(); /* eslint-disable-next-line react-hooks/exhaustive-deps */ }, [token, employeeId, month]);
   useEffect(() => { setTab(TABS.includes(initialTab) ? initialTab : "overview"); }, [initialTab, employeeId]);
+
+  const perf = useEmployeePerformance({ token, employeeId, month, enabled: tab === "counts" || tab === "performance" });
 
   const d = state.details;
   const photo = resolveEmployeeProfileImageUrl(d?.employee?.photo_url || employee?.photo_url || "");
@@ -396,6 +399,8 @@ export default function EmployeeDetailsSheet({ token, employee, initialTab = "ov
     sales: tt("managerPortal.employeeDetails.tabs.sales"),
     advances: tt("managerPortal.employeeDetails.tabs.advances"),
     attendance: tt("managerPortal.employeeDetails.tabs.attendance"),
+    counts: tt("managerPortal.employeeDetails.tabs.counts"),
+    performance: tt("managerPortal.employeeDetails.tabs.performance"),
     adjustments: tt("managerPortal.employeeDetails.tabs.adjustments"),
   }), []);
 
@@ -796,6 +801,10 @@ export default function EmployeeDetailsSheet({ token, employee, initialTab = "ov
                   ) : <div className="rounded-xl border border-dashed border-slate-200 px-3 py-6 text-center text-xs font-bold text-slate-500">{tt("managerPortal.employeeDetails.noAttendance")}</div>}
                 </div>
               ) : null}
+
+              {tab === "counts" ? <EmployeeCountsTab perf={perf} /> : null}
+
+              {tab === "performance" ? <EmployeePerformanceTab details={d} perf={perf} /> : null}
 
               {tab === "adjustments" ? (
                 <div className="space-y-4">

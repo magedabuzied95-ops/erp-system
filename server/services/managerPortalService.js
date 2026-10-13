@@ -3006,7 +3006,7 @@ const describePayrollRun = (run) => (!run ? null : {
   payment_method: run.payment_method || null,
 });
 
-const loadScopedEmployee = async ({ manager = {}, employeeId }) => {
+export const loadScopedEmployee = async ({ manager = {}, employeeId }) => {
   const tenantId = numberOrNull(manager.tenant_id);
   const branchId = branchFilterValue(manager);
   const id = numberOrNull(employeeId);
