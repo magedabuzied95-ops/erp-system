@@ -291,7 +291,11 @@ const emptyTaskDraft = () => ({
   weekdays: [],
   checklist_text: "",
   requires_photo: false,
+  // A routine with nobody named: "round_robin" rotates through every employee;
+  // "least_tasks_today" gives one task to each employee who checks in.
+  assignment_strategy: "least_tasks_today",
 });
+const ROTATION_STRATEGY = "round_robin";
 const WEEKDAY_ORDER = [6, 0, 1, 2, 3, 4, 5]; // Saturday-first, the local work week
 const weekdayLabel = (day) => tt(`managerPortal.weekdays.${day}`);
 // <input type="datetime-local"> value → ISO; empty stays null.
@@ -2171,6 +2175,7 @@ export default function ManagerPortal() {
           weekdays: taskDraft.weekdays,
           checklist_items: taskDraft.checklist_text.split("\n").map((line) => line.trim()).filter(Boolean),
           requires_photo: Boolean(taskDraft.requires_photo),
+          assignment_strategy: taskDraft.assignment_strategy === ROTATION_STRATEGY ? ROTATION_STRATEGY : "least_tasks_today",
         };
         if (editingTemplateId) {
           await managerPortalApi.updateTaskTemplate(token, editingTemplateId, {
@@ -2233,6 +2238,7 @@ export default function ManagerPortal() {
       weekdays: Array.isArray(template.weekdays) ? template.weekdays : [],
       checklist_text: (template.checklist_items || []).join("\n"),
       requires_photo: Boolean(template.requires_photo),
+      assignment_strategy: template.assignment_strategy === ROTATION_STRATEGY ? ROTATION_STRATEGY : "least_tasks_today",
     });
     setTaskModalOpen(true);
   };
@@ -3734,7 +3740,7 @@ export default function ManagerPortal() {
                               </div>
                               <div className="mt-1 truncate text-sm font-black text-text">{portalText(template.title)}</div>
                               <div className="mt-0.5 truncate text-[11px] font-bold text-text-muted">
-                                {schedule} · {template.fixed_employee_name ? portalText(template.fixed_employee_name) : tt("managerPortal.tasks.autoAssign")}
+                                {schedule} · {template.fixed_employee_name ? portalText(template.fixed_employee_name) : tt(template.assignment_strategy === ROTATION_STRATEGY ? "managerPortal.tasks.autoRotation" : "managerPortal.tasks.autoAssign")}
                               </div>
                             </div>
                             <div className="flex shrink-0 items-center gap-1">
@@ -4946,6 +4952,30 @@ export default function ManagerPortal() {
                       </div>
                     </div>
                   )}
+                  {(taskDraft.kind === "daily" || taskDraft.kind === "weekly") && !taskDraft.assigned_employee_id && !taskDraft.assigned_employee_ids.length ? (
+                    <div className="rounded-[var(--radius-control)] border border-slate-200 bg-white px-3 py-2 md:col-span-2 dark:border-white/10 dark:bg-white/[0.03]">
+                      <div className="text-[11px] font-black text-slate-500">{tt("managerPortal.tasks.distributionMode")}</div>
+                      <div role="radiogroup" className="mt-1.5 flex flex-wrap gap-1.5">
+                        {["least_tasks_today", ROTATION_STRATEGY].map((strategy) => {
+                          const active = (taskDraft.assignment_strategy === ROTATION_STRATEGY ? ROTATION_STRATEGY : "least_tasks_today") === strategy;
+                          return (
+                            <button
+                              key={strategy}
+                              type="button"
+                              role="radio"
+                              aria-checked={active}
+                              data-testid={`task-distribution-${strategy}`}
+                              onClick={() => setTaskDraft((current) => ({ ...current, assignment_strategy: strategy }))}
+                              className={`inline-flex items-center gap-1.5 rounded-full border px-2.5 py-1 text-xs font-black transition ${active ? "border-primary bg-primary text-[var(--primary-contrast)]" : "border-slate-200 bg-slate-50 text-slate-700 dark:border-white/10 dark:bg-white/[0.04] dark:text-white"}`}
+                            >
+                              {active ? <CheckCircle2 className="h-3.5 w-3.5" /> : null}
+                              {tt(strategy === ROTATION_STRATEGY ? "managerPortal.tasks.distributionRotation" : "managerPortal.tasks.distributionArrival")}
+                            </button>
+                          );
+                        })}
+                      </div>
+                    </div>
+                  ) : null}
                   <select value={taskDraft.priority} onChange={(event) => setTaskDraft((current) => ({ ...current, priority: event.target.value }))} className="rounded-[var(--radius-control)] border border-slate-200 bg-white px-3 py-3 text-sm font-semibold outline-none dark:border-white/10 dark:bg-white/[0.03]">
                     <option value="low">{tt("managerPortal.priority.low")}</option>
                     <option value="medium">{tt("managerPortal.priority.medium")}</option>

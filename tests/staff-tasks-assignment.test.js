@@ -89,18 +89,40 @@ test("a weekly routine is stamped with the day it is due, not the start of its w
   assert.match(generatorBody, /assigned_date: scheduleDate/, "assigned_date must be the real day");
 });
 
-test("the weekly check-in assigner searches the day the instance is stamped with", () => {
-  const weeklyBody = functionBody(tasksService, "const assignWeeklyAttendanceTasksForCheckIn =");
+test("the waiting-task search covers today and legacy week-start weekly rows only", () => {
+  const dateBody = functionBody(tasksService, "const waitingTaskDateSql =");
+  assert.match(dateBody, /sta\.assigned_date = \$\{dateParam\}::date/, "today's instances must be found by their own day");
   assert.match(
-    weeklyBody,
-    /sta\.assigned_date = ANY\(\$3::date\[\]\)/,
-    "searching a single week-start date orphaned every weekly routine that was not a Monday routine"
+    dateBody,
+    /sta\.assigned_date = \$\{weekStartParam\}::date AND sta\.source_ref_type = 'weekly_task_template'/,
+    "rows stamped with the week start are legacy WEEKLY rows — an old daily row must not be dragged into today"
   );
-  assert.match(
-    weeklyBody,
-    /\[\.\.\.new Set\(\[attendanceDate, weekStart\]\)\]/,
-    "the search must cover today (new stamping) and the week start (rows written before the fix)"
-  );
+  const loadBody = functionBody(tasksService, "const loadWaitingBranchTasks =");
+  assert.match(loadBody, /weekStartKey\(attendanceDate\)/);
+});
+
+test("a check-in hands out one share, not the whole day's list", () => {
+  const checkInBody = functionBody(tasksService, "export const handleBranchQrCheckInStaffTasks =");
+  assert.match(checkInBody, /distributeWaitingBranchTasks\(\{/, "check-in must go through the single distributor");
+  assert.match(checkInBody, /arrivingEmployeeId: safeEmployeeId/, "the distributor must know who just arrived");
+  for (const removed of ["assignWaitingRecurringTasksForCheckIn", "assignDailyAttendanceTasksForCheckIn", "assignWeeklyAttendanceTasksForCheckIn", "rebalanceBranchAttendanceTasks"]) {
+    assert.ok(!tasksService.includes(removed), `${removed} gave every waiting task to whoever was present — it must not come back`);
+  }
+  const distributeBody = functionBody(tasksService, "const distributeWaitingBranchTasks =");
+  assert.match(distributeBody, /pickRotationAssignee\(/);
+  assert.match(distributeBody, /pickArrivalAssignee\(/);
+  assert.match(distributeBody, /FOR UPDATE|loadWaitingBranchTasks\(client/, "claims must run inside the locked transaction");
+});
+
+test("a late task stays with its owner", () => {
+  const overdueBody = functionBody(tasksService, "export const reassignOverdueTasks =");
+  assert.ok(!/redistributeTasks\(/.test(overdueBody), "the owner decided overdue work is not moved to somebody else");
+  assert.match(overdueBody, /SET status = 'overdue'/, "late work is still marked overdue");
+});
+
+test("the five-minute timer settles waiting tasks", () => {
+  const server = read("server/server.js");
+  assert.match(server, /void settleWaitingStaffTasks\(\)/);
 });
 
 test("a branch-less routine materialises once per active branch", () => {
@@ -172,7 +194,7 @@ test("an unowned task raises a manager alert instead of reaching employees", () 
     /const countUnassignedBranchTasks = async/,
     "somebody has to be told when a task ends the check-in with no owner"
   );
-  const notifyBody = functionBody(tasksService, "const notifyManagerAttendanceTaskState =");
+  const notifyBody = functionBody(tasksService, "const notifyManagerUnassignedTasks =");
   assert.match(notifyBody, /type: "staff_tasks_unassigned"/, "the alert must be addressed to the manager");
   assert.match(notifyBody, /role_key: "manager"/);
 });

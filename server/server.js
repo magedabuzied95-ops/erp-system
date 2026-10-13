@@ -813,7 +813,7 @@ const { ensureAiSalesAgentSchema } = await import("./services/aiSalesAgentServic
 const { ensureSocialCommentsCenterSchema } = await import("./services/socialCommentsCenterService.js");
 const { startSocialCommentJobWorker } = await import("./services/socialCommentJobQueue.js");
 const { ensureAiInboxLeadActionsSchema } = await import("./services/aiInboxLeadActionsService.js");
-const { ensureStaffTasksSchema, assignDailyInventoryCountTasks, reassignOverdueTasks, sendUpcomingTaskDueReminders, generateRecurringTasksForToday } = await import("./services/staffTasksService.js");
+const { ensureStaffTasksSchema, assignDailyInventoryCountTasks, reassignOverdueTasks, sendUpcomingTaskDueReminders, generateRecurringTasksForToday, settleWaitingStaffTasks } = await import("./services/staffTasksService.js");
 const { processStaffTaskEmailQueue } = await import("./services/staffTaskEmailNotificationService.js");
 const { ensureTransactionalEmailSchema, processTransactionalEmailOutbox } = await import("./services/transactionalEmail/orderEmailService.js");
 const { runDueSocialPublisherPublishes } = await import("./services/socialPublisherPostsService.js");
@@ -2450,7 +2450,10 @@ const runDeferredStartupSyncs = async ({ skipStartupSyncs = false } = {}) => {
           console.error("[server] staff task email queue error", error);
         });
         void reassignOverdueTasks({ tenantId: null }).catch((error) => {
-          console.error("[server] staff task overdue reassignment error", error);
+          console.error("[server] staff task overdue marking error", error);
+        });
+        void settleWaitingStaffTasks().catch((error) => {
+          console.error("[server] staff task settle error", error);
         });
         void sendUpcomingTaskDueReminders({ tenantId: null }).catch((error) => {
           console.error("[server] staff task due reminder error", error);

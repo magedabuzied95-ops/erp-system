@@ -8,6 +8,7 @@ import { repairArabicMojibakeText } from "../utils/textEncoding.js";
 import { createNotification } from "./notificationsService.js";
 import { sendOverdueEmployeePortalTaskPushes, sendTaskAssignedPush, sendTaskOverduePush, sendTaskUpdatedPush } from "./employeePortalPushService.js";
 import { enqueueStaffTaskEmail, processStaffTaskEmailQueue } from "./staffTaskEmailNotificationService.js";
+import { ROTATION_MODE, employeeFitsTask, isSettled, pickArrivalAssignee, pickRotationAssignee, rotationOrder } from "../utils/staffTaskDistribution.js";
 
 const TASK_STATUSES = new Set(["pending", "in_progress", "completed", "overdue", "cancelled", "rejected", "manager_review", "reassigned"]);
 const STRICT_TASK_STATUSES = new Set(["pending", "in_progress", "completed", "overdue", "cancelled", "rejected"]);
@@ -1882,223 +1883,6 @@ export const generateDueTaskInstancesFromTemplates = async ({ tenantId = null, d
   return { created, skipped };
 };
 
-const logAttendanceTaskAutoAssign = (details = {}) => {
-  console.info("[attendance-task-auto-assign]", {
-    employee_id: details.employeeId ?? null,
-    branch_id: details.branchId ?? null,
-    attendance_event_id: details.attendanceEventId ?? null,
-    task_id: details.taskId ?? null,
-    assigned: Boolean(details.assigned),
-    skip_reason: details.skipReason || null,
-  });
-};
-
-export const assignWaitingRecurringTasksForCheckIn = async ({ tenantId, branchId, employeeId, attendanceDate = dateKey(), attendanceEventId = null, clientOrPool = db } = {}) => {
-  await ensureStaffTasksSchema(clientOrPool);
-  const dbClient = clientOrPool || db;
-  const safeTenantId = numberOrNull(tenantId);
-  const safeBranchId = numberOrNull(branchId);
-  const safeEmployeeId = numberOrNull(employeeId);
-  const safeAttendanceEventId = numberOrNull(attendanceEventId);
-  const safeDate = dateKey(attendanceDate);
-  if (!safeTenantId || !safeBranchId || !safeEmployeeId) {
-    logAttendanceTaskAutoAssign({
-      employeeId: safeEmployeeId,
-      branchId: safeBranchId,
-      attendanceEventId: safeAttendanceEventId,
-      assigned: false,
-      skipReason: "missing_required_ids",
-    });
-    return [];
-  }
-  const employeeResult = await dbClient.query(
-    `
-    SELECT e.*, u.email AS user_email
-    FROM employees e
-    LEFT JOIN users u ON u.id = e.user_id
-    WHERE e.id = $1
-      AND e.tenant_id = $2
-      AND e.branch_id = $3
-      AND LOWER(COALESCE(e.status, 'active')) = 'active'
-    LIMIT 1
-    `,
-    [safeEmployeeId, safeTenantId, safeBranchId]
-  );
-  const employee = employeeResult.rows[0];
-  if (!employee) {
-    logAttendanceTaskAutoAssign({
-      employeeId: safeEmployeeId,
-      branchId: safeBranchId,
-      attendanceEventId: safeAttendanceEventId,
-      assigned: false,
-      skipReason: "employee_not_eligible_for_branch",
-    });
-    return [];
-  }
-
-  const tasks = await dbClient.query(
-    `
-    SELECT sta.*, st.assignment_strategy, st.auto_assign_mode AS template_auto_assign_mode, st.requires_checkin, st.auto_assign_enabled
-    FROM staff_task_assignments sta
-    LEFT JOIN staff_task_templates st ON st.id = sta.template_id
-    WHERE sta.tenant_id = $1
-      AND sta.branch_id = $2
-      AND sta.assigned_date = $3::date
-      AND sta.current_assignee_id IS NULL
-      AND sta.assigned_employee_id IS NULL
-      AND sta.status = 'pending'
-      AND (
-        COALESCE(st.auto_assign_enabled, FALSE) IS TRUE
-        OR COALESCE(sta.metadata->>'assignment_state', '') = 'waiting_for_eligible_employee'
-      )
-      AND (
-        COALESCE(sta.auto_assign_mode, st.auto_assign_mode, sta.metadata->>'auto_assign_mode', sta.metadata->>'assignment_strategy', st.assignment_strategy, '') IN ('attendance_first_checkin','first_checked_in')
-      )
-    ORDER BY sta.due_at NULLS FIRST, sta.id ASC
-    FOR UPDATE SKIP LOCKED
-    `,
-    [safeTenantId, safeBranchId, safeDate]
-  );
-  if (!tasks.rows.length) {
-    logAttendanceTaskAutoAssign({
-      employeeId: safeEmployeeId,
-      branchId: safeBranchId,
-      attendanceEventId: safeAttendanceEventId,
-      assigned: false,
-      skipReason: "no_pending_attendance_first_checkin_tasks",
-    });
-    return [];
-  }
-
-  const assigned = [];
-  for (const task of tasks.rows) {
-    const taskRole = nullableText(task.role_key);
-    const taskDepartment = nullableText(task.department);
-    const employeeRoleValues = [
-      employee.role,
-      employee.role_key,
-      employee.job_title,
-      employee.position,
-      employee.department,
-    ].map((value) => text(value).toLowerCase()).filter(Boolean);
-    const employeeDepartment = text(employee.department).toLowerCase();
-    if (taskDepartment && taskDepartment.toLowerCase() !== employeeDepartment && !employeeRoleValues.includes(taskDepartment.toLowerCase())) {
-      logAttendanceTaskAutoAssign({
-        employeeId: safeEmployeeId,
-        branchId: safeBranchId,
-        attendanceEventId: safeAttendanceEventId,
-        taskId: task.id,
-        assigned: false,
-        skipReason: "department_not_eligible",
-      });
-      continue;
-    }
-    if (taskRole && !employeeRoleValues.includes(taskRole.toLowerCase())) {
-      logAttendanceTaskAutoAssign({
-        employeeId: safeEmployeeId,
-        branchId: safeBranchId,
-        attendanceEventId: safeAttendanceEventId,
-        taskId: task.id,
-        assigned: false,
-        skipReason: "role_not_eligible",
-      });
-      continue;
-    }
-
-    const updated = await dbClient.query(
-      `
-      UPDATE staff_task_assignments
-      SET current_assignee_id = $1::bigint,
-          assigned_employee_id = $1::bigint,
-          assigned_user_id = $2::bigint,
-          auto_assigned = TRUE,
-          assigned_at = NOW(),
-          assignment_source = 'attendance_checkin_auto',
-          assignment_event_id = $3::bigint,
-          auto_assign_mode = 'attendance_first_checkin',
-          metadata = metadata || $4::jsonb,
-          updated_at = NOW()
-      WHERE id = $5::bigint
-        AND current_assignee_id IS NULL
-        AND assigned_employee_id IS NULL
-        AND status = 'pending'
-      RETURNING *
-      `,
-      [
-        safeEmployeeId,
-        employee.user_id || null,
-        safeAttendanceEventId,
-        JSON.stringify({
-          assignment_state: "assigned",
-          assignment_reason: "attendance_checkin_auto",
-          assignment_source: "attendance_checkin_auto",
-          assignment_event_id: safeAttendanceEventId,
-          auto_assign_mode: "attendance_first_checkin",
-          auto_assignment: true,
-          waiting_reason: null,
-        }),
-        task.id,
-      ]
-    );
-    if (!updated.rows[0]) {
-      logAttendanceTaskAutoAssign({
-        employeeId: safeEmployeeId,
-        branchId: safeBranchId,
-        attendanceEventId: safeAttendanceEventId,
-        taskId: task.id,
-        assigned: false,
-        skipReason: "already_claimed",
-      });
-      continue;
-    }
-    await logTaskHistory(dbClient, {
-      tenantId: safeTenantId,
-      taskId: task.id,
-      action: "auto_assigned",
-      fromStatus: task.status,
-      toStatus: task.status,
-      toEmployeeId: safeEmployeeId,
-      note: "Assigned after employee check-in",
-      metadata: {
-        source: "attendance_checkin_auto",
-        auto: true,
-        strategy: task.assignment_strategy || task.template_auto_assign_mode || task.auto_assign_mode,
-        attendance_event_id: safeAttendanceEventId,
-      },
-    });
-    await notifyTaskAssignment(dbClient, updated.rows[0], employee, "task_assigned");
-    await emitTaskRealtime("task_updated", updated.rows[0], {
-      persist: false,
-      title: "Task assigned after check-in",
-      message: taskTitleAr(updated.rows[0]),
-      metadata: {
-        assignee_id: safeEmployeeId,
-        source: "attendance_checkin_auto",
-        auto: true,
-        attendance_event_id: safeAttendanceEventId,
-      },
-    });
-    await emitTaskRealtime("dashboard_refresh", updated.rows[0], {
-      persist: false,
-      metadata: {
-        assignee_id: safeEmployeeId,
-        source: "attendance_checkin_auto",
-        attendance_event_id: safeAttendanceEventId,
-      },
-    });
-    logAttendanceTaskAutoAssign({
-      employeeId: safeEmployeeId,
-      branchId: safeBranchId,
-      attendanceEventId: safeAttendanceEventId,
-      taskId: task.id,
-      assigned: true,
-    });
-    assigned.push(normalizeTaskRow({ ...updated.rows[0], assignee_name: employee.full_name, assignee_email: employee.email || employee.user_email || "" }));
-    break;
-  }
-  return assigned;
-};
-
 export const createStaffTask = async (payload = {}, actor = {}) => {
   await ensureStaffTasksSchema();
   if (!hasMeaningfulStaffTaskWork(payload, actor)) {
@@ -3168,220 +2952,292 @@ const claimAttendanceTaskForEmployee = async (client, task, assignee, metadata =
   return updated.rows[0];
 };
 
-const assignDailyAttendanceTasksForCheckIn = async ({ tenantId, branchId, attendanceDate, presentEmployees, attendanceEventId = null }) => {
-  if (!presentEmployees.length) return [];
+// ─── Handing out routines nobody was named for ────────────────────────────
+// The rules live in utils/staffTaskDistribution.js: rotation waits for whoever
+// has the turn, everything else is one task per arrival, and what is left once
+// arrivals stop goes to the least-loaded person on shift. This used to be four
+// passes run on every check-in; each handed the whole list to whoever was
+// present, and at the first check-in that was one person.
+const ARRIVAL_SETTLE_MINUTES = Math.max(Number(process.env.STAFF_TASK_ARRIVAL_SETTLE_MINUTES || 60), 5);
+
+const taskAssignModeSql = `LOWER(COALESCE(NULLIF(sta.auto_assign_mode, ''), NULLIF(st.auto_assign_mode, ''), NULLIF(st.assignment_strategy, ''), NULLIF(sta.metadata->>'auto_assign_mode', ''), ''))`;
+
+// A task waiting for the system to pick someone, as opposed to one the manager
+// deliberately left unassigned.
+const autoWaitingTaskSql = `(
+  sta.source_module = '${ATTENDANCE_TASK_SOURCE}'
+  OR COALESCE(st.auto_assign_enabled, FALSE) IS TRUE
+  OR COALESCE(sta.metadata->>'assignment_state', '') = 'waiting_for_eligible_employee'
+)`;
+
+// Today's waiting rows. Weekly rows generated before the per-day stamping carry
+// the week start, so those are still looked up there.
+const waitingTaskDateSql = (dateParam, weekStartParam) => `(
+  sta.assigned_date = ${dateParam}::date
+  OR (sta.assigned_date = ${weekStartParam}::date AND sta.source_ref_type = 'weekly_task_template')
+)`;
+
+const loadWaitingBranchTasks = async (client, { tenantId, branchId, attendanceDate }) => {
+  const result = await client.query(
+    `
+    SELECT
+      sta.*,
+      ${taskAssignModeSql} AS effective_assign_mode,
+      (COALESCE(st.is_opening_day_task, FALSE) OR sta.task_type = 'opening_day') AS is_opening_task
+    FROM staff_task_assignments sta
+    LEFT JOIN staff_task_templates st ON st.id = sta.template_id
+    WHERE sta.tenant_id = $1
+      AND sta.branch_id = $2
+      AND ${waitingTaskDateSql("$3", "$4")}
+      AND sta.current_assignee_id IS NULL
+      AND sta.assigned_employee_id IS NULL
+      AND sta.status = 'pending'
+      AND ${autoWaitingTaskSql}
+    ORDER BY
+      is_opening_task DESC,
+      CASE sta.priority WHEN 'critical' THEN 0 WHEN 'high' THEN 1 WHEN 'medium' THEN 2 ELSE 3 END,
+      sta.due_at NULLS LAST,
+      sta.id ASC
+    FOR UPDATE OF sta SKIP LOCKED
+    `,
+    [tenantId, branchId, attendanceDate, weekStartKey(attendanceDate)]
+  );
+  return result.rows;
+};
+
+// Shared tasks each employee already holds today. Rotation work is its own
+// queue and does not count against anyone's share.
+const loadArrivalLoads = async (client, { tenantId, branchId, attendanceDate }) => {
+  const result = await client.query(
+    `
+    SELECT sta.current_assignee_id AS employee_id, COUNT(*)::int AS task_count
+    FROM staff_task_assignments sta
+    LEFT JOIN staff_task_templates st ON st.id = sta.template_id
+    WHERE sta.tenant_id = $1
+      AND sta.branch_id = $2
+      AND sta.assigned_date = $3::date
+      AND sta.current_assignee_id IS NOT NULL
+      AND sta.auto_assigned IS TRUE
+      AND sta.status <> 'cancelled'
+      AND ${taskAssignModeSql} <> $4
+    GROUP BY sta.current_assignee_id
+    `,
+    [tenantId, branchId, attendanceDate, ROTATION_MODE]
+  );
+  return new Map(result.rows.map((row) => [String(row.employee_id), Number(row.task_count || 0)]));
+};
+
+// Everyone who takes part in a branch's rotation: its own active employees,
+// plus anybody from elsewhere who checked in here today.
+const loadBranchRoster = async (client, { tenantId, branchId, attendanceDate }) => {
+  const result = await client.query(
+    `
+    SELECT e.*, u.email AS user_email
+    FROM employees e
+    LEFT JOIN users u ON u.id = e.user_id
+    WHERE e.tenant_id = $1
+      AND LOWER(COALESCE(e.status, 'active')) = 'active'
+      AND (
+        e.branch_id = $2
+        OR EXISTS (
+          SELECT 1 FROM attendance_logs al
+          WHERE al.employee_id = e.id
+            AND al.attendance_date = $3::date
+            AND COALESCE(al.branch_id, e.branch_id) = $2
+        )
+      )
+    ORDER BY e.id ASC
+    `,
+    [tenantId, branchId, attendanceDate]
+  );
+  return result.rows;
+};
+
+const loadRotationLastDone = async (client, { tenantId, templateId }) => {
+  const result = await client.query(
+    `
+    SELECT current_assignee_id AS employee_id, MAX(COALESCE(assigned_at, assigned_date::timestamptz)) AS last_done_at
+    FROM staff_task_assignments
+    WHERE tenant_id = $1
+      AND template_id = $2
+      AND current_assignee_id IS NOT NULL
+      AND status <> 'cancelled'
+    GROUP BY current_assignee_id
+    `,
+    [tenantId, templateId]
+  );
+  return new Map(result.rows.map((row) => [String(row.employee_id), row.last_done_at]));
+};
+
+// Approved leave or vacation today. Read on the pool, not inside the caller's
+// transaction: a tenant without one of these tables must not abort it.
+const loadEmployeesOnLeave = async ({ tenantId, attendanceDate }) => {
+  const off = new Set();
+  const sources = [
+    ["employee_leaves", "leave_date"],
+    ["employee_vacations", "vacation_date"],
+  ];
+  for (const [table, singleDay] of sources) {
+    try {
+      const result = await db.query(
+        `
+        SELECT employee_id
+        FROM ${table}
+        WHERE tenant_id = $1
+          AND LOWER(COALESCE(status, '')) = 'approved'
+          AND COALESCE(${singleDay}, start_date) <= $2::date
+          AND COALESCE(${singleDay}, end_date, start_date) >= $2::date
+        `,
+        [tenantId, attendanceDate]
+      );
+      result.rows.forEach((row) => off.add(String(row.employee_id)));
+    } catch (error) {
+      console.warn(`[staff-task-distribution] ${table} unreadable`, error.message);
+    }
+  }
+  return off;
+};
+
+const distributeWaitingBranchTasks = async ({ tenantId, branchId, attendanceDate = dateKey(), arrivingEmployeeId = null, attendanceEventId = null, now = Date.now() } = {}) => {
+  const safeTenantId = numberOrNull(tenantId);
+  const safeBranchId = numberOrNull(branchId);
+  const safeDate = dateKey(attendanceDate);
+  if (!safeTenantId || !safeBranchId) return { assigned: [], stuck: 0 };
+  const present = await getPresentBranchEmployees(db, { tenantId: safeTenantId, branchId: safeBranchId, attendanceDate: safeDate });
+  if (!present.length) return { assigned: [], stuck: 0 };
+  const presentIds = new Set(present.map((employee) => String(employee.id)));
+  const arriving = arrivingEmployeeId ? present.find((employee) => String(employee.id) === String(arrivingEmployeeId)) || null : null;
+  const lastCheckInAt = present.reduce((latest, employee) => {
+    const at = employee.check_in_at || employee.check_in;
+    return !latest || (at && new Date(at) > new Date(latest)) ? at : latest;
+  }, null);
+  const onLeave = await loadEmployeesOnLeave({ tenantId: safeTenantId, attendanceDate: safeDate });
+
   const client = await db.connect();
-  const created = [];
+  const assigned = [];
+  let stuck = 0;
   try {
     await client.query("BEGIN");
-    await generateDueTaskInstancesFromTemplates({ tenantId, dueDate: attendanceDate });
-    const taskResult = await client.query(
-      `
-      SELECT sta.*, COALESCE(st.is_opening_day_task, FALSE) AS is_opening_day_task
-      FROM staff_task_assignments sta
-      LEFT JOIN staff_task_templates st ON st.id = sta.template_id
-      WHERE sta.tenant_id = $1
-        AND sta.branch_id = $2
-        AND sta.assigned_date = $3::date
-        AND sta.source_module = $4
-        AND sta.source_ref_type = 'daily_task_template'
-        AND sta.current_assignee_id IS NULL
-        AND sta.assigned_employee_id IS NULL
-        AND sta.status = 'pending'
-      ORDER BY COALESCE(st.is_opening_day_task, FALSE) DESC, CASE sta.priority WHEN 'critical' THEN 0 WHEN 'high' THEN 1 WHEN 'medium' THEN 2 ELSE 3 END, sta.id ASC
-      FOR UPDATE SKIP LOCKED
-      `,
-      [tenantId, branchId, attendanceDate, ATTENDANCE_TASK_SOURCE]
-    );
-
-    const openingEmployee = presentEmployees[0] || null;
-    const normalEmployees = presentEmployees.length > 1 ? presentEmployees.slice(1) : presentEmployees.slice();
-    const countsResult = await client.query(
-      `
-      SELECT current_assignee_id AS employee_id, COUNT(*)::int AS task_count
-      FROM staff_task_assignments
-      WHERE tenant_id = $1
-        AND branch_id = $2
-        AND assigned_date = $3::date
-        AND source_module = $4
-        AND source_ref_type = 'daily_task_template'
-        AND task_type = 'daily'
-        AND current_assignee_id IS NOT NULL
-        AND status <> 'cancelled'
-      GROUP BY current_assignee_id
-      `,
-      [tenantId, branchId, attendanceDate, ATTENDANCE_TASK_SOURCE]
-    );
-    const dailyCounts = new Map(countsResult.rows.map((row) => [String(row.employee_id), Number(row.task_count || 0)]));
-
-    for (const task of taskResult.rows.filter((row) => Boolean(row.is_opening_day_task || row.task_type === "opening_day"))) {
-      if (!openingEmployee) break;
-      const updated = await claimAttendanceTaskForEmployee(client, task, openingEmployee, {
-        assignment_reason: "opening_day",
-        attendance_date: attendanceDate,
-        branch_id: branchId,
-        template_kind: "daily",
-        is_opening_day_task: true,
-        task_kind: "opening_day",
-        assignment_event_id: attendanceEventId,
-        source: "attendance_qr",
-      });
-      if (updated) {
-        created.push(updated);
-        dailyCounts.set(String(openingEmployee.id), Number(dailyCounts.get(String(openingEmployee.id)) || 0) + 1);
-      }
+    const tasks = await loadWaitingBranchTasks(client, { tenantId: safeTenantId, branchId: safeBranchId, attendanceDate: safeDate });
+    if (!tasks.length) {
+      await client.query("COMMIT");
+      return { assigned: [], stuck: 0 };
     }
+    const loads = await loadArrivalLoads(client, { tenantId: safeTenantId, branchId: safeBranchId, attendanceDate: safeDate });
+    let roster = null;
+    const lastDoneByTemplate = new Map();
 
-    const normalTasks = taskResult.rows.filter((row) => !(row.is_opening_day_task || row.task_type === "opening_day"));
-    for (const task of normalTasks) {
-      const candidatePool = normalEmployees.length ? normalEmployees : presentEmployees;
-      if (!candidatePool.length) break;
-      const assignee = candidatePool.slice().sort((a, b) => {
-        const aCount = Number(dailyCounts.get(String(a.id)) || 0);
-        const bCount = Number(dailyCounts.get(String(b.id)) || 0);
-        if (aCount !== bCount) return aCount - bCount;
-        const aTime = new Date(a.check_in_at || a.check_in || 0).getTime();
-        const bTime = new Date(b.check_in_at || b.check_in || 0).getTime();
-        if (aTime !== bTime) return aTime - bTime;
-        return Number(a.id || 0) - Number(b.id || 0);
-      })[0];
-      const updated = await claimAttendanceTaskForEmployee(client, task, assignee, {
-        assignment_reason: "daily_distribution",
-        attendance_date: attendanceDate,
-        branch_id: branchId,
-        template_kind: "daily",
-        is_opening_day_task: false,
-        task_kind: "daily",
-        assignment_event_id: attendanceEventId,
-        source: "attendance_qr",
-      });
-      if (updated) {
-        created.push(updated);
-        dailyCounts.set(String(assignee.id), Number(dailyCounts.get(String(assignee.id)) || 0) + 1);
+    for (const task of tasks) {
+      const mode = text(task.effective_assign_mode).toLowerCase();
+      const settled = isSettled({ lastCheckInAt, dueAt: task.due_at, now, settleMinutes: ARRIVAL_SETTLE_MINUTES });
+      const isRotation = mode === ROTATION_MODE && Boolean(task.template_id);
+      let pick = null;
+      if (task.is_opening_task) {
+        // Opening the branch is the first arrival's job, as it always was.
+        pick = { employee: present[0], reason: "opening_day" };
+      } else if (isRotation) {
+        if (!roster) roster = await loadBranchRoster(client, { tenantId: safeTenantId, branchId: safeBranchId, attendanceDate: safeDate });
+        const templateKey = String(task.template_id);
+        if (!lastDoneByTemplate.has(templateKey)) {
+          lastDoneByTemplate.set(templateKey, await loadRotationLastDone(client, { tenantId: safeTenantId, templateId: task.template_id }));
+        }
+        const order = rotationOrder(roster.filter((employee) => employeeFitsTask(employee, task)), lastDoneByTemplate.get(templateKey));
+        pick = pickRotationAssignee({ order, offIds: onLeave, presentIds, settled });
+      } else {
+        const eligible = present.filter((employee) => employeeFitsTask(employee, task));
+        pick = pickArrivalAssignee({
+          arriving: arriving && employeeFitsTask(arriving, task) ? arriving : null,
+          present: eligible,
+          loads,
+          settled,
+        });
       }
+      if (!pick?.employee) {
+        if (settled) stuck += 1;
+        continue;
+      }
+      const employee = pick.employee;
+      const updated = await claimAttendanceTaskForEmployee(client, task, employee, {
+        assignment_reason: pick.reason,
+        auto_assign_mode: mode || "least_tasks_today",
+        attendance_date: safeDate,
+        branch_id: safeBranchId,
+        assignment_event_id: arrivingEmployeeId && String(employee.id) === String(arrivingEmployeeId) ? attendanceEventId : null,
+        source: arrivingEmployeeId ? "attendance_qr" : "arrivals_settled",
+        note: `Auto-assigned (${pick.reason})`,
+      });
+      if (!updated) continue;
+      if (isRotation) {
+        lastDoneByTemplate.get(String(task.template_id))?.set(String(employee.id), new Date(now).toISOString());
+      } else {
+        loads.set(String(employee.id), Number(loads.get(String(employee.id)) || 0) + 1);
+      }
+      assigned.push({ task: updated, employee, reason: pick.reason });
     }
-
     await client.query("COMMIT");
-    for (const task of created) {
-      const assignee = presentEmployees.find((employee) => String(employee.id) === String(task.current_assignee_id));
-      if (assignee) {
-        await notifyTaskAssignment(db, task, assignee, "task_assigned");
-      }
-    }
-    return created.map((task) => normalizeTaskRow(task));
   } catch (error) {
     await client.query("ROLLBACK");
     throw error;
   } finally {
     client.release();
   }
+
+  for (const item of assigned) {
+    await notifyTaskAssignment(db, item.task, item.employee, "task_assigned");
+  }
+  if (assigned.length) {
+    console.info("[staff-task-distribution]", {
+      tenant_id: safeTenantId,
+      branch_id: safeBranchId,
+      arriving_employee_id: arrivingEmployeeId,
+      assigned: assigned.map((item) => ({ task_id: item.task.id, employee_id: item.employee.id, reason: item.reason })),
+    });
+  }
+  return {
+    assigned: assigned.map((item) => normalizeTaskRow({
+      ...item.task,
+      assignee_name: item.employee.full_name,
+      assignee_email: item.employee.email || item.employee.user_email || "",
+    })),
+    stuck,
+  };
 };
 
-const assignWeeklyAttendanceTasksForCheckIn = async ({ tenantId, branchId, attendanceDate, presentEmployees, attendanceEventId = null }) => {
-  const client = await db.connect();
-  const created = [];
-  const weekStart = weekStartKey(attendanceDate);
+// Timer entry point. Check-ins hand out what they can; this finishes the job
+// once arrivals stop — a rotation turn passed on, leftovers to the least
+// loaded — and tells the manager about anything nobody on shift can take.
+let waitingSettleInFlight = false;
+export const settleWaitingStaffTasks = async ({ now = Date.now() } = {}) => {
+  if (waitingSettleInFlight) return { skipped: true, reason: "in_flight" };
+  waitingSettleInFlight = true;
   try {
-    await client.query("BEGIN");
-    await generateDueTaskInstancesFromTemplates({ tenantId, dueDate: attendanceDate });
-    const taskResult = await client.query(
+    await ensureStaffTasksSchema();
+    const today = dateKey();
+    const branches = await db.query(
       `
-      SELECT sta.*
+      SELECT DISTINCT sta.tenant_id, sta.branch_id
       FROM staff_task_assignments sta
-      WHERE sta.tenant_id = $1
-        AND sta.branch_id = $2
-        AND sta.assigned_date = ANY($3::date[])
-        AND sta.source_module = $4
-        AND sta.source_ref_type = 'weekly_task_template'
+      LEFT JOIN staff_task_templates st ON st.id = sta.template_id
+      WHERE ${waitingTaskDateSql("$1", "$2")}
+        AND sta.branch_id IS NOT NULL
         AND sta.current_assignee_id IS NULL
         AND sta.assigned_employee_id IS NULL
         AND sta.status = 'pending'
-      ORDER BY CASE sta.priority WHEN 'critical' THEN 0 WHEN 'high' THEN 1 WHEN 'medium' THEN 2 ELSE 3 END, sta.id ASC
-      FOR UPDATE SKIP LOCKED
+        AND ${autoWaitingTaskSql}
       `,
-      // Search by the day, not just the week start. Weekly instances are now
-      // stamped with the day they are due; searching only the Monday of the
-      // week meant every weekly routine that was not a Monday routine went
-      // unassigned. weekStart stays in the list so rows generated under the
-      // old stamping are still picked up.
-      [tenantId, branchId, [...new Set([attendanceDate, weekStart])], ATTENDANCE_TASK_SOURCE]
+      [today, weekStartKey(today)]
     );
-    const candidateEmployees = presentEmployees.length
-      ? presentEmployees
-      : await getPresentBranchEmployees(db, { tenantId, branchId, attendanceDate });
-
-    for (const task of taskResult.rows) {
-      if (!candidateEmployees.length) break;
-      const history = await client.query(
-        `
-        SELECT current_assignee_id, source_ref_date
-        FROM staff_task_assignments
-        WHERE tenant_id = $1
-          AND template_id = $2
-          AND source_ref_type = 'weekly_task_template'
-          AND current_assignee_id IS NOT NULL
-          AND status <> 'cancelled'
-        ORDER BY source_ref_date DESC NULLS LAST, id DESC
-        LIMIT 20
-        `,
-        [tenantId, task.template_id]
-      );
-      const counts = await client.query(
-        `
-        SELECT current_assignee_id AS employee_id, COUNT(*)::int AS task_count
-        FROM staff_task_assignments
-        WHERE tenant_id = $1
-          AND template_id = $2
-          AND source_ref_type = 'weekly_task_template'
-          AND current_assignee_id IS NOT NULL
-          AND status <> 'cancelled'
-        GROUP BY current_assignee_id
-        `,
-        [tenantId, task.template_id]
-      );
-      const countMap = new Map(counts.rows.map((row) => [String(row.employee_id), Number(row.task_count || 0)]));
-      const lastAssigneeId = history.rows[0]?.current_assignee_id || null;
-      let pool = candidateEmployees.slice();
-      if (lastAssigneeId && pool.length > 1) {
-        const withoutLast = pool.filter((employee) => String(employee.id) !== String(lastAssigneeId));
-        if (withoutLast.length) pool = withoutLast;
-      }
-      const assignee = pool.sort((a, b) => {
-        const aCount = Number(countMap.get(String(a.id)) || 0);
-        const bCount = Number(countMap.get(String(b.id)) || 0);
-        if (aCount !== bCount) return aCount - bCount;
-        const aTime = new Date(a.check_in_at || a.check_in || 0).getTime();
-        const bTime = new Date(b.check_in_at || b.check_in || 0).getTime();
-        if (aTime !== bTime) return aTime - bTime;
-        return Number(a.id || 0) - Number(b.id || 0);
-      })[0];
-      const updated = await claimAttendanceTaskForEmployee(client, task, assignee, {
-        assignment_reason: "weekly_rotation",
-        attendance_date: attendanceDate,
-        branch_id: branchId,
-        template_kind: "weekly",
-        week_start: weekStart,
-        week_key: weekStart,
-        task_kind: "weekly",
-        assignment_event_id: attendanceEventId,
-        source: "attendance_qr",
-      });
-      if (updated) created.push(updated);
-    }
-
-    await client.query("COMMIT");
-    for (const task of created) {
-      const assignee = candidateEmployees.find((employee) => String(employee.id) === String(task.current_assignee_id));
-      if (assignee) {
-        await notifyTaskAssignment(db, task, assignee, "task_assigned");
+    let assignedCount = 0;
+    for (const row of branches.rows) {
+      const result = await distributeWaitingBranchTasks({ tenantId: row.tenant_id, branchId: row.branch_id, attendanceDate: today, now });
+      assignedCount += result.assigned.length;
+      if (result.stuck > 0) {
+        await notifyManagerUnassignedTasks({ tenantId: row.tenant_id, branchId: row.branch_id, attendanceDate: today, unassignedCount: result.stuck });
       }
     }
-    return created.map((task) => normalizeTaskRow(task));
-  } catch (error) {
-    await client.query("ROLLBACK");
-    throw error;
+    return { branches: branches.rows.length, assigned: assignedCount };
   } finally {
-    client.release();
+    waitingSettleInFlight = false;
   }
 };
 
@@ -3446,84 +3302,6 @@ const assignBranchHotProductStockCounts = async ({ tenantId, branchId, attendanc
     if (!result.duplicate && result.task) created.push(result.task);
   }
   return created;
-};
-
-const rebalanceBranchAttendanceTasks = async ({ tenantId, branchId, attendanceDate, presentEmployees }) => {
-  if (!presentEmployees.length) return [];
-  const client = await db.connect();
-  const reassigned = [];
-  try {
-    await client.query("BEGIN");
-    const tasks = await client.query(
-      `
-      SELECT *
-      FROM staff_task_assignments
-      WHERE tenant_id = $1
-        AND branch_id = $2
-        AND assigned_date = $3::date
-        AND source_module = $4
-        AND status = ANY($5::text[])
-        AND current_assignee_id IS NULL
-        AND assigned_employee_id IS NULL
-      ORDER BY due_at NULLS FIRST, id ASC
-      FOR UPDATE
-      `,
-      [tenantId, branchId, attendanceDate, ATTENDANCE_TASK_SOURCE, OPEN_STATUSES]
-    );
-
-    for (const task of tasks.rows) {
-      const nextAssignee = presentEmployees
-        .slice()
-        .sort((a, b) => Number(a.open_task_count || 0) - Number(b.open_task_count || 0) || Number(a.id) - Number(b.id))[0];
-      if (!nextAssignee) continue;
-      nextAssignee.open_task_count = Number(nextAssignee.open_task_count || 0) + 1;
-      const updated = await client.query(
-        `
-        UPDATE staff_task_assignments
-        SET current_assignee_id = $1,
-            assigned_employee_id = $1,
-            assigned_user_id = $2,
-            status = 'pending',
-            reassignment_count = reassignment_count + 1,
-            assigned_at = NOW(),
-            metadata = metadata || $3::jsonb,
-            updated_at = NOW()
-        WHERE id = $4
-          AND current_assignee_id IS NULL
-          AND assigned_employee_id IS NULL
-        RETURNING *
-        `,
-        [
-          nextAssignee.id,
-          nextAssignee.user_id || null,
-          JSON.stringify({ assignment_source: "attendance_qr", auto_assignment: true, assignment_reason: "attendance_qr", attendance_date: attendanceDate }),
-          task.id,
-        ]
-      );
-      if (!updated.rows[0]) continue;
-      await logTaskHistory(client, {
-        tenantId,
-        taskId: task.id,
-        action: "auto_assigned",
-        fromStatus: task.status,
-        toStatus: "pending",
-        fromEmployeeId: task.current_assignee_id,
-        toEmployeeId: nextAssignee.id,
-        note: "إعادة توزيع بعد تسجيل الحضور بالـ QR",
-      });
-      reassigned.push({ task: updated.rows[0], assignee: nextAssignee });
-    }
-    await client.query("COMMIT");
-    for (const item of reassigned) {
-      await notifyTaskAssignment(db, item.task, item.assignee, "task_assigned");
-    }
-    return reassigned.map((item) => normalizeTaskRow({ ...item.task, assignee_name: item.assignee.full_name, assignee_email: item.assignee.email }));
-  } catch (error) {
-    await client.query("ROLLBACK");
-    throw error;
-  } finally {
-    client.release();
-  }
 };
 
 const getEmployeeOpenTasksForDate = async ({ tenantId, employeeId, branchId, attendanceDate }) => {
@@ -3626,78 +3404,64 @@ const notifyEmployeeTaskDigest = async ({ tenantId, branchId, employeeId, attend
 };
 
 // Tasks that exist for today but that nobody owns. Employees no longer see
-// these, so the branch manager has to.
+// these, so the branch manager has to. Tasks still waiting for the system to
+// pick someone are not counted here — the settle timer reports the ones it
+// cannot place.
 const countUnassignedBranchTasks = async ({ tenantId, branchId, attendanceDate }) => {
   const result = await db.query(
     `
     SELECT COUNT(*)::int AS unassigned_count
-    FROM staff_task_assignments
-    WHERE tenant_id = $1
-      AND branch_id = $2
-      AND assigned_date = $3::date
-      AND current_assignee_id IS NULL
-      AND assigned_employee_id IS NULL
-      AND status = ANY($4::text[])
+    FROM staff_task_assignments sta
+    LEFT JOIN staff_task_templates st ON st.id = sta.template_id
+    WHERE sta.tenant_id = $1
+      AND sta.branch_id = $2
+      AND sta.assigned_date = $3::date
+      AND sta.current_assignee_id IS NULL
+      AND sta.assigned_employee_id IS NULL
+      AND sta.status = ANY($4::text[])
+      AND NOT ${autoWaitingTaskSql}
     `,
     [tenantId, branchId, attendanceDate, OPEN_STATUSES]
   );
   return Number(result.rows[0]?.unassigned_count || 0);
 };
 
-const notifyManagerAttendanceTaskState = async ({ tenantId, branchId, attendanceDate, redistributedCount, presentCount, unassignedCount = 0 }) => {
-  if (unassignedCount > 0) {
-    await createNotification({
-      tenant_id: tenantId,
-      role_key: "manager",
-      branch_id: branchId,
-      type: "staff_tasks_unassigned",
-      category: "staff_tasks",
-      priority: "high",
-      title: "مهام بدون موظف",
-      message: `${unassignedCount} مهمة اليوم لم يتم إسنادها لأي موظف.`,
-      action_url: "/staff/tasks",
-      action_label: "إسناد المهام",
-      entity_type: "staff_task_unassigned",
-      entity_id: `${branchId}:${attendanceDate}`,
-      metadata: { branch_id: branchId, attendance_date: attendanceDate, unassigned_count: unassignedCount },
-    });
-  }
+const notifyManagerUnassignedTasks = async ({ tenantId, branchId, attendanceDate, unassignedCount = 0 }) => {
+  if (unassignedCount <= 0) return;
+  await createNotification({
+    tenant_id: tenantId,
+    role_key: "manager",
+    branch_id: branchId,
+    type: "staff_tasks_unassigned",
+    category: "staff_tasks",
+    priority: "high",
+    title: "مهام بدون موظف",
+    message: `${unassignedCount} مهمة اليوم لم يتم إسنادها لأي موظف.`,
+    action_url: "/staff/tasks",
+    action_label: "إسناد المهام",
+    entity_type: "staff_task_unassigned",
+    entity_id: `${branchId}:${attendanceDate}`,
+    metadata: { branch_id: branchId, attendance_date: attendanceDate, unassigned_count: unassignedCount },
+  });
+};
 
-  if (redistributedCount > 0) {
-    await createNotification({
-      tenant_id: tenantId,
-      role_key: "manager",
-      branch_id: branchId,
-      type: "staff_tasks_redistributed",
-      category: "staff_tasks",
-      priority: "medium",
-      title: "تم إعادة توزيع مهام الفرع",
-      message: `تم إعادة توزيع ${redistributedCount} مهمة بعد تسجيل الحضور بالـ QR.`,
-      action_url: "/staff/tasks",
-      action_label: "مراجعة المهام",
-      entity_type: "staff_task_rebalance",
-      entity_id: `${branchId}:${attendanceDate}`,
-      metadata: { branch_id: branchId, attendance_date: attendanceDate, redistributed_count: redistributedCount },
-    });
-  }
-
-  if (presentCount < STAFFING_LOW_THRESHOLD) {
-    await createNotification({
-      tenant_id: tenantId,
-      role_key: "manager",
-      branch_id: branchId,
-      type: "staffing_low",
-      category: "staff_tasks",
-      priority: "high",
-      title: "عدد الموظفين في الفرع منخفض",
-      message: `تم تسجيل حضور ${presentCount} موظف فقط في هذا الفرع.`,
-      action_url: "/attendance/today",
-      action_label: "مراجعة الحضور",
-      entity_type: "staffing_low",
-      entity_id: `${branchId}:${attendanceDate}`,
-      metadata: { branch_id: branchId, attendance_date: attendanceDate, present_count: presentCount, threshold: STAFFING_LOW_THRESHOLD },
-    });
-  }
+const notifyManagerStaffingLow = async ({ tenantId, branchId, attendanceDate, presentCount }) => {
+  if (presentCount >= STAFFING_LOW_THRESHOLD) return;
+  await createNotification({
+    tenant_id: tenantId,
+    role_key: "manager",
+    branch_id: branchId,
+    type: "staffing_low",
+    category: "staff_tasks",
+    priority: "high",
+    title: "عدد الموظفين في الفرع منخفض",
+    message: `تم تسجيل حضور ${presentCount} موظف فقط في هذا الفرع.`,
+    action_url: "/attendance/today",
+    action_label: "مراجعة الحضور",
+    entity_type: "staffing_low",
+    entity_id: `${branchId}:${attendanceDate}`,
+    metadata: { branch_id: branchId, attendance_date: attendanceDate, present_count: presentCount, threshold: STAFFING_LOW_THRESHOLD },
+  });
 };
 
 export const handleBranchQrCheckInStaffTasks = async ({ tenantId, branchId, employeeId, actionType, attendanceDate = null, attendanceEventId = null } = {}) => {
@@ -3722,26 +3486,11 @@ export const handleBranchQrCheckInStaffTasks = async ({ tenantId, branchId, empl
     dueDate: safeDate,
   });
 
-  const checkInAssigned = await assignWaitingRecurringTasksForCheckIn({
-    tenantId: safeTenantId,
-    branchId: safeBranchId,
-    employeeId: safeEmployeeId,
-    attendanceDate: safeDate,
-    attendanceEventId,
-  });
-
-  const dailyTasks = await assignDailyAttendanceTasksForCheckIn({
+  const distribution = await distributeWaitingBranchTasks({
     tenantId: safeTenantId,
     branchId: safeBranchId,
     attendanceDate: safeDate,
-    presentEmployees,
-  });
-
-  const weeklyTasks = await assignWeeklyAttendanceTasksForCheckIn({
-    tenantId: safeTenantId,
-    branchId: safeBranchId,
-    attendanceDate: safeDate,
-    presentEmployees,
+    arrivingEmployeeId: safeEmployeeId,
     attendanceEventId,
   });
 
@@ -3751,13 +3500,6 @@ export const handleBranchQrCheckInStaffTasks = async ({ tenantId, branchId, empl
     attendanceDate: safeDate,
     presentEmployees,
     limit: Number(process.env.STAFF_TASK_HOT_PRODUCT_COUNT_LIMIT || 5),
-  });
-
-  const redistributed = await rebalanceBranchAttendanceTasks({
-    tenantId: safeTenantId,
-    branchId: safeBranchId,
-    attendanceDate: safeDate,
-    presentEmployees,
   });
 
   const employeeTasks = await getEmployeeOpenTasksForDate({
@@ -3778,14 +3520,8 @@ export const handleBranchQrCheckInStaffTasks = async ({ tenantId, branchId, empl
     branchId: safeBranchId,
     attendanceDate: safeDate,
   });
-  await notifyManagerAttendanceTaskState({
-    tenantId: safeTenantId,
-    branchId: safeBranchId,
-    attendanceDate: safeDate,
-    redistributedCount: redistributed.length,
-    presentCount: presentEmployees.length,
-    unassignedCount,
-  });
+  await notifyManagerUnassignedTasks({ tenantId: safeTenantId, branchId: safeBranchId, attendanceDate: safeDate, unassignedCount });
+  await notifyManagerStaffingLow({ tenantId: safeTenantId, branchId: safeBranchId, attendanceDate: safeDate, presentCount: presentEmployees.length });
 
   return {
     skipped: false,
@@ -3793,16 +3529,16 @@ export const handleBranchQrCheckInStaffTasks = async ({ tenantId, branchId, empl
     present_count: presentEmployees.length,
     unassigned_task_count: unassignedCount,
     generated_recurring_tasks: generatedRecurring.created.length,
-    checkin_assigned_tasks: checkInAssigned.length,
-    created_daily_tasks: dailyTasks.length,
-    created_weekly_tasks: weeklyTasks.length,
+    checkin_assigned_tasks: distribution.assigned.length,
     created_stock_count_tasks: stockTasks.length,
-    redistributed_tasks: redistributed.length,
     employee_task_count: employeeTasks.length,
   };
 };
 
-export const reassignOverdueTasks = async ({ tenantId = null, actor = null } = {}) => {
+// Marks late work overdue and tells its owner. It used to hand the task to
+// somebody else as well; the owner decided a late task stays with whoever was
+// given it. Moving work by hand is still possible from the manager screens.
+export const reassignOverdueTasks = async ({ tenantId = null } = {}) => {
   await ensureStaffTasksSchema();
   const overdue = await db.query(
     `
@@ -3829,7 +3565,7 @@ export const reassignOverdueTasks = async ({ tenantId = null, actor = null } = {
       metadata: { to_status: "overdue" },
     });
   }
-  return redistributeTasks({ tenantId, reason: "deadline_overdue", actor });
+  return [];
 };
 
 export const sendOverdueTaskPushReminders = async ({ tenantId = null, limit = 100 } = {}) =>

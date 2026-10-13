@@ -48,7 +48,11 @@ const emptyForm = {
   weekdays: [],
   due_time: "",
   fixed_employee_id: "",
+  // With nobody named: "round_robin" rotates through every employee, anything
+  // else gives one task to each employee who checks in.
+  assignment_strategy: "least_tasks_today",
 };
+const ROTATION_STRATEGY = "round_robin";
 const weekdayOrder = [6, 0, 1, 2, 3, 4, 5];
 
 const sameJson = (left, right) => {
@@ -149,7 +153,7 @@ const STAFF_TASK_COPY = {
     recurringRule: "Recurring task rule", frequency: "Frequency", one_time: "One time", daily: "Daily", weekly: "Weekly", monthly: "Monthly", weekdays: "Weekdays", dayOfMonth: "Day of month", requiresCheckin: "Requires check-in", autoAssignEnabled: "Auto assign", assignmentStrategy: "Assignment strategy", first_checked_in: "First checked-in", round_robin: "Round robin", least_tasks_today: "Least tasks today", fixed_employee: "Fixed employee", waitingEligible: "Waiting for eligible employee", dailyAutoTask: "Daily auto task", weeklyAutoTask: "Weekly auto task", monthlyAutoTask: "Monthly auto task", autoAssign: "Auto assign", todayTasks: "Today's tasks", dailyTemplates: "Daily templates", weeklyTemplates: "Weekly templates", openingDayTask: "Opening day task", dailyTask: "Daily task", weeklyTask: "Weekly task", automaticDistribution: "Automatic distribution by attendance", taskTemplates: "Templates",
     taskDetails: "Task details", checklistItems: "Checklist items, one per line", saveTask: "Save task",
     dueTime: "Due time", everyDay: "Every day", pickWeekdays: "Pick weekdays", weekdayRequired: "Pick at least one weekday for a weekly task.",
-    assignTo: "Assign to", autoAssignLeastBusy: "Auto — least busy on shift",
+    assignTo: "Assign to", autoAssignLeastBusy: "Auto — one task per employee who checks in", autoAssignRotation: "Auto — rotate through every employee",
     sun: "Sun", mon: "Mon", tue: "Tue", wed: "Wed", thu: "Thu", fri: "Fri", sat: "Sat",
     employeePortalSettings: "Employee portal settings", requireCheckIn: "Require check-in", autoRedirect: "Auto redirect",
     taskQueue: "Task queue", loadingTasks: "Loading tasks", visibleTasks: "visible tasks", allStatuses: "All statuses", allEmployees: "All employees", allBranches: "All branches", allPriorities: "All priorities", today: "Today",
@@ -216,7 +220,8 @@ const STAFF_TASK_AR_EXTRA = {
   pickWeekdays: "اختر أيام الأسبوع",
   weekdayRequired: "اختر يوماً واحداً على الأقل للمهمة الأسبوعية.",
   assignTo: "الإسناد إلى",
-  autoAssignLeastBusy: "تلقائي — الأقل انشغالاً من الحاضرين",
+  autoAssignLeastBusy: "تلقائي — مهمة لكل موظف يسجّل حضور",
+  autoAssignRotation: "تلقائي — بالتناوب على كل الموظفين",
   sun: "الأحد",
   mon: "الاثنين",
   tue: "الثلاثاء",
@@ -566,6 +571,7 @@ function StaffTasks() {
       weekdays: Array.isArray(task.weekdays) ? task.weekdays : (task.recurring_rule?.weekdays || []),
       due_time: task.recurring_rule?.due_time || task.due_time || "",
       fixed_employee_id: task.fixed_employee_id ? String(task.fixed_employee_id) : "",
+      assignment_strategy: (task.assignment_strategy || task.metadata?.assignment_strategy) === ROTATION_STRATEGY ? ROTATION_STRATEGY : "least_tasks_today",
     });
     setPanelOpen(true);
   };
@@ -598,7 +604,7 @@ function StaffTasks() {
       // least-busy person on shift at check-in. Hard-coding this to false was
       // what left every template from this page generating orphans.
       auto_assign_enabled: !fixedEmployeeId,
-      assignment_strategy: "least_tasks_today",
+      assignment_strategy: fixedEmployeeId ? "fixed_employee" : form.assignment_strategy === ROTATION_STRATEGY ? ROTATION_STRATEGY : "least_tasks_today",
       requires_checkin: false,
       requires_photo: false,
       requires_qr: false,
@@ -770,8 +776,18 @@ function StaffTasks() {
               <span className="shrink-0 text-[var(--muted)]">{tr("dueTime")}</span>
               <input type="time" value={form.due_time} onChange={(e) => setForm((v) => ({ ...v, due_time: e.target.value }))} className="min-w-0 flex-1 bg-transparent text-start outline-none" />
             </label>
-            <select value={form.fixed_employee_id} onChange={(e) => setForm((v) => ({ ...v, fixed_employee_id: e.target.value }))} className="h-[var(--control-height-lg)] rounded-[var(--radius-control)] border border-[var(--border)] bg-[var(--surface)] px-3 text-sm font-semibold text-[var(--text)] outline-none">
-              <option value="">{tr("autoAssignLeastBusy")}</option>
+            <select
+              value={form.fixed_employee_id || `auto:${form.assignment_strategy === ROTATION_STRATEGY ? ROTATION_STRATEGY : "least_tasks_today"}`}
+              onChange={(e) => {
+                const value = e.target.value;
+                setForm((v) => value.startsWith("auto:")
+                  ? { ...v, fixed_employee_id: "", assignment_strategy: value.slice(5) }
+                  : { ...v, fixed_employee_id: value });
+              }}
+              className="h-[var(--control-height-lg)] rounded-[var(--radius-control)] border border-[var(--border)] bg-[var(--surface)] px-3 text-sm font-semibold text-[var(--text)] outline-none"
+            >
+              <option value="auto:least_tasks_today">{tr("autoAssignLeastBusy")}</option>
+              <option value={`auto:${ROTATION_STRATEGY}`}>{tr("autoAssignRotation")}</option>
               {employees.map((employee) => <option key={employee.id} value={employee.id}>{employee.full_name || employee.employee_code}</option>)}
             </select>
             <div className="rounded-[var(--radius-card)] border border-[var(--border)] bg-[var(--surface)] px-3 py-2 md:col-span-2">
