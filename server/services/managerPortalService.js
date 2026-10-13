@@ -3220,6 +3220,17 @@ const describeDays = (days) => {
   return half ? `${base} ونص` : base;
 };
 
+// An approved run's snapshot nests the attendance figures under attendance_deductions; the live
+// preview (getPayrollPreview().payroll) carries the same fields flat. Reading only the nested
+// shape left the current month with no absent days and no leave line.
+export const attendanceFactsOf = (snapshot = {}) => {
+  if (!snapshot || typeof snapshot !== "object") return null;
+  const nested = snapshot.attendance_deductions;
+  if (nested && typeof nested === "object") return nested;
+  return "missing_attendance_dates" in snapshot || "leave_days" in snapshot || "absence_days" in snapshot ? snapshot : null;
+};
+const listOf = (value) => (Array.isArray(value) ? value : []);
+
 export const getManagerPortalEmployeeDetails = async ({ manager = {}, employeeId, month = "" } = {}) => {
   const { employee, tenantId } = await loadScopedEmployee({ manager, employeeId });
   const dayRatePromise = loadEmployeeDayRate({ tenantId, employee });
@@ -3382,7 +3393,7 @@ export const getManagerPortalEmployeeDetails = async ({ manager = {}, employeeId
       attendance_deduction_total: Number(snapshot.attendance_deductions?.attendance_deduction_total || snapshot.attendance_deduction_total || 0),
       deductions: Number(snapshot.deductions || 0),
       net_pay: snapshot.net_pay === undefined ? null : Number(snapshot.net_pay || 0),
-      attendance_breakdown: snapshot.attendance_deductions || null,
+      attendance_breakdown: attendanceFactsOf(snapshot),
     },
     payroll: {
       approved: Boolean(payrollRun),
@@ -3428,8 +3439,8 @@ export const getManagerPortalEmployeeDetails = async ({ manager = {}, employeeId
       rows: attendance,
       // The days payroll itself counts as absence (working days with no attendance), and the
       // approved leave days, so the table shows every day the salary treats differently.
-      absent_dates: Array.isArray(snapshot.attendance_deductions?.missing_attendance_dates) ? snapshot.attendance_deductions.missing_attendance_dates : [],
-      leave_dates: Array.isArray(snapshot.attendance_deductions?.leave_dates) ? snapshot.attendance_deductions.leave_dates : [],
+      absent_dates: listOf(attendanceFactsOf(snapshot)?.missing_attendance_dates),
+      leave_dates: listOf(attendanceFactsOf(snapshot)?.leave_dates),
     },
   };
 };

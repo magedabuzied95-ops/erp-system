@@ -3114,6 +3114,7 @@ export const getPayrollPreview = async ({ tenantId = null, employeeId, filters =
       excluded_leave_days: attendanceDeductions.excluded_leave_days,
       excluded_holiday_days: attendanceDeductions.excluded_holiday_days,
       missing_attendance_dates: Array.isArray(attendanceDeductions.missing_attendance_dates) ? attendanceDeductions.missing_attendance_dates : [],
+      leave_dates: Array.isArray(attendanceDeductions.leave_dates) ? attendanceDeductions.leave_dates : [],
       open_attendance_logs: Array.isArray(attendanceDeductions.open_attendance_logs) ? attendanceDeductions.open_attendance_logs : [],
       deductions,
       net_pay: netPay,
