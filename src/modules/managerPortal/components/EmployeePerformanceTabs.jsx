@@ -107,7 +107,15 @@ export function EmployeeCountsTab({ perf }) {
                     <span className="shrink-0">{formatDay(model.last_counted_at)}</span>
                   </div>
                   {model.variance_rows ? (
-                    <div className="mt-0.5 text-[11px] font-bold text-amber-700">{`فرق في ${formatNumber(model.variance_rows)} مقاس (${formatNumber(model.variance_total)} قطعة)`}</div>
+                    <>
+                      <div className="mt-0.5 text-[11px] font-bold text-amber-700">{`فرق في ${formatNumber(model.variance_rows)} مقاس (${formatNumber(model.variance_total)} قطعة)`}</div>
+                      {model.over_rows || model.short_rows ? (
+                        <div className="mt-0.5 flex flex-wrap items-center gap-x-3 gap-y-0.5 text-[11px] font-bold tabular-nums">
+                          {model.over_rows ? <span className="text-emerald-700">{`زيادة ${formatNumber(model.over_total)} قطعة في ${formatNumber(model.over_rows)} مقاس`}</span> : null}
+                          {model.short_rows ? <span className="text-rose-700">{`نقص ${formatNumber(model.short_total)} قطعة في ${formatNumber(model.short_rows)} مقاس`}</span> : null}
+                        </div>
+                      ) : null}
+                    </>
                   ) : null}
                 </div>
               </div>

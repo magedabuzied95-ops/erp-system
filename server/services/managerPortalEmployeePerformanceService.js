@@ -125,6 +125,11 @@ export const loadEmployeeMonthCounts = async ({ tenantId = null, employeeId, sta
         pieces: 0,
         variance_rows: 0,
         variance_total: 0,
+        // difference = counted − system: over is stock found beyond the books, short is stock missing.
+        over_rows: 0,
+        over_total: 0,
+        short_rows: 0,
+        short_total: 0,
         last_counted_at: row.counted_at,
         sessions: new Set(),
         statuses: new Set(),
@@ -140,6 +145,13 @@ export const loadEmployeeMonthCounts = async ({ tenantId = null, employeeId, sta
     if (diff !== 0) {
       model.variance_rows += 1;
       model.variance_total += Math.abs(diff);
+      if (diff > 0) {
+        model.over_rows += 1;
+        model.over_total += diff;
+      } else {
+        model.short_rows += 1;
+        model.short_total -= diff;
+      }
       varianceRows += 1;
     }
     model.sessions.add(String(row.session_id));
