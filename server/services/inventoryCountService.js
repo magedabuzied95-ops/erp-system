@@ -117,6 +117,55 @@ const tableExists = async (client, tableName) => {
   return exists;
 };
 
+// A count belongs to a warehouse, but the employee portal never asks which one
+// (an employee counts in the branch they stand in), so every portal count was
+// stored without one and the manager read "المخزن غير محدد" on all of them.
+// The branch knows its warehouse: its configured default first, then the
+// warehouse filed under the branch's name, then — for a shop with a single
+// warehouse — that one. Built as a LATERAL join so the list and the open count
+// can name the warehouse of counts stored before this existed, and reused by
+// `resolveBranchWarehouseId` so a new count stores the same answer.
+const buildBranchWarehouseLateral = async (client, { sessionAlias = "s", branchAlias = "b", as = "bw" } = {}) => {
+  const [branchColumns, warehouseColumns] = await Promise.all([
+    getTableColumns(client, "branches"),
+    getTableColumns(client, "warehouses"),
+  ]);
+  const byDefault = branchColumns.has("default_warehouse_id") ? `wb.id = ${branchAlias}.default_warehouse_id` : "FALSE";
+  const byName = warehouseColumns.has("branch_name")
+    ? `(NULLIF(TRIM(COALESCE(${branchAlias}.name, '')), '') IS NOT NULL AND LOWER(TRIM(COALESCE(wb.branch_name, ''))) = LOWER(TRIM(${branchAlias}.name)))`
+    : "FALSE";
+  const hasTenant = warehouseColumns.has("tenant_id");
+  const sameTenant = (alias) =>
+    hasTenant ? `(${alias}.tenant_id IS NULL OR ${sessionAlias}.tenant_id IS NULL OR ${alias}.tenant_id = ${sessionAlias}.tenant_id)` : "TRUE";
+  const onlyWarehouse = `NOT EXISTS (SELECT 1 FROM warehouses wx WHERE wx.id <> wb.id AND ${sameTenant("wx")})`;
+  return `
+    LEFT JOIN LATERAL (
+      SELECT wb.id, wb.name
+      FROM warehouses wb
+      WHERE ${sessionAlias}.warehouse_id IS NULL
+        AND ${sameTenant("wb")}
+        AND (${byDefault} OR ${byName} OR ${onlyWarehouse})
+      ORDER BY CASE WHEN ${byDefault} THEN 0 WHEN ${byName} THEN 1 ELSE 2 END, wb.id ASC
+      LIMIT 1
+    ) ${as} ON TRUE`;
+};
+
+export const resolveBranchWarehouseId = async (client, { tenantId = null, branchId = null } = {}) => {
+  if (!branchId) return null;
+  const lateral = await buildBranchWarehouseLateral(client);
+  const result = await client.query(
+    `
+    SELECT bw.id
+    FROM (SELECT $1::bigint AS tenant_id, NULL::bigint AS warehouse_id) s
+    JOIN branches b ON b.id = $2::bigint
+    ${lateral}
+    LIMIT 1
+    `,
+    [tenantId ?? null, branchId]
+  );
+  return result.rows[0]?.id ?? null;
+};
+
 const firstAvailableColumnExpr = (alias, columns, candidates = [], fallback = "''") => {
   const parts = candidates
     .filter((column) => columns.has(column))
@@ -134,7 +183,7 @@ const buildLikeMatchParts = (alias, columns, fieldNames = [], paramRef = "$2") =
     .filter((fieldName) => columns.has(fieldName))
     .map((fieldName) => `COALESCE(${alias}.${fieldName}, '') ILIKE ${paramRef}`);
 
-const buildInventoryCountVariantImageSelects = async (client, { variantAlias = "v", productAlias = "p" } = {}) => {
+export const buildInventoryCountVariantImageSelects = async (client, { variantAlias = "v", productAlias = "p" } = {}) => {
   const [variantColumns, productColumns, hasProductColorImages] = await Promise.all([
     getTableColumns(client, "product_variants"),
     getTableColumns(client, "products"),
@@ -251,7 +300,7 @@ const buildInventoryCountVariantImageSelects = async (client, { variantAlias = "
   };
 };
 
-const buildInventoryCountLookupSelects = async (client, { variantAlias = "v", productAlias = "p" } = {}) => {
+export const buildInventoryCountLookupSelects = async (client, { variantAlias = "v", productAlias = "p" } = {}) => {
   const [variantColumns, productColumns] = await Promise.all([
     getTableColumns(client, "product_variants"),
     getTableColumns(client, "products"),
@@ -719,12 +768,14 @@ const fetchSessionRow = async (clientOrPool, { tenantId, sessionId, lock = false
   console.log("[inventory-count:create:tx]", JSON.stringify({
     transaction_read_only: readOnlyResult.rows[0]?.transaction_read_only ?? null,
   }));
+  const branchWarehouseJoin = await buildBranchWarehouseLateral(dbClient);
   const result = await dbClient.query(
     `
     SELECT
       s.*,
       b.name AS branch_name,
-      w.name AS warehouse_name,
+      COALESCE(w.name, bw.name) AS warehouse_name,
+      bw.id AS branch_warehouse_id,
       uc.name AS created_by_name,
       ce.full_name AS created_by_employee_name,
       uo.name AS opened_by_name,
@@ -744,6 +795,7 @@ const fetchSessionRow = async (clientOrPool, { tenantId, sessionId, lock = false
     LEFT JOIN users us ON us.id = s.submitted_by
     LEFT JOIN users ua ON ua.id = s.approved_by
     LEFT JOIN users ur ON ur.id = s.rejected_by
+    ${branchWarehouseJoin}
     WHERE s.id = $1
       ${tenantClause}
     LIMIT 1
@@ -942,6 +994,7 @@ export const listInventoryCountSessions = async (clientOrPool, { tenantId = null
   const offset = (pageValue - 1) * limitValue;
   const whereClause = clauses.length ? `WHERE ${clauses.join(" AND ")}` : "";
   const coverSelects = await buildInventoryCountVariantImageSelects(dbClient);
+  const branchWarehouseJoin = await buildBranchWarehouseLateral(dbClient);
 
   const [countResult, rowsResult] = await Promise.all([
     dbClient.query(
@@ -961,7 +1014,8 @@ export const listInventoryCountSessions = async (clientOrPool, { tenantId = null
       SELECT
         s.*,
         b.name AS branch_name,
-        w.name AS warehouse_name,
+        COALESCE(w.name, bw.name) AS warehouse_name,
+        bw.id AS branch_warehouse_id,
         uc.name AS created_by_name,
         ce.full_name AS created_by_employee_name,
         us.name AS submitted_by_name,
@@ -1012,6 +1066,7 @@ export const listInventoryCountSessions = async (clientOrPool, { tenantId = null
         ORDER BY ci.created_at ASC, ci.id ASC
         LIMIT 1
       ) cover ON TRUE
+      ${branchWarehouseJoin}
       ${whereClause}
       ORDER BY s.created_at DESC, s.id DESC
       LIMIT $${params.length + 1}
@@ -1040,6 +1095,11 @@ export const createInventoryCountSession = async (clientOrPool, data = {}) => {
   console.log("[inventory-count:create:tx]", JSON.stringify({
     transaction_read_only: readOnlyResult.rows[0]?.transaction_read_only ?? null,
   }));
+  const tenantId = data.tenantId ?? data.tenant_id ?? null;
+  const branchId = normalizeNullableId(data.branchId ?? data.branch_id);
+  const warehouseId =
+    normalizeNullableId(data.warehouseId ?? data.warehouse_id) ??
+    (await resolveBranchWarehouseId(dbClient, { tenantId, branchId }));
   const result = await dbClient.query(
     `
     INSERT INTO inventory_count_sessions (
@@ -1058,9 +1118,9 @@ export const createInventoryCountSession = async (clientOrPool, data = {}) => {
     RETURNING *
     `,
     [
-      data.tenantId ?? data.tenant_id ?? null,
-      normalizeNullableId(data.branchId ?? data.branch_id),
-      normalizeNullableId(data.warehouseId ?? data.warehouse_id),
+      tenantId,
+      branchId,
+      warehouseId,
       normalizeText(data.title || data.session_title || "جرد جديد") || "جرد جديد",
       normalizeStatus(data.status || "draft"),
       normalizeText(data.notes || ""),
@@ -2594,6 +2654,15 @@ export const approveInventoryCountSession = async (clientOrPool, data = {}) => {
     const error = new Error("Manager approval required");
     error.status = 403;
     throw error;
+  }
+  // A count stored before it learned its warehouse is approved into the
+  // branch's warehouse, the same one the manager saw named on the card.
+  if (!session.warehouse_id && session.branch_warehouse_id) {
+    await dbClient.query(`UPDATE inventory_count_sessions SET warehouse_id = $2 WHERE id = $1 AND warehouse_id IS NULL`, [
+      session.id,
+      session.branch_warehouse_id,
+    ]);
+    session.warehouse_id = session.branch_warehouse_id;
   }
 
   const items = await fetchSessionItems(dbClient, { tenantId, sessionId, lock: true });

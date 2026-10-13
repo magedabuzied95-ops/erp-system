@@ -24,6 +24,7 @@ import { useManagerPortalLanguage } from "../lib/portalLanguage";
 import usePageTitle from "../../../shared/hooks/usePageTitle";
 import { resolveProductImageUrl } from "../../../shared/lib/imageUrls";
 import { Pagination } from "../../../shared/ui";
+import { countSessionTitle } from "../../employees/services/employeeDrafts/countSessionTitle";
 import "./ManagerPortal.m1.css";
 
 import i18n from "../../../i18n/i18n";
@@ -423,7 +424,9 @@ export default function InventoryApprovalsPage() {
                   >
                     <div className="flex items-start justify-between gap-3">
                       <div className="min-w-0">
-                        <div className="truncate text-base font-black text-text">{text(session.title, tt("managerPortal.stockCount.sessionLabel"))}</div>
+                        {/* Same name the employee sees: the model on the sheet,
+                            never five cards all called "جرد جديد". */}
+                        <div dir="auto" className="truncate text-start text-base font-black text-text">{text(countSessionTitle(session), tt("managerPortal.stockCount.sessionLabel"))}</div>
                         <div className="mt-1 flex flex-wrap gap-2 text-xs text-text-muted">
                           <span className="inline-flex items-center gap-1"><Building2 className="h-3.5 w-3.5" /> {text(session.branch_name, tt("managerPortal.stockCount.unknownBranch"))}</span>
                           <span className="inline-flex items-center gap-1"><Store className="h-3.5 w-3.5" /> {text(session.warehouse_name, tt("managerPortal.stockCount.unknownWarehouse"))}</span>
@@ -433,9 +436,18 @@ export default function InventoryApprovalsPage() {
                           <span className="inline-flex items-center gap-1"><CalendarDays className="h-3.5 w-3.5" /> {formatDateTime(session.created_at)}</span>
                         </div>
                       </div>
-                      <span className={`manager-portal-status-pill rounded-full border px-2.5 py-1 text-[11px] font-black ${statusTone(session.status)}`}>
-                        {session.status === "pending_review" ? tt("managerPortal.stockCount.status.underReview") : session.status === "rejected" ? tt("managerPortal.stockCount.status.rejected") : session.status === "completed" ? tt("managerPortal.stockCount.status.completed") : session.status}
-                      </span>
+                      <div className="flex shrink-0 flex-col items-center gap-2">
+                        <span className={`manager-portal-status-pill whitespace-nowrap rounded-full border px-2.5 py-1 text-[11px] font-black ${statusTone(session.status)}`}>
+                          {session.status === "pending_review" ? tt("managerPortal.stockCount.status.underReview") : session.status === "rejected" ? tt("managerPortal.stockCount.status.rejected") : session.status === "completed" ? tt("managerPortal.stockCount.status.completed") : session.status}
+                        </span>
+                        <div className="h-14 w-14 overflow-hidden rounded-[var(--radius-control)] border border-border bg-surface">
+                          {session.cover_image_url ? (
+                            <img src={resolveProductImageUrl(session.cover_image_url)} alt="" className="h-full w-full object-cover" loading="lazy" />
+                          ) : (
+                            <div className="flex h-full w-full items-center justify-center"><Package className="h-5 w-5 text-text-muted" /></div>
+                          )}
+                        </div>
+                      </div>
                     </div>
                     <div className="mt-3 flex flex-wrap gap-2 text-xs font-semibold text-text-muted">
                       <span className="rounded-full bg-surface-soft px-2.5 py-1">{tt("managerPortal.labels.items")}: {formatNumber(session.item_count || 0)}</span>
@@ -475,7 +487,7 @@ export default function InventoryApprovalsPage() {
                 <div className="flex flex-wrap items-start justify-between gap-3">
                   <div>
                     <div className="text-xs font-black uppercase tracking-[0.18em] text-text-muted">{tt("managerPortal.stockCount.sessionDetails")}</div>
-                    <h2 className="m1-section-title mt-1 text-text">{text(selectedSession.title, tt("managerPortal.stockCount.sessionLabel"))}</h2>
+                    <h2 className="m1-section-title mt-1 text-text">{text(countSessionTitle({ ...sessions.find((row) => String(row.id) === String(selectedSession.id)), ...selectedSession }), tt("managerPortal.stockCount.sessionLabel"))}</h2>
                     <div className="mt-2 flex flex-wrap gap-2 text-sm text-text-muted">
                       <span className="inline-flex items-center gap-1"><Building2 className="h-4 w-4" /> {text(selectedSession.branch_name, tt("managerPortal.stockCount.unknownBranch"))}</span>
                       <span className="inline-flex items-center gap-1"><Store className="h-4 w-4" /> {text(selectedSession.warehouse_name, tt("managerPortal.stockCount.unknownWarehouse"))}</span>
