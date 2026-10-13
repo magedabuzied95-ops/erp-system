@@ -1212,7 +1212,29 @@ export const openInventoryCountSession = async (clientOrPool, data = {}) => {
   });
 };
 
+// Fired after the commit, never awaited: a push service that is slow or down must not
+// hold up (or roll back) the employee's submit. Imported lazily because the push service
+// sits on top of the manager portal, not underneath the count.
+const pushInventoryCountSubmitted = ({ tenantId = null, sessionId } = {}) => {
+  Promise.resolve()
+    .then(async () => {
+      const detail = await getInventoryCountSession(db, { tenantId, sessionId });
+      if (!detail?.session || detail.session.status !== "pending_review") return;
+      const { sendManagerInventoryCountSubmittedPush } = await import("./managerPortalPushService.js");
+      await sendManagerInventoryCountSubmittedPush({ session: detail.session, items: detail.items });
+    })
+    .catch((error) => console.warn("[inventory-count:submit-push-failed]", { sessionId, message: error?.message || String(error) }));
+};
+
 export const submitInventoryCountSession = async (clientOrPool, data = {}) => {
+  const outcome = await submitInventoryCountSessionInTransaction(clientOrPool, data);
+  if (outcome?.submitted && outcome.session?.id) {
+    pushInventoryCountSubmitted({ tenantId: data.tenantId ?? data.tenant_id ?? null, sessionId: outcome.session.id });
+  }
+  return outcome;
+};
+
+const submitInventoryCountSessionInTransaction = async (clientOrPool, data = {}) => {
   await ensureInventoryCountSchema();
   return withTransaction(clientOrPool, async (dbClient) => {
   const tenantId = data.tenantId ?? data.tenant_id ?? null;

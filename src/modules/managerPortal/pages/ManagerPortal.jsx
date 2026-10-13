@@ -81,6 +81,8 @@ import { safeSetLocalStorage } from "../../../utils/safeStorage";
 import { useTheme } from "../../../theme/useTheme";
 import { ACCENTS } from "../../../theme/themes";
 import EmployeeDetailsSheet from "../components/EmployeeDetailsSheet";
+import { whenWorkerActive } from "../../aiSupport/services/serviceWorkerActivation";
+import ManagerPortalBottomNav from "../components/ManagerPortalBottomNav";
 import "./ManagerPortal.m1.css";
 
 import { useTranslation } from "react-i18next";
@@ -138,6 +140,19 @@ const isIosDevice = () => {
   return /iphone|ipad|ipod/i.test(window.navigator?.userAgent || "");
 };
 const pushSupported = () => isBrowser() && "serviceWorker" in navigator && "PushManager" in window && "Notification" in window;
+// The portal's push worker lives under its own scope. At "/" it shared ONE
+// registration with the AI Inbox push worker (each page registering its script
+// replaced the other's), and the employee portal's cleanup unregistered any
+// root-scoped employee-portal-sw.js outright — either way the manager's
+// subscription died and nothing on screen said so.
+const MANAGER_PUSH_SW_SCOPE = "/manager-portal/";
+const MANAGER_PUSH_SW_URL = `/employee-portal-sw.js?v=${MANAGER_PORTAL_PWA_VERSION}`;
+const getManagerPushRegistration = async () => {
+  const registration = await navigator.serviceWorker
+    .register(MANAGER_PUSH_SW_URL, { scope: MANAGER_PUSH_SW_SCOPE })
+    .catch(() => null);
+  return whenWorkerActive(registration);
+};
 const urlBase64ToUint8Array = (base64String = "") => {
   const padding = "=".repeat((4 - (base64String.length % 4)) % 4);
   const base64 = `${base64String}${padding}`.replace(/-/g, "+").replace(/_/g, "/");
@@ -1625,7 +1640,7 @@ export default function ManagerPortal() {
   useEffect(() => {
     if (!isBrowser()) return undefined;
     if (!("serviceWorker" in navigator)) return undefined;
-    navigator.serviceWorker.register(`/employee-portal-sw.js?v=${MANAGER_PORTAL_PWA_VERSION}`).catch(() => null);
+    void getManagerPushRegistration();
     return undefined;
   }, []);
 
@@ -1990,7 +2005,8 @@ export default function ManagerPortal() {
       return null;
     }
     try {
-      const registration = await navigator.serviceWorker.ready;
+      const registration = await getManagerPushRegistration();
+      if (!registration) throw new Error(tt("managerPortal.push.enableFailed"));
       const subscription = await registration.pushManager.getSubscription();
       setPushState((current) => ({
         ...current,
@@ -2030,7 +2046,8 @@ export default function ManagerPortal() {
       const keyResponse = await managerPortalApi.pushPublicKey(token);
       const publicKey = keyResponse?.publicKey || "";
       if (!publicKey || keyResponse?.enabled === false) throw new Error(tt("managerPortal.push.notConfigured"));
-      const registration = await navigator.serviceWorker.ready;
+      const registration = await getManagerPushRegistration();
+      if (!registration) throw new Error(tt("managerPortal.push.enableFailed"));
       let subscription = await registration.pushManager.getSubscription();
       if (subscription && !pushSubscriptionUsesKey(subscription, publicKey)) {
         await subscription.unsubscribe().catch(() => null);
@@ -2108,7 +2125,8 @@ export default function ManagerPortal() {
     if (!pushSupported()) return;
     setPushState((current) => ({ ...current, saving: true, message: "" }));
     try {
-      const registration = await navigator.serviceWorker.ready;
+      const registration = await getManagerPushRegistration();
+      if (!registration) throw new Error(tt("managerPortal.push.enableFailed"));
       const subscription = await registration.pushManager.getSubscription();
       await managerPortalApi.unsubscribePush(token, { endpoint: subscription?.endpoint || "", subscription: subscription?.toJSON?.() || null });
       await subscription?.unsubscribe?.();
@@ -2120,9 +2138,56 @@ export default function ManagerPortal() {
     }
   };
 
+  // Runs on every open. The server row can be lost without the phone knowing — a
+  // revoked endpoint, a regenerated portal token, a stale-build recovery that
+  // unregistered every worker — and the phone kept reporting "subscribed" while
+  // nothing arrived. Re-saving the subscription each time repairs all of those.
+  const syncPushSubscription = async () => {
+    if (!token || !pushSupported() || window.Notification.permission !== "granted") return;
+    try {
+      const keyResponse = await managerPortalApi.pushPublicKey(token);
+      const publicKey = keyResponse?.publicKey || "";
+      if (!publicKey || keyResponse?.enabled === false) return;
+      const registration = await getManagerPushRegistration();
+      if (!registration) return;
+      let subscription = await registration.pushManager.getSubscription();
+      if (subscription && !pushSubscriptionUsesKey(subscription, publicKey)) {
+        await subscription.unsubscribe().catch(() => null);
+        subscription = null;
+      }
+      if (!subscription) {
+        subscription = await registration.pushManager
+          .subscribe({ userVisibleOnly: true, applicationServerKey: urlBase64ToUint8Array(publicKey) })
+          .catch((subscribeError) => {
+            console.warn("[manager-push:resubscribe-failed]", subscribeError?.message || subscribeError);
+            return null;
+          });
+      }
+      if (!subscription) return;
+      await managerPortalApi.subscribePush(token, {
+        subscription: subscription.toJSON(),
+        application_server_key_length: publicKey.length,
+        portal_url: window.location.href,
+      });
+      // The old root-scoped subscription would deliver every push a second time.
+      // Retire its manager row on the server only: the browser subscription may
+      // belong to the AI Inbox now, which keeps its own row.
+      const legacy = await navigator.serviceWorker.getRegistration("/").catch(() => null);
+      if (legacy && legacy.scope === `${window.location.origin}/`) {
+        const legacySubscription = await legacy.pushManager?.getSubscription?.().catch(() => null);
+        if (legacySubscription?.endpoint && legacySubscription.endpoint !== subscription.endpoint) {
+          await managerPortalApi.unsubscribePush(token, { endpoint: legacySubscription.endpoint }).catch(() => null);
+        }
+      }
+      setPushState((current) => ({ ...current, supported: true, permission: "granted", subscribed: true, endpointHost: endpointHost(subscription.endpoint) }));
+    } catch (syncError) {
+      console.warn("[manager-push:sync-failed]", syncError?.message || syncError);
+    }
+  };
+
   useEffect(() => {
     if (!token) return;
-    void refreshPushState();
+    void refreshPushState().then(() => syncPushSubscription());
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [token, standalone]);
 
@@ -4834,29 +4899,13 @@ export default function ManagerPortal() {
         </aside>
       </div>
 
-      <nav className="manager-bottom-nav-safe-padding manager-bottom-nav-shell fixed inset-x-3 z-40 mx-auto max-w-2xl rounded-[1.4rem] border border-slate-800 bg-[linear-gradient(180deg,#020617,#0f172a)] shadow-2xl shadow-slate-900/30 lg:hidden">
-        <div className="grid grid-cols-7 gap-0.5 px-1.5 py-1.5">
-          {TABS.map((tab) => {
-            const active = activeTab === tab;
-            const label = tab === "today" ? tt("managerPortal.common.today") : tab === "staff" ? tt("managerPortal.nav.team") : tab === "tasks" ? tt("managerPortal.nav.tasks") : tab === "sales" ? tt("managerPortal.sections.sales") : tab === "shipping" ? tt("orders.portalBoard.navLabel") : tab === "chat" ? tt("managerPortal.nav.chat") : tab === "inventory" ? tt("managerPortal.nav.stockCount") : tt("managerPortal.nav.more");
-            const icon = tab === "today" ? Store : tab === "staff" ? Users : tab === "tasks" ? ClipboardList : tab === "sales" ? ShoppingCart : tab === "shipping" ? Truck : tab === "chat" ? MessageSquare : tab === "inventory" ? ClipboardCheck : Settings;
-            const Icon = icon;
-            return (
-              <button key={tab} type="button" data-testid={`tab-${tab}`} onClick={() => tab === "inventory" ? openInventoryApprovals() : setActiveTab(tab)} className={`relative flex min-w-0 flex-col items-center justify-center gap-0.5 rounded-[var(--radius-control)] px-1 py-1.5 text-[9px] font-black leading-[1.2] transition ${active ? "bg-[linear-gradient(180deg,#ffffff,#e2e8f0)] text-slate-950 shadow-sm" : "text-slate-300"}`}>
-                <Icon className="h-3.5 w-3.5 shrink-0" />
-                <span className="inline-flex max-w-full items-center gap-1 whitespace-nowrap">
-                  {label}
-                </span>
-                {/* Inline, the unread count added 22px to a 47px cell and pushed
-                    "المزيد" out of its own button. It rides the corner like the
-                    stock-count badge instead, so the label sets the width. */}
-                {tab === "more" && unreadCount > 0 ? <span className="absolute -top-1 right-0 min-w-4 rounded-full bg-rose-500 px-1 text-[8px] font-black leading-4 text-white">{formatNumber(unreadCount)}</span> : null}
-                {tab === "inventory" && pendingInventoryApprovalsCount > 0 ? <span className="absolute -top-1 right-0 min-w-4 rounded-full bg-rose-500 px-1 text-[8px] font-black leading-4 text-white">{formatNumber(pendingInventoryApprovalsCount)}</span> : null}
-              </button>
-            );
-          })}
-        </div>
-      </nav>
+      <ManagerPortalBottomNav
+        activeTab={activeTab}
+        onSelect={(tab) => (tab === "inventory" ? openInventoryApprovals() : setActiveTab(tab))}
+        unreadCount={unreadCount}
+        pendingInventoryCount={pendingInventoryApprovalsCount}
+        formatCount={formatNumber}
+      />
 
       {detailsEmployee ? (
         <EmployeeDetailsSheet

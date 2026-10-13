@@ -981,3 +981,59 @@ export const sendManagerEmployeeRequestPush = async ({ request = {}, employee = 
     }),
   });
 };
+
+// A stock count an employee sent for review. The manager used to learn of it only by
+// opening the portal; it now reaches the phone with the model, who counted and what moved.
+export const sendManagerInventoryCountSubmittedPush = async ({ session = {}, items = [] } = {}) => {
+  const sessionId = numberOrNull(session.id);
+  if (!sessionId) return { sent: 0, failed: 0, deactivated: 0, skipped: true };
+  const rows = Array.isArray(items) ? items : [];
+  const models = [...new Set(rows.map((item) => text(item.product_name)).filter(Boolean))];
+  const typedTitle = text(session.title);
+  const unnamed = !typedTitle || ["جرد جديد", "new stock count"].includes(typedTitle.toLowerCase());
+  const name = !unnamed ? typedTitle : models.length > 1 ? `${models[0]} +${models.length - 1}` : models[0] || "جرد جديد";
+  let surplus = 0;
+  let shortage = 0;
+  rows.forEach((item) => {
+    const stored = item.difference_quantity ?? item.difference_qty;
+    const diff = stored !== null && stored !== undefined && stored !== ""
+      ? Number(stored) || 0
+      : (Number(item.counted_quantity ?? item.actual_qty ?? 0) || 0) - (Number(item.system_quantity ?? item.expected_qty ?? 0) || 0);
+    if (diff > 0) surplus += diff;
+    if (diff < 0) shortage += Math.abs(diff);
+  });
+  const who = text(session.submitted_by_employee_name || session.created_by_employee_name || session.submitted_by_name || session.created_by_name);
+  const where = [text(session.branch_name), text(session.warehouse_name)].filter(Boolean).join(" / ");
+  const variance = surplus || shortage
+    ? [surplus ? `زيادة ${surplus}` : "", shortage ? `عجز ${shortage}` : ""].filter(Boolean).join(" · ")
+    : "مطابق";
+  const body = [who, where, `${rows.length} مقاس`, variance].filter(Boolean).join(" — ");
+
+  console.info("[manager-push:inventory-count-submitted]", {
+    tenantId: numberOrNull(session.tenant_id),
+    branchId: numberOrNull(session.branch_id),
+    session_id: sessionId,
+    item_count: rows.length,
+  });
+
+  return sendToManagerSubscriptions({
+    tenantId: numberOrNull(session.tenant_id),
+    branchId: numberOrNull(session.branch_id),
+    category: "stock",
+    logLabels: {
+      attempt: "[manager-push:inventory-count-attempt]",
+      success: "[manager-push:inventory-count-success]",
+      failed: "[manager-push:inventory-count-failed]",
+    },
+    buildPayload: (row) => ({
+      title: `جرد مستني المراجعة · ${name}`,
+      body: body.slice(0, 300),
+      tag: `manager-inventory-count-${sessionId}`,
+      data: {
+        type: "inventory_count_submitted",
+        session_id: sessionId,
+        url: `/manager-portal/${encodeURIComponent(row.portal_token)}/inventory-approvals?session=${sessionId}`,
+      },
+    }),
+  });
+};

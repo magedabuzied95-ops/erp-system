@@ -26,6 +26,7 @@ import { resolveProductImageUrl } from "../../../shared/lib/imageUrls";
 import { Pagination } from "../../../shared/ui";
 import { countSessionTitle } from "../../employees/services/employeeDrafts/countSessionTitle";
 import InventoryCoverage from "../components/InventoryCoverage";
+import ManagerPortalBottomNav from "../components/ManagerPortalBottomNav";
 import "./ManagerPortal.m1.css";
 
 import i18n from "../../../i18n/i18n";
@@ -237,7 +238,9 @@ export default function InventoryApprovalsPage() {
       const requestedSession = nextSessionId
         ? availableSessions.find((session) => String(session.id) === String(nextSessionId))
         : null;
-      const firstSessionId = requestedSession?.id || availableSessions[0]?.id || "";
+      // overrides.select: a count named by a link is opened even when it sits on
+      // another page of the list.
+      const firstSessionId = requestedSession?.id || overrides.select || availableSessions[0]?.id || "";
       if (firstSessionId) {
         setSelectedSessionId(String(firstSessionId));
       } else {
@@ -264,11 +267,20 @@ export default function InventoryApprovalsPage() {
     }
   };
 
+  // A stock-count push opens this page with ?session=<id>: land on that count, and
+  // on the phone open it straight away instead of leaving it behind the list.
+  const linkedSessionId = searchParams.get("session") || "";
   useEffect(() => {
     if (!token) return;
+    if (linkedSessionId) {
+      setStatusFilter("all");
+      void loadApprovals(linkedSessionId, { status: "all", select: linkedSessionId });
+      if (typeof window !== "undefined" && window.matchMedia("(max-width: 1279px)").matches) setDetailSheetOpen(true);
+      return;
+    }
     void loadApprovals();
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [token]);
+  }, [token, linkedSessionId]);
 
   useEffect(() => {
     if (!selectedSessionId) return;
@@ -387,43 +399,21 @@ export default function InventoryApprovalsPage() {
   }
 
   return (
-    <main className="manager-portal-shell inventory-approvals-page min-h-[100dvh] overflow-x-hidden px-3 py-3 sm:px-4 sm:py-4">
+    <main className="manager-portal-shell inventory-approvals-page min-h-[100dvh] overflow-x-hidden px-3 pt-3 pb-[calc(env(safe-area-inset-bottom,0px)+6rem)] sm:px-4 sm:pt-4 lg:pb-4">
       <div className="mx-auto max-w-[96rem] space-y-4">
-        <header className="manager-inventory-panel rounded-[var(--radius-card)] border border-border bg-surface-soft p-4 shadow-2xl backdrop-blur sm:rounded-[var(--radius-card)] sm:p-5">
-          <div className="flex flex-wrap items-start justify-between gap-4">
-            <div>
-              <h1 className="m1-page-title">{tt("managerPortal.stockCount.title")}</h1>
-              <p className="mt-1 max-w-3xl text-xs leading-5 text-text-muted sm:mt-2 sm:text-sm sm:leading-6">
-                {tt("managerPortal.stockCount.centerSubtitle")}
-              </p>
-            </div>
-            <div className="grid w-full grid-cols-2 gap-2 sm:flex sm:w-auto sm:flex-wrap sm:items-center">
-              <button
-                type="button"
-                onClick={() => loadApprovals(selectedSessionId)}
-                className="inline-flex items-center gap-2 rounded-[var(--radius-control)] border border-border bg-surface-soft px-4 py-3 text-sm font-black text-text transition hover:bg-surface-hover"
-              >
-                <RefreshCw className={`h-4 w-4 ${loading ? "animate-spin" : ""}`} />
-                {tt("managerPortal.actions.refresh")}
-              </button>
-              <button
-                type="button"
-                onClick={() => navigate(`/manager-portal/${encodeURIComponent(token)}`)}
-                className="inline-flex items-center gap-2 rounded-[var(--radius-control)] border border-border bg-surface-soft px-4 py-3 text-sm font-black text-text transition hover:bg-surface-hover"
-              >
-                <ArrowLeft className="h-4 w-4" />
-                {tt("managerPortal.stockCount.backToPortal")}
-              </button>
-            </div>
-          </div>
+        {/* The portal's bottom bar gets the manager back now, and the status chips
+            below carry the counts, so the header is just the title and a refresh. */}
+        <header className="flex items-center justify-between gap-3 px-1">
+          <h1 className="m1-page-title">{tt("managerPortal.stockCount.title")}</h1>
+          <button
+            type="button"
+            onClick={() => loadApprovals(selectedSessionId)}
+            className="inline-flex shrink-0 items-center gap-2 rounded-[var(--radius-control)] border border-border bg-surface px-3 py-2 text-sm font-black text-text transition hover:bg-surface-hover"
+          >
+            <RefreshCw className={`h-4 w-4 ${loading ? "animate-spin" : ""}`} />
+            {tt("managerPortal.actions.refresh")}
+          </button>
         </header>
-
-        <section className="grid grid-cols-2 gap-2 sm:gap-3 xl:grid-cols-4">
-          <StatCard title={tt("managerPortal.stockCount.stats.pending")} value={summary.pending_review_count || 0} icon={ClipboardList} tone="amber" />
-          <StatCard title={tt("managerPortal.stockCount.stats.rejected")} value={summary.rejected_count || 0} icon={X} tone="rose" />
-          <StatCard title={tt("managerPortal.stockCount.stats.completedToday")} value={summary.completed_today_count || 0} icon={CheckCircle2} tone="emerald" />
-          <StatCard title={tt("managerPortal.stockCount.stats.varianceToday")} value={summary.today_difference_total || 0} icon={Package} tone="sky" />
-        </section>
 
         <div className="grid grid-cols-2 gap-1 rounded-[var(--radius-control)] border border-border bg-surface-soft p-1">
           {[
@@ -850,34 +840,23 @@ export default function InventoryApprovalsPage() {
           </div>
         </div>
       ) : null}
+
+      <ManagerPortalBottomNav
+        activeTab="inventory"
+        pendingInventoryCount={Number(summary.pending_review_count || 0)}
+        onSelect={(tab) => {
+          if (tab === "inventory") {
+            setDetailSheetOpen(false);
+            window.scrollTo({ top: 0, behavior: "smooth" });
+            return;
+          }
+          navigate(`/manager-portal/${encodeURIComponent(token)}?tab=${encodeURIComponent(tab)}`);
+        }}
+      />
     </main>
   );
 }
 
-function StatCard({ title, value, icon: Icon, tone = "sky" }) {
-  const toneClasses = {
-    amber: "from-amber-400/15 to-amber-500/5 text-amber-100 border-amber-300/20",
-    rose: "from-rose-400/15 to-rose-500/5 text-rose-100 border-rose-300/20",
-    emerald: "from-emerald-400/15 to-emerald-500/5 text-emerald-100 border-emerald-300/20",
-    sky: "from-primary/15 to-primary/5 text-primary border-primary/20",
-  };
-  return (
-    <div data-tone={tone} className={`manager-inventory-stat rounded-[var(--radius-card)] border bg-gradient-to-br p-3 shadow-xl backdrop-blur sm:rounded-[var(--radius-card)] sm:p-4 ${toneClasses[tone] || toneClasses.sky}`}>
-      <div className="flex items-start justify-between gap-3">
-        <div>
-          <div className="text-[10px] font-black leading-4 opacity-70 sm:text-xs sm:uppercase sm:tracking-[0.18em]">{title}</div>
-          <div className="mt-1 text-2xl font-black sm:mt-2 sm:text-3xl">{formatNumber(value)}</div>
-        </div>
-        <Icon className="h-5 w-5 shrink-0 opacity-90 sm:h-6 sm:w-6" />
-      </div>
-    </div>
-  );
-}
-
-/**
- * A colour can carry a surplus on one size and a shortage on another, so the
- * badge says both instead of netting them into one misleading number.
- */
 function VarianceBadge({ surplus = 0, shortage = 0 }) {
   if (!surplus && !shortage) {
     return (
