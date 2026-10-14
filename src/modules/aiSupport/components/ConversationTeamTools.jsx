@@ -143,7 +143,12 @@ export default function ConversationTeamTools({
 
   const staffOptions = useMemo(() => [
     { value: "", label: t("aiSupport.teamTools.assign.unassigned") },
-    ...asArray(staff).map((person) => ({ value: String(person.id), label: person.id === me.id ? t("aiSupport.teamTools.assign.meLabel", { name: person.name }) : person.name })),
+    ...asArray(staff).map((person) => ({
+      value: String(person.id),
+      label: person.id === me.id
+        ? t("aiSupport.teamTools.assign.meLabel", { name: person.name })
+        : person.branch ? `${person.name} · ${person.branch}` : person.name,
+    })),
   ], [me.id, staff, t]);
 
   const assign = async (targetId) => {

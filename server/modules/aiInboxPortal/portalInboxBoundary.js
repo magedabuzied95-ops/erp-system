@@ -15,6 +15,7 @@ const READ_ONLY_PATHS = [
   /^\/api\/auth\/me$/,
   /^\/api\/ai-inbox\/quick-replies$/,
   /^\/api\/ai-inbox\/staff$/,
+  /^\/api\/ai-inbox\/sequences$/,
   /^\/api\/customers\/tags$/,
   /^\/api\/ai-inbox\/shipping-quote$/,
   /^\/api\/products\/with-variants$/,

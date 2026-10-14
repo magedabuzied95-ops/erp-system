@@ -8638,23 +8638,43 @@ router.patch("/followups/:id/done", protect, inboxReply(), async (req, res) => {
 router.get("/staff", protect, inboxView(), async (req, res) => {
   try {
     const tenantId = toTenantId(req);
-    const result = await db.query(
-      `
-      SELECT u.id, u.name, u.email, r.name AS role
-      FROM users u
-      LEFT JOIN roles r ON r.id = u.role_id
-      WHERE ($1::bigint IS NULL OR u.tenant_id = $1::bigint)
-        AND COALESCE(u.is_active, TRUE) = TRUE
-      ORDER BY u.name ASC, u.id ASC
-      LIMIT 300
-      `,
-      [tenantId || null]
-    );
-    const staff = result.rows
-      .filter((user) => String(user.role || "").toLowerCase() !== "portal_inbox")
-      .filter((user) => !/(^|[^a-z0-9])(qa|test|debug|demo|sample|dummy|sandbox)([^a-z0-9]|$)/i.test(`${user.name || ""} ${user.email || ""}`))
-      .map((user) => ({ id: Number(user.id), name: envText(user.name) || envText(user.email) || `#${user.id}`, role: envText(user.role) }));
-    return res.json({ success: true, staff, me: { id: req.user?.id || null, name: userDisplayName(req.user) } });
+    // The people who actually answer customers: the employees whose الرسائل switch is on
+    // (they reply from the employee portal through a hidden login that carries their
+    // name and branch) — not every cashier or admin who happens to have an account.
+    // The caller is appended so "mine" always has an owner.
+    let employees = [];
+    try {
+      const result = await db.query(
+        `
+        SELECT e.id AS employee_id, e.full_name, e.portal_inbox_user_id AS user_id, b.name AS branch
+        FROM employees e
+        LEFT JOIN branches b ON b.id = e.branch_id
+        WHERE ($1::bigint IS NULL OR e.tenant_id = $1::bigint)
+          AND e.portal_inbox_enabled = TRUE
+          AND e.portal_inbox_user_id IS NOT NULL
+          AND LOWER(COALESCE(e.status, 'active')) NOT IN ('inactive', 'terminated', 'archived', 'resigned')
+        ORDER BY b.name NULLS LAST, e.full_name ASC
+        LIMIT 300
+        `,
+        [tenantId || null]
+      );
+      employees = result.rows;
+    } catch (error) {
+      // The switch columns appear on the first toggle; before that nobody has the inbox.
+      if (error?.code !== "42703") throw error;
+    }
+    const staff = employees.map((row) => ({
+      id: Number(row.user_id),
+      employee_id: Number(row.employee_id),
+      name: envText(row.full_name) || `#${row.employee_id}`,
+      branch: envText(row.branch),
+      role: "employee",
+    }));
+    const meId = Number(req.user?.id) || null;
+    if (meId && !staff.some((person) => person.id === meId)) {
+      staff.push({ id: meId, employee_id: null, name: userDisplayName(req.user), branch: "", role: envText(req.user?.role_name || req.user?.role) });
+    }
+    return res.json({ success: true, staff, me: { id: meId, name: userDisplayName(req.user) } });
   } catch (error) {
     return sendError(res, error, "Failed to load staff");
   }
