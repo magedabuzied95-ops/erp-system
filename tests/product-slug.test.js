@@ -42,3 +42,17 @@ test("uniqueImageUrls removes duplicate and invalid additional images", () => {
     ["https://cdn.example.com/a.jpg", "/uploads/b.jpg"]
   );
 });
+
+test("a new product whose name is taken gets a message naming the existing product", async () => {
+  const { generateUniqueProductSlug } = await import("../server/utils/productSlug.js");
+  const client = { query: async () => ({ rows: [{ id: 2, name: "Adidas Terrex" }] }) };
+  await assert.rejects(
+    () => generateUniqueProductSlug(client, { tenantId: 1, name: "Adidas Terrex", brand: "Adidas" }),
+    (error) => error.status === 409
+      && error.code === "PRODUCT_SLUG_DUPLICATE"
+      && error.publicMessage.includes("Adidas Terrex")
+      && error.existing_product_id === 2
+  );
+  const free = { query: async () => ({ rows: [] }) };
+  assert.equal(await generateUniqueProductSlug(free, { tenantId: 1, name: "New Model", brand: "Adidas" }), "adidas-new-model");
+});

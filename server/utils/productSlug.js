@@ -62,7 +62,7 @@ export const generateUniqueProductSlug = async (
   const baseSlug = slugifyProductValue(requestedSlug) || buildProductBaseSlug({ brand, name, fallback });
   const result = await client.query(
     `
-    SELECT id
+    SELECT id, name
     FROM products
     WHERE ($1::bigint IS NULL OR tenant_id IS NULL OR tenant_id = $1::bigint)
       AND ($2::bigint IS NULL OR id <> $2::bigint)
@@ -79,6 +79,10 @@ export const generateUniqueProductSlug = async (
     const error = new Error("Product slug already exists and product id is not available for a stable suffix");
     error.status = 409;
     error.code = "PRODUCT_SLUG_DUPLICATE";
+    // Shown to the user as is; without it the 409 read "Duplicate SKU or barcode".
+    const existingName = String(result.rows[0].name || name || "").trim();
+    error.publicMessage = `فيه منتج تاني بنفس الاسم «${existingName}». غيّر الاسم، أو افتح المنتج الموجود.`;
+    error.existing_product_id = result.rows[0].id;
     throw error;
   }
   return productSlugWithId(baseSlug, id);
