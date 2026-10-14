@@ -2330,8 +2330,9 @@ export const buildEmployeePayrollPortalPayload = async ({ employee, includeOptio
   const absenceDeduction = toNumber(monthFigures?.attendance_deduction_total, toNumber(attendanceSnapshot.attendance_deduction_total));
   const otherDeductions = toNumber(monthFigures?.manual_deductions);
   const totalDeductions = toNumber(monthFigures?.total_deductions ?? monthFigures?.deductions, advanceDeductions + penalties + absenceDeduction + otherDeductions);
-  // Approved: the run's figure. Not yet: payroll's preview so far this month (null if it failed).
-  const monthNetSalary = monthFigures && monthFigures.net_pay !== undefined && monthFigures.net_pay !== null ? toNumber(monthFigures.net_pay) : null;
+  // Owner's rule (2026-10-14): the employee sees a salary only once it is approved. Until then the
+  // net is not sent at all (not just hidden on screen), so the running preview never reaches them.
+  const monthNetSalary = payrollRun && payrollRun.net_pay !== undefined && payrollRun.net_pay !== null ? toNumber(payrollRun.net_pay) : null;
   const payrollStatus = payrollRun
     ? String(payrollRun.status || (payrollRun.paid_at ? "paid" : payrollRun.approved_at ? "approved" : "calculated")).toLowerCase()
     : "draft";

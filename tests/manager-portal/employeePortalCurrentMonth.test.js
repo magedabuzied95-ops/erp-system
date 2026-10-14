@@ -19,6 +19,10 @@ const withRun = async (run, fn) => {
   db.query = async (sql) => {
     const text = String(sql);
     if (/FROM employee_payroll_runs/.test(text) && /ORDER BY/.test(text) && run) return { rows: [run] };
+    // Let payroll's live preview succeed, so it has a real net the portal must still not send.
+    if (/FROM employees e/.test(text) && /sales_commission_type/.test(text)) {
+      return { rows: [{ id: 7, tenant_id: 1, full_name: "Test", salary: 6000, working_days_per_month: 26, sales_commission_type: "none" }] };
+    }
     return { rows: [] };
   };
   try {
@@ -39,6 +43,10 @@ test("last month's approved run no longer stands in for this month", async () =>
   assert.equal(payload.current_payroll_period, month);
   assert.notEqual(payload.net_salary, 411.04, "last month's net must not be shown as this month's");
   assert.equal(payload.payroll_generated, false);
+  // Owner's rule: no salary reaches the employee until the month is approved — not even the preview.
+  assert.equal(payload.net_salary, null);
+  assert.equal(payload.wallet_summary.current_net_salary, null);
+  assert.equal(payload.payslip.net_salary, null);
 });
 
 test("this month's approved run is shown as approved", async () => {
