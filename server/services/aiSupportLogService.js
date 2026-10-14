@@ -5,6 +5,7 @@ import { repairCorruptedArabicValue } from "../utils/arabicTextRepair.js";
 import { normalizeWhatsappPhone, normalizeWhatsappSessionId as normalizeCanonicalWhatsappSessionId } from "../utils/whatsappIdentity.js";
 import { pruneWeakConversationChannels, writableConversationChannel } from "../utils/inboxChannelIdentity.js";
 import { canonicalPhoneSql } from "../utils/phoneSearch.js";
+import { emitToRooms } from "../utils/socket.js";
 
 let schemaReadyPromise = null;
 
@@ -2044,9 +2045,15 @@ export const updateAiSupportConversationState = async ({
     current_status: current.rows[0]?.status || "",
   });
 
-  const resolvedAssignedUserId = assignedUserId === undefined
-    ? (safeStatus === "human_takeover" ? numberOrNull(actorUserId) : null)
-    : numberOrNull(assignedUserId);
+  /*
+   * No explicit assignee means "leave the assignment alone". It used to default
+   * to the actor on a takeover, which made EVERY staff reply overwrite
+   * assigned_user_id with whoever typed last while the name stayed from before
+   * — rows ended up with one person's id and another's name. The takeover
+   * route passes the assignee explicitly, and the first reply claims a thread
+   * in appendManualAiSupportReply.
+   */
+  const resolvedAssignedUserId = assignedUserId === undefined ? null : numberOrNull(assignedUserId);
   const resolvedAssignedUserName = assignedUserName === undefined
     ? ""
     : toText(assignedUserName);
@@ -2331,6 +2338,30 @@ export const appendManualAiSupportReply = async ({
       `,
       [safeTenantId, safeSessionId, safeMessage || repairText(message || previewMessage), repairText(channel)]
     ).catch(() => {});
+  }
+  /*
+   * First reply claims the conversation. A staff message on a thread nobody
+   * holds writes that person's name on it, so "المعيّنة ليّا" fills itself and
+   * the team can see who has it without anyone assigning by hand. A thread that
+   * is already assigned is left alone — a colleague helping out is not a
+   * hand-over. Notes and automations never claim.
+   */
+  if (safeTenantId && safeSessionId && staffUserId && !internalNote && !preserveSessionState) {
+    const claimed = await db.query(
+      `
+      UPDATE ai_support_sessions
+      SET assigned_user_id = $3::bigint, assigned_user_name = $4::text, updated_at = NOW()
+      WHERE tenant_id = $1::bigint AND session_id = $2::text AND assigned_user_id IS NULL
+      RETURNING id
+      `,
+      [safeTenantId, safeSessionId, numberOrNull(staffUserId), toText(staffUserName)]
+    ).catch((error) => {
+      console.warn("[ai-support:auto-claim] skipped", { session_id: redactSessionInLogs ? "[redacted]" : safeSessionId, message: error?.message });
+      return { rows: [] };
+    });
+    if (claimed.rows.length) {
+      emitToRooms([`tenant:${safeTenantId}`], "ai_inbox:refresh", { tenant_id: safeTenantId, session_id: safeSessionId, reason: "auto_claimed", at: new Date().toISOString() });
+    }
   }
   if (safeTenantId && safeSessionId && !preserveSessionState) {
     // Not `channel || "web_chat"`: this call fans the channel out into
