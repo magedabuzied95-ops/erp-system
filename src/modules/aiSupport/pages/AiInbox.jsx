@@ -4544,6 +4544,9 @@ export default function AiInbox({ reviewerMode = false }) {
   const [readFilter, setReadFilter] = useState("all"); // all | unread | read
   const [assignedFilter, setAssignedFilter] = useState("all"); // all | me
   const [teamToolsOpen, setTeamToolsOpen] = useState(false);
+  // When the drawer opened: a tap that opens it also fires synthesised mouse events ~300ms
+  // later on the backdrop that just appeared under the finger, which closed it at once.
+  const teamToolsOpenedAtRef = useRef(0);
   const [channelFilter, setChannelFilter] = useState(() => deepLinkChannelRef.current || "all");
   // Which specific account (WhatsApp number / page) within the selected channel;
   // stores the channel_accounts row id as a string, or "all".
@@ -9953,7 +9956,7 @@ export default function AiInbox({ reviewerMode = false }) {
                     onToggleFullscreen={handleToggleConversationExpansion}
                     showBack
                     onOpenCustomer360={openCustomerDrawer}
-                    onOpenTeamTools={reviewerMode ? undefined : () => setTeamToolsOpen((current) => !current)}
+                    onOpenTeamTools={reviewerMode ? undefined : () => { teamToolsOpenedAtRef.current = Date.now(); setTeamToolsOpen((current) => !current); }}
                     teamToolsOpen={teamToolsOpen}
                   />
                   <div
@@ -10152,7 +10155,7 @@ export default function AiInbox({ reviewerMode = false }) {
       {/* Assign / remind / sequence for the open conversation. One drawer for
           every layout, opened from the thread header's team-tools button. */}
       {teamToolsOpen && !reviewerMode && selectedConversation ? (
-        <div className="fixed inset-0 z-[120] flex justify-end bg-slate-950/45 backdrop-blur-[1px]" onMouseDown={(event) => event.target === event.currentTarget && setTeamToolsOpen(false)} data-ai-inbox-team-tools="drawer">
+        <div className="fixed inset-0 z-[120] flex justify-end backdrop-blur-[1px]" style={{ backgroundColor: "rgba(2, 6, 23, 0.45)" }} onClick={(event) => { if (event.target !== event.currentTarget) return; if (Date.now() - teamToolsOpenedAtRef.current < 600) return; setTeamToolsOpen(false); }} data-ai-inbox-team-tools="drawer">
           <aside className="flex h-full w-full max-w-md flex-col overflow-y-auto border-l border-white/10 bg-[#0f1418] p-4 text-white shadow-[0_0_80px_rgba(0,0,0,0.5)]">
             <div className="mb-3 flex items-center justify-between gap-3">
               <div className="flex min-w-0 items-center gap-2 text-sm font-black">
@@ -10407,7 +10410,7 @@ export default function AiInbox({ reviewerMode = false }) {
                     isFullscreenConversation={conversationExpanded}
                     onToggleFullscreen={handleToggleConversationExpansion}
                     onOpenCustomer360={openCustomerDrawer}
-                    onOpenTeamTools={reviewerMode ? undefined : () => setTeamToolsOpen((current) => !current)}
+                    onOpenTeamTools={reviewerMode ? undefined : () => { teamToolsOpenedAtRef.current = Date.now(); setTeamToolsOpen((current) => !current); }}
                     teamToolsOpen={teamToolsOpen}
                   />
                   {isCommentConversation(selectedConversation || {}) ? (

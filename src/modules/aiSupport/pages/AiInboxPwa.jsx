@@ -3557,6 +3557,9 @@ export default function AiInboxPwa({ portal = null } = {}) {
   const { sequences: inboxSequences } = useMessageSequences({ headers });
   const [assignedFilter, setAssignedFilter] = useState("all"); // all | me
   const [teamToolsOpen, setTeamToolsOpen] = useState(false);
+  // When the drawer opened: a tap that opens it also fires synthesised mouse events ~300ms
+  // later on the backdrop that just appeared under the finger, which closed it at once.
+  const teamToolsOpenedAtRef = useRef(0);
 
   const [loading, setLoading] = useState(true);
   const [olderLoading, setOlderLoading] = useState(false);
@@ -8472,7 +8475,7 @@ export default function AiInboxPwa({ portal = null } = {}) {
                     {t("aiSupport.inbox.pwa.createCustomer")}
                   </button>
                   {/* Assign, remind, sequence: the same tools the desktop shows beside the thread. */}
-                  <button type="button" onClick={() => { setTeamToolsOpen(true); setMenuOpen(false); }} data-pwa-team-tools="open" className="flex w-full items-center gap-3 px-4 py-3 text-sm font-semibold text-slate-900 hover:bg-slate-100">
+                  <button type="button" onClick={() => { teamToolsOpenedAtRef.current = Date.now(); setTeamToolsOpen(true); setMenuOpen(false); }} data-pwa-team-tools="open" className="flex w-full items-center gap-3 px-4 py-3 text-sm font-semibold text-slate-900 hover:bg-slate-100">
                     <Users className="h-4 w-4" />
                     {t("aiSupport.inbox.pwa.teamTools")}
                   </button>
@@ -8972,7 +8975,7 @@ export default function AiInboxPwa({ portal = null } = {}) {
           onSaved={applyConversationPrivacy}
         />
         {teamToolsOpen && selectedConversation ? (
-          <div className="fixed inset-0 z-[120] flex items-end justify-center bg-slate-950/50 backdrop-blur-[1px]" onMouseDown={(event) => event.target === event.currentTarget && setTeamToolsOpen(false)} data-pwa-team-tools="sheet">
+          <div className="fixed inset-0 z-[120] flex items-end justify-center backdrop-blur-[1px]" style={{ backgroundColor: "rgba(2, 6, 23, 0.5)" }} onClick={(event) => { if (event.target !== event.currentTarget) return; if (Date.now() - teamToolsOpenedAtRef.current < 600) return; setTeamToolsOpen(false); }} data-pwa-team-tools="sheet">
             <section className="max-h-[88dvh] w-full max-w-lg overflow-y-auto rounded-t-[26px] bg-white p-4 pb-[calc(1rem+env(safe-area-inset-bottom))] shadow-[0_-20px_60px_rgba(15,23,42,0.25)]">
               <div className="mb-3 flex items-center justify-between gap-3">
                 <div className="flex items-center gap-2 text-sm font-black text-slate-900">
