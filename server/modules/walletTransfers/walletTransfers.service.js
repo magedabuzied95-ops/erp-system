@@ -302,8 +302,17 @@ export const toPosTransfer = (row = {}) => ({
 
 const posTransferRooms = (tenantId) => (tenantId ? [`tenant:${tenantId}`] : ["notifications:all"]);
 
+// Anyone can text the shop's phone the bank's exact words with any amount. The till hands
+// goods over on the cashier's tap, so it is offered only money from the source's own
+// sender; everything else waits on the review page for a person.
+export const isPosOfferableTransfer = (row = {}) =>
+  Boolean(row?.id) &&
+  row.direction === "incoming" &&
+  ["unmatched", "needs_review"].includes(row.status) &&
+  isTrustedTransferSender(row.provider, row.sms_sender);
+
 const emitPosTransferIncoming = (row) => {
-  if (!row || row.direction !== "incoming" || !["unmatched", "needs_review"].includes(row.status)) return;
+  if (!isPosOfferableTransfer(row)) return;
   emitToRooms(posTransferRooms(row.tenant_id), "wallet_transfers:incoming", toPosTransfer(row));
 };
 
@@ -323,11 +332,11 @@ export const listPosIncomingTransfers = async ({ tenantId = null } = {}) => {
       AND ($1::bigint IS NULL OR tenant_id = $1::bigint OR tenant_id IS NULL)
       AND COALESCE(occurred_at, created_at) >= NOW() - INTERVAL '${POS_TRANSFER_WINDOW_MINUTES} minutes'
     ORDER BY COALESCE(occurred_at, created_at) DESC
-    LIMIT 20
+    LIMIT 50
     `,
     [tenantId]
   );
-  return result.rows.map(toPosTransfer);
+  return result.rows.filter(isPosOfferableTransfer).slice(0, 20).map(toPosTransfer);
 };
 
 // Runs inside the till's sale transaction, after the order row exists. The one UPDATE is
@@ -351,6 +360,10 @@ export const sumPosTransferParts = (paymentBreakdown = []) =>
   );
 
 export const claimWalletTransferForPosOrder = async (client, { tenantId = null, transferId, orderId, parts = {}, userId = null }) => {
+  // The sender never changes after arrival, so checking it outside the UPDATE races nothing;
+  // the till's own feed already hid an untrusted one, this refuses a hand-made request.
+  const found = await client.query(`SELECT id, direction, status, provider, sms_sender FROM wallet_transfers WHERE id = $1`, [transferId]);
+  if (!isPosOfferableTransfer(found.rows[0])) return null;
   const result = await client.query(
     `
     UPDATE wallet_transfers

@@ -140,9 +140,15 @@ const TRUSTED_SENDERS = {
   vodafone_cash: /vf|vodafone|فودافون/i,
   cib: /cib|التجاري/i,
   united_bank: /united|المتحد|ubank/i,
-  // Not an SMS at all: the iPhone automation only fires on notifications from the InstaPay
-  // app itself, so nobody outside the phone can put words in this one.
+  // The InstaPay app's own notification names the app; the same words in an SMS do not.
   instapay: /instapay|انستاباي|إنستاباي|انستا/i,
 };
+// A bank or Vodafone texts from a sender NAME (VF-Cash, a saved contact). Anyone can text
+// the shop's phone from a number or an iMessage address — "vfcash.eg@icloud.com" or
+// "+201012345678" — and that is never the bank, whatever the words say.
+const isPersonalHandle = (sender = "") => {
+  const value = String(sender || "").trim();
+  return !value || value.includes("@") || /^[+\d\s()-]+$/.test(value);
+};
 export const isTrustedTransferSender = (provider = "", sender = "") =>
-  Boolean(TRUSTED_SENDERS[provider]?.test(String(sender || "")));
+  !isPersonalHandle(sender) && Boolean(TRUSTED_SENDERS[provider]?.test(String(sender || "")));

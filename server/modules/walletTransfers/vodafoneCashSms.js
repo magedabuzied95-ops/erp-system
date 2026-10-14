@@ -105,5 +105,9 @@ export const parseVodafoneCashSms = (raw = "") => {
 // The Shortcut reports whatever iOS shows as the sender. A forged SMS can carry the
 // same words, so only a sender that names Vodafone may confirm an order on its own —
 // anything else is kept for a person to look at.
-export const isTrustedVodafoneSender = (sender = "") =>
-  /vf|vodafone|فودافون/i.test(String(sender || ""));
+// A phone number or an iMessage address is a person, never Vodafone.
+export const isTrustedVodafoneSender = (sender = "") => {
+  const value = String(sender || "").trim();
+  if (!value || value.includes("@") || /^[+\d\s()-]+$/.test(value)) return false;
+  return /vf|vodafone|فودافون/i.test(value);
+};

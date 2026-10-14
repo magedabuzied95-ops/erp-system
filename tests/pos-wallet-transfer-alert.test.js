@@ -18,11 +18,12 @@ test("the till sees the provider in words, the amount as a number, and who sent 
 
 test("the claim takes only a waiting incoming transfer of exactly the wallet amount, in one statement", async () => {
   const calls = [];
-  const client = { query: async (sql, params) => (calls.push({ sql, params }), { rows: [] }) };
+  const bankRow = { id: 7, direction: "incoming", status: "unmatched", provider: "united_bank", sms_sender: "United Bank" };
+  const client = { query: async (sql, params) => (calls.push({ sql, params }), { rows: /^SELECT/.test(sql) ? [bankRow] : [] }) };
   const claimed = await claimWalletTransferForPosOrder(client, { tenantId: 1, transferId: 7, orderId: 99, parts: { vodafone_cash: 0, instapay: 2250 }, userId: 3 });
   assert.equal(claimed, null, "no row back means another till took it, or the amount differs");
-  assert.equal(calls.length, 1);
-  const { sql, params } = calls[0];
+  assert.equal(calls.length, 2);
+  const { sql, params } = calls[1];
   assert.match(sql, /UPDATE wallet_transfers/);
   assert.match(sql, /status IN \('unmatched', 'needs_review'\)/);
   assert.match(sql, /direction = 'incoming'/);
@@ -91,4 +92,28 @@ test("a till claim and every automatic or manual match also settle the twin", ()
   assert.match(service, /if \(matched\) matched\.twins = await settleTransferTwins\(client, matched\);/);
   assert.match(service, /const setAside = await setAsideIfTwinSettled\(client, row\);/);
   assert.match(service, /\(row\.twins \|\| \[\]\)\.forEach\(emitPosTransferSettled\);/, "tills drop the twin's card too");
+});
+
+// Anyone can text the shop's phone the bank's exact words. The till hands goods over on a
+// tap, so a message from a person — a number or an iMessage address — never reaches it.
+test("a forged message from a number or an iMessage address is never offered to the till, nor claimable", async () => {
+  const { isPosOfferableTransfer } = await import("../server/modules/walletTransfers/walletTransfers.service.js");
+  const waiting = { id: 1, direction: "incoming", status: "unmatched" };
+  assert.equal(isPosOfferableTransfer({ ...waiting, provider: "vodafone_cash", sms_sender: "VF-Cash" }), true);
+  assert.equal(isPosOfferableTransfer({ ...waiting, provider: "united_bank", sms_sender: "United Bank" }), true);
+  assert.equal(isPosOfferableTransfer({ ...waiting, provider: "cib", sms_sender: "CIB" }), true);
+  for (const [provider, sender] of [
+    ["united_bank", "+201012345678"],
+    ["united_bank", "01012345678"],
+    ["vodafone_cash", "vfcash.eg@icloud.com"],
+    ["instapay", "instapay.support@gmail.com"],
+    ["cib", ""],
+    ["vodafone_cash", "United Bank"],
+  ]) assert.equal(isPosOfferableTransfer({ ...waiting, provider, sms_sender: sender }), false, `${provider} from ${sender || "(nobody)"}`);
+
+  const calls = [];
+  const forged = { id: 9, direction: "incoming", status: "unmatched", provider: "united_bank", sms_sender: "+201012345678" };
+  const client = { query: async (sql, params) => (calls.push({ sql, params }), { rows: [forged] }) };
+  assert.equal(await claimWalletTransferForPosOrder(client, { transferId: 9, orderId: 1, parts: { instapay: 2250 } }), null);
+  assert.equal(calls.length, 1, "a forged transfer is refused before anything is written");
 });
