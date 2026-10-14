@@ -38,6 +38,8 @@ if ! grep -qE '^BUSINESS_MODE=wholesale$' "$ENV_FILE"; then
   echo "BUSINESS_MODE=wholesale" >> "$ENV_FILE"
   log "      BUSINESS_MODE=wholesale added to $ENV_FILE"
 fi
+# Purchases need a warehouse; the app does not create one for a super admin.
+log "      $(bash "$SRC/ops/wholesale/ensure-main-warehouse.sh")"
 
 wait_for_health() {
   local i
