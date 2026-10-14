@@ -23,7 +23,7 @@ test("wholesale scripts never rebuild or restart the retail stack", () => {
   }
   // The reference-table loop must not read its list from stdin: docker exec -i inside
   // the body swallowed it and only the first table was copied.
-  assert.match(read("../ops/wholesale/setup-wholesale.sh"), /read -r table filter <&3[sS]*done 3<<< "$COPY_SPEC"/);
+  assert.match(read("../ops/wholesale/setup-wholesale.sh"), /read -r table filter <&3[\s\S]*done 3<<< "\$COPY_SPEC"/);
   const compose = read("../ops/wholesale/docker-compose.wholesale.yml");
   assert.match(compose, /127\.0\.0\.1:8001:8000/);
   assert.match(compose, /container_name: erp-wholesale-redis/);
