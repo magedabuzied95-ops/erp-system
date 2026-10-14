@@ -1286,5 +1286,121 @@
     "markedDifferent": "Reviewed: different person",
     "saved": "Saved",
     "saveFailed": "Could not save, try again"
+  },
+  "wholesale": {
+    "nav": {
+      "invoice": "Wholesale invoice",
+      "setup": "Wholesale setup"
+    },
+    "units": {
+      "piece": "Piece",
+      "series": "Series",
+      "carton": "Carton"
+    },
+    "common": {
+      "save": "Save",
+      "saving": "Saving...",
+      "saved": "Saved",
+      "delete": "Delete",
+      "add": "Add",
+      "search": "Search",
+      "loading": "Loading...",
+      "none": "No results",
+      "egp": "EGP",
+      "pieces": "pcs",
+      "colors": "colours",
+      "color": "Colour",
+      "size": "Size",
+      "qty": "Qty",
+      "total": "Total",
+      "remove": "Remove"
+    },
+    "setup": {
+      "title": "Wholesale setup",
+      "subtitle": "Price lists, each product's series and cartons, and each customer's list",
+      "tabs": {
+        "lists": "Price lists",
+        "products": "Products",
+        "customers": "Customers"
+      },
+      "lists": {
+        "namePlaceholder": "List name (wholesale, half-wholesale...)",
+        "default": "Default",
+        "makeDefault": "Make default",
+        "empty": "No price lists yet. Start with \"Wholesale\".",
+        "deleteConfirm": "Delete \"{{name}}\"? Its prices are removed and its customers fall back to the default list."
+      },
+      "products": {
+        "searchPlaceholder": "Search a product by name or code",
+        "configured": "Set up",
+        "notConfigured": "Not set up",
+        "pick": "Pick a product to set its series, cartons and prices",
+        "seriesTitle": "Series (one colour, one piece of each size)",
+        "seriesHint": "Pick the sizes a series contains",
+        "seriesCount": "Series = {{count}} pieces",
+        "sellPiece": "Also sold by the piece",
+        "cartonsTitle": "Cartons",
+        "cartonPieces": "Pieces",
+        "cartonColors": "Colours",
+        "cartonLabel": "Name (optional)",
+        "cartonSplit": "Size split per colour",
+        "cartonSplitHint": "{{per}} pieces per colour. If that is not whole series, set the pieces of each size.",
+        "addCarton": "Add carton",
+        "pricesTitle": "Piece price",
+        "pricesHint": "Price of one piece when sold by that unit. Leave empty if the unit is not offered on the list.",
+        "list": "List",
+        "available": "Available now",
+        "availableSeries": "{{color}}: {{count}} series",
+        "noLists": "Create a price list first in the \"Price lists\" tab"
+      },
+      "customers": {
+        "searchPlaceholder": "Search a customer by name or phone",
+        "priceList": "Price list",
+        "defaultList": "Default",
+        "creditLimit": "Credit limit",
+        "dueDays": "Payment terms (days)",
+        "noLimit": "0 = no limit"
+      }
+    },
+    "invoice": {
+      "title": "Wholesale invoice",
+      "subtitle": "Sell by piece, series and carton at the customer's list price",
+      "noShift": "No open shift. Open a shift from the POS first.",
+      "openPos": "Open POS",
+      "customer": "Customer",
+      "customerPlaceholder": "Search the customer",
+      "walkIn": "No customer (cash only)",
+      "priceList": "Price list",
+      "salesperson": "Salesperson",
+      "product": "Product",
+      "productPlaceholder": "Search the product",
+      "unit": "Unit",
+      "cartonType": "Carton type",
+      "pickColors": "Pick {{count}} colours",
+      "addLine": "Add to invoice",
+      "noPack": "This product has no series or carton. Set it up in \"Wholesale setup\".",
+      "lines": "Items",
+      "empty": "The invoice is empty",
+      "piecePrice": "Piece price",
+      "shortage": "Not enough stock: {{color}} size {{size}} needs {{wanted}}, has {{stock}}",
+      "payment": "Payment",
+      "modes": {
+        "cash": "Paid in full",
+        "credit": "All on credit",
+        "partial": "Part paid, rest on credit"
+      },
+      "methods": {
+        "cash": "Cash",
+        "instapay": "InstaPay",
+        "vodafone_cash": "Vodafone Cash",
+        "card": "Card"
+      },
+      "paid": "Paid",
+      "remaining": "On credit",
+      "submit": "Save invoice",
+      "done": "Invoice {{number}} saved",
+      "notes": "Notes",
+      "piecesTotal": "{{count}} pcs"
+    }
   }
 }

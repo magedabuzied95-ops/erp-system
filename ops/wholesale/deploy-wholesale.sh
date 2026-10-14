@@ -31,6 +31,13 @@ flock -n 9 || { log "ABORT: another wholesale deploy is running."; exit 1; }
 [ -f "$COMPOSE" ] || { log "ABORT: $COMPOSE missing -- run setup-wholesale.sh first."; exit 1; }
 # Keep the compose file in step with the repo copy.
 install -m 0644 "$SRC/ops/wholesale/docker-compose.wholesale.yml" "$COMPOSE"
+# The switch that turns the wholesale features on -- in THIS copy's env only.
+ENV_FILE="$ROOT/backend.env"
+if ! grep -qE '^BUSINESS_MODE=wholesale$' "$ENV_FILE"; then
+  sed -i '/^BUSINESS_MODE=/d' "$ENV_FILE"
+  echo "BUSINESS_MODE=wholesale" >> "$ENV_FILE"
+  log "      BUSINESS_MODE=wholesale added to $ENV_FILE"
+fi
 
 wait_for_health() {
   local i

@@ -20,6 +20,14 @@ const PRODUCTION_API_ORIGIN =
 const PRODUCTION_API_BASE_URL = `${PRODUCTION_API_ORIGIN}/api`;
 const IS_PRODUCTION = Boolean(import.meta?.env?.PROD);
 
+// Wholesale screens (series/carton invoice, price lists) show only on the wholesale
+// host; the wholesale API itself answers 404 on retail either way.
+const WHOLESALE_HOSTS = new Set(Object.keys(PRODUCTION_API_ORIGIN_BY_HOST));
+export const IS_WHOLESALE_APP =
+  (typeof window !== "undefined" && WHOLESALE_HOSTS.has(String(window.location.hostname || "").toLowerCase())) ||
+  // Plain `import.meta.env` (Vite only fills in that exact spelling); `|| {}` keeps node tests happy.
+  (!IS_PRODUCTION && String((import.meta.env || {}).VITE_BUSINESS_MODE || "").trim().toLowerCase() === "wholesale");
+
 const defaultApiOrigin = () =>
   IS_PRODUCTION ? PRODUCTION_API_ORIGIN : LOCAL_API_ORIGIN;
 

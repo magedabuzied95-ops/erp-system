@@ -47,6 +47,7 @@ import {
 
 import { getCurrentUser, getUserPermissions, isAdminUser } from "../../../shared/auth/authStorage.js";
 import { publicStorefrontUrl } from "../../../shared/lib/publicStorefront.js";
+import { IS_WHOLESALE_APP } from "../../../shared/constants/app.js";
 
 const safeWindow = () => (typeof window !== "undefined" ? window : null);
 const SHOW_DEV_TOOLS = String(import.meta.env?.VITE_SHOW_DEV_TOOLS || "").toLowerCase() === "true";
@@ -445,6 +446,9 @@ const RAW_SIDEBAR_SECTIONS = [
     title: "Sales",
     items: [
       { label: "POS PRO", to: "/pos", permission: "pos.view", icon: Store },
+      // Wholesale copy only (jomla host); hidden on retail.
+      { label: "Wholesale invoice", sidebarLabelKey: "sidebar.wholesaleInvoice", to: "/wholesale/invoice", permission: "orders.create", icon: Boxes, wholesaleOnly: true, keywords: "wholesale jomla series carton" },
+      { label: "Wholesale setup", sidebarLabelKey: "sidebar.wholesaleSetup", to: "/wholesale/setup", permission: "products.edit", icon: Scale, wholesaleOnly: true, keywords: "wholesale price list series carton" },
       { label: "Orders", to: "/orders", permission: "orders.view", icon: ShoppingCart },
       { label: "Website Orders", to: "/orders?channel=website", permission: "website.orders", icon: ShoppingBag },
       { label: "Returns", to: "/orders/returns", permission: "orders.view", icon: ReceiptText },
@@ -695,7 +699,7 @@ export const hasAnyPermission = (permissions = [], user = getCurrentUser()) => {
 
 export const getVisibleSidebarSections = (user = getCurrentUser()) => {
   const effective = new Set(getEffectivePermissions(user).flatMap(permissionAliases));
-  const visibleForEnvironment = (item) => SHOW_DEV_TOOLS || !item.devOnly;
+  const visibleForEnvironment = (item) => (SHOW_DEV_TOOLS || !item.devOnly) && (IS_WHOLESALE_APP || !item.wholesaleOnly);
   if (isAdminUser(user)) {
     return SIDEBAR_SECTIONS.map((section) => ({
       ...section,

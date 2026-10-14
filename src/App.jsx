@@ -153,11 +153,15 @@ const CourierSettlements = lazy(() => import("./modules/shipping/pages/CourierSe
    POS
 ====================================================== */
 
+import { IS_WHOLESALE_APP } from "./shared/constants/app";
+
 const POS = lazy(() => import("./modules/pos/pages/POSPro"));
 
 const OrderDetails = lazy(() => import("./modules/orders/pages/OrderDetails"));
 const OrderReturns = lazy(() => import("./modules/orders/pages/Returns"));
 const WalletTransfers = lazy(() => import("./modules/orders/pages/WalletTransfers"));
+const WholesaleInvoice = lazy(() => import("./modules/wholesale/pages/WholesaleInvoice"));
+const WholesaleSetup = lazy(() => import("./modules/wholesale/pages/WholesaleSetup"));
 
 /* ======================================================
    REPORTS
@@ -1652,6 +1656,28 @@ function App() {
             </ProtectedRoute>
           }
         />
+
+        {/* Wholesale copy only: the routes do not exist on the retail host. */}
+        {IS_WHOLESALE_APP ? (
+          <>
+            <Route
+              path="wholesale/invoice"
+              element={
+                <ProtectedRoute requiredPermissions={["orders.create"]}>
+                  <WholesaleInvoice />
+                </ProtectedRoute>
+              }
+            />
+            <Route
+              path="wholesale/setup"
+              element={
+                <ProtectedRoute requiredPermissions={["products.edit"]}>
+                  <WholesaleSetup />
+                </ProtectedRoute>
+              }
+            />
+          </>
+        ) : null}
 
         <Route
           path="operations/shipping"

@@ -931,7 +931,9 @@
     "surveillanceMotion": "إعدادات الحركة",
     "surveillanceAudit": "سجل التدقيق",
     "invoiceStudio": "استوديو الفاتورة",
-    "amazon": "أمازون"
+    "amazon": "أمازون",
+    "wholesaleInvoice": "فاتورة جملة",
+    "wholesaleSetup": "إعداد الجملة"
   },
   "language": {
     "label": "اللغة",

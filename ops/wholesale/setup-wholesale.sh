@@ -74,6 +74,7 @@ else
   case "$WHOLESALE_DB_URL" in *"/$WDB"*) ;; *) die "could not derive the wholesale DATABASE_URL" ;; esac
 
   {
+    echo "BUSINESS_MODE=wholesale"
     echo "DATABASE_URL=$WHOLESALE_DB_URL"
     echo "REDIS_URL=redis://erp-wholesale-redis:6379"
     # Own hosts.

@@ -692,6 +692,8 @@ const { default: storefrontRoutes } = await import("./routes/storefront.js");
 const { default: googleMerchantFeedRoutes } = await import("./routes/googleMerchantFeed.js");
 const { default: shippingRoutes } = await import("./modules/shipping/shipping.routes.js");
 const { default: walletTransfersRoutes } = await import("./modules/walletTransfers/walletTransfers.routes.js");
+const { default: wholesaleRoutes } = await import("./modules/wholesale/wholesale.routes.js");
+const { businessMode } = await import("./modules/wholesale/wholesaleMode.js");
 const { default: liveActivityRoutes } = await import("./routes/liveActivity.js");
 const { default: productClassificationsRoutes } = await import("./routes/productClassifications.js");
 const { default: variantsInventoryRoutes } = await import("./routes/variantsInventory.js");
@@ -1666,6 +1668,7 @@ app.get("/runtime-config.json", (req, res) => {
   const enabled = (name) => String(process.env[name] || "false").trim().toLowerCase() === "true";
   const config = {
     version: 1,
+    businessMode: businessMode(),
     featureFlags: {
       AI_ENABLED: enabled("AI_ENABLED"),
       COPILOT_ENABLED: enabled("COPILOT_ENABLED"),
@@ -1965,6 +1968,8 @@ app.use("/feeds", metaCatalogFeedRoutes);
 app.use("/api/storefront", storefrontRoutes);
 app.use("/api/shipping", shippingRoutes);
 app.use("/api/wallet-transfers", walletTransfersRoutes);
+// 404 on retail; answers only where BUSINESS_MODE=wholesale.
+app.use("/api/wholesale", wholesaleRoutes);
 app.get("/shop/product/:identifier", getPublicProductSharePage);
 app.get("/share/product/:identifier", getPublicProductSharePage);
 app.get("/share/available", getPublicAvailableSharePage);
