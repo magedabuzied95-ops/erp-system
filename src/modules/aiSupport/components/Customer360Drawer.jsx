@@ -209,6 +209,10 @@ export default function Customer360Drawer({
   // Same borrowed picker, for the replacement on an exchange.
   onRequestExchangePick = null,
   exchangePicks = null,
+  // The inbox hands this in so "تعيين موظف" opens its team-tools panel in place. The old
+  // fallback navigated to the desktop inbox with ?action=assign, which on the phone left the
+  // conversation entirely.
+  onOpenTeamTools = null,
 }) {
   const { t } = useTranslation();
   const navigate = useNavigate();
@@ -345,7 +349,18 @@ export default function Customer360Drawer({
   ];
   const workflowActions = [
     { labelKey: "createOrder", Icon: ShoppingBag, action: () => openSystemPath(`/create-order${resolvedCustomerId ? `?customer_id=${encodeURIComponent(resolvedCustomerId)}` : ""}`) },
-    { labelKey: "assignAgent", Icon: Handshake, action: () => openSystemPath(`/admin/ai-inbox${resolvedConversationId ? `?conversation_id=${encodeURIComponent(resolvedConversationId)}&action=assign` : ""}`) },
+    {
+      labelKey: "assignAgent",
+      Icon: Handshake,
+      action: () => {
+        if (onOpenTeamTools) {
+          onClose?.();
+          window.setTimeout(() => onOpenTeamTools(), 60);
+          return;
+        }
+        openSystemPath(`/admin/ai-inbox${resolvedConversationId ? `?conversation_id=${encodeURIComponent(resolvedConversationId)}&action=assign` : ""}`);
+      },
+    },
     { labelKey: "openCustomerProfile", Icon: ExternalLink, action: () => openSystemPath(`/customers${resolvedCustomerId ? `?customer_id=${encodeURIComponent(resolvedCustomerId)}` : ""}`) },
   ];
   const quickActions = [...communicationActions, ...workflowActions];

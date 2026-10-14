@@ -10183,6 +10183,7 @@ export default function AiInbox({ reviewerMode = false }) {
       <Customer360Drawer
         open={customerDrawer.open}
         onClose={() => setCustomerDrawer((current) => ({ ...current, open: false }))}
+        onOpenTeamTools={reviewerMode || !selectedConversation ? null : () => { teamToolsOpenedAtRef.current = Date.now(); setTeamToolsOpen(true); }}
         customer={customerDrawer.customer}
         customerId={customerDrawer.customerId}
         // Without the conversation the drawer's orders tab is history only: no استبدال,

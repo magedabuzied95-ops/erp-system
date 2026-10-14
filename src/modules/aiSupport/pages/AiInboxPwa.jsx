@@ -9027,6 +9027,7 @@ export default function AiInboxPwa({ portal = null } = {}) {
         <Customer360Drawer
           open={customerDrawer.open}
           onClose={() => setCustomerDrawer((current) => ({ ...current, open: false }))}
+          onOpenTeamTools={selectedConversation ? () => { teamToolsOpenedAtRef.current = Date.now(); setTeamToolsOpen(true); } : null}
           customer={customerDrawer.customer}
           customerId={customerDrawer.customerId}
           conversation={selectedConversation}
