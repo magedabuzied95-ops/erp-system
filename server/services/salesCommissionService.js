@@ -946,13 +946,19 @@ export const calculateAttendancePayrollDeductions = async ({ tenantId = null, em
   approvedLatePermissions.forEach(({ date, minutes }) => {
     if (!allPermissionsByDate.has(date)) allPermissionsByDate.set(date, minutes);
   });
+  // Each absent or late day as payroll prices it, so the employee portal's الخصومات sheet lists the
+  // same money the salary takes, day by day. Amounts use the same rates as the totals below.
+  const dayDeductions = [];
 
   expectedDates.forEach((item) => {
     const row = attendanceByDate.get(item);
     if (!row) {
       if (absenceEnabled) {
         absenceDays += 1;
-        if (!policyAppliesOn(item, policy)) legacyAbsenceDays += 1;
+        const legacy = !policyAppliesOn(item, policy);
+        if (legacy) legacyAbsenceDays += 1;
+        const penaltyDays = legacy ? 1 : toNumber(policy.absence_penalty_days);
+        dayDeductions.push({ date: item, type: "absence", penalty_days: penaltyDays, amount: Number((penaltyDays * dailyRate).toFixed(2)) });
       }
       return;
     }
@@ -973,6 +979,17 @@ export const calculateAttendancePayrollDeductions = async ({ tenantId = null, em
       const legacyLate = Math.max(0, rawLateMinutes - legacyCovered) / 60;
       const legacyEarly = earlyEnabled ? Math.max(toNumber(row.early_leave_minutes) / 60, fallbackEarly, 0) : 0;
       if (missingEnabled) missingHours += Math.max(0, Math.max(0, dailyWorkHours - workedHours) - legacyLate - legacyEarly);
+      if (rawLateMinutes > 0) {
+        dayDeductions.push({
+          date: item,
+          type: "late",
+          late_minutes: Math.round(rawLateMinutes),
+          covered_minutes: Math.round(legacyCovered),
+          penalty_days: 0,
+          amount: Number((legacyLate * hourlyRate).toFixed(2)),
+          legacy: true,
+        });
+      }
       legacyLateHours += legacyLate;
       lateHours += legacyLate;
       earlyLeaveHours += legacyEarly;
@@ -988,6 +1005,16 @@ export const calculateAttendancePayrollDeductions = async ({ tenantId = null, em
     if (lateDay.penalized) {
       latePenalizedDays += 1;
       latePenaltyDays += lateDay.penalty_days;
+    }
+    if (rawLateMinutes > 0) {
+      dayDeductions.push({
+        date: item,
+        type: "late",
+        late_minutes: Math.round(rawLateMinutes),
+        covered_minutes: Math.round(lateDay.covered_minutes),
+        penalty_days: lateDay.penalty_days,
+        amount: Number((lateDay.penalty_days * dailyRate).toFixed(2)),
+      });
     }
     // The whole lateness stays out of the missing-hours shortfall: the policy
     // prices it per day, not per hour.
@@ -1124,6 +1151,8 @@ export const calculateAttendancePayrollDeductions = async ({ tenantId = null, em
     attendance_policy: policy,
     missing_attendance_dates: missingAttendanceDates,
     leave_dates: [...new Set([...leaveDates, ...vacationDates])].filter((item) => periodDates.includes(item)).sort(),
+    day_deductions: dayDeductions,
+    late_threshold_minutes: toNumber(policy.late_threshold_minutes),
     open_attendance_logs: openAttendanceLogs,
   };
 };
@@ -3093,6 +3122,16 @@ export const getPayrollPreview = async ({ tenantId = null, employeeId, filters =
       excluded_holiday_days: attendanceDeductions.excluded_holiday_days,
       missing_attendance_dates: Array.isArray(attendanceDeductions.missing_attendance_dates) ? attendanceDeductions.missing_attendance_dates : [],
       leave_dates: Array.isArray(attendanceDeductions.leave_dates) ? attendanceDeductions.leave_dates : [],
+      day_deductions: Array.isArray(attendanceDeductions.day_deductions) ? attendanceDeductions.day_deductions : [],
+      late_threshold_minutes: attendanceDeductions.late_threshold_minutes,
+      // The rows behind penalties_total and bonuses, for the employee portal's الخصومات / الإضافات sheets.
+      penalty_rows: penaltyRows.map((row) => ({
+        id: row.id,
+        amount: toNumber(row.payroll_deduction_amount ?? row.amount),
+        penalty_date: row.penalty_date,
+        reason: row.reason || "",
+      })),
+      bonus_rows: bonusRows.map((row) => ({ id: row.id, amount: toNumber(row.amount), bonus_date: row.bonus_date, reason: row.reason || "" })),
       open_attendance_logs: Array.isArray(attendanceDeductions.open_attendance_logs) ? attendanceDeductions.open_attendance_logs : [],
       deductions,
       net_pay: netPay,

@@ -2866,6 +2866,27 @@ export default function EmployeePayrollPortal() {
         onClick: () => setMonthSheet("attendance"),
       },
       {
+        // Every deduction behind this month's salary (late days, absences, manager penalties,
+        // advances…), item by item in its sheet. Same figures payroll uses.
+        label: "الخصومات",
+        value: money(wallet.money_breakdown?.deductions?.total ?? portal.total_deductions ?? 0),
+        subtitle: ui("currentMonthSubtitle"),
+        Icon: ArrowDownCircle,
+        numeric: true,
+        accent: Number(wallet.money_breakdown?.deductions?.total || 0) > 0 ? "amber" : "slate",
+        onClick: () => setMonthSheet("deductions"),
+      },
+      {
+        // Commission, bonuses and approved overtime pay.
+        label: "الإضافات",
+        value: money(wallet.money_breakdown?.additions?.total ?? 0),
+        subtitle: ui("currentMonthSubtitle"),
+        Icon: Gift,
+        numeric: true,
+        accent: "green",
+        onClick: () => setMonthSheet("additions"),
+      },
+      {
         label: text.advances,
         value: money(wallet.total_advances ?? portal.advances),
         Icon: CreditCard,
@@ -4859,6 +4880,7 @@ export default function EmployeePayrollPortal() {
                   monthDays={portal?.attendance?.month_days || { month: portal?.current_payroll_period }}
                   advances={wallet.advances_breakdown || []}
                   advancesTotal={wallet.total_advances ?? portal?.advances ?? 0}
+                  moneyBreakdown={wallet.money_breakdown || null}
                 />
 
                 <AttendancePanel

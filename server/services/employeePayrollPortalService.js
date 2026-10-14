@@ -875,6 +875,75 @@ export const advanceOutstandingAmount = (row = {}) => {
   return Math.max(0, toNumber(row.amount) - toNumber(row.deducted_amount));
 };
 
+// Every deduction and every addition behind the month's salary, item by item, for the employee
+// portal's الخصومات / الإضافات cards. Built only from payroll's own figures (the live preview's flat
+// payroll, or an approved run's columns + snapshot), so the lists add up to what the salary takes
+// and gives: net = base + additions.total - deductions.total.
+//   figures: the run row or the flat preview   facts: attendance figures (nested or flat)
+//   snapshot: the run's snapshot or the flat preview (row lists live there)
+export const buildEmployeeMoneyBreakdown = ({ figures = null, facts = null, snapshot = null } = {}) => {
+  if (!figures) return null;
+  const f = facts || {};
+  const s = snapshot || {};
+  const money = (value) => Number(toNumber(value).toFixed(2));
+  const dateOnly = (value) => {
+    if (!value) return null;
+    if (value instanceof Date) return Number.isFinite(value.getTime()) ? value.toISOString().slice(0, 10) : null;
+    return String(value).slice(0, 10);
+  };
+
+  const deductions = [];
+  const dayRows = Array.isArray(f.day_deductions) ? f.day_deductions : null;
+  if (dayRows) {
+    dayRows.forEach((row) => {
+      if (row.type === "absence") {
+        deductions.push({ kind: "absence", date: dateOnly(row.date), penalty_days: toNumber(row.penalty_days), amount: money(row.amount) });
+      } else if (row.type === "late") {
+        deductions.push({
+          kind: "late",
+          date: dateOnly(row.date),
+          late_minutes: toNumber(row.late_minutes),
+          covered_minutes: toNumber(row.covered_minutes),
+          penalty_days: toNumber(row.penalty_days),
+          amount: money(row.amount),
+        });
+      }
+    });
+  } else {
+    // A run approved before the day list existed: its totals only.
+    if (money(f.absence_deduction) > 0) deductions.push({ kind: "absence_total", days: toNumber(f.absence_days), amount: money(f.absence_deduction) });
+    if (money(f.late_deduction) > 0) deductions.push({ kind: "late_total", amount: money(f.late_deduction) });
+  }
+  if (money(f.leave_deduction) > 0) deductions.push({ kind: "leave", days: toNumber(f.deducted_leave_days), amount: money(f.leave_deduction) });
+  if (money(f.missing_hours_deduction) > 0) deductions.push({ kind: "missing_hours", hours: toNumber(f.missing_hours), amount: money(f.missing_hours_deduction) });
+  if (money(f.early_leave_deduction) > 0) deductions.push({ kind: "early_leave", hours: toNumber(f.early_leave_hours), amount: money(f.early_leave_deduction) });
+  const penaltyRows = Array.isArray(s.penalty_rows) ? s.penalty_rows : Array.isArray(s.penalties) ? s.penalties : [];
+  penaltyRows.forEach((row) => {
+    deductions.push({ kind: "penalty", date: dateOnly(row.penalty_date), reason: clean(row.reason), amount: money(row.payroll_deduction_amount ?? row.amount) });
+  });
+  if (!penaltyRows.length && money(figures.penalties_total) > 0) deductions.push({ kind: "penalty", date: null, reason: "", amount: money(figures.penalties_total) });
+  if (money(figures.manual_deductions) > 0) deductions.push({ kind: "manual", amount: money(figures.manual_deductions) });
+  if (money(figures.advance_deductions) > 0) deductions.push({ kind: "advances", amount: money(figures.advance_deductions) });
+
+  const additions = [];
+  if (money(figures.commissions) > 0) additions.push({ kind: "commission", amount: money(figures.commissions) });
+  const bonusRows = Array.isArray(s.bonus_rows) ? s.bonus_rows : [];
+  bonusRows.forEach((row) => additions.push({ kind: "bonus", date: dateOnly(row.bonus_date), reason: clean(row.reason), amount: money(row.amount) }));
+  const otherBonus = money(toNumber(figures.bonuses) - bonusRows.reduce((sum, row) => sum + toNumber(row.amount), 0));
+  if (otherBonus > 0) additions.push({ kind: "bonus", date: null, reason: "", amount: otherBonus });
+  const overtimePay = money(s.approved_overtime_pay ?? f.approved_overtime_pay ?? figures.approved_overtime_pay);
+  if (overtimePay > 0) {
+    additions.push({ kind: "overtime", hours: toNumber(s.approved_overtime_hours ?? f.approved_overtime_hours), amount: overtimePay });
+  }
+
+  const deductionsTotal = money(figures.total_deductions ?? figures.deductions ?? deductions.reduce((sum, item) => sum + item.amount, 0));
+  const additionsTotal = money(additions.reduce((sum, item) => sum + item.amount, 0));
+  return {
+    deductions: { total: deductionsTotal, items: deductions, late_threshold_minutes: toNumber(f.late_threshold_minutes) || null },
+    additions: { total: additionsTotal, items: additions },
+  };
+};
+
 // The card's total covers every advance, not just the 20 the list shows. The rows behind the card's
 // sheet: everything taken this month, plus anything from earlier months still owed.
 const getOutstandingAdvances = async ({ tenantId, employeeId, monthStart }) => {
@@ -2266,6 +2335,8 @@ export const buildEmployeePayrollPortalPayload = async ({ employee, includeOptio
     current_net_salary: monthNetSalary,
     total_advances: outstandingAdvances?.total ?? recentAdvances.reduce((sum, row) => sum + toNumber(row.outstanding_amount), 0),
     advances_breakdown: outstandingAdvances?.rows || null,
+    // الخصومات / الإضافات cards: every item behind this month's salary (null when payroll gave nothing).
+    money_breakdown: buildEmployeeMoneyBreakdown({ figures: monthFigures, facts: attendanceSnapshot, snapshot }),
     pending_commissions: pendingCommissions,
     total_deductions: totalDeductions,
     payroll_status: payrollStatus,
