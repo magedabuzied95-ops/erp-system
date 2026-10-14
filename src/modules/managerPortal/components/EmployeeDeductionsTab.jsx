@@ -30,14 +30,21 @@ export function EmployeeDeductionsTab({ token, employeeId, details, formatDay, f
 
   const facts = details?.salary?.attendance_breakdown || {};
   const frozen = Boolean(details?.payroll?.approved);
-  // Absent days turned into leave from here sit in the list on their own date, so they can be undone.
-  const convertedLeaves = (details?.attendance?.converted_leave_dates || []).map((date) => ({ date, type: "converted_leave", amount: 0 }));
-  const rows = [...(Array.isArray(facts.day_deductions) ? facts.day_deductions : []), ...convertedLeaves]
+  // Every leave day in the month sits in the list on its own date, priced the way payroll spends the
+  // balance (in date order): from the balance, or a day's pay after it. Leave requests use the balance
+  // too, so they are listed; only the days turned from absence here can be undone.
+  const convertedDates = new Set((details?.attendance?.converted_leave_dates || []).map(dateOf));
+  const pricedLeaves = Array.isArray(details?.attendance?.leave_days_priced) ? details.attendance.leave_days_priced : null;
+  const leaveRows = pricedLeaves
+    ? pricedLeaves.map((day) => ({ date: dateOf(day.date), type: "leave", paid: day.paid !== false, amount: Number(day.amount || 0), converted: convertedDates.has(dateOf(day.date)) }))
+    : [...convertedDates].map((date) => ({ date, type: "leave", paid: null, amount: 0, converted: true }));
+  const rows = [...(Array.isArray(facts.day_deductions) ? facts.day_deductions : []), ...leaveRows]
     .sort((a, b) => dateOf(b.date).localeCompare(dateOf(a.date)));
   const leaveBalance = details?.attendance?.leave_balance || null;
   const dayTotal = rows.reduce((sum, row) => sum + Number(row.amount || 0), 0);
   const others = [
-    { key: "leave", amount: Number(facts.leave_deduction || 0), detail: facts.deducted_leave_days ? tt("managerPortal.employeeDetails.deductions.days", { count: formatNumber(facts.deducted_leave_days) }) : "" },
+    // Priced leave days are already in the list above.
+    { key: "leave", amount: pricedLeaves ? 0 : Number(facts.leave_deduction || 0), detail: facts.deducted_leave_days ? tt("managerPortal.employeeDetails.deductions.days", { count: formatNumber(facts.deducted_leave_days) }) : "" },
     { key: "missingHours", amount: Number(facts.missing_hours_deduction || 0), detail: facts.missing_hours ? tt("managerPortal.employeeDetails.deductions.hours", { count: formatNumber(facts.missing_hours) }) : "" },
     { key: "earlyLeave", amount: Number(facts.early_leave_deduction || 0), detail: facts.early_leave_hours ? tt("managerPortal.employeeDetails.deductions.hours", { count: formatNumber(facts.early_leave_hours) }) : "" },
     { key: "penalties", amount: Number(details?.salary?.penalties_total || 0), detail: tt("managerPortal.employeeDetails.deductions.penaltiesHint") },
@@ -91,18 +98,39 @@ export function EmployeeDeductionsTab({ token, employeeId, details, formatDay, f
 
   // غياب → إجازة: the day leaves the absences and is priced as leave by payroll — free while the
   // month's paid balance lasts, a day's pay (not the absence's two) once it is used up.
+  // The server checks the balance itself: past it the call is refused (leave_balance_exhausted)
+  // until the manager confirms that the day will be deducted.
+  const dayRate = Number(details?.employee?.day_rate || 0);
+  const confirmDeducted = (date, message) => window.confirm(
+    tt("managerPortal.employeeDetails.deductions.toLeaveNoBalance", { date: formatDay(date), reason: message, amount: formatCurrency(dayRate) })
+  );
   const toLeave = async (row) => {
     const left = leaveBalance ? leaveBalance.left : null;
-    const question = left === null || left > 0
-      ? tt("managerPortal.employeeDetails.deductions.toLeaveConfirm", { date: formatDay(row.date), left: formatNumber(left ?? 0), total: formatNumber(leaveBalance?.allowance ?? 0) })
-      : tt("managerPortal.employeeDetails.deductions.toLeaveNoBalance", { date: formatDay(row.date) });
-    if (!window.confirm(question)) return;
+    const knownExhausted = left !== null && left <= 0;
+    const date = dateOf(row.date);
+    if (knownExhausted) {
+      const message = tt("managerPortal.employeeDetails.deductions.balanceUsed", { used: formatNumber(leaveBalance.used), total: formatNumber(leaveBalance.allowance) });
+      if (!confirmDeducted(date, message)) return;
+    } else if (!window.confirm(tt("managerPortal.employeeDetails.deductions.toLeaveConfirm", { date: formatDay(date), left: formatNumber(left ?? 0), total: formatNumber(leaveBalance?.allowance ?? 0) }))) {
+      return;
+    }
     const key = rowKey(row);
     try {
       setBusy(key);
       setNotice({ tone: "", text: "" });
-      await managerPortalApi.convertAbsenceToLeave(token, employeeId, dateOf(row.date));
-      setNotice({ tone: "ok", text: tt("managerPortal.employeeDetails.deductions.toLeaveDone") });
+      let result;
+      try {
+        result = await managerPortalApi.convertAbsenceToLeave(token, employeeId, date, { confirm_over_balance: knownExhausted });
+      } catch (error) {
+        const data = error?.response?.data || {};
+        if (data.code !== "leave_balance_exhausted") throw error;
+        if (!confirmDeducted(date, data.message || "")) return;
+        result = await managerPortalApi.convertAbsenceToLeave(token, employeeId, date, { confirm_over_balance: true });
+      }
+      setNotice({
+        tone: "ok",
+        text: tt(result?.over_balance ? "managerPortal.employeeDetails.deductions.toLeaveDoneDeducted" : "managerPortal.employeeDetails.deductions.toLeaveDone"),
+      });
       await onChanged?.();
     } catch (error) {
       setNotice({ tone: "error", text: failure(error, tt("managerPortal.employeeDetails.deductions.saveError")) });
@@ -128,7 +156,12 @@ export function EmployeeDeductionsTab({ token, employeeId, details, formatDay, f
   };
 
   const describeRow = (row) => {
-    if (row.type === "converted_leave") return tt("managerPortal.employeeDetails.deductions.convertedLeave");
+    if (row.type === "leave") {
+      const kind = row.paid === false
+        ? tt("managerPortal.employeeDetails.deductions.leaveOverBalance")
+        : tt("managerPortal.employeeDetails.deductions.leaveFromBalance");
+      return row.converted ? `${kind} ${tt("managerPortal.employeeDetails.deductions.wasAbsent")}` : `${tt("managerPortal.employeeDetails.deductions.requestLeave")} · ${kind}`;
+    }
     if (row.type === "absence") return tt("managerPortal.employeeDetails.deductions.absence");
     const late = Math.max(0, Number(row.late_minutes || 0) - Number(row.covered_minutes || 0));
     const parts = [tt("managerPortal.employeeDetails.deductions.late", { time: formatMinutes(late) })];
@@ -167,7 +200,7 @@ export function EmployeeDeductionsTab({ token, employeeId, details, formatDay, f
                   <div className="min-w-0">
                     <div className="text-sm font-black text-slate-950">{formatDay(row.date)}</div>
                     <div className="mt-0.5 text-[11px] font-bold text-slate-500">
-                      {row.type === "converted_leave" ? describeRow(row) : `${describeRow(row)} · ${describePenaltyDays(row.penalty_days)}`}
+                      {row.type === "leave" ? describeRow(row) : `${describeRow(row)} · ${describePenaltyDays(row.penalty_days)}`}
                     </div>
                     {row.overridden ? (
                       <div className="mt-1 flex flex-wrap items-center gap-1.5 text-[11px] font-bold">
@@ -179,14 +212,14 @@ export function EmployeeDeductionsTab({ token, employeeId, details, formatDay, f
                     {row.override_note ? <div className="mt-0.5 text-[11px] text-slate-500">{row.override_note}</div> : null}
                   </div>
                   <div className="flex shrink-0 flex-col items-end gap-1.5">
-                    {row.type === "converted_leave" ? (
+                    {row.type === "leave" && !(amount > 0) ? (
                       <span className="rounded-full bg-emerald-50 px-2 py-0.5 text-[11px] font-black text-emerald-700">{tt("managerPortal.employeeDetails.deductions.leaveBadge")}</span>
                     ) : (
                       <span className={`text-sm font-black ${amount > 0 ? "text-rose-700" : "text-slate-500"}`}>
                         {amount > 0 ? `- ${formatCurrency(amount)}` : formatCurrency(0)}
                       </span>
                     )}
-                    {!frozen && row.type === "converted_leave" ? (
+                    {!frozen && row.type === "leave" && row.converted ? (
                       <button
                         type="button"
                         aria-label={tt("managerPortal.employeeDetails.deductions.undoLeave")}
@@ -198,7 +231,7 @@ export function EmployeeDeductionsTab({ token, employeeId, details, formatDay, f
                         {working ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Undo2 className="h-3.5 w-3.5" />}
                       </button>
                     ) : null}
-                    {!frozen && !isEditing && row.type !== "converted_leave" ? (
+                    {!frozen && !isEditing && row.type !== "leave" ? (
                       <div className="flex items-center gap-1">
                         {row.type === "absence" ? (
                           <button

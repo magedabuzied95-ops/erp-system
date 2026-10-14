@@ -821,7 +821,7 @@
     "latePermissionBadge": "إذن تأخير ({{minutes}})",
     "latePermissionHint": "التأخير {{raw}} — الإذن غطّى {{covered}}",
     "deductions": {
-      "dayTotal": "خصم أيام الغياب والتأخير",
+      "dayTotal": "خصم الأيام (غياب وتأخير وإجازات)",
       "frozen": "مرتب الشهر ده اتعتمد، فالخصومات مقفولة ومينفعش تتعدل.",
       "empty": "مفيش أيام غياب أو تأخير عليها خصم الشهر ده",
       "absence": "غياب",
@@ -856,14 +856,19 @@
       "hours": "{{count}} ساعة",
       "toLeave": "حوّله إجازة من الرصيد",
       "toLeaveConfirm": "تحوّل غياب {{date}} لإجازة من رصيد الإجازات؟\nفاضل {{left}} من {{total}} إجازات الشهر ده، وخصم الغياب هيتشال.",
-      "toLeaveNoBalance": "رصيد إجازات الشهر خلص.\nلو حوّلت غياب {{date}} لإجازة هيتخصم يوم واحد بدل يومين. تكمل؟",
-      "toLeaveDone": "اليوم اتحول لإجازة، والمرتب اتحسب من جديد",
-      "convertedLeave": "إجازة من الرصيد (كانت غياب)",
+      "toLeaveNoBalance": "{{reason}}\nلو حوّلت غياب {{date}} لإجازة هيتخصم يوم ({{amount}}) بدل يومين غياب.\nتكمل؟",
+      "toLeaveDone": "اليوم اتحول لإجازة من الرصيد، والمرتب اتحسب من جديد",
       "leaveBadge": "إجازة",
       "undoLeave": "رجّعه غياب",
       "undoLeaveConfirm": "ترجّع {{date}} غياب زي ما كان؟",
       "undoLeaveDone": "اليوم رجع غياب",
-      "leaveBalance": "رصيد الإجازات: فاضل {{left}} من {{total}}"
+      "leaveBalance": "رصيد الإجازات: فاضل {{left}} من {{total}}",
+      "leaveFromBalance": "إجازة من الرصيد",
+      "leaveOverBalance": "إجازة بعد الرصيد · خصم يوم",
+      "wasAbsent": "(كانت غياب)",
+      "requestLeave": "إجازة معتمدة",
+      "balanceUsed": "رصيد الإجازات خلص ({{used}} من {{total}})",
+      "toLeaveDoneDeducted": "اليوم اتحول لإجازة، والرصيد خلص فاتخصم يوم واحد"
     }
   },
   "weekdays": {

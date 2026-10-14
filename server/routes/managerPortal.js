@@ -543,11 +543,16 @@ router.put("/:token/staff/:employeeId/day-deductions", verifyManagerPortalToken,
 // An absent day becomes a leave day from the employee's balance (POST), or goes back to absent (DELETE).
 const absenceToLeaveRoute = (handler) => async (req, res) => {
   try {
-    const result = await handler({ manager: req.managerPortalManager, employeeId: req.params.employeeId, date: req.params.date });
+    const result = await handler({
+      manager: req.managerPortalManager,
+      employeeId: req.params.employeeId,
+      date: req.params.date,
+      confirmOverBalance: req.body?.confirm_over_balance === true,
+    });
     return res.json({ success: true, ...result });
   } catch (error) {
     if (!error?.status) console.error("[manager-portal] absence to leave error", error);
-    return res.status(error.status || 500).json({ success: false, message: error.message || "Failed to change the day" });
+    return res.status(error.status || 500).json({ success: false, code: error.code || null, details: error.details || null, message: error.message || "Failed to change the day" });
   }
 };
 router.post("/:token/staff/:employeeId/absence-to-leave/:date", verifyManagerPortalToken, absenceToLeaveRoute(convertManagerPortalAbsenceToLeave));

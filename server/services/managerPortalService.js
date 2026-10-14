@@ -3467,6 +3467,8 @@ export const getManagerPortalEmployeeDetails = async ({ manager = {}, employeeId
       // Absent days a manager turned into leave from the الخصومات tab (undoable there).
       converted_leave_dates: convertedLeaveDates,
       // The month's paid-leave balance as payroll counts it (calculateLeavePayrollImpactForEmployee).
+      // Every leave day in the month as payroll prices it: from the balance, or a day's pay after it.
+      leave_days_priced: listOf(leaveFacts.leave_day_list),
       leave_balance: {
         allowance: leaveAllowance,
         used: Number(leaveFacts.leave_days || 0),
@@ -3784,7 +3786,7 @@ export const loadConvertedLeaveDates = async ({ tenantId, employeeId, from, to }
   return rows.map((row) => String(row.day).slice(0, 10));
 };
 
-export const convertManagerPortalAbsenceToLeave = async ({ manager = {}, employeeId, date: rawDate } = {}) => {
+export const convertManagerPortalAbsenceToLeave = async ({ manager = {}, employeeId, date: rawDate, confirmOverBalance = false } = {}) => {
   const { employee, tenantId } = await loadScopedEmployee({ manager, employeeId });
   const date = String(rawDate || "").slice(0, 10);
   await assertDayDeductionEditable({ tenantId, employee, date, type: "absence" });
@@ -3821,6 +3823,26 @@ export const convertManagerPortalAbsenceToLeave = async ({ manager = {}, employe
     error.status = 409;
     throw error;
   }
+  // The balance is checked here, against every approved leave in the month (requests included),
+  // the way payroll spends it. Past it the day costs a day's pay, and the manager has to say so
+  // explicitly: the screen's own count can be stale, this one is not.
+  const [balance] = await attachVacationBalances({ tenantId, requests: [{ employee_id: employee.id, request_date: date, end_date: date }] });
+  // No count (the used-days query failed) is treated as no balance: the manager confirms either way.
+  const balanceKnown = balance?.paid_leave_total !== undefined;
+  const overBalance = !balanceKnown || Number(balance?.days_deducted || 0) > 0;
+  if (overBalance && !confirmOverBalance) {
+    const error = new Error(balanceKnown
+      ? `رصيد الإجازات خلص (${Number(balance.paid_leave_used || 0)} من ${Number(balance.paid_leave_total || 0)})، اليوم ده هيتخصم من المرتب`
+      : "مقدرناش نتأكد من رصيد الإجازات، لو الرصيد خلص اليوم ده هيتخصم من المرتب");
+    error.status = 409;
+    error.code = "leave_balance_exhausted";
+    error.details = {
+      paid_leave_total: Number(balance?.paid_leave_total || 0),
+      paid_leave_used: Number(balance?.paid_leave_used || 0),
+      deduction_estimate: Number(balance?.deduction_estimate || 0),
+    };
+    throw error;
+  }
   const by = manager.full_name || manager.name || "";
   const result = await db.query(
     `
@@ -3840,10 +3862,12 @@ export const convertManagerPortalAbsenceToLeave = async ({ manager = {}, employe
     tenantId,
     employeeId: employee.id,
     title: "🌴 الغياب اتحول لإجازة",
-    body: `غياب يوم ${date} اتحسب إجازة من رصيدك`,
-    data: { event: "absence_to_leave", date },
+    body: overBalance
+      ? `غياب يوم ${date} اتحسب إجازة، والرصيد خلص فهيتخصم يوم واحد بدل يومين`
+      : `غياب يوم ${date} اتحسب إجازة من رصيدك`,
+    data: { event: "absence_to_leave", date, over_balance: overBalance },
   });
-  return { vacation: result.rows[0] };
+  return { vacation: result.rows[0], over_balance: overBalance };
 };
 
 export const undoManagerPortalAbsenceToLeave = async ({ manager = {}, employeeId, date: rawDate } = {}) => {

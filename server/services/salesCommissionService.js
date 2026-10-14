@@ -312,6 +312,8 @@ const calculateLeavePayrollImpactForEmployee = async ({
       deducted_leave_days: 0,
       monthly_paid_leave_days: paidAllowance,
       leave_deduction: 0,
+      // Each leave day in the period and whether the balance paid it, in the order payroll spends it.
+      leave_day_list: [],
     };
     const periodStartKey = dateKey(periodStart);
     const periodEndKey = dateKey(periodEnd);
@@ -321,7 +323,9 @@ const calculateLeavePayrollImpactForEmployee = async ({
       runningMonthLeaves += 1;
       if (leaveDay < periodStartKey || leaveDay > periodEndKey) return;
       impact.leave_days += 1;
-      if (runningMonthLeaves <= paidAllowance) {
+      const paid = runningMonthLeaves <= paidAllowance;
+      impact.leave_day_list.push({ date: leaveDay, paid, amount: paid ? 0 : Number(dailyRate.toFixed(2)) });
+      if (paid) {
         impact.paid_leave_days += 1;
       } else {
         impact.deducted_leave_days += 1;
@@ -1171,6 +1175,7 @@ export const calculateAttendancePayrollDeductions = async ({ tenantId = null, em
     deducted_leave_days: toNumber(leavePayrollImpact.deducted_leave_days),
     monthly_paid_leave_days: toNumber(leavePayrollImpact.monthly_paid_leave_days, 3),
     leave_deduction: Number(leaveDeduction.toFixed(2)),
+    leave_day_list: Array.isArray(leavePayrollImpact.leave_day_list) ? leavePayrollImpact.leave_day_list : [],
     approved_overtime_minutes: toNumber(approvedOvertimeImpact.approved_overtime_minutes),
     approved_overtime_hours: toNumber(approvedOvertimeImpact.approved_overtime_hours),
     approved_overtime_pay: toNumber(approvedOvertimeImpact.approved_overtime_pay),
@@ -3146,6 +3151,7 @@ export const getPayrollPreview = async ({ tenantId = null, employeeId, filters =
       deducted_leave_days: attendanceDeductions.deducted_leave_days,
       monthly_paid_leave_days: attendanceDeductions.monthly_paid_leave_days,
       leave_deduction: attendanceDeductions.leave_deduction,
+      leave_day_list: Array.isArray(attendanceDeductions.leave_day_list) ? attendanceDeductions.leave_day_list : [],
       approved_overtime_minutes: attendanceDeductions.approved_overtime_minutes,
       approved_overtime_hours: attendanceDeductions.approved_overtime_hours,
       approved_overtime_pay: approvedOvertimePay,
