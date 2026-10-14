@@ -2,7 +2,7 @@ import db from "../database/db.js";
 import { randomBytes } from "node:crypto";
 import { getTenantId, isSuperAdminUser } from "../utils/requestScope.js";
 import { ensureBranchSchema } from "../utils/branchSchema.js";
-import { SINGLE_BRANCH_CODE, SINGLE_BRANCH_NAME, ensureSingleBranchModeOnce } from "../utils/singleBranchMode.js";
+import { SINGLE_BRANCH_CODE, ensureSingleBranchModeOnce, requestedSingleBranchName } from "../utils/singleBranchMode.js";
 
 const normalizeBranch = (row = {}) => ({
   id: row.id,
@@ -191,7 +191,7 @@ export const createBranch = async (req, res) => {
       `,
       [
         tenantId,
-        SINGLE_BRANCH_NAME,
+        requestedSingleBranchName(branch.name),
         branch.code || SINGLE_BRANCH_CODE,
         SINGLE_BRANCH_CODE,
         branch.phone,
@@ -269,7 +269,9 @@ export const updateBranch = async (req, res) => {
         longitude = $9,
         attendance_radius_meters = $10,
         allowed_radius_meters = $10,
-        is_active = TRUE,
+        -- $11 used to be sent and never referenced: Postgres could not type it and every
+        -- branch edit failed with 500. The single branch always stays active.
+        is_active = COALESCE($11::boolean, TRUE),
         updated_at = NOW()
       WHERE id = $12
         AND ($13::bigint IS NULL OR tenant_id = $13::bigint)
@@ -290,7 +292,7 @@ export const updateBranch = async (req, res) => {
         is_active
       `,
       [
-        SINGLE_BRANCH_NAME,
+        requestedSingleBranchName(branch.name),
         branch.code,
         branch.phone,
         branch.address,
@@ -306,6 +308,13 @@ export const updateBranch = async (req, res) => {
         SINGLE_BRANCH_CODE,
       ]
     );
+
+    // Wholesale lets the owner rename the branch; the warehouse rows carry its name too.
+    const savedName = result.rows[0]?.name;
+    if (savedName) {
+      await db.query("UPDATE warehouses SET branch_name = $1 WHERE branch_name IS DISTINCT FROM $1", [savedName])
+        .catch((error) => console.warn("[branches] warehouse branch_name sync skipped", { message: error?.message }));
+    }
 
     return res.status(200).json({
       success: true,

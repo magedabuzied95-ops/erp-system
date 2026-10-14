@@ -1,8 +1,27 @@
 import db from "../database/db.js";
 import { reconcileMoneyAccountUniqueness } from "../services/accountingService.js";
+import { isWholesaleMode } from "../modules/wholesale/wholesaleMode.js";
 
 export const SINGLE_BRANCH_NAME = "فرع البشبيشي";
 export const SINGLE_BRANCH_CODE = "BESHBISHI";
+
+// Retail's one branch is always "فرع البشبيشي". The wholesale copy keeps the same single
+// branch but lets the owner name it: its branch is the oldest row, whatever it is called.
+export const WHOLESALE_DEFAULT_BRANCH_NAME = "فرع الجملة";
+const ownerNamesBranch = () => isWholesaleMode();
+
+/** The name new rows should carry (warehouses, a re-created branch). */
+export const currentSingleBranchName = async (clientOrPool = db) => {
+  if (!ownerNamesBranch()) return SINGLE_BRANCH_NAME;
+  const { rows } = await clientOrPool.query("SELECT name FROM branches ORDER BY id ASC LIMIT 1");
+  return String(rows[0]?.name || "").trim() || WHOLESALE_DEFAULT_BRANCH_NAME;
+};
+
+/** The name a branch create/update should store: the request's on wholesale, fixed on retail. */
+export const requestedSingleBranchName = (requested) => {
+  const name = String(requested || "").trim();
+  return ownerNamesBranch() && name ? name.slice(0, 255) : SINGLE_BRANCH_NAME;
+};
 
 let singleBranchReadyPromise = null;
 let singleBranchEnsured = false;
@@ -223,12 +242,14 @@ const ensureSingleBranchModeNow = async (clientOrPool = db) => {
     "alter_branches_add_attendance_public_code"
   );
 
+  // Retail finds its branch by the fixed name; wholesale by age, so a renamed branch stays.
+  const keeperByName = !ownerNamesBranch();
   const keeperResult = await clientOrPool.query(
     `
     WITH existing AS (
       SELECT id
       FROM branches
-      WHERE name = $1
+      ${keeperByName ? "WHERE name = $1" : ""}
       ORDER BY id ASC
       LIMIT 1
     ),
@@ -243,13 +264,15 @@ const ensureSingleBranchModeNow = async (clientOrPool = db) => {
     SELECT id FROM existing
     LIMIT 1
     `,
-    [SINGLE_BRANCH_NAME, tenantId, SINGLE_BRANCH_CODE]
+    [keeperByName ? SINGLE_BRANCH_NAME : WHOLESALE_DEFAULT_BRANCH_NAME, tenantId, SINGLE_BRANCH_CODE]
   );
   const branchId = keeperResult.rows[0]?.id;
 
   if (!branchId) {
     throw new Error("Unable to resolve the single system branch");
   }
+  const branchName = await currentSingleBranchName(clientOrPool);
+  const branchNameSql = branchName.replaceAll("'", "''");
 
   await clientOrPool.query(
     `
@@ -278,8 +301,8 @@ const ensureSingleBranchModeNow = async (clientOrPool = db) => {
           AND column_name = 'branch_name'
       ) THEN
         UPDATE warehouses
-        SET branch_name = '${SINGLE_BRANCH_NAME.replaceAll("'", "''")}'
-        WHERE branch_name IS DISTINCT FROM '${SINGLE_BRANCH_NAME.replaceAll("'", "''")}';
+        SET branch_name = '${branchNameSql}'
+        WHERE branch_name IS DISTINCT FROM '${branchNameSql}';
       END IF;
     END $$;
   `,
@@ -297,7 +320,7 @@ const ensureSingleBranchModeNow = async (clientOrPool = db) => {
       updated_at = NOW()
     WHERE id = $1
     `,
-    [branchId, tenantId, SINGLE_BRANCH_NAME, SINGLE_BRANCH_CODE]
+    [branchId, tenantId, branchName, SINGLE_BRANCH_CODE]
   );
 
   const branchTables = await getBranchIdTables(clientOrPool);
@@ -329,7 +352,7 @@ const ensureSingleBranchModeNow = async (clientOrPool = db) => {
     BEGIN
       SELECT id INTO keeper_id
       FROM branches
-      WHERE name = '${SINGLE_BRANCH_NAME.replaceAll("'", "''")}'
+      ${keeperByName ? `WHERE name = '${branchNameSql}'` : ""}
       ORDER BY id ASC
       LIMIT 1;
 
@@ -369,7 +392,7 @@ const ensureSingleBranchModeNow = async (clientOrPool = db) => {
 
   return {
     branchId,
-    branchName: SINGLE_BRANCH_NAME,
+    branchName,
     branchTables: branchTables.map((row) => `${row.table_schema}.${row.table_name}`),
   };
 };

@@ -2,7 +2,7 @@ import db from "../database/db.js";
 import { getTenantId, isSuperAdminUser, tenantContextMissingResponse } from "../utils/requestScope.js";
 import { ensureInventoryMovementSchema, recordInventoryMovement } from "../services/inventoryMovementService.js";
 import { ensureAttendanceSchema } from "../utils/attendanceSchema.js";
-import { SINGLE_BRANCH_NAME, ensureSingleBranchMode } from "../utils/singleBranchMode.js";
+import { currentSingleBranchName, ensureSingleBranchMode } from "../utils/singleBranchMode.js";
 
 const ensureWarehouseSchema = async () => {
   await db.query("ALTER TABLE IF EXISTS warehouses ADD COLUMN IF NOT EXISTS tenant_id BIGINT");
@@ -271,7 +271,7 @@ export const getWarehouses = async (req, res) => {
         VALUES ($1, 'Main Warehouse', 'MAIN', $2, '', $3, 'active')
         ON CONFLICT DO NOTHING
         `,
-        [tenantId, SINGLE_BRANCH_NAME, `main-warehouse-${tenantId}-${Date.now()}`]
+        [tenantId, await currentSingleBranchName(), `main-warehouse-${tenantId}-${Date.now()}`]
       );
       result = await loadWarehouses();
     }
@@ -336,7 +336,7 @@ export const createWarehouse = async (req, res) => {
       [
         tenantId,
         safeName,
-        SINGLE_BRANCH_NAME,
+        await currentSingleBranchName(),
         location || "",
         latitude,
         longitude,
