@@ -168,7 +168,55 @@ const confirmOrderForTransfer = async (client, { transfer, orderId, matchMethod,
     `,
     [transfer.id, order.id, confirmation ? matchMethod : `${matchMethod}_already_approved`, userId]
   );
-  return { transfer: updated.rows[0], order: confirmation?.order || order, confirmed: Boolean(confirmation?.order) };
+  const matched = updated.rows[0];
+  if (matched) matched.twins = await settleTransferTwins(client, matched);
+  return { transfer: matched, order: confirmation?.order || order, confirmed: Boolean(confirmation?.order) };
+};
+
+/* ------------------------------------------------------------------- twins */
+
+// One InstaPay payment can reach us twice: the InstaPay app's own notification AND the
+// receiving bank's SMS (CIB / United Bank). Same money, different provider, minutes apart.
+// Once one of them is settled the other is set aside as `ignored` with
+// `duplicate_of:<id>` — still on the page, and a person can still match it by hand.
+const INSTAPAY_FAMILY = ["instapay", "cib", "united_bank"];
+const TWIN_WINDOW_SECONDS = 600;
+
+const TWIN_WHERE = `
+  wt.id <> $1 AND wt.direction = 'incoming'
+  AND wt.provider = ANY($2::text[]) AND wt.provider <> $3
+  AND ABS(COALESCE(wt.amount, 0) - $4::numeric) < 0.01
+  AND ($5::bigint IS NULL OR wt.tenant_id = $5::bigint OR wt.tenant_id IS NULL)
+  AND ABS(EXTRACT(EPOCH FROM (COALESCE(wt.occurred_at, wt.created_at) - $6::timestamptz))) <= ${TWIN_WINDOW_SECONDS}
+`;
+const twinParams = (row) => [row.id, INSTAPAY_FAMILY, row.provider, Number(row.amount || 0), row.tenant_id ?? null, row.occurred_at || row.created_at || new Date()];
+const isInstapayFamily = (row) => Boolean(row?.id && row.direction === "incoming" && INSTAPAY_FAMILY.includes(row.provider));
+
+// After a transfer is settled: its still-waiting twin is the same money, so it goes too.
+export const settleTransferTwins = async (client, row) => {
+  if (!isInstapayFamily(row)) return [];
+  const result = await client.query(
+    `
+    UPDATE wallet_transfers wt
+    SET status = 'ignored', review_reason = 'duplicate_of:' || $1::bigint::text, updated_at = NOW()
+    WHERE ${TWIN_WHERE} AND wt.status IN ('unmatched', 'needs_review')
+    RETURNING wt.*
+    `,
+    twinParams(row)
+  );
+  return result.rows;
+};
+
+// On arrival: the twin of a transfer already settled is set aside before anyone sees it.
+const setAsideIfTwinSettled = async (client, row) => {
+  if (!isInstapayFamily(row)) return null;
+  const twin = await client.query(`SELECT wt.id FROM wallet_transfers wt WHERE ${TWIN_WHERE} AND wt.status = 'matched' LIMIT 1`, twinParams(row));
+  if (!twin.rows[0]) return null;
+  const updated = await client.query(
+    `UPDATE wallet_transfers SET status = 'ignored', review_reason = $2, updated_at = NOW() WHERE id = $1 RETURNING *`,
+    [row.id, `duplicate_of:${twin.rows[0].id}`]
+  );
+  return updated.rows[0] || null;
 };
 
 // Runs inside the caller's transaction with the transfer row already locked.
@@ -266,6 +314,7 @@ const emitPosTransferIncoming = (row) => {
 export const emitPosTransferSettled = (row) => {
   if (!row?.id) return;
   emitToRooms(posTransferRooms(row.tenant_id), "wallet_transfers:settled", { id: Number(row.id), status: row.status || "" });
+  (row.twins || []).forEach(emitPosTransferSettled);
 };
 
 export const listPosIncomingTransfers = async ({ tenantId = null } = {}) => {
@@ -300,7 +349,9 @@ export const claimWalletTransferForPosOrder = async (client, { tenantId = null, 
     `,
     [transferId, orderId, Number(amount || 0), userId, tenantId]
   );
-  return result.rows[0] || null;
+  const claimed = result.rows[0] || null;
+  if (claimed) claimed.twins = await settleTransferTwins(client, claimed);
+  return claimed;
 };
 
 /* ------------------------------------------------------------------ ingest */
@@ -343,10 +394,16 @@ export const ingestTransferSms = async ({ tenantId = null, rawText = "", sender 
       if (status === "unparsed") console.warn("[wallet-transfers] SMS not understood", { id: row.id, sender: row.sms_sender });
       return { outcome: status, transfer: row };
     }
+    const setAside = await setAsideIfTwinSettled(client, row);
+    if (setAside) {
+      await client.query("COMMIT");
+      return { outcome: "duplicate_transfer", transfer: setAside };
+    }
     const result = await matchTransferRow(client, row);
     await client.query("COMMIT");
     notifyOutcome(result);
     emitPosTransferIncoming(result.transfer);
+    if (result.outcome === "matched") emitPosTransferSettled(result.transfer);
     return result;
   } catch (error) {
     await client.query("ROLLBACK").catch(() => {});

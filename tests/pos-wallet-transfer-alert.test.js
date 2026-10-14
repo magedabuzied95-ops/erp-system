@@ -54,3 +54,28 @@ test("wiring: ingest pushes to the tills, the till feed is mounted, the POS send
   assert.match(alert, /subscribeRealtime\("wallet_transfers:settled"/);
   assert.match(alert, /sameAmount\(item\.amount, expectedAmount\)/, "only a transfer of the invoice's wallet amount is offered");
 });
+
+// One InstaPay payment can arrive twice — the InstaPay app notification and the bank SMS.
+test("settling an InstaPay-family transfer sets its waiting twin aside; Vodafone Cash has no twin", async () => {
+  const { settleTransferTwins } = await import("../server/modules/walletTransfers/walletTransfers.service.js");
+  const calls = [];
+  const client = { query: async (sql, params) => (calls.push({ sql, params }), { rows: [{ id: 8, status: "ignored" }] }) };
+  const at = "2026-10-14T10:00:00Z";
+  assert.deepEqual(await settleTransferTwins(client, { id: 5, direction: "incoming", provider: "vodafone_cash", amount: 2250, occurred_at: at }), []);
+  assert.equal(calls.length, 0, "a wallet SMS is never anybody's twin");
+  const twins = await settleTransferTwins(client, { id: 5, direction: "incoming", provider: "instapay", amount: "2250.00", tenant_id: 1, occurred_at: at });
+  assert.deepEqual(twins, [{ id: 8, status: "ignored" }]);
+  const { sql, params } = calls[0];
+  assert.match(sql, /'duplicate_of:' \|\| \$1::bigint::text/, "$1 stays a bigint: a bare $1::text would retype it and break wt.id <> $1");
+  assert.match(sql, /wt\.provider <> \$3/, "a second transfer from the same source is real money, not a twin");
+  assert.match(sql, /wt\.status IN \('unmatched', 'needs_review'\)/);
+  assert.deepEqual(params, [5, ["instapay", "cib", "united_bank"], "instapay", 2250, 1, at]);
+});
+
+test("a till claim and every automatic or manual match also settle the twin", () => {
+  const service = read("../server/modules/walletTransfers/walletTransfers.service.js");
+  assert.match(service, /if \(claimed\) claimed\.twins = await settleTransferTwins\(client, claimed\);/);
+  assert.match(service, /if \(matched\) matched\.twins = await settleTransferTwins\(client, matched\);/);
+  assert.match(service, /const setAside = await setAsideIfTwinSettled\(client, row\);/);
+  assert.match(service, /\(row\.twins \|\| \[\]\)\.forEach\(emitPosTransferSettled\);/, "tills drop the twin's card too");
+});
