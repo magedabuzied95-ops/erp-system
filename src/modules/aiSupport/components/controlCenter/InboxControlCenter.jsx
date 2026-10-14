@@ -53,6 +53,7 @@ const WhatsAppAutomationsPanel = lazy(() => import("../integrations/WhatsAppAuto
 const WhatsAppQueuePanel = lazy(() => import("../integrations/WhatsAppQueuePanel.jsx"));
 const TikTokIntegrationPanel = lazy(() => import("../integrations/TikTokIntegrationPanel.jsx"));
 const IntegrationsOverviewPanel = lazy(() => import("./IntegrationsOverviewPanel.jsx"));
+const SequencesPanel = lazy(() => import("./SequencesPanel.jsx"));
 
 const MetaGlyph = () => (
   <span className="relative inline-flex h-4 w-5 items-center" aria-hidden="true">
@@ -64,7 +65,7 @@ const MetaGlyph = () => (
 export const CONTROL_CENTER_GROUPS = [
   { key: "agent", sections: ["agent", "teach", "actions", "playground"] },
   { key: "workspace", sections: ["quick_replies", "comments", "invoice_messages"] },
-  { key: "growth", sections: ["broadcasts"] },
+  { key: "growth", sections: ["broadcasts", "sequences"] },
   { key: "insight", sections: ["performance"] },
   { key: "connections", sections: ["overview", "meta", "whatsapp", "automations", "queue", "tiktok"] },
 ];
@@ -89,6 +90,7 @@ const SECTION_ICON = {
   comments: MessageSquareText,
   invoice_messages: Receipt,
   broadcasts: Megaphone,
+  sequences: Workflow,
   performance: BarChart3,
   overview: LayoutGrid,
   meta: MetaGlyph,
@@ -108,6 +110,7 @@ const sectionLabel = (t, key) => {
   if (key === "comments") return t("aiSupport.commentsSettings.title");
   if (key === "invoice_messages") return t("aiSupport.aiSettings.variants.menuTitle");
   if (key === "broadcasts") return t("aiSupport.controlCenter.nav.broadcasts");
+  if (key === "sequences") return t("aiSupport.controlCenter.nav.sequences");
   if (key === "performance") return t("aiSupport.controlCenter.nav.performance");
   if (key === "overview") return t("aiSupport.integrations.nav.overview");
   if (key === "meta") return t("aiSupport.integrations.nav.meta");
@@ -245,6 +248,7 @@ export default function InboxControlCenter({
               {section === "comments" ? <CommentsSettingsPanel {...(commentsProps || {})} light={false} /> : null}
               {section === "invoice_messages" ? <WhatsappMessageVariantsEditor initialType="invoice_receipt" /> : null}
               {section === "broadcasts" ? <BroadcastsPanel {...panelProps} /> : null}
+              {section === "sequences" ? <SequencesPanel {...panelProps} /> : null}
               {section === "performance" ? <TeamPerformancePanel {...panelProps} /> : null}
               {section === "overview" ? <IntegrationsOverviewPanel headers={headers} onOpenSection={goTo} /> : null}
               {section === "meta" ? <MetaIntegrationPanel /> : null}

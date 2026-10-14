@@ -6,6 +6,7 @@ import { ensureWalletSchema, recordWalletTransaction } from "../services/walletS
 import { calculateTier, ensureLoyaltySchema, getCustomerLoyaltySummary } from "../services/loyaltyService.js";
 import { createJournalEntry, recordFinancialAccountActivity } from "../services/accountingService.js";
 import { ensureEmployeeAdvanceSalesSchema, findEmployeeByPhone } from "../services/employeeAdvanceSalesService.js";
+import { ensureCustomerTagsSchema, listCustomerTags, setCustomerTags } from "../services/customerTagsService.js";
 
 let customerColumnsPromise = null;
 
@@ -86,6 +87,7 @@ const normalizeCustomerRow = (row = {}) => ({
   credit_balance: Number(row.credit_balance ?? row.wallet_balance ?? row.balance ?? 0),
   loyalty_points: Number(row.loyalty_points ?? 0),
   loyalty_tier: row.loyalty_tier ?? row.tier ?? "Bronze",
+  tags: Array.isArray(row.tags) ? row.tags : [],
   purchase_preferences:
     row.purchase_preferences && typeof row.purchase_preferences === "object"
       ? row.purchase_preferences
@@ -261,7 +263,8 @@ const buildSelectSql = (columns) => {
       ${columns.allowPersonalTransactionsColumn ? `${columns.allowPersonalTransactionsColumn}` : "FALSE"} AS allow_personal_transactions,
       ${columns.linkedEmployeeIdColumn ? `${columns.linkedEmployeeIdColumn}` : "NULL::bigint"} AS linked_employee_id,
       created_at,
-      ${updatedAtExpr} AS updated_at
+      ${updatedAtExpr} AS updated_at,
+      ${columns.columns?.includes("tags") ? "COALESCE(tags, '[]'::jsonb)" : "'[]'::jsonb"} AS tags
     FROM customers
   `;
 };
@@ -391,6 +394,12 @@ const ensureCustomerSchema = async () => {
   }
   if (!columns.purchasePreferencesColumn) {
     missingStatements.push(`ALTER TABLE customers ADD COLUMN IF NOT EXISTS purchase_preferences JSONB NOT NULL DEFAULT '{}'::jsonb`);
+  }
+  // Customer tags. Added HERE and not only in customerTagsService: the select
+  // builder reads the column list once and caches it, so a column that
+  // appears later would be read as '[]' until the next restart.
+  if (!columns.columns?.includes("tags")) {
+    missingStatements.push(`ALTER TABLE customers ADD COLUMN IF NOT EXISTS tags JSONB NOT NULL DEFAULT '[]'::jsonb`);
   }
 
   if (missingStatements.length > 0) {
@@ -2862,5 +2871,33 @@ export const deleteCustomer = async (req, res) => {
       message: "Failed To Delete Customer",
       error: error.message,
     });
+  }
+};
+
+// --- Customer tags ---------------------------------------------------------
+// "VIP", "جملة", "بيرجّع كتير": a word on the person, shown wherever the
+// customer is and usable as a broadcast audience. Lives on the customers row.
+
+export const getCustomerTagCatalog = async (req, res) => {
+  try {
+    const tenantId = getTenantId(req, req.user?.tenant_id);
+    const tags = await listCustomerTags({ tenantId });
+    return res.json({ success: true, tags });
+  } catch (error) {
+    return res.status(error.status || 500).json({ success: false, message: error.message || "Failed to load customer tags" });
+  }
+};
+
+export const putCustomerTags = async (req, res) => {
+  try {
+    const tenantId = getTenantId(req, req.user?.tenant_id);
+    await ensureCustomerTagsSchema();
+    // The id may arrive as a phone (the inbox drawer resolves customers by phone).
+    const customer = await getCustomerByIdentifier(req.params.id, isSuperAdminUser(req.user) ? null : tenantId);
+    if (!customer) return res.status(404).json({ success: false, message: "Customer not found" });
+    const result = await setCustomerTags({ tenantId: customer.tenant_id || tenantId, id: customer.id, tags: req.body?.tags });
+    return res.json({ success: true, ...result });
+  } catch (error) {
+    return res.status(error.status || 500).json({ success: false, message: error.message || "Failed to save customer tags" });
   }
 };

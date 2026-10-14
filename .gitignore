@@ -251,3 +251,9 @@ server/data/backfill/
 # has to live down here among the last patterns or every telegram service is
 # silently dropped from its commit.
 !server/services/telegram*.js
+# AI Inbox team tools (2026-10-14): presence, reminders, sequences, tags, the shared outbound door.
+!server/services/inboxOutboundService.js
+!server/services/aiInboxStaffPresenceService.js
+!server/services/aiInboxRemindersService.js
+!server/services/messageSequencesService.js
+!server/services/customerTagsService.js

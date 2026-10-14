@@ -210,7 +210,7 @@ const deactivateSubscription = async (id, statusCode = 0, reason = "") => {
   console.warn("[ai-inbox-push:subscription-revoked]", { subscriptionId: id, statusCode, reason });
 };
 
-const loadInboxSubscriptions = async ({ tenantId = null, excludeUserId = null } = {}) => {
+const loadInboxSubscriptions = async ({ tenantId = null, excludeUserId = null, onlyUserId = null } = {}) => {
   await ensurePortalPushSchema(db);
   const result = await db.query(
     `
@@ -222,15 +222,16 @@ const loadInboxSubscriptions = async ({ tenantId = null, excludeUserId = null } 
       AND ($2::bigint IS NULL OR s.tenant_id = $2::bigint OR u.tenant_id = $2::bigint)
       AND COALESCE(u.is_active, TRUE) = TRUE
       AND ($3::bigint IS NULL OR s.user_id <> $3::bigint)
+      AND ($4::bigint IS NULL OR s.user_id = $4::bigint)
     ORDER BY s.last_seen_at DESC
     LIMIT 200
     `,
-    [PORTAL_TYPE, tenantId, excludeUserId]
+    [PORTAL_TYPE, tenantId, excludeUserId, onlyUserId]
   );
   return result.rows;
 };
 
-const sendToInboxSubscriptions = async ({ tenantId = null, excludeUserId = null, buildPayload } = {}) => {
+const sendToInboxSubscriptions = async ({ tenantId = null, excludeUserId = null, onlyUserId = null, buildPayload } = {}) => {
   if (!configureWebPush()) {
     console.warn("[ai-inbox-push:vapid-missing]", {
       tenantId,
@@ -240,7 +241,7 @@ const sendToInboxSubscriptions = async ({ tenantId = null, excludeUserId = null,
     });
     return { sent: 0, failed: 0, deactivated: 0, skipped: true };
   }
-  const rows = await loadInboxSubscriptions({ tenantId, excludeUserId });
+  const rows = await loadInboxSubscriptions({ tenantId, excludeUserId, onlyUserId });
   if (!rows.length) return { sent: 0, failed: 0, deactivated: 0, skipped: false };
 
   let sent = 0;
@@ -289,6 +290,28 @@ const sendToInboxSubscriptions = async ({ tenantId = null, excludeUserId = null,
   }
   console.info("[ai-inbox-push:send-summary]", { tenantId, recipients: rows.length, sent, failed, deactivated });
   return { sent, failed, deactivated, skipped: false };
+};
+
+// One person, every device they subscribed on. A reminder rings for whoever set
+// it, not for the whole team.
+export const sendAiInboxPushToUser = async ({ tenantId = null, userId = null, payload = {} } = {}) => {
+  const safeUserId = numberOrNull(userId);
+  if (!safeUserId) return { sent: 0, failed: 0, deactivated: 0, skipped: true };
+  return sendToInboxSubscriptions({
+    tenantId: numberOrNull(tenantId),
+    excludeUserId: null,
+    onlyUserId: safeUserId,
+    buildPayload: (row) => {
+      const base = text(row.portal_url) || "/inbox";
+      const conversationId = text(payload?.data?.conversation_id || "");
+      const url = conversationId
+        ? base === "/admin/ai-inbox"
+          ? `/admin/ai-inbox?conversation=${encodeURIComponent(conversationId)}`
+          : `/inbox/${encodeURIComponent(conversationId)}`
+        : base;
+      return { ...payload, data: { ...(payload?.data || {}), url: payload?.data?.url && !conversationId ? payload.data.url : url } };
+    },
+  });
 };
 
 export const sendAiInboxTestPush = async ({ user = {} } = {}) => {

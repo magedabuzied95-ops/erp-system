@@ -66,6 +66,8 @@ import {
   User,
   UserCheck,
   UserPlus,
+  Users,
+  X,
   XCircle,
 } from "lucide-react";
 import {
@@ -155,6 +157,9 @@ import { WEAK_CONVERSATION_CHANNELS, backendChannelFilter, channelFromConversati
 import { findDeepLinkedConversation, normalizeInboxDeepLinkChannel } from "../services/inboxDeepLink.js";
 import "./AiInboxDesktop.css";
 import { QuickRepliesPicker, useQuickReplies } from "../components/QuickReplies.jsx";
+import ConversationTeamTools, { useInboxStaff, useMessageSequences } from "../components/ConversationTeamTools.jsx";
+import { StaffViewersBanner, StaffViewersChip } from "../components/StaffPresence.jsx";
+import { useStaffPresence } from "../lib/useStaffPresence.js";
 import { AppleEmojiPicker } from "../components/AppleEmojiPicker.jsx";
 import {
   ENABLE_SOCIAL_FAST_CENTER,
@@ -1783,7 +1788,7 @@ function ProductCards({ products = [] }) {
   );
 }
 
-const ConversationListItem = memo(function ConversationListItem({ item, active, unseen, presence = "", onSelect, onOpenCustomer360, onToggleFavorite, onToggleRead, onDelete, onEditPrivacy }) {
+const ConversationListItem = memo(function ConversationListItem({ item, active, unseen, presence = "", staffViewers = [], onSelect, onOpenCustomer360, onToggleFavorite, onToggleRead, onDelete, onEditPrivacy }) {
   const { t } = useTranslation();
   const channel = item.channel || item.source || "web_chat";
   const liveMeta = item.is_live_meta === true || isMetaChannel(channel);
@@ -1983,6 +1988,7 @@ const ConversationListItem = memo(function ConversationListItem({ item, active, 
                   <Trash2 className="h-3.5 w-3.5" />
                 </button>
               ) : null}
+              <StaffViewersChip viewers={staffViewers} />
               <span className="text-[11px] font-bold text-slate-500">{lastActivity}</span>
             </div>
           </div>
@@ -2201,7 +2207,7 @@ function InboxChannelSidebar({
   );
 }
 
-const InboxConversationCard = memo(function InboxConversationCard({ item, active, unseen, presence = "", accountLabel = "", onSelect, onOpenCustomer360, onToggleFavorite, onToggleRead, onDelete, onEditPrivacy }) {
+const InboxConversationCard = memo(function InboxConversationCard({ item, active, unseen, presence = "", staffViewers = [], accountLabel = "", onSelect, onOpenCustomer360, onToggleFavorite, onToggleRead, onDelete, onEditPrivacy }) {
   const { t } = useTranslation();
   const channel = item.channel || item.source || "web_chat";
   const liveMeta = item.is_live_meta === true || isMetaChannel(channel);
@@ -2375,6 +2381,7 @@ const InboxConversationCard = memo(function InboxConversationCard({ item, active
                   <Trash2 className="h-3.5 w-3.5" />
                 </button>
               ) : null}
+              <StaffViewersChip viewers={staffViewers} />
               <span className="text-[11px] font-bold text-slate-500">{relativeTime(item.last_message_at || item.last_activity_at || item.updated_at)}</span>
             </div>
           </div>
@@ -2430,6 +2437,9 @@ function InboxChatHeader({
   onOpenTools,
   toolsOpen = false,
   onOpenCustomer360,
+  // Assign / remind / sequence for THIS conversation, in a drawer the page owns.
+  onOpenTeamTools,
+  teamToolsOpen = false,
 }) {
   const { t } = useTranslation();
   const [labelsOpen, setLabelsOpen] = useState(false);
@@ -2543,6 +2553,21 @@ function InboxChatHeader({
           <button type="button" onClick={() => setLabelsOpen(true)} disabled={loading || labelsSaving} className="inline-flex h-8 items-center gap-1.5 rounded-xl border border-amber-300/25 bg-amber-400/10 px-2.5 text-[11px] font-black text-amber-100 transition hover:bg-amber-400/15 disabled:opacity-50">
             <Tag className="h-3.5 w-3.5" /> {t("aiSupport.inbox.header.addLabel")}
           </button>
+          {onOpenTeamTools ? (
+            <button
+              type="button"
+              onClick={() => onOpenTeamTools()}
+              disabled={loading}
+              aria-pressed={teamToolsOpen}
+              data-ai-inbox-team-tools="open"
+              className={`inline-flex h-8 items-center gap-1.5 rounded-xl border px-2.5 text-[11px] font-black transition disabled:opacity-50 ${teamToolsOpen ? "border-cyan-300/40 bg-cyan-400/15 text-cyan-100" : "border-cyan-300/25 bg-cyan-400/10 text-cyan-100 hover:bg-cyan-400/15"}`}
+            >
+              <Users className="h-3.5 w-3.5" /> {t("aiSupport.teamTools.title")}
+              {conversation?.assigned_user_name || conversation?.assigned_user?.name ? (
+                <span className="max-w-[90px] truncate rounded-full bg-white/10 px-1.5 text-[10px] font-bold text-white">{conversation?.assigned_user?.name || conversation?.assigned_user_name}</span>
+              ) : null}
+            </button>
+          ) : null}
           {onOpenTools ? (
             <button
               type="button"
@@ -2713,7 +2738,7 @@ const Transcript = memo(function Transcript({
   );
 });
 
-function ConversationActions({ conversation, channelStatus = {}, loading, assignName, onAssignNameChange, onAction }) {
+function ConversationActions({ conversation, channelStatus = {}, loading, assignName, onAssignNameChange, onAction, teamTools = null }) {
   const { t } = useTranslation();
   if (!conversation) return null;
   const status = conversation.conversation_status || conversation.status || "ai_active";
@@ -2748,9 +2773,14 @@ function ConversationActions({ conversation, channelStatus = {}, loading, assign
             </button>
           </summary>
           <div className="absolute right-0 z-10 mt-2 w-[220px] rounded-2xl border border-white/10 bg-slate-950/98 p-2 shadow-[0_24px_60px_rgba(0,0,0,0.35)]">
-            <div className="mb-2 rounded-xl border border-white/10 bg-white/[0.035] p-2">
-              <input value={assignName} onChange={(event) => onAssignNameChange(event.target.value)} placeholder={t("aiSupport.inbox.panel.assignTo")} disabled={loading || status === "closed"} className="h-8 w-full rounded-xl border border-white/10 bg-white/[0.055] px-3 text-xs font-bold text-white outline-none placeholder:text-slate-600 focus:border-cyan-300/40 disabled:opacity-50" />
-            </div>
+            {/* The free-text "assign to" box that used to sit here is gone: a
+                conversation is handed to a teammate from the list below, where
+                the names come from the staff directory and "mine" can find them. */}
+            {teamTools ? null : (
+              <div className="mb-2 rounded-xl border border-white/10 bg-white/[0.035] p-2">
+                <input value={assignName} onChange={(event) => onAssignNameChange(event.target.value)} placeholder={t("aiSupport.inbox.panel.assignTo")} disabled={loading || status === "closed"} className="h-8 w-full rounded-xl border border-white/10 bg-white/[0.055] px-3 text-xs font-bold text-white outline-none placeholder:text-slate-600 focus:border-cyan-300/40 disabled:opacity-50" />
+              </div>
+            )}
             <div className="flex flex-col gap-1.5">
               {status === "closed" ? (
                 <button type="button" onClick={() => onAction("reopen")} disabled={loading} className="inline-flex h-8 w-full items-center justify-center gap-1.5 rounded-xl border border-cyan-300/20 bg-cyan-300/10 px-2.5 text-[11px] font-black text-cyan-100 disabled:opacity-50">
@@ -2773,14 +2803,17 @@ function ConversationActions({ conversation, channelStatus = {}, loading, assign
                   </button>
                 </>
               )}
-              <button type="button" onClick={() => onAction("assign")} disabled={loading || status === "closed" || !clean(assignName)} className="inline-flex h-8 w-full items-center justify-center gap-1.5 rounded-xl border border-white/10 bg-white/[0.07] px-2.5 text-[11px] font-black text-white disabled:opacity-50">
-                <UserPlus className="h-3.5 w-3.5" />
-                Assign
-              </button>
+              {teamTools ? null : (
+                <button type="button" onClick={() => onAction("assign")} disabled={loading || status === "closed" || !clean(assignName)} className="inline-flex h-8 w-full items-center justify-center gap-1.5 rounded-xl border border-white/10 bg-white/[0.07] px-2.5 text-[11px] font-black text-white disabled:opacity-50">
+                  <UserPlus className="h-3.5 w-3.5" />
+                  Assign
+                </button>
+              )}
             </div>
           </div>
         </details>
       </div>
+      {teamTools ? <div className="mt-2.5">{teamTools}</div> : null}
     </div>
   );
 }
@@ -2949,6 +2982,10 @@ function ManualReplyComposer({
   onDismissAiSuggestion,
   quickReplies = [],
   quickReplyCustomerName = "",
+  // A quick reply that carries photos is sent by the server (text, then each
+  // photo); the composer only inserts text for the plain ones.
+  onUseQuickReply,
+  staffViewers = [],
   canReply = true,
   composerMode = "reply",
   onComposerModeChange,
@@ -3142,11 +3179,19 @@ function ManualReplyComposer({
           onDismiss={onDismissAiSuggestion}
         />
       ) : null}
+      <StaffViewersBanner viewers={staffViewers} className="mb-2" />
       <QuickRepliesPicker
         replies={quickReplies}
         customerName={quickReplyCustomerName}
         value={value}
-        onUse={(message) => onChange(message)}
+        onUse={(message, reply) => {
+          if (reply?.media?.length && onUseQuickReply && !noteMode && canSendLive) {
+            onChange("");
+            void onUseQuickReply(reply, message);
+            return;
+          }
+          onChange(message);
+        }}
       />
       {isCommentConversation ? null : (
         <div className="mb-1.5 flex items-center gap-1" role="group" aria-label={t("aiSupport.inbox.composer.modeGroup")}>
@@ -4284,6 +4329,7 @@ function RightToolsTabsPanel({
   assignName = "",
   onAssignNameChange,
   onAction,
+  teamTools = null,
   mode,
   onModeChange,
   modeSaving = false,
@@ -4362,6 +4408,7 @@ function RightToolsTabsPanel({
               assignName={assignName}
               onAssignNameChange={onAssignNameChange}
               onAction={onAction}
+              teamTools={teamTools}
             />
             <AutoReplyModePanel
               channelStatus={channelStatus}
@@ -4495,6 +4542,8 @@ export default function AiInbox({ reviewerMode = false }) {
   const [leadSort, setLeadSort] = useState("recent");
   const [favoriteFilter, setFavoriteFilter] = useState("all");
   const [readFilter, setReadFilter] = useState("all"); // all | unread | read
+  const [assignedFilter, setAssignedFilter] = useState("all"); // all | me
+  const [teamToolsOpen, setTeamToolsOpen] = useState(false);
   const [channelFilter, setChannelFilter] = useState(() => deepLinkChannelRef.current || "all");
   // Which specific account (WhatsApp number / page) within the selected channel;
   // stores the channel_accounts row id as a string, or "all".
@@ -4735,6 +4784,9 @@ export default function AiInbox({ reviewerMode = false }) {
 
   const headers = useMemo(() => ({ "x-tenant-id": tenantId }), [tenantId]);
   const quickRepliesStore = useQuickReplies({ headers, tenantId });
+  // Team tools: who can be assigned, and which sequences exist. Loaded once.
+  const { staff: inboxStaff, me: inboxMe } = useInboxStaff({ headers, enabled: !reviewerMode });
+  const { sequences: inboxSequences } = useMessageSequences({ headers, enabled: !reviewerMode });
 
   useEffect(() => {
     selectedSessionIdRef.current = selectedSessionId;
@@ -4786,7 +4838,7 @@ export default function AiInbox({ reviewerMode = false }) {
     // A read-filtered request returns a different set entirely, so it must neither be
     // served from that cache nor written back into it — either way the next warm "All"
     // open would render a filtered slice as if it were the whole channel.
-    const listCacheEnabled = !reviewerMode && readFilter === "all";
+    const listCacheEnabled = !reviewerMode && readFilter === "all" && assignedFilter === "all";
     const cachedPages = listCacheEnabled
       ? await Promise.all(warmChannels.map((ch) => inboxCache.primeList(ch).then((r) => asArray(r?.conversations)).catch(() => [])))
       : warmChannels.map(() => []);
@@ -4846,6 +4898,7 @@ export default function AiInbox({ reviewerMode = false }) {
           // Same reasoning: a starred conversation older than this page would
           // never arrive, so "starred" would silently mean "starred and recent".
           ...(favoriteFilter === "all" ? {} : { favorite_only: 1 }),
+          ...(assignedFilter === "me" ? { assigned_user_id: "me" } : {}),
         },
         headers,
         perfComponent: `AiInbox.conversations.${backendChannel}`,
@@ -5072,7 +5125,7 @@ export default function AiInbox({ reviewerMode = false }) {
         }
       }
     }
-  }, [channelFilter, debouncedSearch, filter, headers, readFilter, reviewerMode, tenantId]);
+  }, [assignedFilter, channelFilter, debouncedSearch, filter, headers, readFilter, reviewerMode, tenantId]);
 
   // Shared inboxCache housekeeping: expiry sweep on mount, and wipe on logout /
   // user switch so one account's cached inbox is never shown to the next.
@@ -5315,12 +5368,22 @@ export default function AiInbox({ reviewerMode = false }) {
     const offMessage = subscribeRealtime("ai_inbox:message", onMessage);
     const offRefresh = subscribeRealtime("ai_inbox:refresh", refresh);
     const offPresence = subscribeRealtime("ai_inbox:presence", onPresence);
+    // A hand-set reminder that just came due: the push rings the phone, this
+    // rings the open desktop.
+    const onReminderDue = (payload = {}) => {
+      const reminder = payload?.reminder || {};
+      const name = clean(reminder.customer_name);
+      const note = clean(reminder.note);
+      setToast({ tone: "amber", text: `${name ? t("aiSupport.teamTools.reminders.dueToast", { name }) : t("aiSupport.teamTools.reminders.dueFallback")}${note ? ` — ${note}` : ""}` });
+    };
+    const offReminder = subscribeRealtime("ai_inbox:reminder_due", onReminderDue);
     return () => {
       offMessage();
       offRefresh();
       offPresence();
+      offReminder();
     };
-  }, [pageVisible, requestRefresh, selectedSessionId]);
+  }, [pageVisible, requestRefresh, selectedSessionId, t]);
 
   // The expiry sweep for the presence above. One timer for the whole list rather than one
   // per row, and it only runs while something is actually typing.
@@ -5423,6 +5486,12 @@ export default function AiInbox({ reviewerMode = false }) {
       const isUnread = Number(conversation?.unread_count || conversation?.unread || 0) > 0 || conversation?.manually_unread === true;
       return readFilter === "unread" ? isUnread : !isUnread;
     };
+    // Applied in SQL too; this keeps the list honest between the toggle and the refetch.
+    const matchesAssignedFilter = (conversation = {}) => {
+      if (assignedFilter !== "me") return true;
+      const assignedId = String(conversation?.assigned_user_id || conversation?.assigned_user?.id || conversation?.channel_metadata?.assigned_employee_id || "");
+      return Boolean(inboxMe.id) && assignedId === String(inboxMe.id);
+    };
     const sortValue = (conversation = {}) => {
       const score = conversationLeadScore(conversation);
       const updatedAt = new Date(conversation.last_message_at || conversation.last_activity_at || conversation.updated_at || conversation.created_at || 0).getTime();
@@ -5460,7 +5529,7 @@ export default function AiInbox({ reviewerMode = false }) {
       }
       return true;
     };
-    const sorted = items.filter(matchesInboxFilter).filter(matchesLeadFilter).filter(matchesFavoriteFilter).filter(matchesReadFilter).filter(matchesChannelFilter).filter(matchesAccountFilter).sort((a, b) => {
+    const sorted = items.filter(matchesInboxFilter).filter(matchesLeadFilter).filter(matchesFavoriteFilter).filter(matchesReadFilter).filter(matchesAssignedFilter).filter(matchesChannelFilter).filter(matchesAccountFilter).sort((a, b) => {
       const left = sortValue(a);
       const right = sortValue(b);
       if (right.primary !== left.primary) return right.primary - left.primary;
@@ -5468,7 +5537,7 @@ export default function AiInbox({ reviewerMode = false }) {
       return clean(b.session_id || b.conversation_key || b.conversation_id || "").localeCompare(clean(a.session_id || a.conversation_key || a.conversation_id || ""));
     });
     return sorted;
-  }, [channelFilter, commentPlatformFilter, conversations, filter, inboxSection, leadFilter, leadSort, messagePlatformFilter, favoriteFilter, readFilter, selectedAccountKeys]);
+  }, [assignedFilter, channelFilter, commentPlatformFilter, conversations, filter, inboxMe.id, inboxSection, leadFilter, leadSort, messagePlatformFilter, favoriteFilter, readFilter, selectedAccountKeys]);
   const visibleConversations = useMemo(
     () => (inboxSection === "conversations" ? filteredConversations : []),
     [filteredConversations, inboxSection]
@@ -5486,6 +5555,7 @@ export default function AiInbox({ reviewerMode = false }) {
   // leadFilter/filter, so hiding every conversation behind "unread" or "favorites"
   // still claimed no real messages had arrived at all.
   const emptyConversationsText = useMemo(() => {
+    if (assignedFilter === "me") return t("aiSupport.inbox.ui.emptyMine");
     if (readFilter === "unread") return t("aiSupport.inbox.ui.emptyUnread");
     if (readFilter === "read") return t("aiSupport.inbox.ui.emptyRead");
     if (favoriteFilter !== "all") return t("aiSupport.inbox.ui.emptyFavorites");
@@ -5498,7 +5568,7 @@ export default function AiInbox({ reviewerMode = false }) {
       return t("aiSupport.inbox.ui.emptyFiltered");
     }
     return t("aiSupport.inbox.ui.emptyNoConversations");
-  }, [channelFilter, favoriteFilter, filter, hasMoreConversations, leadFilter, readFilter, search, t]);
+  }, [assignedFilter, channelFilter, favoriteFilter, filter, hasMoreConversations, leadFilter, readFilter, search, t]);
   const visibleSocialComments = useMemo(() => {
     if (inboxSection !== "social_comments") return [];
     const normalizedCaption = (value = "") => clean(value)
@@ -5690,6 +5760,8 @@ export default function AiInbox({ reviewerMode = false }) {
       ? (selectedConversationThread || visibleConversations[0] || null)
       : null;
   const selectedConversation = isConversationMode ? activeMainItem : null;
+  // Staff presence: tell the team what is open here, hear what they have open.
+  const staffPresence = useStaffPresence({ sessionId: selectedConversation?.session_id || "", enabled: !reviewerMode });
   const transcriptCanvas = platformCanvas(
     resolveMessagePlatform({}, selectedConversation?.channel || selectedConversation?.source || ""),
     chromeModeFor("desktop", activeTheme?.mode)
@@ -7393,6 +7465,48 @@ export default function AiInbox({ reviewerMode = false }) {
     }
   };
 
+  // A teammate was picked in the team tools: mirror it on the open conversation
+  // and the list without a full reload.
+  const handleTeamAssigned = ({ conversation: returned = {}, assigned_user_id: assignedUserId = null, assigned_user_name: assignedUserName = "" } = {}) => {
+    if (!selectedConversation?.session_id) return;
+    patchConversation(selectedConversation?.conversation_key || selectedConversation?.session_id, (conversation) => ({
+      ...conversation,
+      ...returned,
+      assigned_user_id: assignedUserId,
+      assigned_user_name: assignedUserName,
+      assigned_user: assignedUserId ? { ...(conversation.assigned_user || {}), id: assignedUserId, name: assignedUserName } : null,
+      conversation_status: assignedUserId ? "human_takeover" : (returned.conversation_status || conversation.conversation_status),
+      status: assignedUserId ? "human_takeover" : (returned.status || conversation.status),
+    }));
+    setAssignNameDraft({ sessionId: "", value: "" });
+  };
+
+  // A quick reply that carries photos: the server sends the text and then every
+  // photo as its own bubble; the socket brings each one back into the thread.
+  const sendQuickReplyWithMedia = async (reply, message) => {
+    const sessionId = selectedConversation?.session_id;
+    if (!sessionId || !reply?.id) return;
+    setReplySending(true);
+    try {
+      const payload = await api.post(aiInboxConversationEndpoint(selectedConversationRouteId || sessionId, "/quick-reply"), {
+        tenant_id: tenantId,
+        quick_reply_id: reply.id,
+        message,
+        client_request_id: `qr-${reply.id}-${Date.now()}`,
+      }, { headers, perfComponent: "AiInbox.quickReplyMedia" });
+      if (payload?.sent === false) {
+        setToast({ tone: "rose", text: payload?.delivery_error || t("aiSupport.quickReplies.sendError") });
+      } else {
+        setToast({ tone: "emerald", text: t("aiSupport.quickReplies.sentWithMedia") });
+      }
+      requestRefresh("quick-reply-media", { silent: true, force: true });
+    } catch (err) {
+      setToast({ tone: "rose", text: err?.message || t("aiSupport.quickReplies.sendError") });
+    } finally {
+      setReplySending(false);
+    }
+  };
+
   const updateConversationAction = async (action) => {
     if (!selectedConversation?.session_id) return;
     const channel = selectedConversation?.channel || selectedConversation?.source || "";
@@ -7927,6 +8041,7 @@ export default function AiInbox({ reviewerMode = false }) {
           limit: channelWindow(backendChannel),
           read_filter: readFilter,
           ...(favoriteFilter === "all" ? {} : { favorite_only: 1 }),
+          ...(assignedFilter === "me" ? { assigned_user_id: "me" } : {}),
           before_activity_at: listCursors[backendChannel].activity_at,
           before_session_id: listCursors[backendChannel].session_id,
         },
@@ -7950,7 +8065,7 @@ export default function AiInbox({ reviewerMode = false }) {
       loadingMoreRef.current = false;
       setLoadingMoreConversations(false);
     }
-  }, [api, channelFilter, debouncedSearch, favoriteFilter, filter, headers, listCursors, readFilter, setInbox, tenantId]);
+  }, [api, assignedFilter, channelFilter, debouncedSearch, favoriteFilter, filter, headers, listCursors, readFilter, setInbox, tenantId]);
 
   /*
    * Send a file the operator picked. Upload and send are one request: the
@@ -9607,6 +9722,9 @@ export default function AiInbox({ reviewerMode = false }) {
 	                      <button type="button" onClick={() => setFavoriteFilter(favoriteFilter === "favorites" ? "all" : "favorites")} title={t("aiSupport.inbox.ui.favorites")} aria-label={t("aiSupport.inbox.ui.favorites")} aria-pressed={favoriteFilter === "favorites"} className={`grid h-10 w-10 shrink-0 place-items-center rounded-xl border transition ${favoriteFilter === "favorites" ? "border-amber-300/40 bg-amber-400/15" : "border-white/10 bg-slate-950/70 hover:border-white/20"}`}>
 	                        <Star className={`h-4 w-4 ${favoriteFilter === "favorites" ? "text-amber-300 fill-amber-300" : "text-slate-400"}`} />
 	                      </button>
+	                      <button type="button" onClick={() => setAssignedFilter(assignedFilter === "me" ? "all" : "me")} title={t("aiSupport.inbox.ui.mineFilter")} aria-label={t("aiSupport.inbox.ui.mineFilter")} aria-pressed={assignedFilter === "me"} data-inbox-filter="mine" className={`grid h-10 w-10 shrink-0 place-items-center rounded-xl border transition ${assignedFilter === "me" ? "border-cyan-300/40 bg-cyan-400/15" : "border-white/10 bg-slate-950/70 hover:border-white/20"}`}>
+	                        <UserCheck className={`h-4 w-4 ${assignedFilter === "me" ? "text-cyan-200" : "text-slate-400"}`} />
+	                      </button>
 	                  </div>
 	                  <div className="flex items-center gap-2">
 	                    <div className="flex min-w-0 flex-1 items-center gap-1 rounded-xl border border-white/10 bg-slate-950/70 p-1">
@@ -9670,6 +9788,7 @@ export default function AiInbox({ reviewerMode = false }) {
 	                            item={item}
 	                            accountLabel={conversationAccountLabel(item)}
 	                            presence={presenceBySession[itemKey]?.state || ""}
+                            staffViewers={staffPresence.othersOn(item.session_id)}
 	                            unseen={unseenSessions.includes(itemKey)}
 	                            active={selectedConversation?.conversation_key === itemKey}
 	                            onSelect={handleSelectConversation}
@@ -9834,6 +9953,8 @@ export default function AiInbox({ reviewerMode = false }) {
                     onToggleFullscreen={handleToggleConversationExpansion}
                     showBack
                     onOpenCustomer360={openCustomerDrawer}
+                    onOpenTeamTools={reviewerMode ? undefined : () => setTeamToolsOpen((current) => !current)}
+                    teamToolsOpen={teamToolsOpen}
                   />
                   <div
                     data-ai-inbox-commerce-toolbar="true"
@@ -9955,6 +10076,8 @@ export default function AiInbox({ reviewerMode = false }) {
                         onDismissAiSuggestion={handleDismissAiSuggestion}
                         quickReplies={quickRepliesStore.quickReplies}
                         quickReplyCustomerName={getConversationDisplayName(selectedConversation || {})}
+                        onUseQuickReply={sendQuickReplyWithMedia}
+                        staffViewers={staffPresence.othersOn(selectedConversation?.session_id)}
                       />
                     </div>
                   </div>
@@ -9979,6 +10102,19 @@ export default function AiInbox({ reviewerMode = false }) {
                     assignName={currentAssignName}
                     onAssignNameChange={updateAssignName}
                     onAction={updateConversationAction}
+                    teamTools={reviewerMode ? null : (
+                      <ConversationTeamTools
+                        conversation={selectedConversation}
+                        headers={headers}
+                        tenantId={tenantId}
+                        staff={inboxStaff}
+                        me={inboxMe}
+                        sequences={inboxSequences}
+                        canReply={canReply}
+                        onAssigned={handleTeamAssigned}
+                        onNotice={setToast}
+                      />
+                    )}
                     mode={resolveChannelAutoReplyMode(selectedChannelStatus)}
                     onModeChange={updateAutoReplyMode}
                     modeSaving={modeSaving}
@@ -10013,6 +10149,34 @@ export default function AiInbox({ reviewerMode = false }) {
           </main>
         </section>
       </div>
+      {/* Assign / remind / sequence for the open conversation. One drawer for
+          every layout, opened from the thread header's team-tools button. */}
+      {teamToolsOpen && !reviewerMode && selectedConversation ? (
+        <div className="fixed inset-0 z-[120] flex justify-end bg-slate-950/45 backdrop-blur-[1px]" onMouseDown={(event) => event.target === event.currentTarget && setTeamToolsOpen(false)} data-ai-inbox-team-tools="drawer">
+          <aside className="flex h-full w-full max-w-md flex-col overflow-y-auto border-l border-white/10 bg-[#0f1418] p-4 text-white shadow-[0_0_80px_rgba(0,0,0,0.5)]">
+            <div className="mb-3 flex items-center justify-between gap-3">
+              <div className="flex min-w-0 items-center gap-2 text-sm font-black">
+                <Users className="h-4 w-4 text-cyan-300" />
+                <span className="truncate">{t("aiSupport.teamTools.title")} · {getConversationDisplayName(selectedConversation || {})}</span>
+              </div>
+              <button type="button" onClick={() => setTeamToolsOpen(false)} aria-label={t("aiSupport.inbox.ui.closeDetails")} className="grid h-9 w-9 shrink-0 place-items-center rounded-xl bg-white/[0.06] text-slate-300 hover:bg-white/10">
+                <X className="h-4 w-4" />
+              </button>
+            </div>
+            <ConversationTeamTools
+              conversation={selectedConversation}
+              headers={headers}
+              tenantId={tenantId}
+              staff={inboxStaff}
+              me={inboxMe}
+              sequences={inboxSequences}
+              canReply={canReply}
+              onAssigned={handleTeamAssigned}
+              onNotice={setToast}
+            />
+          </aside>
+        </div>
+      ) : null}
       <Customer360Drawer
         open={customerDrawer.open}
         onClose={() => setCustomerDrawer((current) => ({ ...current, open: false }))}
@@ -10126,6 +10290,10 @@ export default function AiInbox({ reviewerMode = false }) {
                 <option value="favorites_first">{t("aiSupport.inbox.ui.sortFavoritesFirst")}</option>
               </select>
             </label>
+              <button type="button" onClick={() => setAssignedFilter(assignedFilter === "me" ? "all" : "me")} aria-pressed={assignedFilter === "me"} data-inbox-filter="mine" className={`flex h-10 items-center gap-2 rounded-xl border px-3 text-[11px] font-black uppercase tracking-[0.14em] transition ${assignedFilter === "me" ? "border-cyan-300/40 bg-cyan-400/15 text-cyan-100" : "border-white/10 bg-slate-950/70 text-slate-500 hover:border-white/20"}`}>
+  <UserCheck className={`h-4 w-4 ${assignedFilter === "me" ? "text-cyan-200" : "text-slate-400"}`} />
+  {t("aiSupport.inbox.ui.mineFilter")}
+</button>
               <label className="flex items-center gap-2 rounded-xl border border-white/10 bg-slate-950/70 px-3 h-10">
   <Star className="h-4 w-4 text-amber-300" />
   <span className="text-[11px] font-black uppercase tracking-[0.14em] text-slate-500">{t("aiSupport.inbox.ui.favorites")}</span>
@@ -10239,6 +10407,8 @@ export default function AiInbox({ reviewerMode = false }) {
                     isFullscreenConversation={conversationExpanded}
                     onToggleFullscreen={handleToggleConversationExpansion}
                     onOpenCustomer360={openCustomerDrawer}
+                    onOpenTeamTools={reviewerMode ? undefined : () => setTeamToolsOpen((current) => !current)}
+                    teamToolsOpen={teamToolsOpen}
                   />
                   {isCommentConversation(selectedConversation || {}) ? (
                     <CommentAutomationBadges automationState={selectedConversation?.channel_metadata?.automation_state || selectedConversation?.automation_state || {}} />
@@ -10286,6 +10456,19 @@ export default function AiInbox({ reviewerMode = false }) {
                     assignName={currentAssignName}
                     onAssignNameChange={updateAssignName}
                     onAction={updateConversationAction}
+                    teamTools={reviewerMode ? null : (
+                      <ConversationTeamTools
+                        conversation={selectedConversation}
+                        headers={headers}
+                        tenantId={tenantId}
+                        staff={inboxStaff}
+                        me={inboxMe}
+                        sequences={inboxSequences}
+                        canReply={canReply}
+                        onAssigned={handleTeamAssigned}
+                        onNotice={setToast}
+                      />
+                    )}
                   />
                   <button type="button" onClick={() => setOrderComposerOpen(true)} className="mb-3 inline-flex h-11 w-full items-center justify-center gap-2 rounded-xl bg-emerald-400 px-4 text-sm font-black text-slate-950 shadow-[0_14px_35px_rgba(52,211,153,0.18)]"><ShoppingCart className="h-5 w-5" />{t("aiSupport.inbox.order.orderHeading")}</button>
 
@@ -10492,6 +10675,8 @@ export default function AiInbox({ reviewerMode = false }) {
                         onDismissAiSuggestion={handleDismissAiSuggestion}
                         quickReplies={quickRepliesStore.quickReplies}
                         quickReplyCustomerName={getConversationDisplayName(selectedConversation || {})}
+                        onUseQuickReply={sendQuickReplyWithMedia}
+                        staffViewers={staffPresence.othersOn(selectedConversation?.session_id)}
                         />
                       </div>
                     </div>
@@ -10528,7 +10713,11 @@ export default function AiInbox({ reviewerMode = false }) {
                         <option value="favorites_first">{t("aiSupport.inbox.ui.sortFavoritesFirst")}</option>
                       </select>
                     </label>
-                      <label className="flex items-center gap-2 rounded-xl border border-white/10 bg-slate-950/70 px-3 h-10">
+                      <button type="button" onClick={() => setAssignedFilter(assignedFilter === "me" ? "all" : "me")} aria-pressed={assignedFilter === "me"} data-inbox-filter="mine" className={`flex h-10 items-center gap-2 rounded-xl border px-3 text-[11px] font-black uppercase tracking-[0.14em] transition ${assignedFilter === "me" ? "border-cyan-300/40 bg-cyan-400/15 text-cyan-100" : "border-white/10 bg-slate-950/70 text-slate-500 hover:border-white/20"}`}>
+  <UserCheck className={`h-4 w-4 ${assignedFilter === "me" ? "text-cyan-200" : "text-slate-400"}`} />
+  {t("aiSupport.inbox.ui.mineFilter")}
+</button>
+              <label className="flex items-center gap-2 rounded-xl border border-white/10 bg-slate-950/70 px-3 h-10">
   <Star className="h-4 w-4 text-amber-300" />
   <span className="text-[11px] font-black uppercase tracking-[0.14em] text-slate-500">{t("aiSupport.inbox.ui.favorites")}</span>
   <select value={favoriteFilter} onChange={(event) => setFavoriteFilter(event.target.value)} className="min-w-0 bg-transparent text-xs font-black text-white outline-none">
@@ -10560,6 +10749,7 @@ export default function AiInbox({ reviewerMode = false }) {
 	                              key={itemKey}
 	                              item={item}
 	                              presence={presenceBySession[itemKey]?.state || ""}
+                            staffViewers={staffPresence.othersOn(item.session_id)}
 	                              unseen={unseenSessions.includes(itemKey)}
 	                              active={selectedConversation?.conversation_key === itemKey}
 	                              onSelect={handleSelectConversation}

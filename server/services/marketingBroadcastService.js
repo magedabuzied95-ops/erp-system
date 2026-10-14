@@ -18,6 +18,7 @@
 import db from "../database/db.js";
 import { queueWhatsappAutomation } from "./whatsappQueue/index.js";
 import { ensureMarketingConsentSchema } from "./marketingConsentService.js";
+import { customerTagsAnyClauseSql, ensureCustomerTagsSchema, normalizeCustomerTags } from "./customerTagsService.js";
 
 const text = (value) => String(value ?? "").trim();
 const int = (value, fallback = 0) => {
@@ -137,6 +138,11 @@ const buildAudienceQuery = ({ tenantId, audience = {}, frequencyCapDays = DEFAUL
   const tier = text(audience.loyalty_tier);
   if (tier && tier !== "all") conditions.push(`LOWER(COALESCE(c.loyalty_tier, '')) = LOWER(${push(tier)})`);
 
+  // Customer tags ("VIP", "جملة"): any of the listed ones. The column is
+  // ensured by customerTagsService before the audience is ever previewed.
+  const tags = normalizeCustomerTags(audience.tags);
+  if (tags.length) conditions.push(customerTagsAnyClauseSql(push(tags)));
+
   // "Bought in the last N days" and "has not bought for N days" are the two that actually get used.
   // `customers` has no last-order column, so this comes from the orders roll-up joined below.
   const boughtWithinDays = int(audience.bought_within_days, 0);
@@ -176,6 +182,7 @@ const buildAudienceQuery = ({ tenantId, audience = {}, frequencyCapDays = DEFAUL
 
 export const previewBroadcastAudience = async ({ tenantId, audience = {}, frequencyCapDays } = {}) => {
   await ensureBroadcastSchema();
+  await ensureCustomerTagsSchema();
   const { sql, params } = buildAudienceQuery({ tenantId, audience, frequencyCapDays });
   const result = await db.query(sql, params);
   const rows = result.rows || [];
@@ -250,6 +257,7 @@ export const sendBroadcast = async ({ tenantId, broadcastId } = {}) => {
     throw Object.assign(new Error(`Broadcast is already ${broadcast.status}`), { status: 409 });
   }
 
+  await ensureCustomerTagsSchema();
   const { sql, params } = buildAudienceQuery({
     tenantId,
     audience: broadcast.audience || {},

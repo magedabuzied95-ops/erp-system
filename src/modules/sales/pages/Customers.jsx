@@ -1228,6 +1228,14 @@ function Customers() {
                           <Phone className="table-cell-stack__icon h-4 w-4 text-text-muted" />
                           {customer.phone || t("customers.records.notSet")}
                         </span>
+                        {Array.isArray(customer.tags) && customer.tags.length ? (
+                          <span className="mt-1 flex flex-wrap gap-1" data-customer-tags="row">
+                            {customer.tags.slice(0, 4).map((tag) => (
+                              <span key={tag} className="rounded-full bg-amber-50 px-2 py-0.5 text-[10px] font-black text-amber-800 ring-1 ring-amber-200">{tag}</span>
+                            ))}
+                            {customer.tags.length > 4 ? <span className="text-[10px] font-bold text-text-muted">+{customer.tags.length - 4}</span> : null}
+                          </span>
+                        ) : null}
                       </td>
                       <td className="px-6 py-5 align-middle text-sm font-semibold text-text">
                         <span className="table-cell-stack w-full">

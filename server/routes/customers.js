@@ -12,10 +12,12 @@ import {
   getCustomerProfile,
   getCustomerStatement,
   getCustomerEmployeeOptions,
+  getCustomerTagCatalog,
   getCustomerWalletAudit,
   importCustomers,
   listCustomers,
   previewCustomerImport,
+  putCustomerTags,
   updateCustomer,
 } from "../controllers/customersController.js";
 
@@ -34,6 +36,9 @@ router.post("/import/preview", protect, permit("customers", "create"), importUpl
 router.post("/import/confirm", protect, permit("customers", "create"), importUpload.single("file"), importCustomers);
 // Registered before "/:id/..." so "employee-options" is never read as an id.
 router.get("/employee-options", protect, permit("customers", "edit"), getCustomerEmployeeOptions);
+// Before "/:id/..." so the literal segment is never read as a customer id.
+router.get("/tags", protect, permit("customers", "view"), getCustomerTagCatalog);
+router.put("/:id/tags", protect, permit("customers", "edit"), putCustomerTags);
 router.post("/", protect, permit("customers", "create"), createCustomer);
 router.get("/:id/profile", protect, permit("customers", "view"), getCustomerProfile);
 router.get("/:id/orders", protect, permit("customers", "view"), getCustomerOrders);

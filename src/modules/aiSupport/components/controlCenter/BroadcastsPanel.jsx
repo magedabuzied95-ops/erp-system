@@ -18,7 +18,7 @@ import { api } from "../../../../shared/api/api";
 import { ActionButton, PanelSection, PanelSkeleton } from "../integrations/integrationsUi.jsx";
 import { Field, SelectInput, TextArea, TextInput } from "./controlCenterUi.jsx";
 
-const EMPTY_AUDIENCE = { min_orders: "", min_spent: "", loyalty_tier: "all", bought_within_days: "", quiet_for_days: "" };
+const EMPTY_AUDIENCE = { min_orders: "", min_spent: "", loyalty_tier: "all", bought_within_days: "", quiet_for_days: "", tags: "" };
 
 const numericAudience = (audience) => ({
   min_orders: Number(audience.min_orders) || 0,
@@ -26,6 +26,8 @@ const numericAudience = (audience) => ({
   loyalty_tier: audience.loyalty_tier || "all",
   bought_within_days: Number(audience.bought_within_days) || 0,
   quiet_for_days: Number(audience.quiet_for_days) || 0,
+  // Customer tags, any of them: "VIP، جملة" typed as one line.
+  tags: String(audience.tags || "").split(/[,،\n]/).map((item) => item.trim()).filter(Boolean),
 });
 
 export default function BroadcastsPanel({ headers, tenantId }) {
@@ -212,6 +214,13 @@ export default function BroadcastsPanel({ headers, tenantId }) {
                   inputMode="numeric"
                   value={form.audience.quiet_for_days}
                   onChange={(event) => patchAudience({ quiet_for_days: event.target.value.replace(/\D/g, "") })}
+                />
+              </Field>
+              <Field label={t("aiSupport.teamTools.tags.audienceLabel")} hint={t("aiSupport.teamTools.tags.audienceHint")}>
+                <TextInput
+                  value={form.audience.tags}
+                  onChange={(event) => patchAudience({ tags: event.target.value })}
+                  placeholder={t("aiSupport.teamTools.tags.placeholder")}
                 />
               </Field>
               <Field label={t("aiSupport.controlCenter.broadcasts.frequencyCap")} hint={t("aiSupport.controlCenter.broadcasts.frequencyCapHint")}>

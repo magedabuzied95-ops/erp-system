@@ -1,9 +1,10 @@
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import {
   ArrowDown,
   ArrowUp,
   Check,
   GripVertical,
+  ImagePlus,
   Loader2,
   Pencil,
   Plus,
@@ -16,16 +17,21 @@ import { toast } from "react-hot-toast";
 import { useTranslation } from "react-i18next";
 
 import { api } from "../../../shared/api/api";
+import { resolveChatMediaUrl } from "../../../shared/lib/imageUrls.js";
 import { useTheme } from "../../../theme/useTheme";
 
 const asArray = (value) => (Array.isArray(value) ? value : []);
 const clean = (value = "") => String(value ?? "").trim();
+const MAX_MEDIA = 5;
+// A number or one word — same rule the server enforces.
+const SHORTCUT_PATTERN = /^[\p{L}\p{N}_-]{1,40}$/u;
 
 const normalizeReply = (reply = {}, index = 0) => ({
   id: Number(reply.id),
   name: clean(reply.name),
   message: clean(reply.message),
   shortcut: clean(reply.shortcut),
+  media: asArray(reply.media).filter((item) => clean(item?.url)),
   is_active: reply.is_active !== false,
   sort_order: Number(reply.sort_order ?? index),
 });
@@ -134,10 +140,10 @@ export function QuickRepliesPicker({ replies = [], customerName = "", value = ""
   const activeReplies = useMemo(() => asArray(replies).filter((reply) => reply.is_active !== false), [replies]);
   const visibleReplies = useMemo(() => {
     const needle = clean(query).toLowerCase();
-    const hasExactShortcut = /^\d+$/.test(needle) && activeReplies.some((reply) => reply.shortcut === needle);
+    const hasExactShortcut = Boolean(needle) && activeReplies.some((reply) => reply.shortcut.toLowerCase() === needle);
     return activeReplies.filter((reply) => {
       if (!needle) return true;
-      if (hasExactShortcut) return reply.shortcut === needle;
+      if (hasExactShortcut) return reply.shortcut.toLowerCase() === needle;
       return `${reply.shortcut} ${reply.name} ${reply.message}`.toLowerCase().includes(needle);
     });
   }, [activeReplies, query]);
@@ -165,6 +171,16 @@ export function QuickRepliesPicker({ replies = [], customerName = "", value = ""
               <span className={`block text-xs font-black ${light ? "text-[#28251f]" : "text-white"}`}>{reply.name}</span>
               <span className={`mt-0.5 block truncate text-[11px] ${light ? "text-[#746c5e]" : "text-slate-400"}`}>{resolveQuickReplyMessage(reply.message, customerName)}</span>
             </span>
+            {reply.media?.length ? (
+              <span className="flex shrink-0 items-center -space-x-1.5" title={t("aiSupport.quickReplies.photosCount", { count: reply.media.length })} data-quick-reply-media={reply.media.length}>
+                {reply.media.slice(0, 3).map((media, index) => (
+                  <span key={`${media.url}-${index}`} className={`h-7 w-7 overflow-hidden rounded-md ring-2 ${light ? "ring-[#fffdf8]" : "ring-[#1a1d1a]"}`}>
+                    {media.kind === "video" ? <span className="grid h-full w-full place-items-center bg-black/60 text-[9px] text-white">🎬</span> : <img src={resolveChatMediaUrl(media.url)} alt="" className="h-full w-full object-cover" loading="lazy" />}
+                  </span>
+                ))}
+                {reply.media.length > 3 ? <span className={`grid h-7 w-7 place-items-center rounded-md text-[9px] font-black ring-2 ${light ? "bg-[#f2dfad] text-[#805800] ring-[#fffdf8]" : "bg-amber-400/20 text-amber-100 ring-[#1a1d1a]"}`}>+{reply.media.length - 3}</span> : null}
+              </span>
+            ) : null}
             <Check className={`mt-1 h-4 w-4 shrink-0 opacity-0 transition group-hover:opacity-100 ${light ? "text-[#a67100]" : "text-emerald-400"}`} />
           </button>
         ))}
@@ -181,15 +197,38 @@ export function QuickRepliesPanel({ mounted = true, replies = [], loading = fals
   const { theme } = useTheme();
   const light = typeof lightOverride === "boolean" ? lightOverride : theme?.mode === "light";
   const [editingId, setEditingId] = useState(null);
-  const [draft, setDraft] = useState({ shortcut: "", name: "", message: "", is_active: true });
+  const [draft, setDraft] = useState({ shortcut: "", name: "", message: "", is_active: true, media: [] });
   const [draggedId, setDraggedId] = useState(null);
+  const [uploading, setUploading] = useState(false);
+  const mediaInputRef = useRef(null);
 
   useEffect(() => {
     if (!mounted) {
       setEditingId(null);
-      setDraft({ shortcut: "", name: "", message: "", is_active: true });
+      setDraft({ shortcut: "", name: "", message: "", is_active: true, media: [] });
     }
   }, [mounted]);
+
+  // The photo is stored the moment it is picked, so the reply only ever
+  // references a file that exists; cancelling the edit leaves an orphan on
+  // disk, never a broken bubble in a thread.
+  const uploadMedia = async (file) => {
+    if (!file) return;
+    if (asArray(draft.media).length >= MAX_MEDIA) return toast.error(t("aiSupport.quickReplies.mediaLimit", { count: MAX_MEDIA }));
+    setUploading(true);
+    try {
+      const body = new FormData();
+      body.append("file", file);
+      const payload = await api.post("/ai-inbox/quick-replies/upload", body);
+      const media = payload?.media;
+      if (!media?.url) throw new Error(t("aiSupport.quickReplies.uploadError"));
+      setDraft((current) => ({ ...current, media: [...asArray(current.media), media].slice(0, MAX_MEDIA) }));
+    } catch (error) {
+      toast.error(error?.message || t("aiSupport.quickReplies.uploadError"));
+    } finally {
+      setUploading(false);
+    }
+  };
 
   const nextShortcut = () => {
     const used = new Set(asArray(replies).map((reply) => Number(reply.shortcut)).filter((value) => Number.isInteger(value) && value > 0));
@@ -199,23 +238,25 @@ export function QuickRepliesPanel({ mounted = true, replies = [], loading = fals
   };
   const startCreate = () => {
     setEditingId("new");
-    setDraft({ shortcut: nextShortcut(), name: "", message: "", is_active: true });
+    setDraft({ shortcut: nextShortcut(), name: "", message: "", is_active: true, media: [] });
   };
   const startEdit = (reply) => {
     setEditingId(reply.id);
-    setDraft({ shortcut: reply.shortcut, name: reply.name, message: reply.message, is_active: reply.is_active !== false });
+    setDraft({ shortcut: reply.shortcut, name: reply.name, message: reply.message, is_active: reply.is_active !== false, media: asArray(reply.media) });
   };
   const cancelEdit = () => {
     setEditingId(null);
-    setDraft({ shortcut: "", name: "", message: "", is_active: true });
+    setDraft({ shortcut: "", name: "", message: "", is_active: true, media: [] });
   };
   const saveDraft = async () => {
     if (!clean(draft.name) || !clean(draft.message)) return toast.error(t("aiSupport.quickReplies.required"));
-    if (!/^\d{1,4}$/.test(clean(draft.shortcut)) || Number(draft.shortcut) <= 0) return toast.error(t("aiSupport.quickReplies.shortcutInvalid"));
-    const duplicate = asArray(replies).some((reply) => reply.id !== editingId && reply.shortcut === String(Number(draft.shortcut)));
+    const rawShortcut = clean(draft.shortcut).replace(/^\/+/, "").replace(/\s+/g, "_");
+    const normalizedShortcut = /^\d{1,4}$/.test(rawShortcut) ? String(Number(rawShortcut)) : rawShortcut;
+    if (!SHORTCUT_PATTERN.test(normalizedShortcut) || normalizedShortcut === "0") return toast.error(t("aiSupport.quickReplies.shortcutInvalid"));
+    const duplicate = asArray(replies).some((reply) => reply.id !== editingId && reply.shortcut.toLowerCase() === normalizedShortcut.toLowerCase());
     if (duplicate) return toast.error(t("aiSupport.quickReplies.shortcutDuplicate"));
     try {
-      const payload = { ...draft, shortcut: String(Number(draft.shortcut)) };
+      const payload = { ...draft, shortcut: normalizedShortcut, media: asArray(draft.media) };
       if (editingId === "new") await onCreate?.(payload);
       else await onUpdate?.(editingId, payload);
       cancelEdit();
@@ -271,7 +312,7 @@ export function QuickRepliesPanel({ mounted = true, replies = [], loading = fals
                   >
                     <GripVertical className={`mt-2 h-4 w-4 shrink-0 cursor-grab ${light ? "text-[#b1a58e]" : "text-slate-600"}`} />
                     <div className="min-w-0 flex-1">
-                      <div className="flex flex-wrap items-center gap-2"><span dir="ltr" className={`rounded-lg px-2 py-0.5 font-mono text-[10px] font-black ${light ? "bg-[#f2dfad] text-[#805800]" : "bg-amber-400/10 text-amber-200"}`}>/{reply.shortcut}</span><span className="text-xs font-black">{reply.name}</span>{reply.is_active === false ? <span className="rounded-full bg-slate-500/15 px-2 py-0.5 text-[9px] font-black text-slate-400">{t("aiSupport.quickReplies.disabled")}</span> : null}</div>
+                      <div className="flex flex-wrap items-center gap-2"><span dir="ltr" className={`rounded-lg px-2 py-0.5 font-mono text-[10px] font-black ${light ? "bg-[#f2dfad] text-[#805800]" : "bg-amber-400/10 text-amber-200"}`}>/{reply.shortcut}</span><span className="text-xs font-black">{reply.name}</span>{reply.media?.length ? <span className={`rounded-full px-2 py-0.5 text-[9px] font-black ${light ? "bg-[#e9f2ff] text-[#1d4ed8]" : "bg-sky-400/15 text-sky-200"}`}>{t("aiSupport.quickReplies.photosCount", { count: reply.media.length })}</span> : null}{reply.is_active === false ? <span className="rounded-full bg-slate-500/15 px-2 py-0.5 text-[9px] font-black text-slate-400">{t("aiSupport.quickReplies.disabled")}</span> : null}</div>
                       <div className={`mt-1 line-clamp-2 text-[11px] leading-5 ${light ? "text-[#746c5e]" : "text-slate-400"}`}>{reply.message}</div>
                     </div>
                     <div className="flex shrink-0 items-center gap-1">
@@ -294,9 +335,25 @@ export function QuickRepliesPanel({ mounted = true, replies = [], loading = fals
                 <label className={`mt-4 block text-[11px] font-black uppercase tracking-[0.12em] ${light ? "text-[#756c5b]" : "text-slate-400"}`}>{t("aiSupport.quickReplies.shortcut")}</label>
                 <div dir="ltr" className={`mt-1 flex h-11 items-center overflow-hidden rounded-xl border transition ${light ? "border-[#ddd1b6] bg-white text-[#28251f] focus-within:border-[#b98508]" : "border-white/10 bg-black/20"}`}>
                   <span className={`grid h-full w-10 place-items-center border-r font-mono text-sm font-black ${light ? "border-[#e6ddca] bg-[#f7f1e4] text-[#9a6a00]" : "border-white/10 bg-white/[0.04] text-amber-300"}`}>/</span>
-                  <input value={draft.shortcut} onChange={(event) => setDraft((current) => ({ ...current, shortcut: event.target.value.replace(/\D/g, "").slice(0, 4) }))} inputMode="numeric" maxLength={4} placeholder="1" className="h-full min-w-0 flex-1 border-0 bg-transparent px-3 font-mono text-sm font-black outline-none" />
+                  <input value={draft.shortcut} onChange={(event) => setDraft((current) => ({ ...current, shortcut: event.target.value.replace(/^\/+/, "").replace(/\s+/g, "_").slice(0, 40) }))} maxLength={40} placeholder="1" className="h-full min-w-0 flex-1 border-0 bg-transparent px-3 font-mono text-sm font-black outline-none" />
                 </div>
                 <div className={`mt-1 text-[10px] ${light ? "text-[#8b816f]" : "text-slate-500"}`}>{t("aiSupport.quickReplies.shortcutHint")}</div>
+                <label className={`mt-4 block text-[11px] font-black uppercase tracking-[0.12em] ${light ? "text-[#756c5b]" : "text-slate-400"}`}>{t("aiSupport.quickReplies.media")}</label>
+                <div className="mt-1 flex flex-wrap items-center gap-2" data-quick-reply-media-editor="true">
+                  {asArray(draft.media).map((media, index) => (
+                    <span key={`${media.url}-${index}`} className={`relative h-14 w-14 overflow-hidden rounded-xl ring-1 ${light ? "ring-[#ddd1b6]" : "ring-white/15"}`}>
+                      {media.kind === "video" ? <span className="grid h-full w-full place-items-center bg-black/60 text-[10px] text-white">🎬</span> : <img src={resolveChatMediaUrl(media.url)} alt="" className="h-full w-full object-cover" />}
+                      <button type="button" onClick={() => setDraft((current) => ({ ...current, media: asArray(current.media).filter((_, i) => i !== index) }))} aria-label={t("aiSupport.quickReplies.removeMedia")} className="absolute right-0.5 top-0.5 grid h-5 w-5 place-items-center rounded-full bg-black/70 text-white"><X className="h-3 w-3" /></button>
+                    </span>
+                  ))}
+                  {asArray(draft.media).length < MAX_MEDIA ? (
+                    <button type="button" onClick={() => mediaInputRef.current?.click()} disabled={uploading} aria-label={t("aiSupport.quickReplies.addMedia")} title={t("aiSupport.quickReplies.addMedia")} className={`grid h-14 w-14 place-items-center rounded-xl border border-dashed transition disabled:opacity-50 ${light ? "border-[#cdbb8f] text-[#9a6a00] hover:bg-[#fff8e7]" : "border-white/20 text-slate-400 hover:text-white"}`}>
+                      {uploading ? <Loader2 className="h-4 w-4 animate-spin" /> : <ImagePlus className="h-4 w-4" />}
+                    </button>
+                  ) : null}
+                  <input ref={mediaInputRef} type="file" accept="image/*,video/mp4,video/quicktime" className="hidden" onChange={(event) => { const file = event.target.files?.[0] || null; event.target.value = ""; void uploadMedia(file); }} />
+                </div>
+                <div className={`mt-1 text-[10px] ${light ? "text-[#8b816f]" : "text-slate-500"}`}>{t("aiSupport.quickReplies.mediaHint", { count: MAX_MEDIA })}</div>
                 <label className={`mt-4 block text-[11px] font-black uppercase tracking-[0.12em] ${light ? "text-[#756c5b]" : "text-slate-400"}`}>{t("aiSupport.quickReplies.name")}</label>
                 <input value={draft.name} onChange={(event) => setDraft((current) => ({ ...current, name: event.target.value }))} maxLength={120} placeholder={t("aiSupport.quickReplies.namePlaceholder")} className={`mt-1 h-11 w-full rounded-xl border px-3 text-sm outline-none transition ${light ? "border-[#ddd1b6] bg-white text-[#28251f] focus:border-[#b98508]" : "border-white/10 bg-black/20"}`} />
                 <label className={`mt-4 block text-[11px] font-black uppercase tracking-[0.12em] ${light ? "text-[#756c5b]" : "text-slate-400"}`}>{t("aiSupport.quickReplies.message")}</label>

@@ -40,7 +40,10 @@ import {
   Mail as MailIcon,
   Sun,
   Moon,
+  UserCheck,
   UserRound,
+  Users,
+  X,
 } from "lucide-react";
 import { toast } from "react-hot-toast";
 import { useTranslation } from "react-i18next";
@@ -127,6 +130,9 @@ import "./AiInboxPwa.css";
 import { isScrollerNearBottom, pinScrollerToBottom } from "../utils/transcriptScroll.js";
 import JumpToLatestButton from "../components/JumpToLatestButton.jsx";
 import { QuickRepliesPicker, useQuickReplies } from "../components/QuickReplies.jsx";
+import ConversationTeamTools, { useInboxStaff, useMessageSequences } from "../components/ConversationTeamTools.jsx";
+import { StaffViewersBanner, StaffViewersChip } from "../components/StaffPresence.jsx";
+import { useStaffPresence } from "../lib/useStaffPresence.js";
 import {
   ENABLE_SOCIAL_FAST_CENTER,
   GENERIC_CUSTOMER_NAMES,
@@ -2076,6 +2082,7 @@ const PwaComposerBar = memo(function PwaComposerBar({
   onPasteFiles,
   onPasteClipboardImage = null,
   onEditorFocus = null,
+  onUseQuickReply = null,
   sendTone = "sky",
 }) {
   const { t } = useTranslation();
@@ -2128,7 +2135,16 @@ const PwaComposerBar = memo(function PwaComposerBar({
         replies={quickReplies}
         customerName={customerName}
         value={draftState.slash}
-        onUse={(message) => onSetText?.(message)}
+        onUse={(message, reply) => {
+          // With photos the server sends the whole reply; the box is cleared
+          // so the slash command does not linger as a draft.
+          if (reply?.media?.length && onUseQuickReply && mode !== "note") {
+            onSetText?.("");
+            void onUseQuickReply(reply, message);
+            return;
+          }
+          onSetText?.(message);
+        }}
         light={light}
       />
       <div className="flex items-end gap-2">
@@ -2241,7 +2257,7 @@ const reportDeadAvatar = (conversation, url) => {
   api.post(aiInboxConversationEndpoint(target, "/refresh-avatar"), { channel }).catch(() => {});
 };
 
-function ConversationListItem({ conversation, active, accountLabel = "", onSelect, onToggleFavorite, onToggleRead, onDelete, onEditPrivacy }) {
+function ConversationListItem({ conversation, active, accountLabel = "", staffViewers = [], onSelect, onToggleFavorite, onToggleRead, onDelete, onEditPrivacy }) {
   const { t, i18n } = useTranslation();
   const [, forceAvatarFallback] = useState(0);
   const isSocialComment = isSocialCommentThread(conversation);
@@ -2377,6 +2393,7 @@ function ConversationListItem({ conversation, active, accountLabel = "", onSelec
             <div className={`text-[11px] font-medium ${active ? "text-slate-300" : "text-slate-500"}`}>
               {lastActivity}
             </div>
+            <StaffViewersChip viewers={staffViewers} light={!active} />
             <div className="flex items-center gap-0.5">
               {onToggleRead ? (
                 <button
@@ -3535,6 +3552,11 @@ export default function AiInboxPwa({ portal = null } = {}) {
   const socketHealthy = realtimeStatus.connected && !realtimeStatus.connecting;
   const headers = useMemo(() => ({ "x-tenant-id": tenantId }), [tenantId]);
   const quickRepliesStore = useQuickReplies({ headers, tenantId });
+  // Team tools: the staff directory, the sequence catalogue, "mine", and the sheet.
+  const { staff: inboxStaff, me: inboxMe } = useInboxStaff({ headers });
+  const { sequences: inboxSequences } = useMessageSequences({ headers });
+  const [assignedFilter, setAssignedFilter] = useState("all"); // all | me
+  const [teamToolsOpen, setTeamToolsOpen] = useState(false);
 
   const [loading, setLoading] = useState(true);
   const [olderLoading, setOlderLoading] = useState(false);
@@ -4183,6 +4205,7 @@ export default function AiInboxPwa({ portal = null } = {}) {
               message_limit: conversationParam ? 50 : 20,
               read_filter: readFilter,
               ...(favoriteFilter === "all" ? {} : { favorite_only: 1 }),
+              ...(assignedFilter === "me" ? { assigned_user_id: "me" } : {}),
             },
             headers,
             timeoutMs: 20000,
@@ -4310,7 +4333,7 @@ export default function AiInboxPwa({ portal = null } = {}) {
         }
       }
     },
-    [conversationParam, debouncedSearch, favoriteFilter, headers, loadSocialComments, messagePlatformFilter, pageVisible, portalMode, readFilter, tab, tenantId, updateUrlState]
+    [assignedFilter, conversationParam, debouncedSearch, favoriteFilter, headers, loadSocialComments, messagePlatformFilter, pageVisible, portalMode, readFilter, tab, tenantId, updateUrlState]
   );
 
   const requestRefresh = useCallback(
@@ -4456,6 +4479,7 @@ export default function AiInboxPwa({ portal = null } = {}) {
           limit: channelWindow(backendChannel),
           read_filter: readFilter,
           ...(favoriteFilter === "all" ? {} : { favorite_only: 1 }),
+          ...(assignedFilter === "me" ? { assigned_user_id: "me" } : {}),
           before_activity_at: listCursors[backendChannel].activity_at,
           before_session_id: listCursors[backendChannel].session_id,
         },
@@ -4486,7 +4510,7 @@ export default function AiInboxPwa({ portal = null } = {}) {
       loadingMoreRef.current = false;
       setLoadingMoreConversations(false);
     }
-  }, [debouncedSearch, favoriteFilter, headers, listCursors, messagePlatformFilter, readFilter, tenantId]);
+  }, [assignedFilter, debouncedSearch, favoriteFilter, headers, listCursors, messagePlatformFilter, readFilter, tenantId]);
 
   // Historical Meta sync — webhooks only carry new events, so this asks the
   // backend to pull the page's existing Messenger + Instagram DM threads from the
@@ -4564,13 +4588,13 @@ export default function AiInboxPwa({ portal = null } = {}) {
 
   // read_filter and favorite_only are server-side clauses, so changing either has
   // to refetch — the rows that match may not be in the page currently held.
-  const lastRequestedListFiltersRef = useRef("all|all");
+  const lastRequestedListFiltersRef = useRef("all|all|all");
   useEffect(() => {
-    const signature = `${readFilter}|${favoriteFilter}`;
+    const signature = `${readFilter}|${favoriteFilter}|${assignedFilter}`;
     if (lastRequestedListFiltersRef.current === signature) return;
     lastRequestedListFiltersRef.current = signature;
     requestRefresh("list_filter", { silent: false, force: true });
-  }, [favoriteFilter, readFilter, requestRefresh]);
+  }, [assignedFilter, favoriteFilter, readFilter, requestRefresh]);
 
   useEffect(() => {
     const timer = window.setTimeout(() => setDebouncedSearch(search), 250);
@@ -4822,11 +4846,21 @@ export default function AiInboxPwa({ portal = null } = {}) {
 
     const offMessage = subscribeRealtime("ai_inbox:message", onMessage);
     const offRefresh = subscribeRealtime("ai_inbox:refresh", onRefresh);
+    // A hand-set reminder that came due while the app is open: the push is
+    // suppressed for a focused PWA on some phones, so the toast carries it.
+    const onReminderDue = (payload = {}) => {
+      const reminder = payload?.reminder || {};
+      const name = clean(reminder.customer_name);
+      const note = clean(reminder.note);
+      toast(`${name ? t("aiSupport.teamTools.reminders.dueToast", { name }) : t("aiSupport.teamTools.reminders.dueFallback")}${note ? ` — ${note}` : ""}`, { icon: "⏰", duration: 8000 });
+    };
+    const offReminder = subscribeRealtime("ai_inbox:reminder_due", onReminderDue);
     return () => {
       offMessage();
       offRefresh();
+      offReminder();
     };
-  }, [conversationParam, requestRefresh, tenantId]);
+  }, [conversationParam, requestRefresh, t, tenantId]);
 
   useEffect(() => {
     if (!ENABLE_SOCIAL_FAST_CENTER) return undefined;
@@ -4995,6 +5029,10 @@ export default function AiInboxPwa({ portal = null } = {}) {
         const isFavorite = conversation?.is_favorite === true || clean(conversation?.is_favorite).toLowerCase() === "true";
         if (!isFavorite) return false;
       }
+      if (assignedFilter === "me") {
+        const assignedId = String(conversation?.assigned_user_id || conversation?.assigned_user?.id || conversation?.channel_metadata?.assigned_employee_id || "");
+        if (!inboxMe.id || assignedId !== String(inboxMe.id)) return false;
+      }
       if (readFilter !== "all") {
         const isUnread = Number(conversation?.unread_count || conversation?.unread || 0) > 0 || conversation?.manually_unread === true;
         if (readFilter === "unread" ? !isUnread : isUnread) return false;
@@ -5015,7 +5053,7 @@ export default function AiInboxPwa({ portal = null } = {}) {
       }
       return true;
     });
-  }, [conversations, debouncedSearch, favoriteFilter, filter, messagePlatformFilter, readFilter, selectedAccountKeys]);
+  }, [assignedFilter, conversations, debouncedSearch, favoriteFilter, filter, inboxMe.id, messagePlatformFilter, readFilter, selectedAccountKeys]);
 
   const selectedConversation = useMemo(() => {
     if (!conversationParam) return null;
@@ -5040,6 +5078,8 @@ export default function AiInboxPwa({ portal = null } = {}) {
     ) || null
     );
   }, [conversationParam, conversations]);
+  // Staff presence: what this phone has open, and what the colleagues have open.
+  const staffPresence = useStaffPresence({ sessionId: selectedConversation?.session_id || "" });
 
   // ---------------------------------------------------------------------
   // AI Inbox stale-while-revalidate cache (IndexedDB, tenant+user namespaced).
@@ -6104,6 +6144,29 @@ export default function AiInboxPwa({ portal = null } = {}) {
       throw deleteError;
     }
   }, [headers, patchConversation, requestRefresh, selectedConversationRouteId, tenantId]);
+
+  // A quick reply that carries photos: the server sends text then photos, and
+  // the socket brings each bubble back; the composer only has to wait.
+  const sendQuickReplyWithMedia = useCallback(async (reply, message) => {
+    const sessionId = selectedConversation?.session_id;
+    if (!sessionId || !reply?.id) return;
+    setSending(true);
+    try {
+      const payload = await api.post(aiInboxConversationEndpoint(selectedConversationRouteId || sessionId, "/quick-reply"), {
+        tenant_id: tenantId,
+        quick_reply_id: reply.id,
+        message,
+        client_request_id: `qr-${reply.id}-${Date.now()}`,
+      }, { headers, perfComponent: "AiInboxPwa.quickReplyMedia" });
+      if (payload?.sent === false) toast.error(payload?.delivery_error || t("aiSupport.quickReplies.sendError"));
+      else toast.success(t("aiSupport.quickReplies.sentWithMedia"));
+      requestRefresh("quick-reply-media", { silent: true, force: true });
+    } catch (error) {
+      toast.error(error?.message || t("aiSupport.quickReplies.sendError"));
+    } finally {
+      setSending(false);
+    }
+  }, [headers, requestRefresh, selectedConversation?.session_id, selectedConversationRouteId, t, tenantId]);
 
   const sendManualReply = useCallback(async (overrideText = "", options = {}) => {
     const explicitText = typeof overrideText === "string" ? overrideText : "";
@@ -8309,6 +8372,7 @@ export default function AiInboxPwa({ portal = null } = {}) {
                     ) : null}
                     <span className="min-w-0 truncate">{selectedLastSeen}</span>
                   </div>
+                  <StaffViewersBanner viewers={staffPresence.othersOn(selectedConversation?.session_id)} light className="mt-1" />
                   <div className="mt-1 flex flex-wrap items-center gap-1.5">
                     {conversationLabels.slice(0, 3).map((label) => (
                       <span key={label.id} className={`inline-flex h-5 items-center rounded-md border px-1.5 text-[10px] font-black ${conversationLabelClass(label.color)}`}>
@@ -8406,6 +8470,11 @@ export default function AiInboxPwa({ portal = null } = {}) {
                   >
                     {leadActionLoading === "create_customer" ? <Loader2 className="h-4 w-4 animate-spin" /> : <UserRound className="h-4 w-4" />}
                     {t("aiSupport.inbox.pwa.createCustomer")}
+                  </button>
+                  {/* Assign, remind, sequence: the same tools the desktop shows beside the thread. */}
+                  <button type="button" onClick={() => { setTeamToolsOpen(true); setMenuOpen(false); }} data-pwa-team-tools="open" className="flex w-full items-center gap-3 px-4 py-3 text-sm font-semibold text-slate-900 hover:bg-slate-100">
+                    <Users className="h-4 w-4" />
+                    {t("aiSupport.inbox.pwa.teamTools")}
                   </button>
                   <button
                     type="button"
@@ -8556,6 +8625,17 @@ export default function AiInboxPwa({ portal = null } = {}) {
                   </button>
                   <button
                     type="button"
+                    onClick={() => setAssignedFilter(assignedFilter === "me" ? "all" : "me")}
+                    aria-pressed={assignedFilter === "me"}
+                    data-inbox-filter="mine"
+                    className={`grid h-10 w-10 shrink-0 place-items-center rounded-2xl border transition ${assignedFilter === "me" ? "border-cyan-300 bg-cyan-50 text-cyan-700" : "border-slate-200 bg-white text-slate-400"}`}
+                    aria-label={t("aiSupport.inbox.ui.mineFilter")}
+                    title={t("aiSupport.inbox.ui.mineFilter")}
+                  >
+                    <UserCheck className="h-4 w-4" />
+                  </button>
+                  <button
+                    type="button"
                     onClick={() => void markAllConversationsRead()}
                     disabled={!channelSummaries.all.unread}
                     className={`grid h-10 w-10 shrink-0 place-items-center rounded-2xl border transition ${channelSummaries.all.unread ? "border-emerald-300 bg-emerald-50 text-emerald-600" : "border-slate-200 bg-white text-slate-300"}`}
@@ -8631,6 +8711,7 @@ export default function AiInboxPwa({ portal = null } = {}) {
                         conversation={conversation}
                         active={false}
                         accountLabel={conversationAccountLabel(conversation)}
+                        staffViewers={staffPresence.othersOn(conversation.session_id)}
                         onSelect={openConversation}
                         onToggleFavorite={toggleConversationFavorite}
                         onToggleRead={toggleConversationRead}
@@ -8795,6 +8876,7 @@ export default function AiInboxPwa({ portal = null } = {}) {
                 onPasteFiles={handleComposerPasteFiles}
                 onPasteClipboardImage={composerMode === "note" ? null : pasteImageFromClipboard}
                 onEditorFocus={autoCheckClipboardImage}
+                onUseQuickReply={sendQuickReplyWithMedia}
                 sendTone={composerMode !== "note" && Boolean(activeAiSuggestionText) && (activeAiReplyConfidence.decision === "high_risk" || activeAiReplyValidation.violationsCount > 0) ? "amber" : "sky"}
               />
             </div>
@@ -8889,6 +8971,41 @@ export default function AiInboxPwa({ portal = null } = {}) {
           onClose={() => setPrivacyTarget(null)}
           onSaved={applyConversationPrivacy}
         />
+        {teamToolsOpen && selectedConversation ? (
+          <div className="fixed inset-0 z-[120] flex items-end justify-center bg-slate-950/50 backdrop-blur-[1px]" onMouseDown={(event) => event.target === event.currentTarget && setTeamToolsOpen(false)} data-pwa-team-tools="sheet">
+            <section className="max-h-[88dvh] w-full max-w-lg overflow-y-auto rounded-t-[26px] bg-white p-4 pb-[calc(1rem+env(safe-area-inset-bottom))] shadow-[0_-20px_60px_rgba(15,23,42,0.25)]">
+              <div className="mb-3 flex items-center justify-between gap-3">
+                <div className="flex items-center gap-2 text-sm font-black text-slate-900">
+                  <Users className="h-4 w-4 text-slate-500" />
+                  {t("aiSupport.inbox.pwa.teamTools")}
+                </div>
+                <button type="button" onClick={() => setTeamToolsOpen(false)} aria-label={t("aiSupport.inbox.ui.closeDetails")} className="grid h-9 w-9 place-items-center rounded-full bg-slate-100 text-slate-600">
+                  <X className="h-4 w-4" />
+                </button>
+              </div>
+              <ConversationTeamTools
+                conversation={selectedConversation}
+                headers={headers}
+                tenantId={tenantId}
+                staff={inboxStaff}
+                me={inboxMe}
+                sequences={inboxSequences}
+                canReply={canReply}
+                light
+                onAssigned={({ conversation: returned = {}, assigned_user_id: assignedUserId = null, assigned_user_name: assignedUserName = "" } = {}) => {
+                  patchConversation(selectedConversation.session_id, (conversation) => ({
+                    ...conversation,
+                    ...returned,
+                    assigned_user_id: assignedUserId,
+                    assigned_user_name: assignedUserName,
+                    assigned_user: assignedUserId ? { ...(conversation.assigned_user || {}), id: assignedUserId, name: assignedUserName } : null,
+                  }));
+                }}
+                onNotice={({ tone, text: message }) => (tone === "rose" ? toast.error(message) : toast.success(message))}
+              />
+            </section>
+          </div>
+        ) : null}
         <ConversationLabelsModal
           open={labelsOpen}
           labels={conversationLabels}

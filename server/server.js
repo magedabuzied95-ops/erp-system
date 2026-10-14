@@ -20,6 +20,7 @@ from "url";
 import { emitToRooms, normalizeSocketRoomKey, setIo } from "./utils/socket.js";
 import { getGraphUsageByCaller, installGraphFetchMeter } from "./services/metaGraphRateLimiter.js";
 import { presenceConnect, presenceDisconnect } from "./services/chatPresenceService.js";
+import { attachStaffPresenceHandlers, sweepStaleStaffPresence } from "./services/aiInboxStaffPresenceService.js";
 import { isPerfDebugEnabled, runWithPerfContext, slowestPhaseFromTimings } from "./utils/perfDebug.js";
 import { logEmployeePushVapidCheck } from "./services/employeePortalPushService.js";
 import { loadEmployeePortalByToken } from "./services/employeePayrollPortalService.js";
@@ -504,6 +505,8 @@ io.on("connection", async (socket) => {
     if (employeeRole && employeeRole !== role) socket.join(`role:${employeeRole}`);
     if (tenantId) socket.join(`tenant:${tenantId}`);
     if (branchId) socket.join(`branch:${branchId}`);
+    // Staff presence: which inbox conversation this login is looking at.
+    attachStaffPresenceHandlers({ socket, tenantId: tenantId || null, userId, name: user?.name || user?.full_name || user?.username || user?.email || "" });
     /*
      * A JWT login linked to an employee row (the POS cashier) is the employee
      * side of the management chat. Without this join a manager's message was
@@ -819,6 +822,8 @@ const { ensureTransactionalEmailSchema, processTransactionalEmailOutbox } = awai
 const { runDueSocialPublisherPublishes } = await import("./services/socialPublisherPostsService.js");
 const { runAutomationTick } = await import("./services/aiWorkflowTriggerService.js");
 const { runAbandonedCartReminderTick } = await import("./services/abandonedCartReminderService.js");
+const { runDueRemindersTick } = await import("./services/aiInboxRemindersService.js");
+const { runMessageSequencesTick } = await import("./services/messageSequencesService.js");
 const { BOSTA_RECONCILE_INTERVAL_MS, bostaReconcileEnabled, reconcileStaleBostaShipments } = await import("./modules/shipping/bosta.reconcile.js");
 const { ensurePriceDropAlertSchema, runPriceDropAlertTick } = await import("./services/storefrontPriceDropAlertService.js");
 const { ensureAiSupportLogSchema } = await import("./services/aiSupportLogService.js");
@@ -2496,6 +2501,23 @@ const runDeferredStartupSyncs = async ({ skipStartupSyncs = false } = {}) => {
         });
       }, 5 * 60 * 1000);
       backgroundIntervals.add(abandonedCartInterval);
+      // Inbox team tools, every minute: a manual reminder that just came due rings
+      // its owner; a message-sequence step that is due goes out; a staff presence
+      // row whose tab went quiet is dropped. Each one failure-isolated.
+      const inboxTeamToolsInterval = setInterval(() => {
+        void runDueRemindersTick().catch((error) => {
+          console.error("[server] inbox reminder tick error", { message: error?.message || String(error) });
+        });
+        void runMessageSequencesTick().catch((error) => {
+          console.error("[server] message sequence tick error", { message: error?.message || String(error) });
+        });
+        try {
+          sweepStaleStaffPresence();
+        } catch (error) {
+          console.warn("[server] staff presence sweep error", { message: error?.message || String(error) });
+        }
+      }, 60 * 1000);
+      backgroundIntervals.add(inboxTeamToolsInterval);
       // Price Drop Alert: compares followed products' storefront price with the price the customer
       // followed at. No-op while storefront.price_drop_alert.enabled is off; WhatsApp has its own switch.
       // Product review request: "رأيك في طلبك؟" a few days after delivery. No-op while

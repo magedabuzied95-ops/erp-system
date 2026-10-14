@@ -153,19 +153,23 @@ function FollowupCard({
   onOpenInbox,
 }) {
   const { t } = useTranslation();
-  const taskLabel = text(row.trigger_type || row.bucket || "follow-up");
+  // A reminder an operator set by hand: nothing is sent for it, the note IS the task.
+  const isManualReminder = row.trigger_type === "manual_reminder";
+  const taskLabel = isManualReminder ? t("aiSupport.teamTools.reminders.typeLabel") : text(row.trigger_type || row.bucket || "follow-up");
   const priority = priorityMeta(row.priority || row.priority_level || row.priority_label || row.derived_priority || (row.category === "needs_manager" ? "high" : row.category === "resolved" ? "low" : row.bucket === "due" ? "high" : row.bucket === "scheduled" ? "medium" : "low"));
   const lastActivity = row.last_sent_at || row.manual_ready_at || row.updated_at || row.scheduled_at || row.conversation?.updated_at || row.conversation?.closed_at || row.created_at;
   const confidenceValue = row.confidence_score ?? row.payload?.confidence_score ?? row.payload?.confidence ?? row.payload?.ai_confidence ?? "";
   const revenueValue = row.expected_revenue ?? row.payload?.expected_revenue ?? row.payload?.estimated_revenue ?? row.payload?.revenue ?? row.payload?.expected_order_value ?? "";
-  const detailsText = text(
+  const detailsText = isManualReminder
+    ? [text(row.payload?.note), text(row.payload?.created_by_name) ? t("aiSupport.teamTools.reminders.setBy", { name: text(row.payload?.created_by_name) }) : ""].filter(Boolean).join(" — ")
+    : text(
       row.suggested_message ||
       row.payload?.followup_reason ||
       row.payload?.reason ||
       row.payload?.last_answer ||
       row.payload?.summary ||
       ""
-  );
+    );
   const assignedName = text(row.conversation?.assigned_user_name || "");
   const assignedId = row.conversation?.assigned_user_id || null;
   const isAssigned = Boolean(assignedId || assignedName);

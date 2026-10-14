@@ -24,6 +24,7 @@ import { resolveProductImageUrl } from "../../../shared/lib/imageUrls.js";
 import RestockRequestsPanel from "./RestockRequestsPanel.jsx";
 import InboxCustomerOrdersPanel from "../../../shared/components/inboxCustomerOrders/InboxCustomerOrdersPanel.jsx";
 import CustomerAvatar from "./CustomerAvatar.jsx";
+import CustomerTagsEditor from "./CustomerTagsEditor.jsx";
 import "./Customer360Drawer.css";
 
 const clean = (value = "") => String(value ?? "").trim();
@@ -215,6 +216,9 @@ export default function Customer360Drawer({
   const [loading, setLoading] = useState(false);
   const [loadingTab, setLoadingTab] = useState("");
   const [profileData, setProfileData] = useState(() => fallbackCustomerProfile(customerProfile || customer || {}, { ...context, customerId }));
+  // The ERP customer row behind this drawer, when there is one: tags live on it,
+  // so a conversation whose customer was never created has none to edit.
+  const [erpCustomer, setErpCustomer] = useState({ id: "", tags: [] });
 
   // Restock requests live in the shared RestockRequestsPanel (also mounted in the POS).
   const restockPhone = clean(profileData.phone || customer?.phone || context?.phone || "");
@@ -227,6 +231,7 @@ export default function Customer360Drawer({
   useEffect(() => {
     if (!open) return;
     setProfileData(fallbackCustomerProfile(customerProfile || customer || {}, { ...context, customerId }));
+    setErpCustomer({ id: "", tags: [] });
   }, [context, customer, customerId, customerProfile, open]);
 
   useEffect(() => {
@@ -249,6 +254,7 @@ export default function Customer360Drawer({
         const payload = await api.get(`/customers/${encodeURIComponent(id)}/profile`, { perfComponent: "Customer360.profile" });
         if (cancelled) return;
         const data = payload?.data || payload || {};
+        setErpCustomer({ id: clean(data.customer?.id || ""), tags: safeArray(data.customer?.tags) });
         const loadedOrders = safeArray(data.orders);
         const orderEvents = loadedOrders.map((order) => ({
           id: `order-${order.id || order.invoice_number}`,
@@ -410,6 +416,11 @@ export default function Customer360Drawer({
           {activeTab === "summary" ? (
             <div className="space-y-3">
               {summaryLead}
+              <CustomerTagsEditor
+                customerId={erpCustomer.id}
+                tags={erpCustomer.tags}
+                onChange={(tags) => setErpCustomer((current) => ({ ...current, tags }))}
+              />
               <div className="grid grid-cols-2 gap-3">
                 {metricCard("Total Orders", metrics.totalOrders ?? context.totalOrders ?? 0)}
                 {metricCard("Completed Orders", metrics.completedOrders ?? context.completedOrders ?? 0)}

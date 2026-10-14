@@ -22,6 +22,19 @@ import inboxAttachmentUpload, {
 import { getTenantId, isSuperAdminUser } from "../utils/requestScope.js";
 import { absolutePublicUploadUrl } from "../utils/publicUrl.js";
 import { emitToRooms } from "../utils/socket.js";
+import { sendInboxMedia, sendInboxText } from "../services/inboxOutboundService.js";
+import { createManualReminder, listSessionReminders, rearmReminderNotification } from "../services/aiInboxRemindersService.js";
+import {
+  SEQUENCE_CHANNELS,
+  SEQUENCE_TRIGGERS,
+  createMessageSequence,
+  deleteMessageSequence,
+  enrollSessionInSequence,
+  listMessageSequences,
+  listSessionEnrollments,
+  stopEnrollment,
+  updateMessageSequence,
+} from "../services/messageSequencesService.js";
 import {
   classifyMetaCarouselEcho,
   debugMessengerProfileForConversation,
@@ -2991,6 +3004,15 @@ const kickEvolutionInboxSync = (tenantId) => {
   ]);
 };
 
+// `assigned_user_id=me` resolves to the caller; a number is taken as is.
+const assignedUserFilter = (req) => {
+  const raw = String(req.query?.assigned_user_id || req.query?.assigned || "").trim().toLowerCase();
+  if (!raw) return null;
+  if (raw === "me" || raw === "mine") return Number(req.user?.id) || null;
+  const parsed = Number(raw);
+  return Number.isFinite(parsed) && parsed > 0 ? Math.trunc(parsed) : null;
+};
+
 router.get("/inbox", protect, inboxView(), async (req, res) => {
   try {
     const tenantId = toTenantId(req);
@@ -3003,6 +3025,7 @@ router.get("/inbox", protect, inboxView(), async (req, res) => {
       search: String(req.query?.search || ""),
       limit: req.query?.limit,
       messageLimit: req.query?.message_limit,
+      assignedUserId: assignedUserFilter(req),
       hiddenKeys,
     });
     if (viewer.isAdmin) await decorateConversationsWithPrivacy({ tenantId, conversations: inbox.conversations });
@@ -3131,6 +3154,8 @@ router.get("/conversations", protect, inboxView(), async (req, res) => {
       // Same reasoning for favourites, and for the keyset cursor that lets the
       // list reach past the newest page at all.
       favoriteOnly: ["1", "true", "yes"].includes(String(req.query?.favorite_only || "").toLowerCase()),
+      // "me" or a user id: the conversations assigned to one person.
+      assignedUserId: assignedUserFilter(req),
       beforeActivityAt: String(req.query?.before_activity_at || ""),
       beforeSessionId: String(req.query?.before_session_id || ""),
       hiddenKeys,
@@ -8566,6 +8591,7 @@ router.patch("/followups/:id/snooze", protect, inboxReply(), async (req, res) =>
       snoozeUntil: req.body?.snooze_until || req.body?.snoozeUntil || "",
       staffUserId: req.user?.id || null,
     });
+    await rearmReminderNotification({ tenantId, id: Number(req.params.id) });
     return res.json({ success: true, followup });
   } catch (error) {
     return sendError(res, error, "Failed to snooze AI follow-up");
@@ -8598,6 +8624,220 @@ router.patch("/followups/:id/done", protect, inboxReply(), async (req, res) => {
     return res.json({ success: true, followup });
   } catch (error) {
     return sendError(res, error, "Failed to mark AI follow-up done");
+  }
+});
+
+// --- Inbox team tools (2026-10-14) -----------------------------------------
+// Who can be assigned, "mine" filters, quick replies with photos, hand-set
+// reminders and message sequences. The backend halves of the six team tools.
+
+// The people a conversation can be assigned to: the tenant's active logins,
+// minus the hidden per-employee portal accounts and the QA rows. Served here
+// (inbox permission) rather than /users (users:view) so an agent who may reply
+// can also hand a chat to a colleague.
+router.get("/staff", protect, inboxView(), async (req, res) => {
+  try {
+    const tenantId = toTenantId(req);
+    const result = await db.query(
+      `
+      SELECT u.id, u.name, u.email, r.name AS role
+      FROM users u
+      LEFT JOIN roles r ON r.id = u.role_id
+      WHERE ($1::bigint IS NULL OR u.tenant_id = $1::bigint)
+        AND COALESCE(u.is_active, TRUE) = TRUE
+      ORDER BY u.name ASC, u.id ASC
+      LIMIT 300
+      `,
+      [tenantId || null]
+    );
+    const staff = result.rows
+      .filter((user) => String(user.role || "").toLowerCase() !== "portal_inbox")
+      .filter((user) => !/(^|[^a-z0-9])(qa|test|debug|demo|sample|dummy|sandbox)([^a-z0-9]|$)/i.test(`${user.name || ""} ${user.email || ""}`))
+      .map((user) => ({ id: Number(user.id), name: envText(user.name) || envText(user.email) || `#${user.id}`, role: envText(user.role) }));
+    return res.json({ success: true, staff, me: { id: req.user?.id || null, name: userDisplayName(req.user) } });
+  } catch (error) {
+    return sendError(res, error, "Failed to load staff");
+  }
+});
+
+// Quick reply photos. Same disk and limits as a composer attachment; the file
+// is only ever referenced by a quick reply, so a deleted reply leaves an
+// orphan on disk rather than a broken bubble in a thread.
+router.post(
+  "/quick-replies/upload",
+  protect,
+  permit("settings", "edit"),
+  (req, res, next) => {
+    inboxAttachmentUpload.single("file")(req, res, (error) => {
+      if (!error) return next();
+      return res.status(error.code === "LIMIT_FILE_SIZE" ? 413 : 400).json({ success: false, message: error.message || "Upload rejected", code: error.code || "UPLOAD_REJECTED" });
+    });
+  },
+  async (req, res) => {
+    if (!req.file) return res.status(400).json({ success: false, message: "An image or video file is required" });
+    const kind = inboxAttachmentKind(req.file);
+    if (kind !== "image" && kind !== "video") {
+      await unlink(req.file.path).catch(() => {});
+      return res.status(400).json({ success: false, message: "Only images and videos can be attached to a quick reply" });
+    }
+    const limit = kind === "video" ? INBOX_ATTACHMENT_VIDEO_MAX_BYTES : INBOX_ATTACHMENT_IMAGE_MAX_BYTES;
+    if (Number(req.file.size || 0) > limit) {
+      await unlink(req.file.path).catch(() => {});
+      return res.status(413).json({ success: false, message: `That ${kind} is larger than ${Math.round(limit / (1024 * 1024))} MB`, code: "ATTACHMENT_TOO_LARGE" });
+    }
+    return res.status(201).json({
+      success: true,
+      media: { url: `${INBOX_ATTACHMENT_URL_PREFIX}/${req.file.filename}`, kind, mime_type: req.file.mimetype || "", file_name: req.file.originalname || req.file.filename },
+    });
+  }
+);
+
+// Use a quick reply in a conversation: the text first, then every photo, each
+// as its own bubble — exactly what the operator would get sending them by hand.
+router.post("/conversations/:conversationId/quick-reply", protect, inboxReply(), async (req, res) => {
+  try {
+    const tenantId = toTenantId(req);
+    const conversationId = decodeRouteId(req.params.conversationId);
+    const replyId = Number(req.body?.quick_reply_id || req.body?.id);
+    const replies = await listAiInboxQuickReplies({ tenantId, includeInactive: true, userId: req.user?.id || null });
+    const reply = replies.find((item) => item.id === replyId);
+    if (!reply) return res.status(404).json({ success: false, message: "Quick reply not found" });
+    const messageText = envText(req.body?.message) || reply.message;
+    const staff = { id: req.user?.id || null, name: userDisplayName(req.user) };
+    const requestKey = requestClientRequestId(req) || `qr-${Date.now()}`;
+    const sent = [];
+    if (messageText) {
+      sent.push(await sendInboxText({ tenantId, conversationId, messageText, staff, clientRequestId: `${requestKey}:text`, source: "quick_reply" }));
+    }
+    for (const [index, media] of (reply.media || []).entries()) {
+      sent.push(await sendInboxMedia({
+        tenantId,
+        conversationId,
+        relativeUrl: media.url,
+        kind: media.kind,
+        mimeType: media.mime_type,
+        fileName: media.file_name,
+        staff,
+        clientRequestId: `${requestKey}:media:${index}`,
+        source: "quick_reply",
+      }));
+    }
+    const failed = sent.filter((item) => !item.sent);
+    return res.status(201).json({
+      success: true,
+      sent: failed.length === 0,
+      messages: sent.map((item) => item.message),
+      delivery_status: failed.length ? "failed" : "sent",
+      delivery_error: failed[0]?.delivery_error || "",
+    });
+  } catch (error) {
+    return sendError(res, error, "Failed to send the quick reply");
+  }
+});
+
+// Hand-set reminders.
+router.get("/conversations/:conversationId/reminders", protect, inboxView(), async (req, res) => {
+  try {
+    const tenantId = toTenantId(req);
+    const reminders = await listSessionReminders({ tenantId, sessionId: decodeRouteId(req.params.conversationId) });
+    return res.json({ success: true, reminders });
+  } catch (error) {
+    return sendError(res, error, "Failed to load reminders");
+  }
+});
+
+router.post("/conversations/:conversationId/reminders", protect, inboxReply(), async (req, res) => {
+  try {
+    const tenantId = toTenantId(req);
+    const reminder = await createManualReminder({
+      tenantId,
+      sessionId: decodeRouteId(req.params.conversationId),
+      scheduledAt: req.body?.scheduled_at || req.body?.scheduledAt,
+      note: req.body?.note || "",
+      channel: req.body?.channel || "",
+      customerName: req.body?.customer_name || "",
+      user: { id: req.user?.id || null, name: userDisplayName(req.user) },
+    });
+    return res.status(201).json({ success: true, reminder });
+  } catch (error) {
+    return sendError(res, error, "Failed to create the reminder");
+  }
+});
+
+// Message sequences: the catalogue, and enrolling / stopping one conversation.
+router.get("/sequences", protect, inboxView(), async (req, res) => {
+  try {
+    const tenantId = toTenantId(req);
+    const sequences = await listMessageSequences({ tenantId });
+    return res.json({ success: true, sequences, channels: SEQUENCE_CHANNELS, triggers: SEQUENCE_TRIGGERS });
+  } catch (error) {
+    return sendError(res, error, "Failed to load message sequences");
+  }
+});
+
+router.post("/sequences", protect, permit("settings", "edit"), async (req, res) => {
+  try {
+    const tenantId = toTenantId(req);
+    const sequence = await createMessageSequence({ tenantId, input: req.body || {}, userId: req.user?.id || null });
+    return res.status(201).json({ success: true, sequence });
+  } catch (error) {
+    return sendError(res, error, "Failed to create the sequence");
+  }
+});
+
+router.patch("/sequences/:id", protect, permit("settings", "edit"), async (req, res) => {
+  try {
+    const tenantId = toTenantId(req);
+    const sequence = await updateMessageSequence({ tenantId, id: req.params.id, input: req.body || {} });
+    return res.json({ success: true, sequence });
+  } catch (error) {
+    return sendError(res, error, "Failed to update the sequence");
+  }
+});
+
+router.delete("/sequences/:id", protect, permit("settings", "edit"), async (req, res) => {
+  try {
+    const tenantId = toTenantId(req);
+    await deleteMessageSequence({ tenantId, id: req.params.id });
+    return res.json({ success: true });
+  } catch (error) {
+    return sendError(res, error, "Failed to delete the sequence");
+  }
+});
+
+router.get("/conversations/:conversationId/sequences", protect, inboxView(), async (req, res) => {
+  try {
+    const tenantId = toTenantId(req);
+    const enrollments = await listSessionEnrollments({ tenantId, sessionId: decodeRouteId(req.params.conversationId) });
+    return res.json({ success: true, enrollments });
+  } catch (error) {
+    return sendError(res, error, "Failed to load sequence enrollments");
+  }
+});
+
+router.post("/conversations/:conversationId/sequences", protect, inboxReply(), async (req, res) => {
+  try {
+    const tenantId = toTenantId(req);
+    const enrollment = await enrollSessionInSequence({
+      tenantId,
+      sequenceId: req.body?.sequence_id || req.body?.sequenceId,
+      sessionId: decodeRouteId(req.params.conversationId),
+      userId: req.user?.id || null,
+      source: "manual",
+    });
+    return res.status(201).json({ success: true, enrollment });
+  } catch (error) {
+    return sendError(res, error, "Failed to start the sequence");
+  }
+});
+
+router.post("/conversations/:conversationId/sequences/:enrollmentId/stop", protect, inboxReply(), async (req, res) => {
+  try {
+    const tenantId = toTenantId(req);
+    const enrollment = await stopEnrollment({ tenantId, id: req.params.enrollmentId, reason: "stopped_by_staff" });
+    return res.json({ success: true, enrollment });
+  } catch (error) {
+    return sendError(res, error, "Failed to stop the sequence");
   }
 });
 

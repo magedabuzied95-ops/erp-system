@@ -24,13 +24,33 @@ const replyId = (value) => {
   if (!Number.isFinite(parsed) || parsed <= 0) throw Object.assign(new Error("A valid quick reply id is required"), { status: 400 });
   return Math.trunc(parsed);
 };
+// A number ("/3") or a word ("/مقاسات", "/shipping"): whatever the team types
+// fastest. Numbers are normalised so "/03" and "/3" cannot both exist.
 const shortcut = (value) => {
-  const normalized = text(value);
-  if (!/^\d{1,4}$/.test(normalized) || Number(normalized) <= 0) {
-    throw Object.assign(new Error("Shortcut must be a number between 1 and 9999"), { status: 400 });
+  const normalized = text(value).replace(/^\/+/, "").replace(/\s+/g, "_");
+  if (/^\d{1,4}$/.test(normalized)) {
+    if (Number(normalized) <= 0) throw Object.assign(new Error("Shortcut must be a number between 1 and 9999"), { status: 400 });
+    return String(Number(normalized));
   }
-  return String(Number(normalized));
+  if (!/^[\p{L}\p{N}_-]{1,40}$/u.test(normalized)) {
+    throw Object.assign(new Error("Shortcut must be a number or a single word (letters, digits, _ or -)"), { status: 400 });
+  }
+  return normalized;
 };
+
+const MAX_MEDIA = 5;
+// Only files the quick-reply upload stored. A reply must never point the
+// channel at an arbitrary URL.
+const normalizeMedia = (value) =>
+  (Array.isArray(value) ? value : [])
+    .map((item) => ({
+      url: text(item?.url),
+      kind: item?.kind === "video" ? "video" : "image",
+      mime_type: text(item?.mime_type).slice(0, 80),
+      file_name: text(item?.file_name).slice(0, 200),
+    }))
+    .filter((item) => item.url.startsWith("/uploads/"))
+    .slice(0, MAX_MEDIA);
 
 const normalizeInput = (value = {}, { partial = false } = {}) => {
   const normalized = {};
@@ -45,6 +65,7 @@ const normalizeInput = (value = {}, { partial = false } = {}) => {
   if (Object.prototype.hasOwnProperty.call(value, "shortcut")) normalized.shortcut = shortcut(value.shortcut);
   if (Object.prototype.hasOwnProperty.call(value, "is_active")) normalized.is_active = value.is_active !== false;
   if (Object.prototype.hasOwnProperty.call(value, "sort_order")) normalized.sort_order = Math.max(0, Math.trunc(Number(value.sort_order) || 0));
+  if (Object.prototype.hasOwnProperty.call(value, "media")) normalized.media = JSON.stringify(normalizeMedia(value.media));
   return normalized;
 };
 
@@ -53,6 +74,7 @@ const mapRow = (row = {}) => ({
   name: text(row.name),
   message: text(row.message),
   shortcut: text(row.shortcut),
+  media: normalizeMedia(row.media),
   is_active: row.is_active !== false,
   sort_order: Number(row.sort_order || 0),
   created_at: row.created_at || null,
@@ -95,6 +117,8 @@ export async function ensureAiInboxQuickRepliesTable() {
         WHERE shortcut IS NOT NULL;
       CREATE INDEX IF NOT EXISTS idx_ai_inbox_quick_replies_tenant_order
         ON ai_inbox_quick_replies (tenant_id, sort_order, id);
+      ALTER TABLE ai_inbox_quick_replies ALTER COLUMN shortcut TYPE VARCHAR(40);
+      ALTER TABLE ai_inbox_quick_replies ADD COLUMN IF NOT EXISTS media JSONB NOT NULL DEFAULT '[]'::jsonb;
     `).catch((error) => {
       schemaReadyPromise = null;
       throw error;
@@ -120,7 +144,7 @@ export async function listAiInboxQuickReplies({ tenantId, includeInactive = fals
   await ensureAiInboxQuickRepliesTable();
   await seedDefaultsIfEmpty(safeTenantId, userId);
   const result = await db.query(
-    `SELECT id, shortcut, name, message, is_active, sort_order, created_at, updated_at
+    `SELECT id, shortcut, name, message, media, is_active, sort_order, created_at, updated_at
      FROM ai_inbox_quick_replies
      WHERE tenant_id = $1 AND ($2::boolean OR is_active = TRUE)
      ORDER BY sort_order ASC, id ASC`,
@@ -135,12 +159,12 @@ export async function createAiInboxQuickReply({ tenantId, userId = null, input =
   await ensureAiInboxQuickRepliesTable();
   try {
     const result = await db.query(
-      `INSERT INTO ai_inbox_quick_replies (tenant_id, name, message, shortcut, is_active, sort_order, created_by)
+      `INSERT INTO ai_inbox_quick_replies (tenant_id, name, message, shortcut, is_active, sort_order, created_by, media)
        VALUES ($1, $2, $3,
          COALESCE($4, (SELECT (COALESCE(MAX(CASE WHEN shortcut ~ '^[0-9]+$' THEN shortcut::integer END), 0) + 1)::text FROM ai_inbox_quick_replies WHERE tenant_id = $1)),
-         $5, COALESCE($6, (SELECT COALESCE(MAX(sort_order), -1) + 1 FROM ai_inbox_quick_replies WHERE tenant_id = $1)), $7)
-       RETURNING id, shortcut, name, message, is_active, sort_order, created_at, updated_at`,
-      [safeTenantId, normalized.name, normalized.message, normalized.shortcut || null, normalized.is_active !== false, normalized.sort_order ?? null, userId || null]
+         $5, COALESCE($6, (SELECT COALESCE(MAX(sort_order), -1) + 1 FROM ai_inbox_quick_replies WHERE tenant_id = $1)), $7, $8::jsonb)
+       RETURNING id, shortcut, name, message, media, is_active, sort_order, created_at, updated_at`,
+      [safeTenantId, normalized.name, normalized.message, normalized.shortcut || null, normalized.is_active !== false, normalized.sort_order ?? null, userId || null, normalized.media || "[]"]
     );
     return mapRow(result.rows[0]);
   } catch (error) {
@@ -159,14 +183,14 @@ export async function updateAiInboxQuickReply({ tenantId, id, input = {} } = {})
   const values = [safeTenantId, safeId];
   Object.entries(normalized).forEach(([key, value]) => {
     values.push(value);
-    fields.push(`${key} = $${values.length}`);
+    fields.push(`${key} = $${values.length}${key === "media" ? "::jsonb" : ""}`);
   });
   let result;
   try {
     result = await db.query(
       `UPDATE ai_inbox_quick_replies SET ${fields.join(", ")}, updated_at = NOW()
        WHERE tenant_id = $1 AND id = $2
-       RETURNING id, shortcut, name, message, is_active, sort_order, created_at, updated_at`,
+       RETURNING id, shortcut, name, message, media, is_active, sort_order, created_at, updated_at`,
       values
     );
   } catch (error) {

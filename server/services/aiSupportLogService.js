@@ -2247,9 +2247,16 @@ export const appendManualAiSupportReply = async ({
    * became the conversation's preview in the inbox list.
    */
   internalNote = false,
+  /*
+   * An automation (a message sequence, a scheduled follow-up) writes a real
+   * outbound row but is not an operator stepping in: it must leave the
+   * conversation's AI state exactly as it found it.
+   */
+  preserveSessionState = false,
 } = {}) => {
   const safeTenantId = numberOrNull(tenantId);
   const safeSessionId = toText(sessionId);
+  const keepSessionState = internalNote || preserveSessionState === true;
   const safeMessage = preserveExactMessage ? String(message ?? "") : repairText(message || previewMessage);
   if (upsertSession && safeTenantId && safeSessionId) {
     const sessionResult = await db.query(
@@ -2296,7 +2303,7 @@ export const appendManualAiSupportReply = async ({
     // A note is not a reply, so it must not take the conversation over and must
     // not overwrite the list preview with private text.
     sessionStatus: internalNote ? "ai_active" : "human_takeover",
-    preserveSessionState: internalNote,
+    preserveSessionState: keepSessionState,
     sessionSource: source,
     sessionChannel: channel,
     sessionCustomerName: "",
@@ -2325,7 +2332,7 @@ export const appendManualAiSupportReply = async ({
       [safeTenantId, safeSessionId, safeMessage || repairText(message || previewMessage), repairText(channel)]
     ).catch(() => {});
   }
-  if (safeTenantId && safeSessionId) {
+  if (safeTenantId && safeSessionId && !preserveSessionState) {
     // Not `channel || "web_chat"`: this call fans the channel out into
     // ai_channel_conversations, so an invented web_chat becomes a second
     // conversation row for a thread that already has a real one.

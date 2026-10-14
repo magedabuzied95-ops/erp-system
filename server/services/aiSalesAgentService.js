@@ -2590,7 +2590,7 @@ const inboxCursorClauseSql = (activityExpression, activityIdx, sessionIdx) => `(
     OR (${activityExpression} = ${activityIdx}::timestamp AND s.session_id < ${sessionIdx}::text)
   )`;
 
-export const loadAiInbox = async ({ tenantId, filter = "all", channelFilter = "", limit = 200, search = "", messageLimit = 30, summaryOnly = false, readFilter = "", favoriteOnly = false, beforeActivityAt = "", beforeSessionId = "", sessionKeys = [], hiddenKeys = null } = {}) => {
+export const loadAiInbox = async ({ tenantId, filter = "all", channelFilter = "", limit = 200, search = "", messageLimit = 30, summaryOnly = false, readFilter = "", favoriteOnly = false, assignedUserId = null, beforeActivityAt = "", beforeSessionId = "", sessionKeys = [], hiddenKeys = null } = {}) => {
   const loadAiInboxStartedAt = Date.now();
   await ensureAiSalesAgentSchema();
   await ensureAiConversationMemorySchema();
@@ -2692,6 +2692,13 @@ export const loadAiInbox = async ({ tenantId, filter = "all", channelFilter = ""
   // browser makes "starred" mean every starred conversation instead of the
   // starred ones that happen to be in the newest page.
   if (favoriteOnly === true) clauses.push("COALESCE(s.is_favorite, FALSE) = TRUE");
+  // "Mine": the conversations assigned to one person. Stored on the session, so
+  // it is filtered here for the same reason favourites are.
+  const safeAssignedUserId = Number(assignedUserId);
+  if (Number.isFinite(safeAssignedUserId) && safeAssignedUserId > 0) {
+    params.push(Math.trunc(safeAssignedUserId));
+    clauses.push(`s.assigned_user_id = $${params.length}::bigint`);
+  }
   // Targeted lookup: several callers need ONE conversation and used to load the
   // whole inbox (messages included) to .find() it — 30s+ per open. The keys
   // match every identity a route id can arrive as; explicit ::text[] on each

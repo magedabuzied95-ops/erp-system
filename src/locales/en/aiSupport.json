@@ -515,8 +515,8 @@
     "variables": "Variables",
     "availableToAgents": "Available to the support team",
     "shortcut": "Shortcut number",
-    "shortcutHint": "Type / followed by this number to find the reply instantly.",
-    "shortcutInvalid": "Enter a shortcut number from 1 to 9999.",
+    "shortcutHint": "Type / then this number or word to find the reply instantly (e.g. /3 or /sizes).",
+    "shortcutInvalid": "The shortcut must be a number or a single word (letters, digits, _ or -).",
     "shortcutDuplicate": "This shortcut number is already used.",
     "save": "Save",
     "cancel": "Cancel",
@@ -530,7 +530,16 @@
     "loadError": "Could not load quick replies",
     "saveError": "Could not save the quick reply",
     "deleteError": "Could not delete the quick reply",
-    "reorderError": "Could not reorder quick replies"
+    "reorderError": "Could not reorder quick replies",
+    "media": "Attached photos",
+    "mediaHint": "Up to {{count}} photos or videos, each sent as its own message after the text.",
+    "mediaLimit": "At most {{count}} photos per reply.",
+    "addMedia": "Add photo",
+    "removeMedia": "Remove photo",
+    "photosCount": "{{count}} photos",
+    "uploadError": "Could not upload the photo",
+    "sendError": "Could not send the quick reply",
+    "sentWithMedia": "Reply sent with its photos"
   },
   "inbox": {
     "originPost": {
@@ -1136,7 +1145,9 @@
       "privacySaveFailed": "Could not save conversation privacy",
       "privacySaved": "Conversation privacy updated",
       "privacyEdit": "Conversation privacy",
-      "privacyBadge": "Hidden"
+      "privacyBadge": "Hidden",
+      "mineFilter": "Assigned to me",
+      "emptyMine": "No conversations are assigned to you right now."
     },
     "emoji": {
       "choose": "Choose emoji",
@@ -1700,7 +1711,8 @@
       "writeInternalNote": "Write an internal note",
       "lastSeen": "Last seen {{time}}",
       "noRecentActivity": "No recent activity",
-      "close": "Close"
+      "close": "Close",
+      "teamTools": "Team tools"
     },
     "pwaOrder": {
       "aiInboxOrder": "AI Inbox Order",
@@ -2316,7 +2328,8 @@
       "playground": "Try the agent",
       "performance": "Team performance",
       "broadcasts": "Campaigns",
-      "teach": "Teach the agent"
+      "teach": "Teach the agent",
+      "sequences": "Message sequences"
     },
     "risk": {
       "read": "Read",
@@ -2480,6 +2493,121 @@
       "testNoMatch": "No fixed answer fires on this. The agent answers itself, carrying {{count}} of your facts.",
       "testError": "Could not test the message",
       "note": "A fixed answer is sent verbatim and takes precedence over any automatic reply. Facts are used in the agent's own words. Either way, price and availability still come from stock — nothing written here can change them."
+    }
+  },
+  "teamTools": {
+    "title": "Team tools",
+    "presence": {
+      "replying": "{{name}} is on this conversation right now",
+      "replyingTwo": "{{first}} and {{second}} are on this conversation right now",
+      "replyingMany": "{{name}} and {{count}} others are on this conversation right now"
+    },
+    "assign": {
+      "title": "Assign to a teammate",
+      "unassigned": "Unassigned",
+      "meLabel": "{{name}} (me)",
+      "assignButton": "Assign",
+      "currently": "Handled by: {{name}}",
+      "nobody": "Nobody is assigned to this conversation.",
+      "assignedToast": "Assigned to {{name}}",
+      "unassignedToast": "Assignment removed",
+      "error": "Could not assign the conversation"
+    },
+    "reminders": {
+      "title": "Follow-up reminder",
+      "add": "Reminder",
+      "when": "When",
+      "notePlaceholder": "Note: ask about size 42...",
+      "save": "Save reminder",
+      "close": "Close",
+      "saved": "Reminder saved; you will be notified when it is due.",
+      "saveError": "Could not save the reminder",
+      "invalidTime": "Pick a valid time",
+      "empty": "No reminders on this conversation.",
+      "done": "Done",
+      "cancel": "Cancel",
+      "inOneHour": "In 1 hour",
+      "tomorrowMorning": "Tomorrow 9 am",
+      "tomorrowEvening": "Tomorrow 5 pm",
+      "dueToast": "⏰ Reminder: {{name}}",
+      "dueFallback": "Time to follow up with the customer",
+      "typeLabel": "Manual reminder",
+      "setBy": "by {{name}}"
+    },
+    "sequences": {
+      "title": "Message sequence",
+      "choose": "Choose a sequence",
+      "stepsCount": "{{count}} messages",
+      "start": "Start",
+      "stop": "Stop",
+      "progress": "Sent {{step}} of {{total}}",
+      "next": "Next {{time}}",
+      "started": "Sequence started on this conversation",
+      "stopped": "Sequence stopped",
+      "startError": "Could not start the sequence",
+      "stopError": "Could not stop the sequence",
+      "none": "No active sequences. Create one in Settings → Message sequences."
+    },
+    "sequencesPanel": {
+      "title": "Message sequences",
+      "subtitle": "Messages that go out by themselves after the customer goes quiet: a nudge after two hours, an offer after a day. Stops on its own when the customer replies or buys.",
+      "add": "New sequence",
+      "name": "Sequence name",
+      "namePlaceholder": "e.g. Asked but did not buy",
+      "nameRequired": "Give the sequence a name",
+      "stepRequired": "At least one step needs a message or a photo",
+      "trigger": "How it starts",
+      "triggers": {
+        "manual": "Manually from the inbox",
+        "manualHint": "An operator starts it from the conversation.",
+        "inquiryNoPurchase": "Automatic: asked but did not buy",
+        "inquiryHint": "Any customer who writes in on the selected channels is enrolled. The clock starts from their last message."
+      },
+      "channels": "Channels",
+      "stopOnReply": "Stop when the customer replies",
+      "stopOnReplyHint": "After the first sequence message, any reply from the customer ends it.",
+      "stopOnPurchase": "Stop when the customer buys",
+      "stopOnPurchaseHint": "Any order on the customer's phone after enrolment ends it.",
+      "cooldown": "Do not repeat within (days)",
+      "cooldownHint": "The same customer is not enrolled in this sequence again before this many days.",
+      "stepTitle": "Message {{index}}",
+      "firstDelay": "After the customer's last message, wait",
+      "nextDelay": "After the previous message, wait",
+      "units": {
+        "minutes": "minutes",
+        "hours": "hours",
+        "days": "days"
+      },
+      "after": {
+        "minutes": "after {{count}} min",
+        "hours": "after {{count}} h",
+        "days": "after {{count}} d"
+      },
+      "body": "Message text",
+      "bodyHint": "Write it the way you talk to the customer. Leave empty if the step is a photo only.",
+      "bodyPlaceholder": "Still interested in the model you asked about? Sizes are in stock now 👟",
+      "media": "Photos",
+      "mediaHint": "Up to 3 photos per step.",
+      "uploadError": "Could not upload the photo",
+      "addStep": "Add message",
+      "save": "Save",
+      "cancel": "Cancel",
+      "saveError": "Could not save the sequence",
+      "deleteConfirm": "Delete the sequence \"{{name}}\"? Conversations in it will stop.",
+      "paused": "Paused",
+      "pause": "Pause",
+      "resume": "Resume",
+      "stats": "Running on {{active}} · completed {{completed}} · stopped {{stopped}}",
+      "empty": "No sequences yet. Create the first one: e.g. \"Asked but did not buy\" with a nudge after two hours and an offer after a day."
+    },
+    "tags": {
+      "title": "Customer tags",
+      "placeholder": "VIP, wholesale...",
+      "noCustomer": "Create the customer first (from Actions) to add tags.",
+      "remove": "Remove {{tag}}",
+      "saveError": "Could not save the tags",
+      "audienceLabel": "Tags (any of them)",
+      "audienceHint": "Separate with commas: VIP, wholesale"
     }
   }
 }

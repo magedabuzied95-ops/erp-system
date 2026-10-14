@@ -18,19 +18,29 @@ export const normalizeSocketRoomKey = (value = "") =>
 // layer, and the send is fire-and-forget: a push failure must never break a socket
 // emit that the live inbox UI depends on.
 let aiInboxPushModule;
+let messageSequencesModule;
 const notifyAiInboxPush = (payload = {}) => {
   const message = payload?.message;
   if (!message || typeof message !== "object") return;
+  const tenantId = payload.tenant_id ?? payload.tenantId ?? null;
+  const sessionId = payload.session_id ?? payload.sessionId ?? payload.conversation_id ?? payload.conversationId ?? "";
+  const channel = payload.channel || message.channel || message.source || "";
   Promise.resolve()
     .then(async () => {
       if (!aiInboxPushModule) aiInboxPushModule = await import("../services/aiInboxPushService.js");
       if (!aiInboxPushModule.isInboundCustomerMessage(message)) return;
-      await aiInboxPushModule.notifyAiInboxInboundMessage({
-        tenantId: payload.tenant_id ?? payload.tenantId ?? null,
-        sessionId: payload.session_id ?? payload.sessionId ?? payload.conversation_id ?? payload.conversationId ?? "",
-        message,
-        channel: payload.channel || message.channel || message.source || "",
-      });
+      // Message sequences ride the same tap: a customer who writes back ends
+      // their sequence, and one who writes in may start one. Independent of
+      // the push, so a push failure never silences a sequence and vice versa.
+      Promise.resolve()
+        .then(async () => {
+          if (!messageSequencesModule) messageSequencesModule = await import("../services/messageSequencesService.js");
+          await messageSequencesModule.onInboundCustomerMessage({ tenantId, sessionId, channel });
+        })
+        .catch((error) => {
+          console.warn("[message-sequence:tap-failed]", { message: error?.message || String(error) });
+        });
+      await aiInboxPushModule.notifyAiInboxInboundMessage({ tenantId, sessionId, message, channel });
     })
     .catch((error) => {
       console.warn("[ai-inbox-push:tap-failed]", { message: error?.message || String(error) });

@@ -524,6 +524,7 @@ CREATE INDEX IF NOT EXISTS idx_inventory_count_items_inventory_count_id ON inven
     total_orders INTEGER NOT NULL DEFAULT 0,
     preferred_sizes JSONB NOT NULL DEFAULT '{}'::jsonb,
     purchase_preferences JSONB NOT NULL DEFAULT '{}'::jsonb,
+    tags JSONB NOT NULL DEFAULT '[]'::jsonb,
     loyalty_updated_at TIMESTAMPTZ NULL,
     status VARCHAR(50) NOT NULL DEFAULT 'active',
     created_at TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP,
@@ -718,7 +719,8 @@ CREATE TABLE IF NOT EXISTS ai_inbox_quick_replies (
   tenant_id BIGINT NOT NULL,
   name VARCHAR(120) NOT NULL,
   message TEXT NOT NULL,
-  shortcut VARCHAR(4),
+  shortcut VARCHAR(40),
+  media JSONB NOT NULL DEFAULT '[]'::jsonb,
   is_active BOOLEAN NOT NULL DEFAULT TRUE,
   sort_order INTEGER NOT NULL DEFAULT 0,
   created_by BIGINT,
@@ -1999,3 +2001,48 @@ ALTER TABLE IF EXISTS marketing_settings
   ADD COLUMN IF NOT EXISTS last_auto_refresh_at TIMESTAMPTZ NULL,
   ADD COLUMN IF NOT EXISTS next_refresh_check_at TIMESTAMPTZ NULL,
   ADD COLUMN IF NOT EXISTS token_error_message TEXT NULL;
+
+-- Message sequences (AI Inbox team tools, 2026-10-14). Mirrors
+-- server/database/migrations/2026-10-14-inbox-team-tools.sql; the service
+-- ensures the same statements lazily.
+CREATE TABLE IF NOT EXISTS message_sequences (
+  id BIGSERIAL PRIMARY KEY,
+  tenant_id BIGINT NOT NULL,
+  name VARCHAR(120) NOT NULL,
+  trigger_type VARCHAR(40) NOT NULL DEFAULT 'manual',
+  is_active BOOLEAN NOT NULL DEFAULT TRUE,
+  channels JSONB NOT NULL DEFAULT '["whatsapp","instagram","facebook_messenger","telegram"]'::jsonb,
+  cooldown_days INTEGER NOT NULL DEFAULT 14,
+  stop_on_reply BOOLEAN NOT NULL DEFAULT TRUE,
+  stop_on_purchase BOOLEAN NOT NULL DEFAULT TRUE,
+  steps JSONB NOT NULL DEFAULT '[]'::jsonb,
+  created_by BIGINT NULL,
+  created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+  updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+);
+CREATE INDEX IF NOT EXISTS idx_message_sequences_tenant ON message_sequences (tenant_id, is_active);
+
+CREATE TABLE IF NOT EXISTS message_sequence_enrollments (
+  id BIGSERIAL PRIMARY KEY,
+  tenant_id BIGINT NOT NULL,
+  sequence_id BIGINT NOT NULL REFERENCES message_sequences(id) ON DELETE CASCADE,
+  session_id TEXT NOT NULL,
+  channel VARCHAR(40) NOT NULL DEFAULT '',
+  customer_phone VARCHAR(40) NOT NULL DEFAULT '',
+  status VARCHAR(20) NOT NULL DEFAULT 'active',
+  current_step INTEGER NOT NULL DEFAULT 0,
+  next_run_at TIMESTAMPTZ NULL,
+  enrolled_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+  last_sent_at TIMESTAMPTZ NULL,
+  finished_at TIMESTAMPTZ NULL,
+  stopped_reason VARCHAR(60) NOT NULL DEFAULT '',
+  source VARCHAR(20) NOT NULL DEFAULT 'auto',
+  created_by BIGINT NULL,
+  locked_at TIMESTAMPTZ NULL,
+  updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+  CONSTRAINT message_sequence_enrollments_status_check CHECK (status IN ('active', 'completed', 'stopped'))
+);
+CREATE UNIQUE INDEX IF NOT EXISTS idx_message_sequence_enrollments_active
+  ON message_sequence_enrollments (tenant_id, sequence_id, session_id) WHERE status = 'active';
+CREATE INDEX IF NOT EXISTS idx_message_sequence_enrollments_due ON message_sequence_enrollments (status, next_run_at);
+CREATE INDEX IF NOT EXISTS idx_message_sequence_enrollments_session ON message_sequence_enrollments (tenant_id, session_id);
