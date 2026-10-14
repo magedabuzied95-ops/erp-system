@@ -44,6 +44,7 @@ import {
   UserRound,
   Users,
   X,
+  Zap,
 } from "lucide-react";
 import { toast } from "react-hot-toast";
 import { useTranslation } from "react-i18next";
@@ -2196,6 +2197,21 @@ const PwaComposerBar = memo(function PwaComposerBar({
             <Plus className="h-5 w-5" />
           </button>
         </div>
+        {/* ⚡ opens the quick replies without typing "/": the same list the slash
+            shows, so a tap and a keystroke land on one picker. */}
+        {quickReplies.length > 0 && mode !== "note" ? (
+          <button
+            type="button"
+            onClick={() => onSetText?.(draftState.slash ? "" : "/")}
+            className={`inline-flex h-12 w-12 shrink-0 items-center justify-center rounded-2xl ring-1 transition ${draftState.slash ? "bg-amber-400 text-slate-950 ring-amber-400" : "bg-amber-50 text-amber-700 ring-amber-200"} ${voiceRecording ? "hidden" : ""}`}
+            aria-label={t("aiSupport.quickReplies.title")}
+            title={t("aiSupport.quickReplies.title")}
+            aria-pressed={Boolean(draftState.slash)}
+            data-quick-replies-toggle="true"
+          >
+            <Zap className="h-5 w-5" />
+          </button>
+        ) : null}
         {/* A voice note is a reply, never an internal note: there is nothing to
             store staff-side in an audio file the customer never hears. */}
         {onRecordVoice && mode !== "note" ? (

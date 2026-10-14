@@ -69,6 +69,7 @@ import {
   Users,
   X,
   XCircle,
+  Zap,
 } from "lucide-react";
 import {
   FaFacebookF,
@@ -3324,6 +3325,19 @@ function ManualReplyComposer({
             placeholder={noteMode ? t("aiSupport.inbox.composer.writeInternalNote") : canSendLive ? t("aiSupport.inbox.composer.placeholder") : t("aiSupport.inbox.composer.notePlaceholder")}
             className="min-h-10 min-w-0 flex-1 resize-none overflow-hidden border-0 bg-transparent px-2 py-2 text-sm font-medium leading-6 text-slate-900 outline-none placeholder:text-slate-400 dark:text-slate-100 dark:placeholder:text-slate-500"
           />
+          {quickReplies.length > 0 && !noteMode ? (
+            <button
+              type="button"
+              onClick={() => onChange(slashCommandActive ? "" : "/")}
+              title={t("aiSupport.quickReplies.title")}
+              aria-label={t("aiSupport.quickReplies.title")}
+              aria-pressed={slashCommandActive}
+              data-quick-replies-toggle="true"
+              className={`mb-1 grid h-8 w-8 shrink-0 place-items-center rounded-lg transition ${slashCommandActive ? "bg-amber-100 text-amber-700 dark:bg-amber-400/15 dark:text-amber-300" : "text-amber-600 hover:bg-amber-100/70 dark:text-amber-300 dark:hover:bg-white/10"}`}
+            >
+              <Zap className="h-5 w-5" />
+            </button>
+          ) : null}
           <button ref={emojiButtonRef} type="button" onClick={() => setEmojiPickerOpen((current) => !current)} title={t("aiSupport.inbox.composer.emoji")} aria-label={t("aiSupport.inbox.composer.emoji")} aria-expanded={emojiPickerOpen} className={`mb-1 grid h-8 w-8 shrink-0 place-items-center rounded-lg transition ${emojiPickerOpen ? "bg-amber-100 text-amber-700 dark:bg-amber-400/15 dark:text-amber-300" : "text-slate-500 hover:bg-slate-200/70 hover:text-slate-800 dark:text-slate-400 dark:hover:bg-white/10 dark:hover:text-slate-100"}`}>
             <Smile className="h-5 w-5" />
           </button>
