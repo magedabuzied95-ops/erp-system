@@ -38,8 +38,8 @@ const main = async () => {
     console.log("==================================================");
     console.log(`#${employee.id}  ${employee.full_name}  (code ${employee.employee_code || "-"})`);
     const { rows: profiles } = await db.query(
-      `SELECT id, commission_type, commission_value, fixed_commission_mode, is_sales_active, updated_at
-       FROM employee_sales_profiles WHERE employee_id = $1 ORDER BY id`,
+      // The table is keyed on employee_id (no id column): read the whole row, whatever it holds.
+      `SELECT * FROM employee_sales_profiles WHERE employee_id = $1`,
       [employee.id]
     );
     console.log("sales profile rows:", profiles.length ? "" : "NONE");
