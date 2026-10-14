@@ -949,11 +949,14 @@ export const calculateAttendancePayrollDeductions = async ({ tenantId = null, em
   // Each absent or late day as payroll prices it, so the employee portal's الخصومات sheet lists the
   // same money the salary takes, day by day. Amounts use the same rates as the totals below.
   const dayDeductions = [];
+  // A day with no attendance is an absence only once it is over: the preview of the month so far
+  // reaches today, and charged today's two-day absence before an afternoon shift had even started.
+  const todayKey = todayInAppTimeZone();
 
   expectedDates.forEach((item) => {
     const row = attendanceByDate.get(item);
     if (!row) {
-      if (absenceEnabled) {
+      if (absenceEnabled && item < todayKey) {
         absenceDays += 1;
         const legacy = !policyAppliesOn(item, policy);
         if (legacy) legacyAbsenceDays += 1;
@@ -1076,7 +1079,8 @@ export const calculateAttendancePayrollDeductions = async ({ tenantId = null, em
   const earlyLeaveDeduction = earlyLeaveHours * hourlyRate;
   const leaveDeduction = toNumber(leavePayrollImpact.leave_deduction);
   const attendanceDeductionTotal = absenceDeduction + missingHoursDeduction + lateDeduction + earlyLeaveDeduction + leaveDeduction;
-  const missingAttendanceDates = expectedDates.filter((item) => !attendanceByDate.has(item));
+  // Same rule as the absence count above: today is not missing until it is over.
+  const missingAttendanceDates = expectedDates.filter((item) => !attendanceByDate.has(item) && item < todayKey);
   // An open day is closed from the payroll card in one tap, so every one of
   // these carries the check-out the shift implies: the end the check-in already
   // resolved, else the shift's own end clock on that day, else a full working
@@ -2590,7 +2594,8 @@ export const getPayrollPreview = async ({ tenantId = null, employeeId, filters =
       e.*,
       COALESCE(esp.pos_alias, '') AS pos_alias,
       COALESCE(esp.is_sales_active, TRUE) AS is_sales_active,
-      esp.commission_type AS sales_commission_type
+      esp.commission_type AS sales_commission_type,
+      esp.commission_value AS sales_commission_value
     FROM employees e
     LEFT JOIN employee_sales_profiles esp ON esp.employee_id = e.id
     WHERE e.id = $1
@@ -2616,7 +2621,10 @@ export const getPayrollPreview = async ({ tenantId = null, employeeId, filters =
   // run and is not re-priced by this preview.
   // No sales profile at all reads as "بدون عمولة" in the employee settings screen
   // (attendanceController: COALESCE(esp.commission_type, 'none')), so payroll reads it the same way.
-  const commissionSwitchedOff = String(employee.sales_commission_type || "none").trim().toLowerCase() === "none";
+  // A commission set to 0 is switched off too: that is how Adham's was turned off (type fixed,
+  // value 0), while his month's orders were still snapshotted at 10 per item.
+  const commissionSwitchedOff = String(employee.sales_commission_type || "none").trim().toLowerCase() === "none"
+    || !(toNumber(employee.sales_commission_value) > 0);
   const salesEarnings = commissionSwitchedOff ? 0 : toNumber(report.summary.earned_commissions);
   const providedBaseSalary = filters.base_salary ?? filters.baseSalary;
   const baseSalary = providedBaseSalary === undefined || providedBaseSalary === null || providedBaseSalary === "" ? toNumber(employee.salary) : toNumber(providedBaseSalary);
