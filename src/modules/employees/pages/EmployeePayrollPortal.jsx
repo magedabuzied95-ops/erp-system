@@ -1151,6 +1151,17 @@ const formatMinutesShort = (minutes = 0) => {
   return `${hours}h ${mins}m`;
 };
 
+// "11 ساعة و24 دقيقة" for the home card; words, not "11h 24m", for employees who read Arabic.
+const formatLateTotal = (minutes = 0) => {
+  const total = Math.max(0, Math.round(Number(minutes || 0)));
+  if (!total) return "0";
+  const hours = Math.floor(total / 60);
+  const mins = total % 60;
+  const hourText = hours ? `${hours} ساعة` : "";
+  const minuteText = mins ? `${mins} دقيقة` : "";
+  return [hourText, minuteText].filter(Boolean).join(" و");
+};
+
 const taskStatusKey = (status = "") => String(status || "").trim().toLowerCase();
 
 const statusLabel = (status, text) => {
@@ -2837,11 +2848,14 @@ export default function EmployeePayrollPortal() {
         accent: "blue",
       },
       {
-        label: ui("pendingTasks"),
-        value: pendingTasks.length,
-        subtitle: ui("openTasksSubtitle"),
-        Icon: ClipboardList,
-        accent: "slate",
+        // Owner's call: the month's lateness matters more here than the open tasks (which have
+        // their own tab). Total late minutes this month, and on how many days.
+        label: "ساعات التأخير",
+        value: formatLateTotal(attendance.late_minutes),
+        subtitle: Number(attendance.late_days || 0) > 0 ? `في ${Number(attendance.late_days)} يوم` : ui("currentMonthSubtitle"),
+        Icon: Clock,
+        accent: Number(attendance.late_minutes || 0) > 0 ? "amber" : "green",
+        onClick: () => setMonthSheet("attendance"),
       },
       {
         label: text.advances,
@@ -2860,7 +2874,7 @@ export default function EmployeePayrollPortal() {
         accent: "blue",
       },
     ];
-  }, [attendance.overtime_hours, expectedDays, hasRunningNetSalary, monthAbsentCount, payrollExists, pendingTasks.length, portal, presentDays, text, ui, wallet]);
+  }, [attendance.late_days, attendance.late_minutes, attendance.overtime_hours, expectedDays, hasRunningNetSalary, monthAbsentCount, payrollExists, portal, presentDays, text, ui, wallet]);
 
   const payslipCards = useMemo(() => {
     if (!portal) return [];
