@@ -21,6 +21,9 @@ test("wholesale scripts never rebuild or restart the retail stack", () => {
     assert.doesNotMatch(script, /compose[^\n]*\berp-backend\b/, `${file} must not drive erp-backend`);
     assert.doesNotMatch(script, /DROP DATABASE/i, `${file} must not drop databases`);
   }
+  // The reference-table loop must not read its list from stdin: docker exec -i inside
+  // the body swallowed it and only the first table was copied.
+  assert.match(read("../ops/wholesale/setup-wholesale.sh"), /read -r table filter <&3[sS]*done 3<<< "$COPY_SPEC"/);
   const compose = read("../ops/wholesale/docker-compose.wholesale.yml");
   assert.match(compose, /127\.0\.0\.1:8001:8000/);
   assert.match(compose, /container_name: erp-wholesale-redis/);

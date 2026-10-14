@@ -153,16 +153,17 @@ fi
 TABLES="$(psql_db "$WDB" -tAc "SELECT count(*) FROM information_schema.tables WHERE table_schema = 'public'")"
 if [ "${TABLES:-0}" != "0" ]; then
   log "[4/7] Schema: $TABLES tables already present -- skipped"
-  log "[5/7] Reference data: skipped (database not empty)"
 else
   log "[4/7] Schema: cloning retail's schema (structure only, no rows)"
   docker exec "$DB_CONTAINER" sh -c 'pg_dump --schema-only --no-owner --no-privileges -U "$POSTGRES_USER" -d "$POSTGRES_DB"' \
     | psql_db "$WDB" -q >/dev/null
   log "      $(psql_db "$WDB" -tAc "SELECT count(*) FROM information_schema.tables WHERE table_schema = 'public'") tables"
+fi
 
   log "[5/7] Reference data: tenant, roles/permissions, classifications, owner login"
   # table|filter. FK triggers are off for the copy (session_replication_role=replica),
   # so order does not matter; the owner's links to retail-only rows are cleared below.
+  # A table that already has rows is left alone, so a re-run never duplicates or undoes.
   COPY_SPEC='
 tenants|id = 1
 company_profiles|tenant_id = 1
@@ -177,18 +178,27 @@ categories|tenant_id = 1
 brands|tenant_id = 1
 users|is_super_admin = TRUE
 '
-  while IFS='|' read -r table filter; do
+  # The list is read on fd 3: every docker exec -i in the body would otherwise swallow
+  # the rest of it from stdin (the first run copied tenants and silently stopped).
+  COPIED=""
+  while IFS='|' read -r table filter <&3; do
     [ -n "$table" ] || continue
-    if [ -z "$(psql_db "$RETAIL_DB" -tAc "SELECT to_regclass('public.$table')")" ]; then
+    if [ -z "$(psql_db "$RETAIL_DB" -tAc "SELECT to_regclass('public.$table')" </dev/null)" ]; then
       log "      $table: not in retail -- skipped"; continue
+    fi
+    existing="$(psql_db "$WDB" -tAc "SELECT count(*) FROM public.$table" </dev/null)"
+    if [ "${existing:-0}" != "0" ]; then
+      log "      $table: already has $existing rows -- left as is"; continue
     fi
     docker exec "$DB_CONTAINER" sh -c 'psql -v ON_ERROR_STOP=1 -U "$POSTGRES_USER" -d "$POSTGRES_DB" -c "$0"' \
       "COPY (SELECT * FROM public.$table WHERE $filter) TO STDOUT" \
     | docker exec -i -e PGOPTIONS='-c session_replication_role=replica' "$DB_CONTAINER" \
         sh -c 'psql -v ON_ERROR_STOP=1 -U "$POSTGRES_USER" -d "$0" -c "$1"' "$WDB" "COPY public.$table FROM STDIN"
-    log "      $table: $(psql_db "$WDB" -tAc "SELECT count(*) FROM public.$table") rows"
-  done <<< "$COPY_SPEC"
+    log "      $table: $(psql_db "$WDB" -tAc "SELECT count(*) FROM public.$table" </dev/null) rows"
+    COPIED="$COPIED $table"
+  done 3<<< "$COPY_SPEC"
 
+if [ -n "$COPIED" ]; then
   psql_db "$WDB" -q <<'SQL'
 -- Sequences follow the copied ids.
 DO $$
@@ -205,6 +215,12 @@ BEGIN
   END LOOP;
 END $$;
 
+SQL
+  log "      sequences aligned"
+fi
+
+case " $COPIED " in *" users "*)
+  psql_db "$WDB" -q <<'SQL'
 -- The owner's row may point at retail-only rows (branch, employee, ...). Clear every
 -- such link except tenant and role, which were copied.
 DO $$
@@ -225,11 +241,17 @@ BEGIN
   END LOOP;
 END $$;
 
+SQL
+  log "      owner login copied, links to retail-only rows cleared" ;;
+esac
+
+case " $COPIED " in *" tenants "*|*" company_profiles "*)
+  psql_db "$WDB" -q <<'SQL'
 UPDATE public.tenants SET name = 'M1 Wholesale', company_name = 'M1 Wholesale' WHERE id = 1;
 UPDATE public.company_profiles SET company_name = 'M1 Wholesale' WHERE tenant_id = 1;
 SQL
-  log "      sequences aligned, tenant renamed to M1 Wholesale"
-fi
+  log "      tenant named M1 Wholesale" ;;
+esac
 
 # ---------------------------------------------------------------------------
 log "[6/7] Start erp-wholesale-redis + erp-wholesale-backend"
