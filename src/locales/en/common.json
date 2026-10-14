@@ -931,8 +931,7 @@
     "surveillanceMotion": "Motion Settings",
     "surveillanceAudit": "Audit Log",
     "invoiceStudio": "Invoice Studio",
-    "amazon": "Amazon",
-    "wholesaleInvoice": "Wholesale invoice"
+    "amazon": "Amazon"
   },
   "language": {
     "label": "Language",

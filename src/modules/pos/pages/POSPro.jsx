@@ -156,6 +156,7 @@ import {
 import BarcodeScanner, { barcodeScannerMessages } from "../../../components/BarcodeScanner";
 import ProductGrid from "../components/ProductGrid";
 import CartSidebar from "../components/CartSidebar";
+import WholesalePosPicker, { priceCatalogForWholesale, useWholesalePosPricing, withWholesalePrice } from "../../wholesale/components/WholesalePosPicker";
 import ThemedSelect from "../../../shared/ui/ThemedSelect";
 import ProductAvailabilityModal from "../components/ProductAvailabilityModal";
 // Restock requests: the same panel + catalogue picker the AI Inbox uses, so the
@@ -1813,6 +1814,10 @@ function POSPro() {
   const [selectedSalespersonId, setSelectedSalespersonId] = useState("");
   const lastSalespersonIdRef = useRef(readLastSalespersonId());
   const [cart, setCart] = useState(() => readPosCart());
+  // Wholesale copy: the tier price function, read by every cart-vs-catalogue reconciliation
+  // so it prices lines like the cart does (null on retail = the catalogue as is).
+  const wholesalePriceOfRef = useRef(null);
+  const wholesaleCatalog = (catalog) => priceCatalogForWholesale(catalog, wholesalePriceOfRef.current);
   const [search, setSearch] = useState(() => persisted.search || defaultState.search);
   const [cameraScannerOpen, setCameraScannerOpen] = useState(false);
   const [selectedMainCategoryId, setSelectedMainCategoryId] = useState(
@@ -2731,7 +2736,7 @@ function POSPro() {
           });
           return current;
         }
-        return reconcileCartWithCatalog(current, repricedCatalog).nextCart;
+        return reconcileCartWithCatalog(current, wholesaleCatalog(repricedCatalog)).nextCart;
       });
       // Re-stamp the offline snapshot in the background: the PUT moved the server
       // catalog-version watermark (it includes website_settings), so without this
@@ -3054,7 +3059,7 @@ function POSPro() {
         });
         if (disposed) return;
         catalogFallbackActiveRef.current = false;
-        setCart((current) => reconcileCartWithCatalog(current, catalog).nextCart);
+        setCart((current) => reconcileCartWithCatalog(current, wholesaleCatalog(catalog)).nextCart);
       } catch (refreshError) {
         if (!disposed && refreshError?.name !== "AbortError") {
           console.warn("[pos] live inventory refresh failed", refreshError?.message || refreshError);
@@ -3193,7 +3198,7 @@ function POSPro() {
       return;
     }
 
-    const reconciliation = reconcileCartWithCatalog(cart, products);
+    const reconciliation = reconcileCartWithCatalog(cart, wholesaleCatalog(products));
     if (!reconciliation.changed) return;
 
     setCart(reconciliation.nextCart);
@@ -3218,6 +3223,12 @@ function POSPro() {
       customers.find((item) => String(item?.id || item?.customer_id) === String(selectedCustomerId)) || null,
     [customers, selectedCustomerId]
   );
+  // Wholesale copy only: tier piece prices (wholesale / half-wholesale) and the unit
+  // picker. On retail `enabled` is false and nothing below changes behaviour.
+  const wholesalePricing = useWholesalePosPricing(customer?.id || customer?.customer_id || null);
+  wholesalePriceOfRef.current = wholesalePricing.enabled ? wholesalePricing.priceOf : null;
+  const [wholesalePickerProduct, setWholesalePickerProduct] = useState(null);
+  const closeWholesalePicker = useCallback(() => setWholesalePickerProduct(null), []);
   const mobileSelectedCustomerLabel = useMemo(
     () => String(customer?.name || customer?.customer_name || customerSearch?.trim() || "عميل غير محدد").trim() || "عميل غير محدد",
     [customer?.customer_name, customer?.name, customerSearch]
@@ -3989,6 +4000,12 @@ function POSPro() {
     });
     return [...favorites, ...regular];
   }, [visibleProducts]);
+  // Wholesale copy: the cards show the customer's tier piece price.
+  const gridProducts = useMemo(() => (
+    wholesalePricing.enabled
+      ? orderedVisibleProducts.map((product) => withWholesalePrice(product, wholesalePricing.priceOf(product.product_id ?? product.id)))
+      : orderedVisibleProducts
+  ), [orderedVisibleProducts, wholesalePricing.enabled, wholesalePricing.priceOf]);
 
   useEffect(() => {
     if (loading || products.length === 0 || firstDataLoggedRef.current) return;
@@ -4963,8 +4980,12 @@ function POSPro() {
     }
 
     const key = variantId ? String(variantId) : `product:${productId}`;
-    const activePrice = Number(variant.price || product.sale_price || product.price || 0);
-    const originalPrice = Number(variant.original_price || variant.regular_price || product.original_price || product.regular_price || variant.price || product.price || 0);
+    // Wholesale copy: the customer's tier piece price from the product page wins.
+    const wholesalePrice = wholesalePricing.priceOf(productId);
+    const activePrice = wholesalePrice !== null ? wholesalePrice : Number(variant.price || product.sale_price || product.price || 0);
+    const originalPrice = wholesalePrice !== null
+      ? wholesalePrice
+      : Number(variant.original_price || variant.regular_price || product.original_price || product.regular_price || variant.price || product.price || 0);
     const resolvedColor = variant.color || variant.variant_color || variant.selected_color || "";
     const resolvedSize = variant.size || variant.variant_size || variant.selected_size || product.fixed_size_label || "";
     if (!(activePrice > 0)) {
@@ -5066,7 +5087,33 @@ function POSPro() {
           : t("pos.toasts.addedToCart", { name: product.name || product.product_name })
       );
     }
-  }, [products, t]);
+  }, [products, t, wholesalePricing.priceOf]);
+
+  // Wholesale copy: a customer or tier switch reprices what is already in the cart (the
+  // catalogue reconciliation prices from the same tier, so the two never disagree).
+  useEffect(() => {
+    if (!wholesalePricing.enabled) return;
+    setCart((prev) => {
+      let changed = false;
+      const next = prev.map((item) => {
+        const price = wholesalePricing.priceOf(item.product_id);
+        if (price === null || Number(item.price) === price) return item;
+        changed = true;
+        return { ...item, price, original_price: price };
+      });
+      return changed ? next : prev;
+    });
+  }, [wholesalePricing.enabled, wholesalePricing.priceOf]);
+
+  const addWholesaleSelection = useCallback((priced) => {
+    const catalogProduct = getCatalogProductById(products, priced.product_id) || wholesalePickerProduct;
+    const variants = Array.isArray(catalogProduct?.variants) ? catalogProduct.variants : [];
+    for (const part of priced.composition || []) {
+      const variant = variants.find((v) => String(v.variant_id ?? v.variantId ?? v.id) === String(part.variant_id));
+      if (variant) addVariantToCart(catalogProduct, variant, { quantity: part.qty, silent: true });
+    }
+    toast.success(t("pos.toasts.addedToCart", { name: `${priced.product_name} — ${priced.unit_qty} × ${priced.unit_label}` }));
+  }, [addVariantToCart, products, t, wholesalePickerProduct]);
 
   const handleVariantSizeDoubleClick = useCallback((size, variant) => {
     if (!activeProduct || !variant || getVariantStockQuantity(variant) <= 0) return;
@@ -5202,10 +5249,15 @@ function POSPro() {
   }, [saleModeSettings]);
 
   const handleSelectProduct = useCallback(async (product) => {
+    // Wholesale copy: a tap opens piece / series / carton / dozen instead of colour + size.
+    if (wholesalePricing.enabled) {
+      setWholesalePickerProduct(product);
+      return;
+    }
     const productForModal = await hydrateProductForArticleModal(product);
     if (openProductVariantPicker(productForModal)) return;
     quickAddProduct(productForModal);
-  }, [hydrateProductForArticleModal, openProductVariantPicker, quickAddProduct]);
+  }, [hydrateProductForArticleModal, openProductVariantPicker, quickAddProduct, wholesalePricing.enabled]);
 
   // The star on the card is the only place a cashier can curate the POS feed,
   // so flip it locally first and let the request confirm it in the background.
@@ -7612,7 +7664,7 @@ function POSPro() {
         try {
           const refreshedCatalog = await refreshCatalogProducts({ setProducts, setLoading, manageLoading: false, saleModeSettings });
           catalogFallbackActiveRef.current = false;
-          const reconciliation = reconcileCartWithCatalog(cart, refreshedCatalog);
+          const reconciliation = reconcileCartWithCatalog(cart, wholesaleCatalog(refreshedCatalog));
           if (reconciliation.changed) {
             setCart(reconciliation.nextCart);
             if (reconciliation.removedItems.length > 0) {
@@ -8922,7 +8974,7 @@ function POSPro() {
       catalogFallbackActiveRef.current = false;
       setCart((current) => {
         if (editingOrder?.id) return current;
-        const reconciled = reconcileCartWithCatalog(current, catalog);
+        const reconciled = reconcileCartWithCatalog(current, wholesaleCatalog(catalog));
         if (reconciled.removedItems.length > 0) {
           toast.error(`تم حذف ${reconciled.removedItems.length} منتج غير متاح من السلة`);
         }
@@ -9670,11 +9722,21 @@ function POSPro() {
               <ProductGrid
                 loading={loading}
                 error={error}
-                products={orderedVisibleProducts}
+                products={gridProducts}
                 search={search}
                 onSelectProduct={handleSelectProduct}
                 onToggleFavorite={handleToggleFavorite}
               />
+              {wholesalePickerProduct ? (
+                <WholesalePosPicker
+                  product={wholesalePickerProduct}
+                  customerId={customer?.id || customer?.customer_id || null}
+                  tier={wholesalePricing.tier}
+                  onTierChange={wholesalePricing.setTier}
+                  onAdd={addWholesaleSelection}
+                  onClose={closeWholesalePicker}
+                />
+              ) : null}
             </div>
             </div>
           </section>

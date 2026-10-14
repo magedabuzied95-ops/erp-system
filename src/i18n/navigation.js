@@ -37,7 +37,6 @@ const ITEM_LABEL_KEYS = {
   "Barcode Print Queue": "sidebar.barcodePrintQueue",
   Orders: "sidebar.orders",
   "POS PRO": "sidebar.posPro",
-  "Wholesale invoice": "sidebar.wholesaleInvoice",
   Returns: "sidebar.returns",
   Customers: "sidebar.customers",
   Purchases: "sidebar.purchases",

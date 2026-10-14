@@ -1326,50 +1326,16 @@
       "noLimit": "0 = no limit",
       "dueDays": "Payment terms (days)"
     },
-    "invoice": {
-      "title": "Wholesale invoice",
-      "subtitle": "Sell by piece, series, carton and dozen at the customer's price",
-      "noShift": "No open shift. Open a shift from the POS first.",
-      "openPos": "Open POS",
-      "customer": "Customer",
-      "customerPlaceholder": "Search the customer",
-      "walkIn": "No customer (cash only)",
-      "tier": "Price",
-      "salesperson": "Salesperson",
-      "product": "Product",
-      "productPlaceholder": "Search the product",
-      "unit": "Unit",
-      "cartonColors": "Pick the carton's colour, or several for a mixed carton ({{count}} pcs)",
-      "cartonSplit": "{{each}} pcs of each colour ({{count}} colours)",
-      "cartonUneven": "{{pieces}} pcs do not split evenly over {{count}} colours",
-      "addLine": "Add to invoice",
-      "noPack": "This model has no wholesale setup yet. Open the product and fill in \"Wholesale selling\".",
-      "lines": "Items",
-      "empty": "The invoice is empty",
-      "piecePrice": "Piece price",
-      "shortage": "Not enough stock: {{where}} needs {{wanted}}, has {{stock}}",
-      "payment": "Payment",
-      "modes": {
-        "cash": "Paid in full",
-        "credit": "All on credit",
-        "partial": "Part paid, rest on credit"
-      },
-      "methods": {
-        "cash": "Cash",
-        "instapay": "InstaPay",
-        "vodafone_cash": "Vodafone Cash",
-        "card": "Card"
-      },
-      "paid": "Paid",
-      "remaining": "On credit",
-      "submit": "Save invoice",
-      "done": "Invoice {{number}} saved",
-      "notes": "Notes",
-      "piecesTotal": "{{count}} pcs"
-    },
     "purchases": {
       "wholesale": "Wholesale",
       "halfWholesale": "Half-wholesale"
+    },
+    "pos": {
+      "notSetUp": "This model has no wholesale setup. Open the product and fill in \"Wholesale selling\".",
+      "cartonColors": "Carton colour, or several for a mixed carton",
+      "summary": "{{pieces}} pcs × {{price}}",
+      "shortage": "Not enough stock: {{where}} needs {{wanted}}, has {{stock}}",
+      "add": "Add to invoice"
     }
   }
 }

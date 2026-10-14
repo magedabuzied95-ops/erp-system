@@ -1,5 +1,4 @@
 import db from "../../database/db.js";
-import { createOrder } from "../../controllers/ordersController.js";
 import { ensureWholesaleSchema } from "./wholesale.schema.js";
 import {
   EMPTY_SETTINGS,
@@ -130,6 +129,20 @@ export const getWholesalePrices = async ({ tenantId, productIds = [] }) => {
     `SELECT product_id, price_wholesale, price_half_wholesale FROM wholesale_product_packs
       WHERE tenant_id = $1 AND product_id = ANY($2::bigint[])`,
     [tenantId, ids]
+  );
+  return Object.fromEntries(rows.map((row) => [row.product_id, {
+    price_wholesale: numOrNull(row.price_wholesale),
+    price_half_wholesale: numOrNull(row.price_half_wholesale),
+  }]));
+};
+
+/** The POS in the wholesale copy: every model's tier piece prices, loaded once. */
+export const listAllWholesalePrices = async ({ tenantId }) => {
+  await ensureWholesaleSchema();
+  const { rows } = await db.query(
+    `SELECT product_id, price_wholesale, price_half_wholesale FROM wholesale_product_packs
+      WHERE tenant_id = $1 AND (price_wholesale IS NOT NULL OR price_half_wholesale IS NOT NULL)`,
+    [tenantId]
   );
   return Object.fromEntries(rows.map((row) => [row.product_id, {
     price_wholesale: numOrNull(row.price_wholesale),
@@ -287,150 +300,4 @@ export const previewWholesaleInvoice = async ({ tenantId, customerId = null, tie
     total: roundMoney(out.reduce((sum, line) => sum + line.line_total, 0)),
     shortages,
   };
-};
-
-const PAYMENT_METHODS = new Set(["cash", "instapay", "vodafone_cash", "card"]);
-
-/** createOrder is an Express handler; run it in-process and read what it answered. */
-const runCreateOrder = (req, body) =>
-  new Promise((resolve, reject) => {
-    const innerReq = Object.create(req);
-    innerReq.body = body;
-    const res = {
-      statusCode: 200,
-      headersSent: false,
-      status(code) { this.statusCode = code; return this; },
-      set() { return this; },
-      setHeader() { return this; },
-      json(payload) { this.headersSent = true; resolve({ status: this.statusCode, body: payload }); return this; },
-      send(payload) { this.headersSent = true; resolve({ status: this.statusCode, body: payload }); return this; },
-      end() { this.headersSent = true; resolve({ status: this.statusCode, body: null }); return this; },
-    };
-    Promise.resolve(createOrder(innerReq, res)).catch(reject);
-  });
-
-/**
- * Saves a wholesale invoice. The goods go through the SAME createOrder the shop uses
- * (stock, shift, salesperson, accounting, credit sale), as pieces per colour/size at the
- * tier piece price; this module only adds the wholesale view of the lines.
- *
- * payment: { mode: "cash" | "credit" | "partial", method, paid_amount }
- */
-export const createWholesaleInvoice = async ({ req, tenantId, body = {} }) => {
-  const preview = await previewWholesaleInvoice({ tenantId, customerId: body.customer_id, tier: body.tier, lines: body.lines });
-  if (preview.shortages.length) {
-    const first = preview.shortages[0];
-    const where = first.size ? `${first.color} مقاس ${first.size}` : first.color;
-    throw Object.assign(fail(`المخزون مش كفاية: ${where} مطلوب ${first.wanted} والموجود ${first.stock}`, 409, "WHOLESALE_STOCK_SHORT"), { shortages: preview.shortages });
-  }
-
-  const customerId = idOf(body.customer_id);
-  const payment = body.payment && typeof body.payment === "object" ? body.payment : {};
-  const mode = ["cash", "credit", "partial"].includes(payment.mode) ? payment.mode : "cash";
-  const method = PAYMENT_METHODS.has(payment.method) ? payment.method : "cash";
-  const total = preview.total;
-  if ((mode === "credit" || mode === "partial") && !customerId) throw fail("البيع الآجل محتاج عميل");
-  const paid = mode === "cash" ? total : mode === "credit" ? 0 : roundMoney(Number(payment.paid_amount) || 0);
-  if (mode === "partial" && !(paid > 0 && paid < total)) throw fail("المدفوع لازم يكون أكبر من صفر وأقل من الإجمالي");
-
-  // Same variant at the same piece price -> one order line.
-  const merged = new Map();
-  for (const line of preview.lines) {
-    for (const part of line.composition) {
-      const k = `${part.variant_id}|${line.piece_price}`;
-      const row = merged.get(k) || { product_id: line.product_id, product_name: line.product_name, variant_id: part.variant_id, color: part.color, size: part.size, quantity: 0, price: line.piece_price };
-      row.quantity += part.qty;
-      merged.set(k, row);
-    }
-  }
-  const items = [...merged.values()].map((row) => {
-    const lineTotal = roundMoney(row.quantity * row.price);
-    return {
-      product_id: row.product_id,
-      product_name: row.product_name,
-      variant_id: row.variant_id,
-      variant_name: [row.color, row.size].filter(Boolean).join(" / "),
-      variation_mode: "full_variations",
-      size: row.size, color: row.color,
-      selected_size: row.size, selected_color: row.color,
-      variant_size: row.size, variant_color: row.color,
-      quantity: row.quantity,
-      price: row.price, unit_price: row.price, sale_price: row.price, final_price: row.price, variant_price: row.price,
-      discount_amount: 0, tax_amount: 0, tax_rate: 0,
-      line_total: lineTotal, subtotal: lineTotal, total_amount: lineTotal,
-    };
-  });
-
-  const breakdown = paid > 0 ? [{ method, amount: paid }] : [];
-  const salesEmployeeId = body.sales_employee_id || null;
-  const orderBody = {
-    customer_id: customerId,
-    customer_name: text(body.customer_name),
-    customer_phone: text(body.customer_phone),
-    payment_method: mode === "cash" ? method : "credit_sale",
-    subtotal: total,
-    discount_amount: 0,
-    invoice_discount_amount: 0,
-    tax_amount: 0,
-    tax_rate: 0,
-    service_fee: 0,
-    total,
-    paid_amount: paid,
-    change_amount: 0,
-    amount_due_now: mode === "cash" ? total : roundMoney(total - paid),
-    status: mode === "cash" ? "paid" : mode === "credit" ? "unpaid" : "partially_paid",
-    payment_status: mode === "cash" ? "paid" : mode === "credit" ? "unpaid" : "partially_paid",
-    cash_amount: method === "cash" ? paid : 0,
-    card_amount: method === "card" ? paid : 0,
-    wallet_payment_amount: method === "instapay" || method === "vodafone_cash" ? paid : 0,
-    payment_breakdown: breakdown,
-    payments: breakdown,
-    branch_id: body.branch_id || null,
-    shift_id: body.shift_id || null,
-    seller_user_id: body.seller_user_id || null,
-    sales_employee_id: salesEmployeeId,
-    salesperson_id: salesEmployeeId,
-    assigned_seller_id: salesEmployeeId,
-    seller_employee_id: salesEmployeeId,
-    notes: text(body.notes) || `فاتورة ${preview.tier_label}`,
-    idempotency_key: text(body.idempotency_key) || null,
-    items,
-  };
-
-  const result = await runCreateOrder(req, orderBody);
-  if (result.status >= 400 || !result.body?.success) {
-    throw fail(result.body?.message || "تعذر حفظ الفاتورة", result.status >= 400 ? result.status : 500, result.body?.code || "WHOLESALE_ORDER_FAILED");
-  }
-  const orderId = Number(result.body.order_id || result.body.order?.id);
-
-  // A replayed idempotency key returns the first order -- its lines are already stored.
-  const { rowCount: already } = await db.query("SELECT 1 FROM wholesale_invoice_lines WHERE tenant_id = $1 AND order_id = $2 LIMIT 1", [tenantId, orderId]);
-  if (!already) {
-    try {
-      for (const line of preview.lines) {
-        await db.query(
-          `INSERT INTO wholesale_invoice_lines
-             (tenant_id, order_id, product_id, product_name, unit, unit_label, unit_qty, colors, pieces, piece_price, line_total, composition, tier)
-           VALUES ($1, $2, $3, $4, $5, $6, $7, $8::jsonb, $9, $10, $11, $12::jsonb, $13)`,
-          [tenantId, orderId, line.product_id, line.product_name, line.unit, line.unit_label, line.unit_qty,
-            JSON.stringify(line.colors), line.pieces, line.piece_price, line.line_total, JSON.stringify(line.composition), preview.tier]
-        );
-      }
-    } catch (error) {
-      // The sale itself is committed; only the wholesale summary is missing.
-      console.error("[wholesale] invoice lines not stored", { order_id: orderId, message: error?.message });
-    }
-  }
-
-  return { ...result.body, wholesale: { tier: preview.tier, lines: preview.lines, pieces: preview.pieces, total } };
-};
-
-export const getWholesaleInvoiceLines = async ({ tenantId, orderId }) => {
-  await ensureWholesaleSchema();
-  const { rows } = await db.query(
-    `SELECT product_id, product_name, unit, unit_label, unit_qty, colors, pieces, piece_price, line_total, tier
-       FROM wholesale_invoice_lines WHERE tenant_id = $1 AND order_id = $2 ORDER BY id`,
-    [tenantId, idOf(orderId)]
-  );
-  return rows.map((row) => ({ ...row, piece_price: Number(row.piece_price), line_total: Number(row.line_total) }));
 };

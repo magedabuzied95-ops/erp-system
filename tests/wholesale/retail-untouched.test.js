@@ -40,12 +40,16 @@ test("the router is gated first, and tables are created only behind the mode che
   }
 });
 
-test("wholesale menu entries and routes exist only on the wholesale host", () => {
-  const rbac = read("../../src/modules/permissions/lib/rbacStore.js");
-  assert.match(rbac, /\(IS_WHOLESALE_APP \|\| !item\.wholesaleOnly\)/);
-  assert.match(rbac, /to: "\/wholesale\/invoice"[^}]*wholesaleOnly: true/);
-  const app = read("../../src/App.jsx");
-  assert.match(app, /\{IS_WHOLESALE_APP \? \(\s*<Route\s+path="wholesale\/invoice"/);
+test("the POS sells wholesale units only on the wholesale host", () => {
+  const picker = read("../../src/modules/wholesale/components/WholesalePosPicker.jsx");
+  // No wholesale price (so the retail price stands) and no wholesale API call on retail.
+  assert.match(picker, /const priceOf = useCallback\(\(productId\) => \{\s*if \(!IS_WHOLESALE_APP\) return null;/);
+  assert.match(picker, /const reloadPrices = useCallback\(\(\) => \{\s*if \(!IS_WHOLESALE_APP\) return;/);
+  const pos = read("../../src/modules/pos/pages/POSPro.jsx");
+  assert.match(pos, /const activePrice = wholesalePrice !== null \? wholesalePrice : Number\(variant\.price/);
+  assert.match(pos, /if \(wholesalePricing\.enabled\) \{\s*setWholesalePickerProduct\(product\);/);
+  assert.match(pos, /wholesalePricing\.enabled\s*\? orderedVisibleProducts\.map/);
+  assert.doesNotMatch(read("../../src/App.jsx"), /wholesale\/invoice/, "the separate wholesale invoice page is gone");
 });
 
 test("the wholesale sections on the product, customer and purchase pages render nothing on retail", () => {

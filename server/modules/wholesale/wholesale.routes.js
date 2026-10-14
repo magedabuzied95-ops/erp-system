@@ -4,10 +4,9 @@ import permit from "../../middleware/permissionMiddleware.js";
 import { getTenantId } from "../../utils/requestScope.js";
 import { requireWholesaleMode } from "./wholesaleMode.js";
 import {
-  createWholesaleInvoice,
   getCustomerTerms,
-  getWholesaleInvoiceLines,
   getWholesalePrices,
+  listAllWholesalePrices,
   getWholesaleProduct,
   listWholesaleCustomers,
   listWholesaleProducts,
@@ -43,6 +42,8 @@ const handle = (fallback, fn) => async (req, res) => {
 router.get("/products", protect, permit("products", "view"), handle("Unable to load products", (req, tenantId) => listWholesaleProducts({ tenantId, search: req.query.search, limit: req.query.limit })));
 router.get("/products/:id", protect, permit("products", "view"), handle("Unable to load product", (req, tenantId) => getWholesaleProduct({ tenantId, productId: req.params.id })));
 router.put("/products/:id", protect, permit("products", "edit"), handle("Unable to save product", (req, tenantId) => saveWholesaleProduct({ tenantId, productId: req.params.id, settings: req.body?.settings })));
+// POS: every model's tier piece prices (the cart and the cards price from these).
+router.get("/prices", protect, permit("pos", "view"), handle("Unable to load prices", (req, tenantId) => listAllWholesalePrices({ tenantId })));
 // Purchases: read / write the two tier prices of many models at once.
 router.post("/prices/lookup", protect, permit("purchases", "view"), handle("Unable to load prices", (req, tenantId) => getWholesalePrices({ tenantId, productIds: req.body?.product_ids })));
 router.put("/prices", protect, permit("products", "edit"), handle("Unable to save prices", (req, tenantId) => setWholesalePrices({ tenantId, prices: req.body?.prices })));
@@ -51,9 +52,8 @@ router.get("/customers", protect, permit("customers", "view"), handle("Unable to
 router.get("/customers/:id/terms", protect, permit("customers", "view"), handle("Unable to load customer terms", (req, tenantId) => getCustomerTerms({ tenantId, customerId: req.params.id })));
 router.put("/customers/:id/terms", protect, permit("customers", "edit"), handle("Unable to save customer terms", (req, tenantId) => saveCustomerTerms({ tenantId, customerId: req.params.id, ...req.body })));
 
-router.post("/invoices/preview", protect, permit("orders", "create"), handle("Unable to price the invoice", (req, tenantId) =>
+// POS unit picker: splits a series / carton / dozen into pieces per colour and checks stock.
+router.post("/invoices/preview", protect, permit("pos", "view"), handle("Unable to price the selection", (req, tenantId) =>
   previewWholesaleInvoice({ tenantId, customerId: req.body?.customer_id, tier: req.body?.tier, lines: req.body?.lines })));
-router.post("/invoices", protect, permit("orders", "create"), handle("Unable to save the invoice", (req, tenantId) => createWholesaleInvoice({ req, tenantId, body: req.body || {} })));
-router.get("/invoices/:orderId/lines", protect, permit("orders", "view"), handle("Unable to load invoice lines", (req, tenantId) => getWholesaleInvoiceLines({ tenantId, orderId: req.params.orderId })));
 
 export default router;
