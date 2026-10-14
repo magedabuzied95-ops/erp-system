@@ -78,7 +78,10 @@ test("payroll prices lateness and absence through the policy", () => {
   const source = fs.readFileSync(new URL("../server/services/salesCommissionService.js", import.meta.url), "utf8");
   assert.match(source, /const lateDeduction = latePenaltyDays \* dailyRate/);
   assert.match(source, /countedLatePermissions\(approvedLatePermissions, policy\)/);
-  assert.match(source, /ss\.shift_type = 'opening'/);
+  // The opener rule lives in the shared loader payroll and both portals use.
+  assert.match(source, /loadApprovedLatePermissionRows\(db,/);
+  const policySource = fs.readFileSync(new URL("../server/utils/attendancePolicy.js", import.meta.url), "utf8");
+  assert.match(policySource, /ss\.shift_type = 'opening'/);
 });
 
 test("the portal refuses a third permission and any permission on the opener's day", () => {

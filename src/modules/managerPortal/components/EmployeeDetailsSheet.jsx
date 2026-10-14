@@ -827,7 +827,15 @@ export default function EmployeeDetailsSheet({ token, employee, initialTab = "ov
                                 ) : null}
                               </td>
                               <td className="px-2 py-2 [font-variant-numeric:tabular-nums]">{formatNumber(row.work_hours)}</td>
-                              <td className={`px-2 py-2 [font-variant-numeric:tabular-nums] ${row.late_minutes > 0 ? "text-rose-700" : "text-slate-400"}`}>{formatMinutes(row.late_minutes)}</td>
+                              <td className={`px-2 py-2 [font-variant-numeric:tabular-nums] ${row.late_minutes > 0 ? "text-rose-700" : "text-slate-400"}`}>
+                                {formatMinutes(row.late_minutes)}
+                                {row.late_permission_minutes !== null && row.late_permission_minutes !== undefined ? (
+                                  // An approved late permission: the cell is what is left after it.
+                                  <span className="mt-0.5 block whitespace-nowrap text-[10px] font-black text-sky-700" title={tt("managerPortal.employeeDetails.latePermissionHint", { raw: formatMinutes(row.late_minutes_raw), covered: formatMinutes(row.late_covered_minutes) })}>
+                                    {tt("managerPortal.employeeDetails.latePermissionBadge", { minutes: formatMinutes(row.late_permission_minutes) })}
+                                  </span>
+                                ) : null}
+                              </td>
                               <td className={`px-2 py-2 [font-variant-numeric:tabular-nums] ${row.overtime_minutes > 0 ? "text-emerald-700" : "text-slate-400"}`}>{formatMinutes(row.overtime_minutes)}</td>
                               <td className="px-1 py-1 text-left">
                                 <button type="button" aria-label={tt("managerPortal.employeeDetails.editAttendance")} onClick={() => openAttendanceEditor(row)} className="inline-flex h-7 w-7 items-center justify-center rounded-lg border border-slate-200 bg-white text-slate-600">

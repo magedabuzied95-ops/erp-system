@@ -816,7 +816,9 @@
     "leaveDays": "منها إجازات: {{paid}} من {{total}} مدفوعة، {{deducted}} مخصومة",
     "absentDay": "غياب",
     "leaveDay": "إجازة",
-    "absentCount": "{{count}} غياب"
+    "absentCount": "{{count}} غياب",
+    "latePermissionBadge": "إذن تأخير ({{minutes}})",
+    "latePermissionHint": "التأخير {{raw}} — الإذن غطّى {{covered}}"
   },
   "weekdays": {
     "0": "الأحد",

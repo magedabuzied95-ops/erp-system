@@ -33,7 +33,9 @@ test("every location failure reaches the employee in Arabic behind a blocking ga
 
 test("the employee always sees today, even when payroll is still on an older period", async () => {
   const service = await source("server/services/employeePayrollPortalService.js");
-  const timeline = service.slice(service.indexOf("const recordedAttendanceTimeline = await getAttendanceTimeline"));
+  // The timeline is loaded beside the month's late permissions (Promise.all), then annotated.
+  const timeline = service.slice(service.indexOf("const [rawAttendanceTimeline, latePermissionCover] = await Promise.all"));
+  assert.ok(service.includes("const [rawAttendanceTimeline, latePermissionCover] = await Promise.all"), "timeline load moved");
   assert.match(timeline.slice(0, 400), /periodEnd: bounds\.end > todayIsoDate \? bounds\.end : todayIsoDate/);
   // The deduction summary stays on the payroll period it is calculated for.
   const summary = service.slice(service.indexOf("const attendanceSummary = await getAttendanceSummary"));

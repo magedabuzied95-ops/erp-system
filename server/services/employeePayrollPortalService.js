@@ -12,7 +12,7 @@ import { sendEmployeePortalPush } from "./employeePortalPushService.js";
 import { emitToRooms } from "../utils/socket.js";
 import { ensureAccountingSchema, recordCashDrawerEvent } from "./accountingService.js";
 import { resolveAdvanceDeductionMonth } from "../utils/advanceDeductionMonth.js";
-import { latePermissionCoverMinutes, loadAttendancePolicy } from "../utils/attendancePolicy.js";
+import { lateAfterPermission, latePermissionCoverMinutes, loadAttendancePolicy, loadLatePermissionCoverForMonth } from "../utils/attendancePolicy.js";
 
 const tokenBytes = 32;
 
@@ -2133,13 +2133,41 @@ export const buildEmployeePayrollPortalPayload = async ({ employee, includeOptio
   // deduction summary stays on the payroll period; only what the employee sees
   // of their own days reaches today.
   const todayIsoDate = localIsoDate(new Date(), timeZone);
-  const recordedAttendanceTimeline = await getAttendanceTimeline({
-    tenantId: employee.tenant_id,
-    employeeId: employee.id,
-    periodStart: bounds.start,
-    periodEnd: bounds.end > todayIsoDate ? bounds.end : todayIsoDate,
-    currentShift: effectiveCurrentShift,
+  const [rawAttendanceTimeline, latePermissionCover] = await Promise.all([
+    getAttendanceTimeline({
+      tenantId: employee.tenant_id,
+      employeeId: employee.id,
+      periodStart: bounds.start,
+      periodEnd: bounds.end > todayIsoDate ? bounds.end : todayIsoDate,
+      currentShift: effectiveCurrentShift,
+    }),
+    loadLatePermissionCoverForMonth(db, { tenantId: employee.tenant_id, employeeId: employee.id, month: period })
+      .catch((error) => {
+        console.warn("[employee-payroll-portal] late permissions skipped", error?.message || error);
+        return new Map();
+      }),
+  ]);
+  // An approved late permission forgives up to its minutes (policy cap, monthly quota), exactly
+  // as payroll counts it. Each day carries the lateness left and the permission, and the month
+  // total the ساعات التأخير card shows is what is left after permissions.
+  const coveredDays = new Set();
+  const recordedAttendanceTimeline = rawAttendanceTimeline.map((row) => {
+    const dayKey = attendanceDateKey(row.date || row.attendance_date);
+    const cover = latePermissionCover.has(dayKey) && !coveredDays.has(dayKey) ? latePermissionCover.get(dayKey) : null;
+    if (cover === null) return row;
+    coveredDays.add(dayKey);
+    return { ...row, ...lateAfterPermission(row.late_minutes, cover) };
   });
+  if (latePermissionCover.size) {
+    const monthRows = recordedAttendanceTimeline.filter((row) => {
+      const dayKey = attendanceDateKey(row.date || row.attendance_date);
+      return dayKey >= bounds.start && dayKey <= bounds.end;
+    });
+    attendanceSummary.late_minutes = monthRows.reduce((sum, row) => sum + Math.max(0, Number(row.late_minutes) || 0), 0);
+    attendanceSummary.late_days = new Set(monthRows
+      .filter((row) => Number(row.late_minutes) > 0)
+      .map((row) => attendanceDateKey(row.date || row.attendance_date))).size;
+  }
   const generatedAbsenceTimeline = (attendanceSummary.absence_dates || [])
     .filter((date) => !recordedAttendanceTimeline.some((row) => attendanceDateKey(row.date || row.attendance_date) === date))
     .map((date) => ({

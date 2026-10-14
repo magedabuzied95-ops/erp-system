@@ -2,6 +2,7 @@ import { randomBytes } from "node:crypto";
 import db from "../database/db.js";
 import { nextMonth as nextPayrollMonth } from "../utils/advanceDeductionMonth.js";
 import { ensureAttendanceSchema } from "../utils/attendanceSchema.js";
+import { lateAfterPermission, loadLatePermissionCoverForMonth } from "../utils/attendancePolicy.js";
 import { calculateTodayProfit, DEFAULT_BUSINESS_DAY_START_HOUR, getDashboardOverview, getHourlySales, getLowStock, getSalesTrend, getTopProducts, getAiInsights, personalOrderClause, resolveBusinessDayStartHour } from "./dashboardAnalyticsService.js";
 import { aggregatePaymentDistribution } from "./managerPortalPaymentDistribution.js";
 import { getSetting } from "./settingsService.js";
@@ -3304,7 +3305,21 @@ export const getManagerPortalEmployeeDetails = async ({ manager = {}, employeeId
   ]);
 
   const toHours = (minutes) => Number((Number(minutes || 0) / 60).toFixed(2));
+  // An approved late permission forgives up to its minutes (policy cap, monthly quota), exactly as
+  // payroll counts it: the day shows the lateness that is left, and the permission itself.
+  const latePermissionCover = await loadLatePermissionCoverForMonth(db, { tenantId, employeeId: employee.id, month: range.month })
+    .catch((error) => {
+      console.warn("[manager-portal] late permissions skipped", error?.message || error);
+      return new Map();
+    });
+  const coveredDays = new Set();
+  const attendanceDayKey = (value) => (value instanceof Date ? value.toISOString().slice(0, 10) : String(value || "").slice(0, 10));
   const attendance = attendanceRows.map((row) => {
+    const dayKey = attendanceDayKey(row.attendance_date);
+    // One permission per day: a second log on the same day gets no second cover.
+    const cover = latePermissionCover.has(dayKey) && !coveredDays.has(dayKey) ? latePermissionCover.get(dayKey) : null;
+    if (cover !== null) coveredDays.add(dayKey);
+    const late = lateAfterPermission(row.late_minutes, cover);
     const checkIn = row.check_in_at || row.check_in || null;
     const checkOut = row.check_out_at || row.check_out || null;
     const workMinutes = Number(row.work_minutes || 0) || (checkIn && checkOut ? Math.max(0, (new Date(checkOut) - new Date(checkIn)) / 60000) : 0);
@@ -3316,7 +3331,10 @@ export const getManagerPortalEmployeeDetails = async ({ manager = {}, employeeId
       check_out: checkOut,
       status: row.status || "checked_in",
       work_hours: toHours(workMinutes),
-      late_minutes: Number(row.late_minutes || 0),
+      late_minutes: late.late_minutes,
+      late_minutes_raw: late.late_minutes_raw,
+      late_permission_minutes: late.late_permission_minutes,
+      late_covered_minutes: late.late_covered_minutes,
       early_leave_minutes: Number(row.early_leave_minutes || 0),
       overtime_minutes: Number(row.overtime_minutes || 0),
       notes: row.notes || "",

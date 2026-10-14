@@ -4,7 +4,7 @@ import { createEmployeePortalNotification } from "./employeePayrollPortalService
 import { postPayrollApprovalEntry, postPayrollPaymentEntry, recordFinancialAccountActivity, resolveFinancialAccountForPayment } from "./accountingService.js";
 import { getTenantId, isSuperAdminUser } from "../utils/requestScope.js";
 import { ensureAttendanceSchema } from "../utils/attendanceSchema.js";
-import { countedLatePermissions, loadAttendancePolicy, policyAppliesOn, resolveLateDay } from "../utils/attendancePolicy.js";
+import { countedLatePermissions, loadApprovedLatePermissionRows, loadAttendancePolicy, policyAppliesOn, resolveLateDay } from "../utils/attendancePolicy.js";
 import { getAttendanceTimeZone } from "../utils/attendanceTimezone.js";
 import { parseManualAttendanceTimestamp } from "../utils/attendanceManualEntry.js";
 import { ensureForeignKeyConstraint } from "../utils/schemaConstraints.js";
@@ -398,32 +398,10 @@ const calculateApprovedOvertimePayrollImpactForEmployee = async ({
 // order, so the monthly quota counts the ones granted before the period began.
 const loadApprovedLatePermissions = async ({ tenantId = null, employeeId, periodStart, periodEnd } = {}) => {
   try {
+    // The month so far: the quota counts every approved permission since the 1st. The query is
+    // shared with both portals (attendancePolicy.js) so the late time they show is what is charged.
     const monthStart = `${dateKey(periodStart).slice(0, 7)}-01`;
-    const result = await db.query(
-      `
-      SELECT request_date, COALESCE(amount, 0)::numeric AS allowed_minutes
-      FROM employee_portal_requests
-      WHERE ($1::bigint IS NULL OR tenant_id = $1::bigint)
-        AND employee_id::text = $2::text
-        AND LOWER(COALESCE(request_type, '')) IN ('late_permission', 'late', 'lateness_permission')
-        AND LOWER(COALESCE(status, 'pending')) = 'approved'
-        AND request_date BETWEEN $3::date AND $4::date
-        -- The branch opener may never be excused for lateness.
-        AND NOT EXISTS (
-          SELECT 1
-          FROM employee_shift_schedules ss
-          WHERE ss.employee_id::text = employee_portal_requests.employee_id::text
-            AND ss.work_date = employee_portal_requests.request_date
-            AND ss.shift_type = 'opening'
-            AND LOWER(COALESCE(ss.status, 'scheduled')) <> 'cancelled'
-        )
-      ORDER BY request_date ASC, id ASC
-      `,
-      [tenantId, employeeId, monthStart, periodEnd]
-    );
-    return result.rows
-      .map((row) => ({ date: dateKey(row.request_date), minutes: toNumber(row.allowed_minutes) }))
-      .filter((row) => row.date);
+    return await loadApprovedLatePermissionRows(db, { tenantId, employeeId, from: monthStart, to: periodEnd });
   } catch (error) {
     console.warn("[payroll] late permissions skipped", error.message);
     return [];

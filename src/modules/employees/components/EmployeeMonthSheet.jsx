@@ -38,6 +38,9 @@ const monthLabel = (month) => {
   return new Intl.DateTimeFormat("ar-EG", { timeZone: "UTC", month: "long", year: "numeric" }).format(new Date(`${month}-15T12:00:00Z`));
 };
 
+// The day had an approved late permission (the server sends the cover; null/absent = none).
+const hasPermission = (row) => row?.late_permission_minutes !== null && row?.late_permission_minutes !== undefined;
+
 const Pill = ({ tone, children }) => {
   const tones = {
     present: "bg-success-subtle text-text",
@@ -73,11 +76,17 @@ function AttendanceBody({ timeline, monthDays }) {
                 {kind === "present" ? (
                   <div className="mt-0.5 text-[11px] font-bold text-text-muted">
                     حضور {formatClock(row.check_in)} · انصراف {row.check_out ? formatClock(row.check_out) : "لسه"}
-                    {Number(row.late_minutes) > 0 ? <span className="text-danger"> · تأخير {formatMinutes(row.late_minutes)}</span> : null}
+                    {Number(row.late_minutes) > 0 ? <span className="text-danger"> · تأخير {formatMinutes(row.late_minutes)}{hasPermission(row) ? " بعد الإذن" : ""}</span> : null}
+                    {hasPermission(row) && !(Number(row.late_minutes) > 0) && Number(row.late_minutes_raw) > 0 ? <span> · الإذن غطّى التأخير</span> : null}
                   </div>
                 ) : null}
               </div>
-              {kind === "present" ? <Pill tone="present">حضور</Pill> : kind === "absent" ? <Pill tone="absent">غياب</Pill> : <Pill tone="leave">إجازة</Pill>}
+              {kind === "present" && hasPermission(row) ? (
+                <div className="flex shrink-0 flex-col items-end gap-1">
+                  <Pill tone="present">حضور</Pill>
+                  <Pill tone="leave">إذن تأخير {formatMinutes(row.late_permission_minutes)}</Pill>
+                </div>
+              ) : kind === "present" ? <Pill tone="present">حضور</Pill> : kind === "absent" ? <Pill tone="absent">غياب</Pill> : <Pill tone="leave">إجازة</Pill>}
             </li>
           ))}
         </ul>

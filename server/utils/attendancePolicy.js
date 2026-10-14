@@ -119,3 +119,55 @@ export const resolveLateDay = ({ lateMinutes = 0, permissionMinutes = null, poli
 
 export const policyAppliesOn = (dateKey, policy = DEFAULT_ATTENDANCE_POLICY) =>
   !policy?.effective_from || String(dateKey || "") >= policy.effective_from;
+
+// Approved late permissions from `from` to `to`, oldest first ({ date, minutes }), exactly as
+// payroll reads them: the branch opener's day never counts. Shared by payroll and both portals so
+// the late time they show is the late time the salary charges.
+export const loadApprovedLatePermissionRows = async (clientOrPool, { tenantId = null, employeeId, from, to } = {}) => {
+  if (!clientOrPool || !employeeId || !from || !to) return [];
+  const result = await clientOrPool.query(
+    `
+    SELECT request_date, COALESCE(amount, 0)::numeric AS allowed_minutes
+    FROM employee_portal_requests
+    WHERE ($1::bigint IS NULL OR tenant_id = $1::bigint)
+      AND employee_id::text = $2::text
+      AND LOWER(COALESCE(request_type, '')) IN ('late_permission', 'late', 'lateness_permission')
+      AND LOWER(COALESCE(status, 'pending')) = 'approved'
+      AND request_date BETWEEN $3::date AND $4::date
+      -- The branch opener may never be excused for lateness.
+      AND NOT EXISTS (
+        SELECT 1
+        FROM employee_shift_schedules ss
+        WHERE ss.employee_id::text = employee_portal_requests.employee_id::text
+          AND ss.work_date = employee_portal_requests.request_date
+          AND ss.shift_type = 'opening'
+          AND LOWER(COALESCE(ss.status, 'scheduled')) <> 'cancelled'
+      )
+    ORDER BY request_date ASC, id ASC
+    `,
+    [tenantId, employeeId, from, to]
+  );
+  return result.rows
+    .map((row) => ({ date: toDateKey(row.request_date), minutes: Number(row.allowed_minutes) || 0 }))
+    .filter((row) => row.date);
+};
+
+// date -> minutes a counted permission forgives, for one calendar month (the quota is monthly).
+export const loadLatePermissionCoverForMonth = async (clientOrPool, { tenantId = null, employeeId, month, policy = null } = {}) => {
+  if (!/^\d{4}-\d{2}$/.test(String(month || ""))) return new Map();
+  const [year, monthNumber] = month.split("-").map(Number);
+  const lastDay = new Date(Date.UTC(year, monthNumber, 0)).toISOString().slice(0, 10);
+  const [rows, resolvedPolicy] = await Promise.all([
+    loadApprovedLatePermissionRows(clientOrPool, { tenantId, employeeId, from: `${month}-01`, to: lastDay }),
+    policy ? Promise.resolve(policy) : loadAttendancePolicy(clientOrPool, tenantId),
+  ]);
+  return countedLatePermissions(rows, resolvedPolicy);
+};
+
+// One attendance day's lateness after its permission: what the salary actually counts.
+export const lateAfterPermission = (lateMinutes, coverMinutes) => {
+  const raw = Math.max(0, Math.round(Number(lateMinutes) || 0));
+  const allowed = coverMinutes === null || coverMinutes === undefined ? null : Math.max(0, Math.round(Number(coverMinutes) || 0));
+  const covered = allowed === null ? 0 : Math.min(raw, allowed);
+  return { late_minutes: raw - covered, late_minutes_raw: raw, late_permission_minutes: allowed, late_covered_minutes: covered };
+};

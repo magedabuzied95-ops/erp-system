@@ -816,7 +816,9 @@
     "leaveDays": "Of which leave: {{paid}} of {{total}} paid, {{deducted}} deducted",
     "absentDay": "Absent",
     "leaveDay": "Leave",
-    "absentCount": "{{count}} absent"
+    "absentCount": "{{count}} absent",
+    "latePermissionBadge": "Late permission ({{minutes}})",
+    "latePermissionHint": "Late {{raw}} — permission covered {{covered}}"
   },
   "weekdays": {
     "0": "Sun",
