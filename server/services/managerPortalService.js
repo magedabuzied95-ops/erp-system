@@ -3378,6 +3378,9 @@ export const getManagerPortalEmployeeDetails = async ({ manager = {}, employeeId
     : (payrollPreview?.payroll || payrollPreview?.snapshot || payrollPreview || {});
   const approvalBlockers = payrollRun ? [] : (Array.isArray(payrollPreview?.approval_blockers) ? payrollPreview.approval_blockers : []);
   const { dayRate, workingDays } = await dayRatePromise;
+  const convertedLeaveDates = await loadConvertedLeaveDates({ tenantId, employeeId: employee.id, from: range.start, to: range.end });
+  const leaveFacts = attendanceFactsOf(snapshot) || {};
+  const leaveAllowance = Number(leaveFacts.monthly_paid_leave_days ?? 3);
   const isCancelledAdvance = (row) => [row.status, row.deduction_status].some((value) => String(value || "").toLowerCase() === "cancelled");
   const liveAdvances = advanceRows.filter((row) => !isCancelledAdvance(row));
   return {
@@ -3461,6 +3464,14 @@ export const getManagerPortalEmployeeDetails = async ({ manager = {}, employeeId
       // approved leave days, so the table shows every day the salary treats differently.
       absent_dates: listOf(attendanceFactsOf(snapshot)?.missing_attendance_dates),
       leave_dates: listOf(attendanceFactsOf(snapshot)?.leave_dates),
+      // Absent days a manager turned into leave from the الخصومات tab (undoable there).
+      converted_leave_dates: convertedLeaveDates,
+      // The month's paid-leave balance as payroll counts it (calculateLeavePayrollImpactForEmployee).
+      leave_balance: {
+        allowance: leaveAllowance,
+        used: Number(leaveFacts.leave_days || 0),
+        left: Math.max(0, leaveAllowance - Number(leaveFacts.leave_days || 0)),
+      },
     },
   };
 };
@@ -3748,6 +3759,123 @@ export const setManagerPortalDayDeduction = async ({ manager = {}, employeeId, p
     data: { event: "day_deduction_updated", date, type, penalty_days: days },
   });
   return { override: result.rows[0] };
+};
+
+// الخصومات tab: an absent day becomes an approved leave day, exactly the row approving a leave
+// request writes (employee_vacations, 'annual'). Payroll then takes the day off the absences and
+// prices it as leave: from the month's paid balance, a day's pay once the balance is used up.
+// The tag in notes marks the rows this made, so only those can be undone from here.
+export const ABSENCE_TO_LEAVE_TAG = "manager-portal:absence-to-leave";
+
+export const loadConvertedLeaveDates = async ({ tenantId, employeeId, from, to }) => {
+  const rows = await safeQuery(
+    `
+    SELECT DISTINCT COALESCE(vacation_date, start_date)::text AS day
+    FROM employee_vacations
+    WHERE ($1::bigint IS NULL OR tenant_id = $1::bigint)
+      AND employee_id = $2::bigint
+      AND LOWER(COALESCE(status, 'pending')) = 'approved'
+      AND notes LIKE $5
+      AND COALESCE(vacation_date, start_date) BETWEEN $3::date AND $4::date
+    `,
+    [tenantId, employeeId, from, to, `${ABSENCE_TO_LEAVE_TAG}%`],
+    []
+  );
+  return rows.map((row) => String(row.day).slice(0, 10));
+};
+
+export const convertManagerPortalAbsenceToLeave = async ({ manager = {}, employeeId, date: rawDate } = {}) => {
+  const { employee, tenantId } = await loadScopedEmployee({ manager, employeeId });
+  const date = String(rawDate || "").slice(0, 10);
+  await assertDayDeductionEditable({ tenantId, employee, date, type: "absence" });
+  const [attended, onLeave] = await Promise.all([
+    safeQuery(
+      `SELECT 1 FROM attendance_logs WHERE employee_id = $1::bigint AND ($2::bigint IS NULL OR tenant_id = $2::bigint) AND attendance_date = $3::date LIMIT 1`,
+      [employee.id, tenantId, date],
+      []
+    ),
+    safeQuery(
+      `
+      SELECT 1 FROM employee_vacations
+      WHERE employee_id = $1::bigint AND ($2::bigint IS NULL OR tenant_id = $2::bigint)
+        AND LOWER(COALESCE(status, 'pending')) = 'approved'
+        AND $3::date BETWEEN COALESCE(vacation_date, start_date) AND COALESCE(end_date, vacation_date, start_date)
+      UNION ALL
+      SELECT 1 FROM employee_leaves
+      WHERE employee_id = $1::bigint AND ($2::bigint IS NULL OR tenant_id = $2::bigint)
+        AND LOWER(COALESCE(status, 'pending')) = 'approved'
+        AND $3::date BETWEEN COALESCE(leave_date, start_date) AND COALESCE(leave_date, end_date, start_date)
+      LIMIT 1
+      `,
+      [employee.id, tenantId, date],
+      []
+    ),
+  ]);
+  if (attended.length) {
+    const error = new Error("الموظف له حضور في اليوم ده، مش غياب");
+    error.status = 409;
+    throw error;
+  }
+  if (onLeave.length) {
+    const error = new Error("اليوم ده إجازة بالفعل");
+    error.status = 409;
+    throw error;
+  }
+  const by = manager.full_name || manager.name || "";
+  const result = await db.query(
+    `
+    INSERT INTO employee_vacations (tenant_id, employee_id, vacation_type, vacation_date, start_date, end_date, status, notes, created_at, updated_at)
+    VALUES ($1::bigint, $2::bigint, 'annual', $3::date, $3::date, $3::date, 'approved', $4, NOW(), NOW())
+    RETURNING id, vacation_date
+    `,
+    [tenantId, employee.id, date, `${ABSENCE_TO_LEAVE_TAG}${by ? ` — ${by}` : ""}`]
+  );
+  // The absence is gone, so an edit made to its deduction no longer means anything.
+  await db.query(
+    `DELETE FROM attendance_day_deduction_overrides
+     WHERE ($1::bigint IS NULL OR tenant_id = $1::bigint) AND employee_id = $2::bigint AND deduction_date = $3::date AND deduction_type = 'absence'`,
+    [tenantId, employee.id, date]
+  ).catch(() => null);
+  notifyEmployeeSalaryChange({
+    tenantId,
+    employeeId: employee.id,
+    title: "🌴 الغياب اتحول لإجازة",
+    body: `غياب يوم ${date} اتحسب إجازة من رصيدك`,
+    data: { event: "absence_to_leave", date },
+  });
+  return { vacation: result.rows[0] };
+};
+
+export const undoManagerPortalAbsenceToLeave = async ({ manager = {}, employeeId, date: rawDate } = {}) => {
+  const { employee, tenantId } = await loadScopedEmployee({ manager, employeeId });
+  const date = String(rawDate || "").slice(0, 10);
+  await assertDayDeductionEditable({ tenantId, employee, date, type: "absence" });
+  const result = await db.query(
+    `
+    UPDATE employee_vacations
+    SET status = 'cancelled', updated_at = NOW()
+    WHERE ($1::bigint IS NULL OR tenant_id = $1::bigint)
+      AND employee_id = $2::bigint
+      AND COALESCE(vacation_date, start_date) = $3::date
+      AND LOWER(COALESCE(status, 'pending')) = 'approved'
+      AND notes LIKE $4
+    RETURNING id
+    `,
+    [tenantId, employee.id, date, `${ABSENCE_TO_LEAVE_TAG}%`]
+  );
+  if (!result.rowCount) {
+    const error = new Error("مفيش إجازة اتحولت من غياب في اليوم ده");
+    error.status = 404;
+    throw error;
+  }
+  notifyEmployeeSalaryChange({
+    tenantId,
+    employeeId: employee.id,
+    title: "الإجازة رجعت غياب",
+    body: `يوم ${date} رجع غياب زي ما كان`,
+    data: { event: "leave_to_absence", date },
+  });
+  return { cancelled: result.rowCount };
 };
 
 export const clearManagerPortalDayDeduction = async ({ manager = {}, employeeId, type: rawType, date: rawDate } = {}) => {

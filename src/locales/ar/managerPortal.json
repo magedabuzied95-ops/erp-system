@@ -853,7 +853,17 @@
       "penalties": "خصومات يدوية",
       "penaltiesHint": "بتتعدل من تبويب إضافة / خصم",
       "days": "{{count}} يوم",
-      "hours": "{{count}} ساعة"
+      "hours": "{{count}} ساعة",
+      "toLeave": "حوّله إجازة من الرصيد",
+      "toLeaveConfirm": "تحوّل غياب {{date}} لإجازة من رصيد الإجازات؟\nفاضل {{left}} من {{total}} إجازات الشهر ده، وخصم الغياب هيتشال.",
+      "toLeaveNoBalance": "رصيد إجازات الشهر خلص.\nلو حوّلت غياب {{date}} لإجازة هيتخصم يوم واحد بدل يومين. تكمل؟",
+      "toLeaveDone": "اليوم اتحول لإجازة، والمرتب اتحسب من جديد",
+      "convertedLeave": "إجازة من الرصيد (كانت غياب)",
+      "leaveBadge": "إجازة",
+      "undoLeave": "رجّعه غياب",
+      "undoLeaveConfirm": "ترجّع {{date}} غياب زي ما كان؟",
+      "undoLeaveDone": "اليوم رجع غياب",
+      "leaveBalance": "رصيد الإجازات: فاضل {{left}} من {{total}}"
     }
   },
   "weekdays": {

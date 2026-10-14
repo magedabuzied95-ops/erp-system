@@ -32,6 +32,8 @@ import {
   changeManagerPortalEmployeeAdvance,
   setManagerPortalDayDeduction,
   clearManagerPortalDayDeduction,
+  convertManagerPortalAbsenceToLeave,
+  undoManagerPortalAbsenceToLeave,
   correctManagerPortalAttendance,
   reviewManagerPortalAdvanceRequest,
   reviewManagerPortalLatePermissionRequest,
@@ -538,6 +540,18 @@ router.put("/:token/staff/:employeeId/day-deductions", verifyManagerPortalToken,
     return res.status(error.status || 500).json({ success: false, message: error.message || "Failed to save deduction" });
   }
 });
+// An absent day becomes a leave day from the employee's balance (POST), or goes back to absent (DELETE).
+const absenceToLeaveRoute = (handler) => async (req, res) => {
+  try {
+    const result = await handler({ manager: req.managerPortalManager, employeeId: req.params.employeeId, date: req.params.date });
+    return res.json({ success: true, ...result });
+  } catch (error) {
+    if (!error?.status) console.error("[manager-portal] absence to leave error", error);
+    return res.status(error.status || 500).json({ success: false, message: error.message || "Failed to change the day" });
+  }
+};
+router.post("/:token/staff/:employeeId/absence-to-leave/:date", verifyManagerPortalToken, absenceToLeaveRoute(convertManagerPortalAbsenceToLeave));
+router.delete("/:token/staff/:employeeId/absence-to-leave/:date", verifyManagerPortalToken, absenceToLeaveRoute(undoManagerPortalAbsenceToLeave));
 router.delete("/:token/staff/:employeeId/day-deductions/:type/:date", verifyManagerPortalToken, async (req, res) => {
   try {
     const result = await clearManagerPortalDayDeduction({

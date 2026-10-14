@@ -1,5 +1,5 @@
 import { useState } from "react";
-import { Loader2, Pencil, RotateCcw, Trash2 } from "lucide-react";
+import { Loader2, Pencil, RotateCcw, Trash2, TreePalm, Undo2 } from "lucide-react";
 import i18n from "../../../i18n/i18n";
 import { managerPortalApi } from "../services/managerPortalApi";
 import { formatCurrency } from "../../../shared/lib/currency";
@@ -30,9 +30,11 @@ export function EmployeeDeductionsTab({ token, employeeId, details, formatDay, f
 
   const facts = details?.salary?.attendance_breakdown || {};
   const frozen = Boolean(details?.payroll?.approved);
-  const rows = (Array.isArray(facts.day_deductions) ? facts.day_deductions : [])
-    .slice()
+  // Absent days turned into leave from here sit in the list on their own date, so they can be undone.
+  const convertedLeaves = (details?.attendance?.converted_leave_dates || []).map((date) => ({ date, type: "converted_leave", amount: 0 }));
+  const rows = [...(Array.isArray(facts.day_deductions) ? facts.day_deductions : []), ...convertedLeaves]
     .sort((a, b) => dateOf(b.date).localeCompare(dateOf(a.date)));
+  const leaveBalance = details?.attendance?.leave_balance || null;
   const dayTotal = rows.reduce((sum, row) => sum + Number(row.amount || 0), 0);
   const others = [
     { key: "leave", amount: Number(facts.leave_deduction || 0), detail: facts.deducted_leave_days ? tt("managerPortal.employeeDetails.deductions.days", { count: formatNumber(facts.deducted_leave_days) }) : "" },
@@ -87,7 +89,46 @@ export function EmployeeDeductionsTab({ token, employeeId, details, formatDay, f
     }
   };
 
+  // غياب → إجازة: the day leaves the absences and is priced as leave by payroll — free while the
+  // month's paid balance lasts, a day's pay (not the absence's two) once it is used up.
+  const toLeave = async (row) => {
+    const left = leaveBalance ? leaveBalance.left : null;
+    const question = left === null || left > 0
+      ? tt("managerPortal.employeeDetails.deductions.toLeaveConfirm", { date: formatDay(row.date), left: formatNumber(left ?? 0), total: formatNumber(leaveBalance?.allowance ?? 0) })
+      : tt("managerPortal.employeeDetails.deductions.toLeaveNoBalance", { date: formatDay(row.date) });
+    if (!window.confirm(question)) return;
+    const key = rowKey(row);
+    try {
+      setBusy(key);
+      setNotice({ tone: "", text: "" });
+      await managerPortalApi.convertAbsenceToLeave(token, employeeId, dateOf(row.date));
+      setNotice({ tone: "ok", text: tt("managerPortal.employeeDetails.deductions.toLeaveDone") });
+      await onChanged?.();
+    } catch (error) {
+      setNotice({ tone: "error", text: failure(error, tt("managerPortal.employeeDetails.deductions.saveError")) });
+    } finally {
+      setBusy("");
+    }
+  };
+
+  const undoLeave = async (row) => {
+    if (!window.confirm(tt("managerPortal.employeeDetails.deductions.undoLeaveConfirm", { date: formatDay(row.date) }))) return;
+    const key = rowKey(row);
+    try {
+      setBusy(key);
+      setNotice({ tone: "", text: "" });
+      await managerPortalApi.undoAbsenceToLeave(token, employeeId, dateOf(row.date));
+      setNotice({ tone: "ok", text: tt("managerPortal.employeeDetails.deductions.undoLeaveDone") });
+      await onChanged?.();
+    } catch (error) {
+      setNotice({ tone: "error", text: failure(error, tt("managerPortal.employeeDetails.deductions.saveError")) });
+    } finally {
+      setBusy("");
+    }
+  };
+
   const describeRow = (row) => {
+    if (row.type === "converted_leave") return tt("managerPortal.employeeDetails.deductions.convertedLeave");
     if (row.type === "absence") return tt("managerPortal.employeeDetails.deductions.absence");
     const late = Math.max(0, Number(row.late_minutes || 0) - Number(row.covered_minutes || 0));
     const parts = [tt("managerPortal.employeeDetails.deductions.late", { time: formatMinutes(late) })];
@@ -100,6 +141,11 @@ export function EmployeeDeductionsTab({ token, employeeId, details, formatDay, f
       <div className="rounded-[var(--radius-card)] border border-slate-200 bg-white px-3 py-2 text-right">
         <div className="text-[10px] font-black text-slate-500">{tt("managerPortal.employeeDetails.deductions.dayTotal")}</div>
         <div className="mt-0.5 text-sm font-black text-rose-700 [font-variant-numeric:tabular-nums]">{formatCurrency(dayTotal)}</div>
+        {leaveBalance ? (
+          <div className="mt-1 text-[11px] font-bold text-slate-500">
+            {tt("managerPortal.employeeDetails.deductions.leaveBalance", { left: formatNumber(leaveBalance.left), total: formatNumber(leaveBalance.allowance) })}
+          </div>
+        ) : null}
       </div>
       {frozen ? (
         <div className="rounded-xl border border-slate-200 bg-slate-50 px-3 py-2 text-xs font-bold text-slate-600">{tt("managerPortal.employeeDetails.deductions.frozen")}</div>
@@ -121,7 +167,7 @@ export function EmployeeDeductionsTab({ token, employeeId, details, formatDay, f
                   <div className="min-w-0">
                     <div className="text-sm font-black text-slate-950">{formatDay(row.date)}</div>
                     <div className="mt-0.5 text-[11px] font-bold text-slate-500">
-                      {describeRow(row)} · {describePenaltyDays(row.penalty_days)}
+                      {row.type === "converted_leave" ? describeRow(row) : `${describeRow(row)} · ${describePenaltyDays(row.penalty_days)}`}
                     </div>
                     {row.overridden ? (
                       <div className="mt-1 flex flex-wrap items-center gap-1.5 text-[11px] font-bold">
@@ -133,11 +179,39 @@ export function EmployeeDeductionsTab({ token, employeeId, details, formatDay, f
                     {row.override_note ? <div className="mt-0.5 text-[11px] text-slate-500">{row.override_note}</div> : null}
                   </div>
                   <div className="flex shrink-0 flex-col items-end gap-1.5">
-                    <span className={`text-sm font-black ${amount > 0 ? "text-rose-700" : "text-slate-500"}`}>
-                      {amount > 0 ? `- ${formatCurrency(amount)}` : formatCurrency(0)}
-                    </span>
-                    {!frozen && !isEditing ? (
+                    {row.type === "converted_leave" ? (
+                      <span className="rounded-full bg-emerald-50 px-2 py-0.5 text-[11px] font-black text-emerald-700">{tt("managerPortal.employeeDetails.deductions.leaveBadge")}</span>
+                    ) : (
+                      <span className={`text-sm font-black ${amount > 0 ? "text-rose-700" : "text-slate-500"}`}>
+                        {amount > 0 ? `- ${formatCurrency(amount)}` : formatCurrency(0)}
+                      </span>
+                    )}
+                    {!frozen && row.type === "converted_leave" ? (
+                      <button
+                        type="button"
+                        aria-label={tt("managerPortal.employeeDetails.deductions.undoLeave")}
+                        title={tt("managerPortal.employeeDetails.deductions.undoLeave")}
+                        disabled={working}
+                        onClick={() => undoLeave(row)}
+                        className="rounded-lg border border-slate-200 bg-white p-1.5 text-slate-600 disabled:opacity-50"
+                      >
+                        {working ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Undo2 className="h-3.5 w-3.5" />}
+                      </button>
+                    ) : null}
+                    {!frozen && !isEditing && row.type !== "converted_leave" ? (
                       <div className="flex items-center gap-1">
+                        {row.type === "absence" ? (
+                          <button
+                            type="button"
+                            aria-label={tt("managerPortal.employeeDetails.deductions.toLeave")}
+                            title={tt("managerPortal.employeeDetails.deductions.toLeave")}
+                            disabled={working}
+                            onClick={() => toLeave(row)}
+                            className="rounded-lg border border-emerald-200 bg-emerald-50 p-1.5 text-emerald-700 disabled:opacity-50"
+                          >
+                            <TreePalm className="h-3.5 w-3.5" />
+                          </button>
+                        ) : null}
                         <button
                           type="button"
                           aria-label={tt("managerPortal.employeeDetails.deductions.edit")}
