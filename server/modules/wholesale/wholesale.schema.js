@@ -72,6 +72,19 @@ CREATE TABLE IF NOT EXISTS wholesale_invoice_lines (
   created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
 );
 CREATE INDEX IF NOT EXISTS idx_wholesale_invoice_lines_order ON wholesale_invoice_lines (tenant_id, order_id, id);
+
+-- v2 (2026-10-15): set on the product page -- units with a piece count, and one piece
+-- price per customer tier for every colour of the model. Only wholesale_* tables change.
+ALTER TABLE wholesale_product_packs ADD COLUMN IF NOT EXISTS sell_series BOOLEAN NOT NULL DEFAULT FALSE;
+ALTER TABLE wholesale_product_packs ADD COLUMN IF NOT EXISTS series_pieces INTEGER NULL;
+ALTER TABLE wholesale_product_packs ADD COLUMN IF NOT EXISTS sell_carton BOOLEAN NOT NULL DEFAULT FALSE;
+ALTER TABLE wholesale_product_packs ADD COLUMN IF NOT EXISTS carton_pieces INTEGER NULL;
+ALTER TABLE wholesale_product_packs ADD COLUMN IF NOT EXISTS sell_dozen BOOLEAN NOT NULL DEFAULT FALSE;
+ALTER TABLE wholesale_product_packs ADD COLUMN IF NOT EXISTS price_wholesale NUMERIC(12,2) NULL;
+ALTER TABLE wholesale_product_packs ADD COLUMN IF NOT EXISTS price_half_wholesale NUMERIC(12,2) NULL;
+-- 'wholesale' | 'half_wholesale'
+ALTER TABLE wholesale_customer_terms ADD COLUMN IF NOT EXISTS tier VARCHAR(20) NOT NULL DEFAULT 'wholesale';
+ALTER TABLE wholesale_invoice_lines ADD COLUMN IF NOT EXISTS tier VARCHAR(20) NULL;
 `;
 
 let ready = null;

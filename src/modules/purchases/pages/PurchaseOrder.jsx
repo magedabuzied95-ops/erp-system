@@ -24,6 +24,7 @@ import {
 
 import toast from "react-hot-toast";
 import { api } from "../../../shared/api/api";
+import { IS_WHOLESALE_APP } from "../../../shared/constants/app";
 import { resolveProductImageUrl } from "../../../shared/lib/imageUrls";
 import { getProductAudienceValues, productMatchesAudience } from "../../../shared/lib/productAudiences";
 import SmartPosFilters from "../../pos/components/SmartPosFilters";
@@ -768,6 +769,9 @@ function PurchaseOrder() {
   const [bulkPriceModal, setBulkPriceModal] = useState(null);
   const [purchaseQtyModal, setPurchaseQtyModal] = useState(null);
   const [purchaseQtySelection, setPurchaseQtySelection] = useState([]);
+  // Wholesale copy only: tier piece prices edited in the import window, written to the
+  // products once the purchase itself is saved.
+  const wholesalePriceEditsRef = useRef({});
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
   const [postError, setPostError] = useState("");
@@ -1660,8 +1664,27 @@ function PurchaseOrder() {
     );
   };
 
-  const openPurchaseQtyPreview = () => {
+  // After a purchase saves: the wholesale piece prices edited in the import window.
+  const flushWholesalePrices = async () => {
+    const prices = Object.entries(wholesalePriceEditsRef.current).map(([productId, row]) => ({ product_id: Number(productId), ...row }));
+    if (!IS_WHOLESALE_APP || !prices.length) return;
+    try {
+      await api.put("/wholesale/prices", { prices });
+      wholesalePriceEditsRef.current = {};
+    } catch (error) {
+      toast.error(error.message);
+    }
+  };
+
+  const openPurchaseQtyPreview = async () => {
     if (!purchaseQtySelection.length) return;
+    let wholesalePrices = {};
+    if (IS_WHOLESALE_APP) {
+      const productIds = purchaseQtySelection.map(({ group }) => group?.product_id).filter(Boolean);
+      wholesalePrices = await api.post("/wholesale/prices/lookup", { product_ids: productIds })
+        .then((res) => res?.data || {})
+        .catch(() => ({}));
+    }
     const products = purchaseQtySelection.map(({ group }) => {
       const rows = buildPurchaseQtyRows(group);
       const first = rows[0] || {};
@@ -1672,6 +1695,10 @@ function PurchaseOrder() {
         purchasePrice: first.purchasePrice ?? 0,
         sellingPrice: first.sellingPrice ?? 0,
         salePrice: first.salePrice ?? 0,
+        ...(IS_WHOLESALE_APP ? {
+          priceWholesale: wholesalePrices[group?.product_id]?.price_wholesale ?? "",
+          priceHalfWholesale: wholesalePrices[group?.product_id]?.price_half_wholesale ?? "",
+        } : {}),
       };
     }).filter((product) => product.rows.length > 0);
     if (!products.length) {
@@ -1682,6 +1709,16 @@ function PurchaseOrder() {
   };
 
   const applyProductPurchaseQty = (editedProducts = []) => {
+    if (IS_WHOLESALE_APP) {
+      for (const product of toArray(editedProducts)) {
+        const productId = product.group?.product_id;
+        if (!productId) continue;
+        wholesalePriceEditsRef.current[productId] = {
+          price_wholesale: product.priceWholesale === "" ? null : product.priceWholesale,
+          price_half_wholesale: product.priceHalfWholesale === "" ? null : product.priceHalfWholesale,
+        };
+      }
+    }
     const rows = toArray(editedProducts).flatMap((product) =>
       toArray(product.rows).map((row) => ({
         ...row,
@@ -2252,6 +2289,7 @@ function PurchaseOrder() {
           ...getLocalPurchases().map(normalizePurchase).filter((purchase) => String(purchase.id) !== String(updated.id)),
         ]);
         notifyProductsChanged();
+        await flushWholesalePrices();
         toast.success(t("purchases.toasts.updated"));
         setConfirmReceivedEditSave(false);
         navigate(`/purchases/${updated.id || editPurchase.id || editPurchaseId}`);
@@ -2287,6 +2325,7 @@ function PurchaseOrder() {
 
       saveLocalPurchases([record, ...getLocalPurchases().map(normalizePurchase)]);
       notifyProductsChanged();
+      await flushWholesalePrices();
       toast.success(t(nextStatus === "received" ? "purchases.create.postedAndReceived" : "purchases.create.orderSaved"));
       purchaseSaveIdRef.current = "";
       // Authoritative success only — drop the local draft. On any failure/retry
@@ -3404,7 +3443,7 @@ function ProductPurchaseQtyModal({ data, onClose, onApply }) {
 }
 
 function MultiProductPurchaseQtyModal({ data, onClose, onApply }) {
-  const { i18n } = useTranslation();
+  const { t, i18n } = useTranslation();
   const isArabic = String(i18n.language || "").toLowerCase().startsWith("ar");
   const [products, setProducts] = useState(() =>
     toArray(data?.products).map((product) => ({ ...product, rows: toArray(product.rows) }))
@@ -3488,6 +3527,12 @@ function MultiProductPurchaseQtyModal({ data, onClose, onApply }) {
                 <th className="px-3 py-3 text-center font-black uppercase">{labels.purchasePrice}</th>
                 <th className="px-3 py-3 text-center font-black uppercase">{labels.sellingPrice}</th>
                 <th className="px-3 py-3 text-center font-black uppercase">{labels.salePrice}</th>
+                {IS_WHOLESALE_APP ? (
+                  <>
+                    <th className="px-3 py-3 text-center font-black uppercase">{t("orders.wholesale.purchases.wholesale")}</th>
+                    <th className="px-3 py-3 text-center font-black uppercase">{t("orders.wholesale.purchases.halfWholesale")}</th>
+                  </>
+                ) : null}
               </tr>
             </thead>
             <tbody className="divide-y divide-white/10">
@@ -3521,6 +3566,12 @@ function MultiProductPurchaseQtyModal({ data, onClose, onApply }) {
                     <td className="px-3 py-3" dir="ltr">{priceInput(product, "purchasePrice", labels.purchasePrice)}</td>
                     <td className="px-3 py-3" dir="ltr">{priceInput(product, "sellingPrice", labels.sellingPrice)}</td>
                     <td className="px-3 py-3" dir="ltr">{priceInput(product, "salePrice", labels.salePrice)}</td>
+                    {IS_WHOLESALE_APP ? (
+                      <>
+                        <td className="px-3 py-3" dir="ltr">{priceInput(product, "priceWholesale", t("orders.wholesale.purchases.wholesale"))}</td>
+                        <td className="px-3 py-3" dir="ltr">{priceInput(product, "priceHalfWholesale", t("orders.wholesale.purchases.halfWholesale"))}</td>
+                      </>
+                    ) : null}
                   </tr>
                 );
               })}

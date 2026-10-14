@@ -2,14 +2,16 @@ import db from "../../database/db.js";
 import { createOrder } from "../../controllers/ordersController.js";
 import { ensureWholesaleSchema } from "./wholesale.schema.js";
 import {
-  availableUnits,
+  EMPTY_SETTINGS,
   explodeLine,
-  indexVariants,
-  normalizePack,
+  groupVariantsByColor,
+  normalizeSettings,
+  piecePriceFor,
   roundMoney,
+  stockByColor,
   sumByVariant,
   unitLabel,
-  WHOLESALE_UNITS,
+  WHOLESALE_TIERS,
 } from "./wholesale.units.js";
 
 const text = (value) => String(value ?? "").trim();
@@ -18,58 +20,9 @@ const idOf = (value) => {
   const n = Number(value);
   return Number.isInteger(n) && n > 0 ? n : null;
 };
-
-/* ----------------------------- price lists ----------------------------- */
-
-export const listPriceLists = async ({ tenantId }) => {
-  await ensureWholesaleSchema();
-  const { rows } = await db.query(
-    `SELECT id, name, sort_order, is_default, is_active
-       FROM wholesale_price_lists WHERE tenant_id = $1 ORDER BY sort_order, id`,
-    [tenantId]
-  );
-  return rows;
-};
-
-export const savePriceList = async ({ tenantId, id = null, name, sort_order = 0, is_default = false, is_active = true }) => {
-  await ensureWholesaleSchema();
-  const cleanName = text(name);
-  if (!cleanName) throw fail("اكتب اسم قائمة الأسعار");
-  const client = await db.connect();
-  try {
-    await client.query("BEGIN");
-    if (is_default) await client.query("UPDATE wholesale_price_lists SET is_default = FALSE WHERE tenant_id = $1", [tenantId]);
-    let row;
-    if (idOf(id)) {
-      ({ rows: [row] } = await client.query(
-        `UPDATE wholesale_price_lists SET name = $3, sort_order = $4, is_default = $5, is_active = $6, updated_at = NOW()
-          WHERE tenant_id = $1 AND id = $2 RETURNING *`,
-        [tenantId, idOf(id), cleanName, Number(sort_order) || 0, Boolean(is_default), is_active !== false]
-      ));
-      if (!row) throw fail("قائمة الأسعار مش موجودة", 404);
-    } else {
-      ({ rows: [row] } = await client.query(
-        `INSERT INTO wholesale_price_lists (tenant_id, name, sort_order, is_default, is_active)
-         VALUES ($1, $2, $3, $4, $5) RETURNING *`,
-        [tenantId, cleanName, Number(sort_order) || 0, Boolean(is_default), is_active !== false]
-      ));
-    }
-    await client.query("COMMIT");
-    return row;
-  } catch (error) {
-    await client.query("ROLLBACK").catch(() => {});
-    throw error;
-  } finally {
-    client.release();
-  }
-};
-
-export const deletePriceList = async ({ tenantId, id }) => {
-  await ensureWholesaleSchema();
-  const { rowCount } = await db.query("DELETE FROM wholesale_price_lists WHERE tenant_id = $1 AND id = $2", [tenantId, idOf(id)]);
-  if (!rowCount) throw fail("قائمة الأسعار مش موجودة", 404);
-  return { deleted: true };
-};
+const tierOf = (value) => (WHOLESALE_TIERS.includes(value) ? value : "wholesale");
+const TIER_LABEL = { wholesale: "جملة", half_wholesale: "نص جملة" };
+const numOrNull = (value) => (value === null || value === undefined ? null : Number(value));
 
 /* ------------------------------- products ------------------------------- */
 
@@ -85,205 +38,203 @@ const loadVariants = async (client, { tenantId, productId }) => {
   return rows.map((row) => ({ ...row, stock: Number(row.stock || 0) }));
 };
 
-const loadPack = async (client, { tenantId, productId }) => {
+const loadSettings = async (client, { tenantId, productId }) => {
   const { rows: [row] } = await client.query(
-    "SELECT series_sizes, sell_piece, cartons FROM wholesale_product_packs WHERE tenant_id = $1 AND product_id = $2",
+    `SELECT sell_piece, sell_series, series_pieces, sell_carton, carton_pieces, sell_dozen,
+            price_wholesale, price_half_wholesale
+       FROM wholesale_product_packs WHERE tenant_id = $1 AND product_id = $2`,
     [tenantId, productId]
   );
-  return row ? normalizePack(row) : null;
+  if (!row) return null;
+  return {
+    ...row,
+    series_pieces: numOrNull(row.series_pieces),
+    carton_pieces: numOrNull(row.carton_pieces),
+    price_wholesale: numOrNull(row.price_wholesale),
+    price_half_wholesale: numOrNull(row.price_half_wholesale),
+  };
 };
 
+/** For the invoice product search: models with wholesale prices first. */
 export const listWholesaleProducts = async ({ tenantId, search = "", limit = 60 }) => {
   await ensureWholesaleSchema();
   const term = text(search);
   const { rows } = await db.query(
     `SELECT p.id, p.name, p.image_url,
-            (pk.product_id IS NOT NULL) AS has_pack,
-            COALESCE(jsonb_array_length(pk.series_sizes), 0) AS series_size,
-            COALESCE(jsonb_array_length(pk.cartons), 0) AS carton_count,
-            (SELECT COUNT(*) FROM wholesale_prices wp WHERE wp.tenant_id = p.tenant_id AND wp.product_id = p.id) AS price_count,
+            pk.price_wholesale, pk.price_half_wholesale,
             (SELECT COALESCE(SUM(v.stock), 0) FROM product_variants v
               WHERE v.product_id = p.id AND v.deleted_at IS NULL AND COALESCE(v.is_active, TRUE)) AS stock
        FROM products p
        LEFT JOIN wholesale_product_packs pk ON pk.tenant_id = p.tenant_id AND pk.product_id = p.id
       WHERE p.tenant_id = $1 AND COALESCE(p.is_active, TRUE) AND p.status = 'active'
         AND ($2 = '' OR p.name ILIKE '%' || $2 || '%' OR p.sku ILIKE '%' || $2 || '%' OR p.barcode = $2)
-      ORDER BY p.name
+      ORDER BY (pk.price_wholesale IS NULL), p.name
       LIMIT $3`,
     [tenantId, term, Math.min(Math.max(Number(limit) || 60, 1), 200)]
   );
-  return rows.map((row) => ({ ...row, price_count: Number(row.price_count), stock: Number(row.stock) }));
+  return rows.map((row) => ({
+    ...row,
+    price_wholesale: numOrNull(row.price_wholesale),
+    price_half_wholesale: numOrNull(row.price_half_wholesale),
+    stock: Number(row.stock),
+  }));
 };
 
 export const getWholesaleProduct = async ({ tenantId, productId }) => {
   await ensureWholesaleSchema();
   const id = idOf(productId);
-  const { rows: [product] } = await db.query(
-    "SELECT id, name, image_url, cost_price, selling_price, wholesale_price FROM products WHERE tenant_id = $1 AND id = $2",
-    [tenantId, id]
-  );
+  const { rows: [product] } = await db.query("SELECT id, name, image_url FROM products WHERE tenant_id = $1 AND id = $2", [tenantId, id]);
   if (!product) throw fail("المنتج مش موجود", 404);
-  const [variants, pack, prices] = await Promise.all([
-    loadVariants(db, { tenantId, productId: id }),
-    loadPack(db, { tenantId, productId: id }),
-    db.query("SELECT price_list_id, unit, piece_price FROM wholesale_prices WHERE tenant_id = $1 AND product_id = $2", [tenantId, id]),
-  ]);
+  const [variants, settings] = await Promise.all([loadVariants(db, { tenantId, productId: id }), loadSettings(db, { tenantId, productId: id })]);
   const colors = [...new Set(variants.map((v) => text(v.color)).filter(Boolean))];
-  const sizes = [...new Set(variants.map((v) => text(v.size)).filter(Boolean))];
-  const effectivePack = pack || { series_sizes: [], sell_piece: true, cartons: [] };
+  const byColor = groupVariantsByColor(variants);
+  const sizesByColor = Object.fromEntries(colors.map((color) => [color, (byColor.get(color.toLowerCase()) || []).map((v) => text(v.size)).filter(Boolean)]));
   return {
     product,
     colors,
-    sizes,
-    variants,
-    pack: pack || null,
-    prices: prices.rows.map((row) => ({ ...row, piece_price: Number(row.piece_price) })),
-    available: availableUnits(effectivePack, indexVariants(variants), colors),
+    sizes_by_color: sizesByColor,
+    stock_by_color: stockByColor(variants),
+    settings: settings || { ...EMPTY_SETTINGS },
+    configured: Boolean(settings),
   };
 };
 
-export const saveWholesaleProduct = async ({ tenantId, productId, pack, prices = [] }) => {
+/** Saved from the product page right after the product itself. */
+export const saveWholesaleProduct = async ({ tenantId, productId, settings }) => {
   await ensureWholesaleSchema();
   const id = idOf(productId);
   const { rows: [product] } = await db.query("SELECT id FROM products WHERE tenant_id = $1 AND id = $2", [tenantId, id]);
   if (!product) throw fail("المنتج مش موجود", 404);
-  const clean = normalizePack(pack || {});
-  const sizes = new Set((await loadVariants(db, { tenantId, productId: id })).map((v) => text(v.size).toLowerCase()));
-  const unknown = [...clean.series_sizes, ...clean.cartons.flatMap((c) => Object.keys(c.sizes))]
-    .filter((size) => !sizes.has(size.toLowerCase()));
-  if (unknown.length) throw fail(`مقاسات مش موجودة في المنتج: ${[...new Set(unknown)].join("، ")}`);
-
-  const cleanPrices = (Array.isArray(prices) ? prices : [])
-    .map((p) => ({ price_list_id: idOf(p.price_list_id), unit: text(p.unit).toLowerCase(), piece_price: p.piece_price }))
-    .filter((p) => p.price_list_id && WHOLESALE_UNITS.includes(p.unit) && p.piece_price !== "" && p.piece_price !== null && p.piece_price !== undefined);
-  for (const p of cleanPrices) {
-    const value = Number(p.piece_price);
-    if (!Number.isFinite(value) || value < 0) throw fail("سعر القطعة لازم يكون رقم موجب");
-    p.piece_price = roundMoney(value);
-  }
-
-  const client = await db.connect();
-  try {
-    await client.query("BEGIN");
-    await client.query(
-      `INSERT INTO wholesale_product_packs (tenant_id, product_id, series_sizes, sell_piece, cartons, updated_at)
-       VALUES ($1, $2, $3::jsonb, $4, $5::jsonb, NOW())
-       ON CONFLICT (tenant_id, product_id) DO UPDATE
-         SET series_sizes = EXCLUDED.series_sizes, sell_piece = EXCLUDED.sell_piece, cartons = EXCLUDED.cartons, updated_at = NOW()`,
-      [tenantId, id, JSON.stringify(clean.series_sizes), clean.sell_piece, JSON.stringify(clean.cartons)]
-    );
-    await client.query("DELETE FROM wholesale_prices WHERE tenant_id = $1 AND product_id = $2", [tenantId, id]);
-    for (const p of cleanPrices) {
-      await client.query(
-        `INSERT INTO wholesale_prices (tenant_id, price_list_id, product_id, unit, piece_price)
-         SELECT $1, $2, $3, $4, $5 WHERE EXISTS (SELECT 1 FROM wholesale_price_lists WHERE tenant_id = $1 AND id = $2)`,
-        [tenantId, p.price_list_id, id, p.unit, p.piece_price]
-      );
-    }
-    await client.query("COMMIT");
-  } catch (error) {
-    await client.query("ROLLBACK").catch(() => {});
-    throw error;
-  } finally {
-    client.release();
-  }
+  const clean = normalizeSettings(settings || {});
+  await db.query(
+    `INSERT INTO wholesale_product_packs
+       (tenant_id, product_id, sell_piece, sell_series, series_pieces, sell_carton, carton_pieces, sell_dozen,
+        price_wholesale, price_half_wholesale, updated_at)
+     VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, NOW())
+     ON CONFLICT (tenant_id, product_id) DO UPDATE SET
+       sell_piece = EXCLUDED.sell_piece, sell_series = EXCLUDED.sell_series, series_pieces = EXCLUDED.series_pieces,
+       sell_carton = EXCLUDED.sell_carton, carton_pieces = EXCLUDED.carton_pieces, sell_dozen = EXCLUDED.sell_dozen,
+       price_wholesale = EXCLUDED.price_wholesale, price_half_wholesale = EXCLUDED.price_half_wholesale, updated_at = NOW()`,
+    [tenantId, id, clean.sell_piece, clean.sell_series, clean.series_pieces, clean.sell_carton, clean.carton_pieces,
+      clean.sell_dozen, clean.price_wholesale, clean.price_half_wholesale]
+  );
   return getWholesaleProduct({ tenantId, productId: id });
 };
 
+/** For the purchases import button: the wholesale prices of many models at once. */
+export const getWholesalePrices = async ({ tenantId, productIds = [] }) => {
+  await ensureWholesaleSchema();
+  const ids = [...new Set((Array.isArray(productIds) ? productIds : []).map(idOf).filter(Boolean))];
+  if (!ids.length) return {};
+  const { rows } = await db.query(
+    `SELECT product_id, price_wholesale, price_half_wholesale FROM wholesale_product_packs
+      WHERE tenant_id = $1 AND product_id = ANY($2::bigint[])`,
+    [tenantId, ids]
+  );
+  return Object.fromEntries(rows.map((row) => [row.product_id, {
+    price_wholesale: numOrNull(row.price_wholesale),
+    price_half_wholesale: numOrNull(row.price_half_wholesale),
+  }]));
+};
+
+/** Purchases save: only the two prices, keeping the units the product page set. */
+export const setWholesalePrices = async ({ tenantId, prices = [] }) => {
+  await ensureWholesaleSchema();
+  let saved = 0;
+  for (const row of Array.isArray(prices) ? prices : []) {
+    const id = idOf(row?.product_id);
+    if (!id) continue;
+    const clean = normalizeSettings({ price_wholesale: row.price_wholesale, price_half_wholesale: row.price_half_wholesale });
+    if (clean.price_wholesale === null && clean.price_half_wholesale === null) continue;
+    const { rowCount } = await db.query(
+      `INSERT INTO wholesale_product_packs (tenant_id, product_id, price_wholesale, price_half_wholesale, updated_at)
+       SELECT $1::bigint, $2::bigint, $3::numeric, $4::numeric, NOW()
+        WHERE EXISTS (SELECT 1 FROM products WHERE tenant_id = $1::bigint AND id = $2::bigint)
+       ON CONFLICT (tenant_id, product_id) DO UPDATE SET
+         price_wholesale = COALESCE(EXCLUDED.price_wholesale, wholesale_product_packs.price_wholesale),
+         price_half_wholesale = COALESCE(EXCLUDED.price_half_wholesale, wholesale_product_packs.price_half_wholesale),
+         updated_at = NOW()`,
+      [tenantId, id, clean.price_wholesale, clean.price_half_wholesale]
+    );
+    saved += rowCount;
+  }
+  return { saved };
+};
+
 /* ------------------------------- customers ------------------------------- */
+
+export const getCustomerTerms = async ({ tenantId, customerId }) => {
+  await ensureWholesaleSchema();
+  const { rows: [row] } = await db.query(
+    "SELECT tier, credit_limit, due_days FROM wholesale_customer_terms WHERE tenant_id = $1 AND customer_id = $2",
+    [tenantId, idOf(customerId)]
+  );
+  return {
+    tier: tierOf(row?.tier),
+    credit_limit: Number(row?.credit_limit || 0),
+    due_days: Number(row?.due_days || 0),
+  };
+};
 
 export const listWholesaleCustomers = async ({ tenantId, search = "", limit = 40 }) => {
   await ensureWholesaleSchema();
   const term = text(search);
   const { rows } = await db.query(
-    `SELECT c.id, c.name, c.phone, t.price_list_id, pl.name AS price_list_name,
+    `SELECT c.id, c.name, c.phone, COALESCE(t.tier, 'wholesale') AS tier,
             COALESCE(t.credit_limit, 0) AS credit_limit, COALESCE(t.due_days, 0) AS due_days
        FROM customers c
        LEFT JOIN wholesale_customer_terms t ON t.tenant_id = c.tenant_id AND t.customer_id = c.id
-       LEFT JOIN wholesale_price_lists pl ON pl.id = t.price_list_id
       WHERE c.tenant_id = $1 AND COALESCE(c.status, 'active') <> 'deleted'
         AND ($2 = '' OR c.name ILIKE '%' || $2 || '%' OR c.phone ILIKE '%' || $2 || '%')
       ORDER BY c.name
       LIMIT $3`,
     [tenantId, term, Math.min(Math.max(Number(limit) || 40, 1), 200)]
   );
-  return rows.map((row) => ({ ...row, credit_limit: Number(row.credit_limit), due_days: Number(row.due_days) }));
+  return rows.map((row) => ({ ...row, tier: tierOf(row.tier), credit_limit: Number(row.credit_limit), due_days: Number(row.due_days) }));
 };
 
-export const saveCustomerTerms = async ({ tenantId, customerId, price_list_id = null, credit_limit = 0, due_days = 0, notes = "" }) => {
+export const saveCustomerTerms = async ({ tenantId, customerId, tier = "wholesale", credit_limit = 0, due_days = 0 }) => {
   await ensureWholesaleSchema();
   const id = idOf(customerId);
   const { rows: [customer] } = await db.query("SELECT id FROM customers WHERE tenant_id = $1 AND id = $2", [tenantId, id]);
   if (!customer) throw fail("العميل مش موجود", 404);
   const limit = Number(credit_limit) || 0;
   const days = Math.trunc(Number(due_days) || 0);
-  if (limit < 0 || days < 0) throw fail("حد الائتمان ومدة السداد لازم يكونوا أرقام موجبة");
-  const listId = idOf(price_list_id);
-  if (listId) {
-    const { rowCount } = await db.query("SELECT 1 FROM wholesale_price_lists WHERE tenant_id = $1 AND id = $2", [tenantId, listId]);
-    if (!rowCount) throw fail("قائمة الأسعار مش موجودة", 404);
-  }
-  const { rows: [row] } = await db.query(
-    `INSERT INTO wholesale_customer_terms (tenant_id, customer_id, price_list_id, credit_limit, due_days, notes, updated_at)
-     VALUES ($1, $2, $3, $4, $5, $6, NOW())
+  if (limit < 0 || days < 0) throw fail("حد الآجل ومدة السداد لازم يكونوا أرقام موجبة");
+  await db.query(
+    `INSERT INTO wholesale_customer_terms (tenant_id, customer_id, tier, credit_limit, due_days, updated_at)
+     VALUES ($1, $2, $3, $4, $5, NOW())
      ON CONFLICT (tenant_id, customer_id) DO UPDATE
-       SET price_list_id = EXCLUDED.price_list_id, credit_limit = EXCLUDED.credit_limit,
-           due_days = EXCLUDED.due_days, notes = EXCLUDED.notes, updated_at = NOW()
-     RETURNING *`,
-    [tenantId, id, listId, roundMoney(limit), days, text(notes)]
+       SET tier = EXCLUDED.tier, credit_limit = EXCLUDED.credit_limit, due_days = EXCLUDED.due_days, updated_at = NOW()`,
+    [tenantId, id, tierOf(tier), roundMoney(limit), days]
   );
-  return { ...row, credit_limit: Number(row.credit_limit) };
+  return getCustomerTerms({ tenantId, customerId: id });
 };
 
 /* -------------------------------- invoice -------------------------------- */
 
-const resolvePriceList = async ({ tenantId, customerId, priceListId }) => {
-  const explicit = idOf(priceListId);
-  if (explicit) {
-    const { rows: [row] } = await db.query("SELECT id, name FROM wholesale_price_lists WHERE tenant_id = $1 AND id = $2 AND is_active", [tenantId, explicit]);
-    if (row) return row;
-  }
-  if (idOf(customerId)) {
-    const { rows: [row] } = await db.query(
-      `SELECT pl.id, pl.name FROM wholesale_customer_terms t
-         JOIN wholesale_price_lists pl ON pl.id = t.price_list_id AND pl.is_active
-        WHERE t.tenant_id = $1 AND t.customer_id = $2`,
-      [tenantId, idOf(customerId)]
-    );
-    if (row) return row;
-  }
-  const { rows: [fallback] } = await db.query(
-    "SELECT id, name FROM wholesale_price_lists WHERE tenant_id = $1 AND is_active ORDER BY is_default DESC, sort_order, id LIMIT 1",
-    [tenantId]
-  );
-  if (!fallback) throw fail("اعمل قائمة أسعار واحدة على الأقل (جملة مثلاً)");
-  return fallback;
-};
-
 /**
- * Prices and splits an invoice without saving anything. Prices come only from the
- * price list -- a body price is never read.
+ * Prices and splits an invoice without saving anything. The piece price comes only from
+ * the product's tier price -- a body price is never read.
  */
-export const previewWholesaleInvoice = async ({ tenantId, customerId = null, priceListId = null, lines = [] }) => {
+export const previewWholesaleInvoice = async ({ tenantId, customerId = null, tier = null, lines = [] }) => {
   await ensureWholesaleSchema();
   if (!Array.isArray(lines) || !lines.length) throw fail("الفاتورة فاضية");
-  const priceList = await resolvePriceList({ tenantId, customerId, priceListId });
-
   if (lines.some((line) => !idOf(line?.product_id))) throw fail("كل سطر لازم يكون عليه منتج");
+
+  const resolvedTier = WHOLESALE_TIERS.includes(tier)
+    ? tier
+    : idOf(customerId) ? (await getCustomerTerms({ tenantId, customerId })).tier : "wholesale";
+
   const productIds = [...new Set(lines.map((line) => idOf(line.product_id)))];
   const { rows: products } = await db.query("SELECT id, name FROM products WHERE tenant_id = $1 AND id = ANY($2::bigint[])", [tenantId, productIds]);
   const productById = new Map(products.map((p) => [Number(p.id), p]));
-  const { rows: priceRows } = await db.query(
-    "SELECT product_id, unit, piece_price FROM wholesale_prices WHERE tenant_id = $1 AND price_list_id = $2 AND product_id = ANY($3::bigint[])",
-    [tenantId, priceList.id, productIds]
-  );
-  const priceOf = new Map(priceRows.map((r) => [`${r.product_id}|${r.unit}`, Number(r.piece_price)]));
 
   const cache = new Map();
   const productData = async (productId) => {
     if (!cache.has(productId)) {
-      const [variants, pack] = await Promise.all([loadVariants(db, { tenantId, productId }), loadPack(db, { tenantId, productId })]);
-      cache.set(productId, { variants, index: indexVariants(variants), pack: pack || { series_sizes: [], sell_piece: true, cartons: [] } });
+      const [variants, settings] = await Promise.all([loadVariants(db, { tenantId, productId }), loadSettings(db, { tenantId, productId })]);
+      cache.set(productId, { variants, byColor: groupVariantsByColor(variants), settings: settings || { ...EMPTY_SETTINGS } });
     }
     return cache.get(productId);
   };
@@ -296,23 +247,22 @@ export const previewWholesaleInvoice = async ({ tenantId, customerId = null, pri
     const data = await productData(productId);
     let exploded;
     try {
-      exploded = explodeLine(line, data.pack, data.index);
+      exploded = explodeLine(line, data.settings, data.byColor);
     } catch (error) {
       throw fail(`${product.name}: ${error.message}`, error.status || 400, error.code);
     }
-    const piecePrice = priceOf.get(`${productId}|${exploded.unit}`);
-    if (piecePrice === undefined) {
-      throw fail(`${product.name}: مفيش سعر ${exploded.unit === "piece" ? "قطعة" : exploded.unit === "series" ? "سيرية" : "كرتونة"} في قائمة "${priceList.name}"`, 400, "WHOLESALE_PRICE_MISSING");
+    const piecePrice = piecePriceFor(data.settings, resolvedTier);
+    if (piecePrice === null) {
+      throw fail(`${product.name}: مفيش سعر قطعة ${TIER_LABEL[resolvedTier]} — حطه من صفحة المنتج`, 400, "WHOLESALE_PRICE_MISSING");
     }
     out.push({
       product_id: productId,
       product_name: product.name,
       unit: exploded.unit,
-      unit_label: unitLabel(exploded.unit, data.pack, text(line.carton_key)),
+      unit_label: unitLabel(exploded.unit, data.settings),
       unit_qty: exploded.qty,
-      carton_key: exploded.unit === "carton" ? text(line.carton_key) : null,
-      colors: exploded.unit === "carton" ? line.colors.map(text) : [text(line.color)].filter(Boolean),
-      size: exploded.unit === "piece" ? text(line.size) : null,
+      colors: [...new Set(exploded.composition.map((part) => text(part.color)))],
+      size: exploded.unit === "piece" ? text(line.size) || null : null,
       pieces: exploded.pieces,
       piece_price: piecePrice,
       line_total: roundMoney(exploded.pieces * piecePrice),
@@ -330,7 +280,8 @@ export const previewWholesaleInvoice = async ({ tenantId, customerId = null, pri
   }
 
   return {
-    price_list: priceList,
+    tier: resolvedTier,
+    tier_label: TIER_LABEL[resolvedTier],
     lines: out,
     pieces: out.reduce((sum, line) => sum + line.pieces, 0),
     total: roundMoney(out.reduce((sum, line) => sum + line.line_total, 0)),
@@ -361,20 +312,16 @@ const runCreateOrder = (req, body) =>
 /**
  * Saves a wholesale invoice. The goods go through the SAME createOrder the shop uses
  * (stock, shift, salesperson, accounting, credit sale), as pieces per colour/size at the
- * price-list piece price; this module only adds the wholesale view of the lines.
+ * tier piece price; this module only adds the wholesale view of the lines.
  *
  * payment: { mode: "cash" | "credit" | "partial", method, paid_amount }
  */
 export const createWholesaleInvoice = async ({ req, tenantId, body = {} }) => {
-  const preview = await previewWholesaleInvoice({
-    tenantId,
-    customerId: body.customer_id,
-    priceListId: body.price_list_id,
-    lines: body.lines,
-  });
+  const preview = await previewWholesaleInvoice({ tenantId, customerId: body.customer_id, tier: body.tier, lines: body.lines });
   if (preview.shortages.length) {
     const first = preview.shortages[0];
-    throw Object.assign(fail(`المخزون مش كفاية: ${first.color} مقاس ${first.size} مطلوب ${first.wanted} والموجود ${first.stock}`, 409, "WHOLESALE_STOCK_SHORT"), { shortages: preview.shortages });
+    const where = first.size ? `${first.color} مقاس ${first.size}` : first.color;
+    throw Object.assign(fail(`المخزون مش كفاية: ${where} مطلوب ${first.wanted} والموجود ${first.stock}`, 409, "WHOLESALE_STOCK_SHORT"), { shortages: preview.shortages });
   }
 
   const customerId = idOf(body.customer_id);
@@ -383,7 +330,7 @@ export const createWholesaleInvoice = async ({ req, tenantId, body = {} }) => {
   const method = PAYMENT_METHODS.has(payment.method) ? payment.method : "cash";
   const total = preview.total;
   if ((mode === "credit" || mode === "partial") && !customerId) throw fail("البيع الآجل محتاج عميل");
-  let paid = mode === "cash" ? total : mode === "credit" ? 0 : roundMoney(Number(payment.paid_amount) || 0);
+  const paid = mode === "cash" ? total : mode === "credit" ? 0 : roundMoney(Number(payment.paid_amount) || 0);
   if (mode === "partial" && !(paid > 0 && paid < total)) throw fail("المدفوع لازم يكون أكبر من صفر وأقل من الإجمالي");
 
   // Same variant at the same piece price -> one order line.
@@ -430,7 +377,7 @@ export const createWholesaleInvoice = async ({ req, tenantId, body = {} }) => {
     total,
     paid_amount: paid,
     change_amount: 0,
-    amount_due_now: mode === "cash" ? total : roundMoney(total - paid) || total,
+    amount_due_now: mode === "cash" ? total : roundMoney(total - paid),
     status: mode === "cash" ? "paid" : mode === "credit" ? "unpaid" : "partially_paid",
     payment_status: mode === "cash" ? "paid" : mode === "credit" ? "unpaid" : "partially_paid",
     cash_amount: method === "cash" ? paid : 0,
@@ -445,7 +392,7 @@ export const createWholesaleInvoice = async ({ req, tenantId, body = {} }) => {
     salesperson_id: salesEmployeeId,
     assigned_seller_id: salesEmployeeId,
     seller_employee_id: salesEmployeeId,
-    notes: text(body.notes) || `فاتورة جملة — ${preview.price_list.name}`,
+    notes: text(body.notes) || `فاتورة ${preview.tier_label}`,
     idempotency_key: text(body.idempotency_key) || null,
     items,
   };
@@ -463,10 +410,10 @@ export const createWholesaleInvoice = async ({ req, tenantId, body = {} }) => {
       for (const line of preview.lines) {
         await db.query(
           `INSERT INTO wholesale_invoice_lines
-             (tenant_id, order_id, product_id, product_name, unit, unit_label, unit_qty, colors, pieces, piece_price, line_total, composition, price_list_id)
+             (tenant_id, order_id, product_id, product_name, unit, unit_label, unit_qty, colors, pieces, piece_price, line_total, composition, tier)
            VALUES ($1, $2, $3, $4, $5, $6, $7, $8::jsonb, $9, $10, $11, $12::jsonb, $13)`,
           [tenantId, orderId, line.product_id, line.product_name, line.unit, line.unit_label, line.unit_qty,
-            JSON.stringify(line.colors), line.pieces, line.piece_price, line.line_total, JSON.stringify(line.composition), preview.price_list.id]
+            JSON.stringify(line.colors), line.pieces, line.piece_price, line.line_total, JSON.stringify(line.composition), preview.tier]
         );
       }
     } catch (error) {
@@ -475,13 +422,13 @@ export const createWholesaleInvoice = async ({ req, tenantId, body = {} }) => {
     }
   }
 
-  return { ...result.body, wholesale: { price_list: preview.price_list, lines: preview.lines, pieces: preview.pieces, total } };
+  return { ...result.body, wholesale: { tier: preview.tier, lines: preview.lines, pieces: preview.pieces, total } };
 };
 
 export const getWholesaleInvoiceLines = async ({ tenantId, orderId }) => {
   await ensureWholesaleSchema();
   const { rows } = await db.query(
-    `SELECT product_id, product_name, unit, unit_label, unit_qty, colors, pieces, piece_price, line_total
+    `SELECT product_id, product_name, unit, unit_label, unit_qty, colors, pieces, piece_price, line_total, tier
        FROM wholesale_invoice_lines WHERE tenant_id = $1 AND order_id = $2 ORDER BY id`,
     [tenantId, idOf(orderId)]
   );

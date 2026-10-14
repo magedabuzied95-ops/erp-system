@@ -61,14 +61,22 @@ function SearchPicker({ endpoint, placeholder, render, onPick, selectedLabel }) 
   );
 }
 
+const UNIT_ORDER = ["carton", "series", "dozen", "piece"];
+const unitOn = (unit, s = {}) => (
+  unit === "piece" ? s.sell_piece
+    : unit === "series" ? s.sell_series && s.series_pieces
+      : unit === "carton" ? s.sell_carton && s.carton_pieces
+        : s.sell_dozen
+);
+const piecesIn = (unit, s = {}) => (unit === "series" ? s.series_pieces : unit === "carton" ? s.carton_pieces : unit === "dozen" ? 12 : 1);
+
 function LineBuilder({ onAdd }) {
   const { t } = useTranslation();
   const [product, setProduct] = useState(null);
-  const [unit, setUnit] = useState("series");
+  const [unit, setUnit] = useState("piece");
   const [qty, setQty] = useState("1");
   const [color, setColor] = useState("");
   const [size, setSize] = useState("");
-  const [cartonKey, setCartonKey] = useState("");
   const [colors, setColors] = useState([]);
 
   const pick = async (row) => {
@@ -76,11 +84,9 @@ function LineBuilder({ onAdd }) {
       const res = await api.get(`/wholesale/products/${row.id}`);
       const d = res.data;
       setProduct(d);
-      const pack = d.pack || { series_sizes: [], sell_piece: true, cartons: [] };
-      setUnit(pack.cartons.length ? "carton" : pack.series_sizes.length ? "series" : "piece");
-      setCartonKey(pack.cartons[0]?.key || "");
+      setUnit(UNIT_ORDER.find((u) => unitOn(u, d.settings)) || "piece");
       setColor(d.colors[0] || "");
-      setSize(d.sizes[0] || "");
+      setSize(d.sizes_by_color?.[d.colors[0]]?.[0] || "");
       setColors([]);
       setQty("1");
     } catch (error) {
@@ -88,17 +94,18 @@ function LineBuilder({ onAdd }) {
     }
   };
 
-  const pack = product?.pack || { series_sizes: [], sell_piece: true, cartons: [] };
-  const units = ["piece", "series", "carton"].filter((u) => (u === "piece" ? pack.sell_piece : u === "series" ? pack.series_sizes.length : pack.cartons.length));
-  const carton = pack.cartons.find((c) => c.key === cartonKey);
+  const settings = product?.settings || {};
+  const units = UNIT_ORDER.filter((u) => unitOn(u, settings));
+  const sizes = product?.sizes_by_color?.[color] || [];
+  const cartonPieces = Number(settings.carton_pieces) || 0;
+  const cartonSplitOk = colors.length > 0 && cartonPieces % colors.length === 0;
 
   const add = () => {
     const quantity = Number(qty);
     if (!product || !Number.isInteger(quantity) || quantity <= 0) return;
     const line = { product_id: product.product.id, product_name: product.product.name, unit, qty: quantity };
-    if (unit === "piece") Object.assign(line, { color, size });
-    if (unit === "series") Object.assign(line, { color });
-    if (unit === "carton") Object.assign(line, { carton_key: cartonKey, colors });
+    if (unit === "carton") Object.assign(line, { colors });
+    else Object.assign(line, { color, ...(unit === "piece" && sizes.length > 1 ? { size } : {}) });
     onAdd(line);
     setColors([]);
     setQty("1");
@@ -119,12 +126,14 @@ function LineBuilder({ onAdd }) {
             </span>
           )}
         />
-        {product && !units.length ? <p className="text-sm font-black text-amber-500">{t("orders.wholesale.invoice.noPack")}</p> : null}
-        {product && units.length ? (
+        {product && !product.configured ? <p className="text-sm font-black text-amber-500">{t("orders.wholesale.invoice.noPack")}</p> : null}
+        {product ? (
           <>
             <div className="flex flex-wrap gap-2">
               {units.map((u) => (
-                <button key={u} type="button" className={chipClass(unit === u)} onClick={() => setUnit(u)}>{t(`orders.wholesale.units.${u}`)}</button>
+                <button key={u} type="button" className={chipClass(unit === u)} onClick={() => setUnit(u)}>
+                  {t(`orders.wholesale.units.${u}`)}{u !== "piece" ? ` (${piecesIn(u, settings)})` : ""}
+                </button>
               ))}
             </div>
             <div className="flex flex-wrap items-end gap-2">
@@ -135,43 +144,45 @@ function LineBuilder({ onAdd }) {
               {unit !== "carton" ? (
                 <label className="grid gap-1 text-xs font-black text-[var(--muted)]">
                   {t("orders.wholesale.common.color")}
-                  <ThemedSelect value={color} onChange={setColor} options={product.colors} className="min-w-36" />
+                  <ThemedSelect
+                    value={color}
+                    onChange={(value) => { setColor(value); setSize(product.sizes_by_color?.[value]?.[0] || ""); }}
+                    options={product.colors.map((c) => ({ value: c, label: `${c} (${product.stock_by_color?.[c] ?? 0})` }))}
+                    className="min-w-40"
+                  />
                 </label>
-              ) : (
-                <label className="grid gap-1 text-xs font-black text-[var(--muted)]">
-                  {t("orders.wholesale.invoice.cartonType")}
-                  <ThemedSelect value={cartonKey} onChange={(v) => { setCartonKey(v); setColors([]); }} options={pack.cartons.map((c) => ({ value: c.key, label: c.label }))} className="min-w-48" />
-                </label>
-              )}
-              {unit === "piece" ? (
+              ) : null}
+              {unit === "piece" && sizes.length > 1 ? (
                 <label className="grid gap-1 text-xs font-black text-[var(--muted)]">
                   {t("orders.wholesale.common.size")}
-                  <ThemedSelect value={size} onChange={setSize} options={product.sizes} className="min-w-24" />
+                  <ThemedSelect value={size} onChange={setSize} options={sizes} className="min-w-24" />
                 </label>
               ) : null}
             </div>
-            {unit === "carton" && carton ? (
+            {unit === "carton" ? (
               <div>
-                <p className="text-xs font-black text-[var(--muted)]">{t("orders.wholesale.invoice.pickColors", { count: carton.colors })}</p>
+                <p className="text-xs font-black text-[var(--muted)]">{t("orders.wholesale.invoice.cartonColors", { count: cartonPieces })}</p>
                 <div className="mt-2 flex flex-wrap gap-2">
                   {product.colors.map((c) => {
                     const on = colors.includes(c);
                     return (
-                      <button
-                        key={c}
-                        type="button"
-                        className={chipClass(on)}
-                        onClick={() => setColors((cur) => (on ? cur.filter((x) => x !== c) : cur.length < carton.colors ? [...cur, c] : cur))}
-                      >
-                        {c}
+                      <button key={c} type="button" className={chipClass(on)} onClick={() => setColors((cur) => (on ? cur.filter((x) => x !== c) : [...cur, c]))}>
+                        {c} ({product.stock_by_color?.[c] ?? 0})
                       </button>
                     );
                   })}
                 </div>
+                {colors.length ? (
+                  <p className={`mt-2 text-xs font-black ${cartonSplitOk ? "text-[var(--text)]" : "text-red-500"}`}>
+                    {cartonSplitOk
+                      ? t("orders.wholesale.invoice.cartonSplit", { each: cartonPieces / colors.length, count: colors.length })
+                      : t("orders.wholesale.invoice.cartonUneven", { pieces: cartonPieces, count: colors.length })}
+                  </p>
+                ) : null}
               </div>
             ) : null}
             <div className="flex justify-end">
-              <button type="button" className={primaryButton} onClick={add} disabled={unit === "carton" && (!carton || colors.length !== carton.colors)}>
+              <button type="button" className={primaryButton} onClick={add} disabled={!units.length || (unit === "carton" && !cartonSplitOk)}>
                 <Plus size={16} /> {t("orders.wholesale.invoice.addLine")}
               </button>
             </div>
@@ -188,6 +199,8 @@ export default function WholesaleInvoice() {
   const [sellers, setSellers] = useState([]);
   const [sellerId, setSellerId] = useState("");
   const [customer, setCustomer] = useState(null);
+  // The customer's tier by default; can be switched for one invoice.
+  const [tier, setTier] = useState("wholesale");
   const [lines, setLines] = useState([]);
   const [preview, setPreview] = useState(null);
   const [previewError, setPreviewError] = useState("");
@@ -215,10 +228,10 @@ export default function WholesaleInvoice() {
       .catch(() => setSellers([]));
   }, [shift?.branch_id]);
 
-  const refreshPreview = useCallback(async (nextLines, nextCustomer) => {
+  const refreshPreview = useCallback(async (nextLines, nextCustomer, nextTier) => {
     if (!nextLines.length) { setPreview(null); setPreviewError(""); return; }
     try {
-      const res = await api.post("/wholesale/invoices/preview", { customer_id: nextCustomer?.id || null, lines: nextLines });
+      const res = await api.post("/wholesale/invoices/preview", { customer_id: nextCustomer?.id || null, tier: nextTier, lines: nextLines });
       setPreview(res.data);
       setPreviewError("");
     } catch (error) {
@@ -227,7 +240,12 @@ export default function WholesaleInvoice() {
     }
   }, []);
 
-  useEffect(() => { refreshPreview(lines, customer); }, [lines, customer, refreshPreview]);
+  useEffect(() => { refreshPreview(lines, customer, tier); }, [lines, customer, tier, refreshPreview]);
+
+  const pickCustomer = (row) => {
+    setCustomer(row);
+    setTier(row?.tier || "wholesale");
+  };
 
   const total = preview?.total || 0;
   const paidNumber = mode === "cash" ? total : mode === "credit" ? 0 : Number(paid) || 0;
@@ -245,6 +263,7 @@ export default function WholesaleInvoice() {
         customer_id: customer?.id || null,
         customer_name: customer?.name || "",
         customer_phone: customer?.phone || "",
+        tier,
         lines,
         branch_id: shift.branch_id,
         shift_id: shift.id,
@@ -265,7 +284,10 @@ export default function WholesaleInvoice() {
     }
   };
 
-  const shortageText = useMemo(() => (preview?.shortages || []).map((s) => t("orders.wholesale.invoice.shortage", s)), [preview, t]);
+  const shortageText = useMemo(() => (preview?.shortages || []).map((s) => t("orders.wholesale.invoice.shortage", {
+    ...s,
+    where: s.size ? `${s.color} / ${s.size}` : s.color,
+  })), [preview, t]);
 
   if (shift === undefined) {
     return <div className="p-4 text-sm font-bold text-[var(--muted)]"><Loader2 size={16} className="me-2 inline animate-spin" />{t("orders.wholesale.common.loading")}</div>;
@@ -292,13 +314,13 @@ export default function WholesaleInvoice() {
           <SearchPicker
             endpoint="/wholesale/customers"
             placeholder={t("orders.wholesale.invoice.customerPlaceholder")}
-            selectedLabel={customer ? `${customer.name}${customer.price_list_name ? ` — ${customer.price_list_name}` : ""}` : ""}
-            onPick={setCustomer}
+            selectedLabel={customer ? `${customer.name} — ${t(`orders.wholesale.tiers.${customer.tier || "wholesale"}`)}` : ""}
+            onPick={pickCustomer}
             render={(row) => (
               <span className="flex items-center gap-2">
                 <span className="flex-1 text-sm font-black text-[var(--text)]">{row.name}</span>
                 <span className="text-xs font-bold text-[var(--muted)]" dir="ltr">{row.phone}</span>
-                {row.price_list_name ? <span className="rounded-full bg-[var(--table-hover)] px-2 text-[11px] font-black text-[var(--text)]">{row.price_list_name}</span> : null}
+                <span className="rounded-full bg-[var(--table-hover)] px-2 text-[11px] font-black text-[var(--text)]">{t(`orders.wholesale.tiers.${row.tier || "wholesale"}`)}</span>
               </span>
             )}
           />
@@ -306,6 +328,14 @@ export default function WholesaleInvoice() {
             <button type="button" className="justify-self-start text-xs font-black text-[var(--muted)] underline" onClick={() => setCustomer(null)}>{t("orders.wholesale.invoice.walkIn")}</button>
           ) : null}
         </label>
+        <div className="grid gap-1 text-xs font-black text-[var(--muted)]">
+          {t("orders.wholesale.invoice.tier")}
+          <div className="flex flex-wrap gap-2">
+            {["wholesale", "half_wholesale"].map((key) => (
+              <button key={key} type="button" className={chipClass(tier === key)} onClick={() => setTier(key)}>{t(`orders.wholesale.tiers.${key}`)}</button>
+            ))}
+          </div>
+        </div>
         <label className="grid gap-1 text-xs font-black text-[var(--muted)]">
           {t("orders.wholesale.invoice.salesperson")}
           <ThemedSelect value={sellerId} onChange={setSellerId} options={sellers} placeholder="—" />
@@ -317,7 +347,7 @@ export default function WholesaleInvoice() {
       <div className={cardClass}>
         <div className="flex items-center justify-between gap-2">
           <h3 className="font-black text-[var(--text)]">{t("orders.wholesale.invoice.lines")}</h3>
-          {preview ? <span className="text-sm font-black text-[var(--muted)]">{t("orders.wholesale.invoice.priceList")}: {preview.price_list.name}</span> : null}
+          {preview ? <span className="text-sm font-black text-[var(--muted)]">{t("orders.wholesale.invoice.tier")}: {t(`orders.wholesale.tiers.${preview.tier}`)}</span> : null}
         </div>
         {!lines.length ? <p className="mt-3 text-sm font-bold text-[var(--muted)]">{t("orders.wholesale.invoice.empty")}</p> : (
           <div className="mt-3 overflow-x-auto">
@@ -340,7 +370,7 @@ export default function WholesaleInvoice() {
                     <tr key={index} className="border-t border-[var(--border)]">
                       <td className="p-2 font-black text-[var(--text)]">{line.product_name}</td>
                       <td className="p-2 font-bold text-[var(--text)]">{line.qty} × {priced?.unit_label || t(`orders.wholesale.units.${line.unit}`)}</td>
-                      <td className="p-2 font-bold text-[var(--text)]">{(line.colors || [line.color]).filter(Boolean).join("، ")}{line.size ? ` / ${line.size}` : ""}</td>
+                      <td className="p-2 font-bold text-[var(--text)]">{(line.colors || [line.color]).filter(Boolean).join(" · ")}{line.size ? ` / ${line.size}` : ""}</td>
                       <td className="p-2 font-bold text-[var(--text)]">{priced?.pieces ?? "—"}</td>
                       <td className="p-2 font-bold text-[var(--text)]">{priced ? money(priced.piece_price) : "—"}</td>
                       <td className="p-2 font-black text-[var(--text)]">{priced ? money(priced.line_total) : "—"}</td>

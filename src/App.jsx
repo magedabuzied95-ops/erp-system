@@ -161,7 +161,6 @@ const OrderDetails = lazy(() => import("./modules/orders/pages/OrderDetails"));
 const OrderReturns = lazy(() => import("./modules/orders/pages/Returns"));
 const WalletTransfers = lazy(() => import("./modules/orders/pages/WalletTransfers"));
 const WholesaleInvoice = lazy(() => import("./modules/wholesale/pages/WholesaleInvoice"));
-const WholesaleSetup = lazy(() => import("./modules/wholesale/pages/WholesaleSetup"));
 
 /* ======================================================
    REPORTS
@@ -1659,24 +1658,14 @@ function App() {
 
         {/* Wholesale copy only: the routes do not exist on the retail host. */}
         {IS_WHOLESALE_APP ? (
-          <>
-            <Route
-              path="wholesale/invoice"
-              element={
-                <ProtectedRoute requiredPermissions={["orders.create"]}>
-                  <WholesaleInvoice />
-                </ProtectedRoute>
-              }
-            />
-            <Route
-              path="wholesale/setup"
-              element={
-                <ProtectedRoute requiredPermissions={["products.edit"]}>
-                  <WholesaleSetup />
-                </ProtectedRoute>
-              }
-            />
-          </>
+          <Route
+            path="wholesale/invoice"
+            element={
+              <ProtectedRoute requiredPermissions={["orders.create"]}>
+                <WholesaleInvoice />
+              </ProtectedRoute>
+            }
+          />
         ) : null}
 
         <Route

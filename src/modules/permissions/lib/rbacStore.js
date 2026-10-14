@@ -448,7 +448,6 @@ const RAW_SIDEBAR_SECTIONS = [
       { label: "POS PRO", to: "/pos", permission: "pos.view", icon: Store },
       // Wholesale copy only (jomla host); hidden on retail.
       { label: "Wholesale invoice", sidebarLabelKey: "sidebar.wholesaleInvoice", to: "/wholesale/invoice", permission: "orders.create", icon: Boxes, wholesaleOnly: true, keywords: "wholesale jomla series carton" },
-      { label: "Wholesale setup", sidebarLabelKey: "sidebar.wholesaleSetup", to: "/wholesale/setup", permission: "products.edit", icon: Scale, wholesaleOnly: true, keywords: "wholesale price list series carton" },
       { label: "Orders", to: "/orders", permission: "orders.view", icon: ShoppingCart },
       { label: "Website Orders", to: "/orders?channel=website", permission: "website.orders", icon: ShoppingBag },
       { label: "Returns", to: "/orders/returns", permission: "orders.view", icon: ReceiptText },

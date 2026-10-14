@@ -1288,101 +1288,66 @@
     "saveFailed": "Could not save, try again"
   },
   "wholesale": {
-    "nav": {
-      "invoice": "Wholesale invoice",
-      "setup": "Wholesale setup"
-    },
     "units": {
       "piece": "Piece",
       "series": "Series",
-      "carton": "Carton"
+      "carton": "Carton",
+      "dozen": "Dozen"
+    },
+    "tiers": {
+      "wholesale": "Wholesale",
+      "half_wholesale": "Half-wholesale"
     },
     "common": {
-      "save": "Save",
-      "saving": "Saving...",
-      "saved": "Saved",
-      "delete": "Delete",
-      "add": "Add",
-      "search": "Search",
       "loading": "Loading...",
       "none": "No results",
       "egp": "EGP",
       "pieces": "pcs",
-      "colors": "colours",
+      "colors": "Colours",
       "color": "Colour",
       "size": "Size",
       "qty": "Qty",
       "total": "Total",
       "remove": "Remove"
     },
-    "setup": {
-      "title": "Wholesale setup",
-      "subtitle": "Price lists, each product's series and cartons, and each customer's list",
-      "tabs": {
-        "lists": "Price lists",
-        "products": "Products",
-        "customers": "Customers"
-      },
-      "lists": {
-        "namePlaceholder": "List name (wholesale, half-wholesale...)",
-        "default": "Default",
-        "makeDefault": "Make default",
-        "empty": "No price lists yet. Start with \"Wholesale\".",
-        "deleteConfirm": "Delete \"{{name}}\"? Its prices are removed and its customers fall back to the default list."
-      },
-      "products": {
-        "searchPlaceholder": "Search a product by name or code",
-        "configured": "Set up",
-        "notConfigured": "Not set up",
-        "pick": "Pick a product to set its series, cartons and prices",
-        "seriesTitle": "Series (one colour, one piece of each size)",
-        "seriesHint": "Pick the sizes a series contains",
-        "seriesCount": "Series = {{count}} pieces",
-        "sellPiece": "Also sold by the piece",
-        "cartonsTitle": "Cartons",
-        "cartonPieces": "Pieces",
-        "cartonColors": "Colours",
-        "cartonLabel": "Name (optional)",
-        "cartonSplit": "Size split per colour",
-        "cartonSplitHint": "{{per}} pieces per colour. If that is not whole series, set the pieces of each size.",
-        "addCarton": "Add carton",
-        "pricesTitle": "Piece price",
-        "pricesHint": "Price of one piece when sold by that unit. Leave empty if the unit is not offered on the list.",
-        "list": "List",
-        "available": "Available now",
-        "availableSeries": "{{color}}: {{count}} series",
-        "noLists": "Create a price list first in the \"Price lists\" tab"
-      },
-      "customers": {
-        "searchPlaceholder": "Search a customer by name or phone",
-        "priceList": "Price list",
-        "defaultList": "Default",
-        "creditLimit": "Credit limit",
-        "dueDays": "Payment terms (days)",
-        "noLimit": "0 = no limit"
-      }
+    "product": {
+      "title": "Wholesale selling",
+      "hint": "Tick how the model is sold and enter the piece price. Series, carton and dozen prices follow from it.",
+      "piecesIn": "Pieces per {{unit}}",
+      "dozenPieces": "12 pieces",
+      "piecePrice": "Piece price — {{tier}}",
+      "halfFallback": "Leave the half-wholesale price empty to sell at the wholesale price.",
+      "needSeriesPieces": "Enter the pieces per series in Wholesale selling",
+      "needCartonPieces": "Enter the pieces per carton in Wholesale selling"
+    },
+    "customer": {
+      "title": "Wholesale customer",
+      "creditLimit": "Credit limit",
+      "noLimit": "0 = no limit",
+      "dueDays": "Payment terms (days)"
     },
     "invoice": {
       "title": "Wholesale invoice",
-      "subtitle": "Sell by piece, series and carton at the customer's list price",
+      "subtitle": "Sell by piece, series, carton and dozen at the customer's price",
       "noShift": "No open shift. Open a shift from the POS first.",
       "openPos": "Open POS",
       "customer": "Customer",
       "customerPlaceholder": "Search the customer",
       "walkIn": "No customer (cash only)",
-      "priceList": "Price list",
+      "tier": "Price",
       "salesperson": "Salesperson",
       "product": "Product",
       "productPlaceholder": "Search the product",
       "unit": "Unit",
-      "cartonType": "Carton type",
-      "pickColors": "Pick {{count}} colours",
+      "cartonColors": "Pick the carton's colour, or several for a mixed carton ({{count}} pcs)",
+      "cartonSplit": "{{each}} pcs of each colour ({{count}} colours)",
+      "cartonUneven": "{{pieces}} pcs do not split evenly over {{count}} colours",
       "addLine": "Add to invoice",
-      "noPack": "This product has no series or carton. Set it up in \"Wholesale setup\".",
+      "noPack": "This model has no wholesale setup yet. Open the product and fill in \"Wholesale selling\".",
       "lines": "Items",
       "empty": "The invoice is empty",
       "piecePrice": "Piece price",
-      "shortage": "Not enough stock: {{color}} size {{size}} needs {{wanted}}, has {{stock}}",
+      "shortage": "Not enough stock: {{where}} needs {{wanted}}, has {{stock}}",
       "payment": "Payment",
       "modes": {
         "cash": "Paid in full",
@@ -1401,6 +1366,10 @@
       "done": "Invoice {{number}} saved",
       "notes": "Notes",
       "piecesTotal": "{{count}} pcs"
+    },
+    "purchases": {
+      "wholesale": "Wholesale",
+      "halfWholesale": "Half-wholesale"
     }
   }
 }

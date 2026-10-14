@@ -32,6 +32,7 @@ import { getProductAudienceValues } from "../../../shared/lib/productAudiences";
 
 import ProductsShell from "../components/ProductsShell";
 import ProductForm from "../components/ProductForm";
+import WholesaleProductSection, { useWholesaleProductSettings } from "../../wholesale/components/WholesaleProductSection";
 import ImageThumbnailActions from "../components/ImageThumbnailActions";
 import ManufacturerSelect from "../components/ManufacturerSelect";
 import ProductSeoWorkbench from "../components/ProductSeoWorkbench";
@@ -475,6 +476,8 @@ function CreateProduct() {
   const [gender, setGender] = useState("");
   const [audiences, setAudiences] = useState([]);
   const [productType, setProductType] = useState("");
+  // Wholesale copy only (renders nothing and fetches nothing on retail).
+  const wholesaleSettings = useWholesaleProductSettings(null);
   const [bagType, setBagType] = useState("");
   const [schoolBagSize, setSchoolBagSize] = useState("");
   const [grade, setGrade] = useState("");
@@ -2464,7 +2467,13 @@ function CreateProduct() {
         ...entryEmployee.payload,
       });
       setSavingStep("Saving images...");
+      const wholesaleProblem = wholesaleSettings.problem();
+      if (wholesaleProblem) throw new Error(t(wholesaleProblem));
       const product = await createProduct(productPayload);
+      if (wholesaleSettings.enabled) {
+        // Wholesale copy only. The product is already saved; a failure here is reported, not fatal.
+        await wholesaleSettings.save(product.id).catch((error) => toast.error(error.message));
+      }
       console.log("PRODUCT_CREATE_PERF_VARIANTS_DONE", {
         duration_ms: Date.now() - perfStartedAt,
         variants_count: productPayload.variants.length,
@@ -2740,6 +2749,11 @@ function CreateProduct() {
                 onPurchasePiecesPerSizeChange={setPurchasePiecesPerSize}
                 onPurchaseCartonColorsChange={setPurchaseCartonColors}
             />
+              {wholesaleSettings.enabled ? (
+                <div className="mt-4">
+                  <WholesaleProductSection value={wholesaleSettings.value} onChange={wholesaleSettings.setValue} />
+                </div>
+              ) : null}
 
               {isColorOnlyMode ? (
                 <div className="mt-4 rounded-[var(--radius-card)] border border-primary/15 bg-primary/10 p-4">

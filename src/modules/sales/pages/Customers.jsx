@@ -12,6 +12,7 @@ import { escapeHtml, formatPrintDate, normalizePrintLanguage, openPrintHtml, PRI
 import "./Customers.m1.css";
 
 import i18n from "../../../i18n/i18n";
+import WholesaleCustomerTerms, { useWholesaleCustomerTerms } from "../../wholesale/components/WholesaleCustomerTerms";
 
 /** Module-scope translator for helpers defined outside a component. */
 const tt = (key, options) => i18n.t(key, options);
@@ -527,6 +528,8 @@ function Customers() {
     hasMore: false,
   });
   const [editingId, setEditingId] = useState(null);
+  // Wholesale copy only: wholesale / half-wholesale, credit limit, terms.
+  const wholesaleTerms = useWholesaleCustomerTerms();
   const [customerFormOpen, setCustomerFormOpen] = useState(false);
   const [loading, setLoading] = useState(false);
   const [customerSaving, setCustomerSaving] = useState(false);
@@ -794,6 +797,7 @@ function Customers() {
     setLinkedEmployeeId("");
     setSuggestedEmployee(null);
     setEditingId(null);
+    wholesaleTerms.reset();
     setCustomerFormOpen(false);
   };
 
@@ -816,14 +820,17 @@ function Customers() {
         linked_employee_id: linkedEmployeeId ? Number(linkedEmployeeId) : null,
       };
 
+      let savedCustomerId = editingId;
       if (editingId) {
         await api.put(`/customers/${editingId}`, customerData);
       } else {
         const response = await api.post("/customers", customerData);
+        savedCustomerId = response?.data?.id || null;
         if (response?.duplicate) {
           window.alert(tt("customers.form.duplicatePhone"));
         }
       }
+      if (wholesaleTerms.enabled && savedCustomerId) await wholesaleTerms.save(savedCustomerId);
 
       resetForm();
       fetchCustomers({ page: currentPage });
@@ -838,6 +845,7 @@ function Customers() {
 
   const editCustomer = (customer) => {
     setEditingId(customer.id);
+    wholesaleTerms.load(customer.id);
     setCustomerFormOpen(true);
     setName(customer.name || "");
     setPhone(customer.phone || "");
@@ -1078,6 +1086,8 @@ function Customers() {
             />
             <span>{tt("customers.personalUse.allow")}</span>
           </label>
+
+          <WholesaleCustomerTerms value={wholesaleTerms.value} onChange={wholesaleTerms.setValue} inputClass={inputClass} />
 
           <div className="mt-4 rounded-[var(--radius-card)] border border-amber-400/20 bg-amber-400/10 px-4 py-3">
             <label className="block text-sm font-semibold text-amber-50">

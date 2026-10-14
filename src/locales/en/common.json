@@ -932,8 +932,7 @@
     "surveillanceAudit": "Audit Log",
     "invoiceStudio": "Invoice Studio",
     "amazon": "Amazon",
-    "wholesaleInvoice": "Wholesale invoice",
-    "wholesaleSetup": "Wholesale setup"
+    "wholesaleInvoice": "Wholesale invoice"
   },
   "language": {
     "label": "Language",

@@ -35,15 +35,23 @@ test("the router is gated first, and tables are created only behind the mode che
   assert.ok(gateAt > 0 && gateAt < routes.indexOf("router.get("), "gate must precede every route");
   const schema = read("../../server/modules/wholesale/wholesale.schema.js");
   assert.match(schema, /if \(!isWholesaleMode\(\)\) throw/);
-  assert.doesNotMatch(schema, /ALTER TABLE/i, "wholesale must not alter retail tables");
+  for (const [, table] of schema.matchAll(/ALTER TABLE\s+(?:IF EXISTS\s+)?(\w+)/gi)) {
+    assert.match(table, /^wholesale_/, `wholesale must not alter the retail table ${table}`);
+  }
 });
 
 test("wholesale menu entries and routes exist only on the wholesale host", () => {
   const rbac = read("../../src/modules/permissions/lib/rbacStore.js");
   assert.match(rbac, /\(IS_WHOLESALE_APP \|\| !item\.wholesaleOnly\)/);
-  for (const to of ["/wholesale/invoice", "/wholesale/setup"]) {
-    assert.match(rbac, new RegExp(`to: "${to}"[^}]*wholesaleOnly: true`));
-  }
+  assert.match(rbac, /to: "\/wholesale\/invoice"[^}]*wholesaleOnly: true/);
   const app = read("../../src/App.jsx");
-  assert.match(app, /\{IS_WHOLESALE_APP \? \(\s*<>\s*<Route\s+path="wholesale\/invoice"/);
+  assert.match(app, /\{IS_WHOLESALE_APP \? \(\s*<Route\s+path="wholesale\/invoice"/);
+});
+
+test("the wholesale sections on the product, customer and purchase pages render nothing on retail", () => {
+  for (const file of ["WholesaleProductSection.jsx", "WholesaleCustomerTerms.jsx"]) {
+    const src = read(`../../src/modules/wholesale/components/${file}`);
+    assert.match(src, /if \(!IS_WHOLESALE_APP\) return null;/, `${file} must render nothing on retail`);
+    assert.match(src, /if \(!IS_WHOLESALE_APP \|\| !/, `${file} must not call the wholesale API on retail`);
+  }
 });

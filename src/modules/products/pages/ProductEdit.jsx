@@ -27,6 +27,7 @@ import { getProductAudienceValues } from "../../../shared/lib/productAudiences";
 
 import ProductsShell from "../components/ProductsShell";
 import ProductForm from "../components/ProductForm";
+import WholesaleProductSection, { useWholesaleProductSettings } from "../../wholesale/components/WholesaleProductSection";
 import ImageThumbnailActions from "../components/ImageThumbnailActions";
 import ManufacturerSelect from "../components/ManufacturerSelect";
 import ProductSeoWorkbench from "../components/ProductSeoWorkbench";
@@ -1074,6 +1075,8 @@ function ProductEdit() {
   const [searchParams] = useSearchParams();
   const colorGroupsSectionRef = useRef(null);
   const productId = String(id || "").trim();
+  // Wholesale copy only (renders nothing and fetches nothing on retail).
+  const wholesaleSettings = useWholesaleProductSettings(productId);
   const variationMode = product.variation_mode || "full_variations";
   const isFullVariationMode = variationMode === "full_variations";
   const isColorOnlyMode = variationMode === "color_only";
@@ -3686,7 +3689,13 @@ function ProductEdit() {
       });
       console.log("[edit-product] outgoing updateProduct payload", updatePayload);
       console.log("[edit-product] outgoing updateProduct payload json", JSON.stringify(updatePayload, null, 2));
+      const wholesaleProblem = wholesaleSettings.problem();
+      if (wholesaleProblem) throw new Error(t(wholesaleProblem));
       const savedProduct = await updateProduct(productId, updatePayload);
+      if (wholesaleSettings.enabled) {
+        // Wholesale copy only. The product is already saved; a failure here is reported, not fatal.
+        await wholesaleSettings.save(productId).catch((error) => toast.error(error.message));
+      }
       console.log("[edit-product] backend variant sync result", {
         product_id: productId,
         variant_sync: savedProduct?.variant_sync,
@@ -3984,6 +3993,11 @@ function ProductEdit() {
               onPurchasePiecesPerSizeChange={(value) => updateProductField("purchase_pieces_per_size", value)}
               onPurchaseCartonColorsChange={(value) => updateProductField("purchase_carton_colors", value)}
             />
+            {wholesaleSettings.enabled ? (
+              <div className="mt-4">
+                <WholesaleProductSection value={wholesaleSettings.value} onChange={wholesaleSettings.setValue} />
+              </div>
+            ) : null}
             {productId ? <ProductPairPicker productId={productId} t={t} /> : null}
           </section>
           <section className={`m1-product-section ${SECTION_CARD_CLASSES} p-6`}>

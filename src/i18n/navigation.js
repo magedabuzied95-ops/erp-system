@@ -38,7 +38,6 @@ const ITEM_LABEL_KEYS = {
   Orders: "sidebar.orders",
   "POS PRO": "sidebar.posPro",
   "Wholesale invoice": "sidebar.wholesaleInvoice",
-  "Wholesale setup": "sidebar.wholesaleSetup",
   Returns: "sidebar.returns",
   Customers: "sidebar.customers",
   Purchases: "sidebar.purchases",
