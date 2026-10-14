@@ -2198,8 +2198,10 @@ const PwaComposerBar = memo(function PwaComposerBar({
           </button>
         </div>
         {/* A voice note is a reply, never an internal note: there is nothing to
-            store staff-side in an audio file the customer never hears. */}
-        {onRecordVoice && mode !== "note" ? (
+            store staff-side in an audio file the customer never hears.
+            The mic is the resting state of the end slot: the moment there is
+            text to send it gives way to the send button, as in WhatsApp. */}
+        {onRecordVoice && mode !== "note" && !draftState.armed && !sending ? (
           <VoiceNoteRecorder
             busy={sending}
             expand
@@ -2245,7 +2247,7 @@ const PwaComposerBar = memo(function PwaComposerBar({
           type="button"
           onClick={() => void onSubmit?.()}
           disabled={!draftState.armed}
-          className={`${voiceRecording ? "hidden" : "inline-flex"} h-10 w-10 shrink-0 items-center justify-center rounded-full text-slate-50 disabled:opacity-50 ${sendTone === "amber" ? "bg-amber-500" : "bg-sky-600"}`}
+          className={`${voiceRecording || (!draftState.armed && !sending && mode !== "note" && onRecordVoice) ? "hidden" : "inline-flex"} h-10 w-10 shrink-0 items-center justify-center rounded-full text-slate-50 disabled:opacity-50 ${sendTone === "amber" ? "bg-amber-500" : "bg-sky-600"}`}
           aria-label={mode === "note" ? t("aiSupport.inbox.pwa.saveNote") : t("aiSupport.inbox.pwa.sendReply")}
         >
           {sending && !draftState.armed ? <Loader2 className="h-5 w-5 animate-spin" /> : <Send className="h-5 w-5" />}
