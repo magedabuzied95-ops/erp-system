@@ -3754,6 +3754,54 @@ export default function AiInboxPwa({ portal = null } = {}) {
   const [socialActionLoading, setSocialActionLoading] = useState("");
   const [customerDrawer, setCustomerDrawer] = useState({ open: false, customer: null, customerId: "", context: {} });
   const mainScrollRef = useRef(null);
+
+  /*
+   * The keyboard on iOS does not shrink the page: it slides over it. Safari only
+   * sometimes pans the view to the focused field, so the fixed composer was
+   * left behind the keyboard roughly every other tap — the keys showed with no
+   * place to type. The visual viewport says how much of the layout viewport the
+   * keyboard covers; that height goes into --ai-pwa-kb and the CSS lifts the
+   * composer (and the thread's bottom padding) by exactly that much. A CSS
+   * variable rather than state, so a keyboard opening never re-renders the page.
+   */
+  useEffect(() => {
+    const viewport = typeof window !== "undefined" ? window.visualViewport : null;
+    if (!viewport) return undefined;
+    const root = document.documentElement;
+    let frame = 0;
+    let lastInset = -1;
+    const measure = () => {
+      frame = 0;
+      const inset = Math.max(0, Math.round(window.innerHeight - (viewport.height + viewport.offsetTop)));
+      // Below ~80px it is the browser's own toolbar moving, not a keyboard.
+      const keyboard = inset > 80 ? inset : 0;
+      if (keyboard === lastInset) return;
+      lastInset = keyboard;
+      root.style.setProperty("--ai-pwa-kb", `${keyboard}px`);
+      if (keyboard) {
+        root.setAttribute("data-ai-pwa-kb", "open");
+        // Keep the newest message in view above the keyboard, as a chat app does.
+        if (nearBottomRef.current && mainScrollRef.current) {
+          mainScrollRef.current.scrollTop = mainScrollRef.current.scrollHeight;
+        }
+      } else {
+        root.removeAttribute("data-ai-pwa-kb");
+      }
+    };
+    const schedule = () => {
+      if (!frame) frame = window.requestAnimationFrame(measure);
+    };
+    viewport.addEventListener("resize", schedule);
+    viewport.addEventListener("scroll", schedule);
+    schedule();
+    return () => {
+      if (frame) window.cancelAnimationFrame(frame);
+      viewport.removeEventListener("resize", schedule);
+      viewport.removeEventListener("scroll", schedule);
+      root.style.removeProperty("--ai-pwa-kb");
+      root.removeAttribute("data-ai-pwa-kb");
+    };
+  }, []);
   const pinToBottomAfterRefreshRef = useRef(false);
   const conversationHeaderRef = useRef(null);
   const menuButtonRef = useRef(null);

@@ -674,3 +674,21 @@ html[data-theme="dark"] .ai-pwa-product-sheet option {
     gap: 4px;
   }
 }
+
+/*
+ * Keyboard open (iOS): --ai-pwa-kb is the height the keyboard covers, measured
+ * from the visual viewport in AiInboxPwa. The composer sits on top of it rather
+ * than behind it, and the thread keeps its last message clear of both. The
+ * safe-area inset is dropped while the keyboard is up — the keyboard covers it.
+ */
+html[data-ai-pwa-kb="open"] .ai-pwa-composer {
+  bottom: calc(var(--ai-pwa-kb, 0px) + 0.4rem) !important;
+}
+
+html[data-ai-pwa-kb="open"] .ai-pwa-main {
+  padding-bottom: calc(var(--ai-pwa-kb, 0px) + 5.9rem) !important;
+}
+
+html[data-ai-pwa-kb="open"] .ai-pwa-nav {
+  display: none;
+}
