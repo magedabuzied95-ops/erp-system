@@ -4,7 +4,7 @@ import { createEmployeePortalNotification } from "./employeePayrollPortalService
 import { postPayrollApprovalEntry, postPayrollPaymentEntry, recordFinancialAccountActivity, resolveFinancialAccountForPayment } from "./accountingService.js";
 import { getTenantId, isSuperAdminUser } from "../utils/requestScope.js";
 import { ensureAttendanceSchema } from "../utils/attendanceSchema.js";
-import { countedLatePermissions, dayDeductionOverrideKey, loadApprovedLatePermissionRows, loadAttendancePolicy, loadDayDeductionOverrides, policyAppliesOn, resolveLateDay } from "../utils/attendancePolicy.js";
+import { countedLatePermissions, dayDeductionOverrideKey, loadApprovedLatePermissionRows, loadAttendancePolicy, loadDayDeductionOverrides, loadPaidLeaveAllowance, policyAppliesOn, resolveLateDay } from "../utils/attendancePolicy.js";
 import { getAttendanceTimeZone } from "../utils/attendanceTimezone.js";
 import { parseManualAttendanceTimestamp } from "../utils/attendanceManualEntry.js";
 import { ensureForeignKeyConstraint } from "../utils/schemaConstraints.js";
@@ -243,18 +243,10 @@ const safeDateSetFromTable = async ({ clientOrPool = db, tableName, dateColumn, 
   }
 };
 
-const loadMonthlyPaidLeaveAllowance = async ({ tenantId = null } = {}) => {
+// The employee's own balance when set in their settings, else the company's.
+const loadMonthlyPaidLeaveAllowance = async ({ tenantId = null, employeeId = null } = {}) => {
   try {
-    const result = await db.query(
-      `
-      SELECT COALESCE(monthly_paid_leave_days, 3)::int AS monthly_paid_leave_days
-      FROM hr_attendance_settings
-      WHERE ($1::bigint IS NOT NULL AND tenant_id = $1::bigint)
-      LIMIT 1
-      `,
-      [tenantId]
-    );
-    return Math.max(0, toNumber(result.rows[0]?.monthly_paid_leave_days, 3));
+    return await loadPaidLeaveAllowance(db, { tenantId, employeeId });
   } catch (error) {
     console.warn("[payroll] paid leave allowance fallback", error.message);
     return 3;
@@ -269,7 +261,7 @@ const calculateLeavePayrollImpactForEmployee = async ({
   periodStart,
   periodEnd,
 } = {}) => {
-  const paidAllowance = await loadMonthlyPaidLeaveAllowance({ tenantId });
+  const paidAllowance = await loadMonthlyPaidLeaveAllowance({ tenantId, employeeId });
   const monthStart = `${dateKey(periodStart).slice(0, 7)}-01`;
   const dailyRate = toNumber(baseSalary) / Math.max(1, Math.round(toNumber(workingDaysPerMonth, 26)));
   try {

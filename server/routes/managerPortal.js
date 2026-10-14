@@ -547,7 +547,6 @@ const absenceToLeaveRoute = (handler) => async (req, res) => {
       manager: req.managerPortalManager,
       employeeId: req.params.employeeId,
       date: req.params.date,
-      confirmOverBalance: req.body?.confirm_over_balance === true,
     });
     return res.json({ success: true, ...result });
   } catch (error) {

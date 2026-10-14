@@ -209,6 +209,8 @@ const createEmptyEmployeeForm = (branchId = "") => ({
   daily_work_hours: 8,
   working_days_per_month: 26,
   working_days_per_week: 6,
+  // Empty = the company's paid leave days a month (attendance settings).
+  monthly_paid_leave_days: "",
   work_start_time: "",
   work_end_time: "",
   absence_deduction_enabled: true,
@@ -247,6 +249,7 @@ const sameEmployeeRecord = (left = {}, right = {}) =>
   String(left.daily_work_hours || "") === String(right.daily_work_hours || "") &&
   String(left.working_days_per_month || "") === String(right.working_days_per_month || "") &&
   String(left.working_days_per_week || "") === String(right.working_days_per_week || "") &&
+  String(left.monthly_paid_leave_days ?? "") === String(right.monthly_paid_leave_days ?? "") &&
   Boolean(left.is_sales_active) === Boolean(right.is_sales_active) &&
   String(left.commission_mode || "") === String(right.commission_mode || "") &&
   String(left.commission_value || "") === String(right.commission_value || "") &&
@@ -693,6 +696,7 @@ function AttendanceWorkspace({
         daily_work_hours: Number(employeeForm.daily_work_hours || 8),
         working_days_per_month: Number(employeeForm.working_days_per_month || 26),
         working_days_per_week: Number(employeeForm.working_days_per_week || 6),
+        monthly_paid_leave_days: String(employeeForm.monthly_paid_leave_days ?? "").trim() === "" ? null : Number(employeeForm.monthly_paid_leave_days),
         commission_value: Number(employeeForm.commission_value || 0),
       };
 
@@ -778,6 +782,7 @@ function AttendanceWorkspace({
         daily_work_hours: row.daily_work_hours || payload.daily_work_hours || 8,
         working_days_per_month: row.working_days_per_month || payload.working_days_per_month || 26,
         working_days_per_week: row.working_days_per_week || payload.working_days_per_week || 6,
+        monthly_paid_leave_days: row.monthly_paid_leave_days ?? "",
         work_start_time: row.work_start_time || payload.work_start_time || "",
         work_end_time: row.work_end_time || payload.work_end_time || "",
         absence_deduction_enabled: row.absence_deduction_enabled !== false,
@@ -886,6 +891,7 @@ function AttendanceWorkspace({
       daily_work_hours: employee.daily_work_hours || 8,
       working_days_per_month: employee.working_days_per_month || 26,
       working_days_per_week: employee.working_days_per_week || 6,
+      monthly_paid_leave_days: employee.monthly_paid_leave_days ?? "",
       work_start_time: employee.work_start_time || "",
       work_end_time: employee.work_end_time || "",
       absence_deduction_enabled: employee.absence_deduction_enabled !== false,
@@ -1900,6 +1906,13 @@ function AttendanceWorkspace({
                         type="number"
                         value={employeeForm.working_days_per_week}
                         onChange={(value) => setEmployeeForm((prev) => ({ ...prev, working_days_per_week: value }))}
+                      />
+                      <InputField
+                        label={isArabic ? "أيام الإجازة المدفوعة شهريًا" : "Paid leave days / month"}
+                        type="number"
+                        value={employeeForm.monthly_paid_leave_days ?? ""}
+                        onChange={(value) => setEmployeeForm((prev) => ({ ...prev, monthly_paid_leave_days: value }))}
+                        helper={isArabic ? "سيبها فاضية عشان ياخد رقم الشركة." : "Leave empty to use the company's number."}
                       />
                       <InputField
                         label={isArabic ? "بداية العمل الافتراضية" : "Default start time"}

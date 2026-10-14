@@ -96,44 +96,35 @@ export function EmployeeDeductionsTab({ token, employeeId, details, formatDay, f
     }
   };
 
-  // غياب → إجازة: the day leaves the absences and is priced as leave by payroll — free while the
-  // month's paid balance lasts, a day's pay (not the absence's two) once it is used up.
-  // The server checks the balance itself: past it the call is refused (leave_balance_exhausted)
-  // until the manager confirms that the day will be deducted.
-  const dayRate = Number(details?.employee?.day_rate || 0);
-  const confirmDeducted = (date, message) => window.confirm(
-    tt("managerPortal.employeeDetails.deductions.toLeaveNoBalance", { date: formatDay(date), reason: message, amount: formatCurrency(dayRate) })
-  );
+  // غياب → إجازة (owner's rule): the balance's days become leave, any day after it stays an
+  // absence. The server checks the balance itself and refuses past it (leave_balance_exhausted).
+  const exhaustedMessage = () => tt("managerPortal.employeeDetails.deductions.balanceUsed", {
+    used: formatNumber(leaveBalance?.used ?? 0),
+    total: formatNumber(leaveBalance?.allowance ?? 0),
+  });
+  const leaveExhausted = Boolean(leaveBalance) && leaveBalance.left <= 0;
   const toLeave = async (row) => {
-    const left = leaveBalance ? leaveBalance.left : null;
-    const knownExhausted = left !== null && left <= 0;
     const date = dateOf(row.date);
-    if (knownExhausted) {
-      const message = tt("managerPortal.employeeDetails.deductions.balanceUsed", { used: formatNumber(leaveBalance.used), total: formatNumber(leaveBalance.allowance) });
-      if (!confirmDeducted(date, message)) return;
-    } else if (!window.confirm(tt("managerPortal.employeeDetails.deductions.toLeaveConfirm", { date: formatDay(date), left: formatNumber(left ?? 0), total: formatNumber(leaveBalance?.allowance ?? 0) }))) {
+    if (leaveExhausted) {
+      window.alert(tt("managerPortal.employeeDetails.deductions.staysAbsent", { reason: exhaustedMessage(), date: formatDay(date) }));
       return;
     }
+    if (!window.confirm(tt("managerPortal.employeeDetails.deductions.toLeaveConfirm", { date: formatDay(date), left: formatNumber(leaveBalance?.left ?? 0), total: formatNumber(leaveBalance?.allowance ?? 0) }))) return;
     const key = rowKey(row);
     try {
       setBusy(key);
       setNotice({ tone: "", text: "" });
-      let result;
-      try {
-        result = await managerPortalApi.convertAbsenceToLeave(token, employeeId, date, { confirm_over_balance: knownExhausted });
-      } catch (error) {
-        const data = error?.response?.data || {};
-        if (data.code !== "leave_balance_exhausted") throw error;
-        if (!confirmDeducted(date, data.message || "")) return;
-        result = await managerPortalApi.convertAbsenceToLeave(token, employeeId, date, { confirm_over_balance: true });
-      }
-      setNotice({
-        tone: "ok",
-        text: tt(result?.over_balance ? "managerPortal.employeeDetails.deductions.toLeaveDoneDeducted" : "managerPortal.employeeDetails.deductions.toLeaveDone"),
-      });
+      await managerPortalApi.convertAbsenceToLeave(token, employeeId, date);
+      setNotice({ tone: "ok", text: tt("managerPortal.employeeDetails.deductions.toLeaveDone") });
       await onChanged?.();
     } catch (error) {
-      setNotice({ tone: "error", text: failure(error, tt("managerPortal.employeeDetails.deductions.saveError")) });
+      const data = error?.response?.data || {};
+      if (data.code === "leave_balance_exhausted") {
+        window.alert(tt("managerPortal.employeeDetails.deductions.staysAbsent", { reason: data.message || exhaustedMessage(), date: formatDay(date) }));
+        await onChanged?.();
+      } else {
+        setNotice({ tone: "error", text: failure(error, tt("managerPortal.employeeDetails.deductions.saveError")) });
+      }
     } finally {
       setBusy("");
     }
@@ -240,7 +231,7 @@ export function EmployeeDeductionsTab({ token, employeeId, details, formatDay, f
                             title={tt("managerPortal.employeeDetails.deductions.toLeave")}
                             disabled={working}
                             onClick={() => toLeave(row)}
-                            className="rounded-lg border border-emerald-200 bg-emerald-50 p-1.5 text-emerald-700 disabled:opacity-50"
+                            className={`rounded-lg border p-1.5 disabled:opacity-50 ${leaveExhausted ? "border-slate-200 bg-white text-slate-400 opacity-60" : "border-emerald-200 bg-emerald-50 text-emerald-700"}`}
                           >
                             <TreePalm className="h-3.5 w-3.5" />
                           </button>

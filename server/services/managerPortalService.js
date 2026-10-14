@@ -2,7 +2,7 @@ import { randomBytes } from "node:crypto";
 import db from "../database/db.js";
 import { nextMonth as nextPayrollMonth } from "../utils/advanceDeductionMonth.js";
 import { ensureAttendanceSchema } from "../utils/attendanceSchema.js";
-import { DAY_DEDUCTION_TYPES, lateAfterPermission, loadLatePermissionCoverForMonth } from "../utils/attendancePolicy.js";
+import { DAY_DEDUCTION_TYPES, lateAfterPermission, loadLatePermissionCoverForMonth, loadPaidLeaveAllowances } from "../utils/attendancePolicy.js";
 import { calculateTodayProfit, DEFAULT_BUSINESS_DAY_START_HOUR, getDashboardOverview, getHourlySales, getLowStock, getSalesTrend, getTopProducts, getAiInsights, personalOrderClause, resolveBusinessDayStartHour } from "./dashboardAnalyticsService.js";
 import { aggregatePaymentDistribution } from "./managerPortalPaymentDistribution.js";
 import { getSetting } from "./settingsService.js";
@@ -1293,12 +1293,8 @@ export const attachVacationBalances = async ({ tenantId = null, requests = [] } 
   if (!allDays.length) return requests;
   const rangeStart = `${allDays[0].slice(0, 7)}-01`;
   const rangeEnd = allDays[allDays.length - 1];
-  const [settingsRows, usedRows, employeeRows] = await Promise.all([
-    safeQuery(
-      `SELECT COALESCE(monthly_paid_leave_days, 3)::int AS monthly_paid_leave_days FROM hr_attendance_settings WHERE ($1::bigint IS NOT NULL AND tenant_id = $1::bigint) LIMIT 1`,
-      [tenantId],
-      []
-    ),
+  const [allowances, usedRows, employeeRows] = await Promise.all([
+    loadPaidLeaveAllowances(db, { tenantId, employeeIds }).catch(() => new Map()),
     safeQuery(
       `
       SELECT DISTINCT employee_id::text AS employee_id, leave_day::date::text AS leave_day
@@ -1329,7 +1325,6 @@ export const attachVacationBalances = async ({ tenantId = null, requests = [] } 
   ]);
   // Without the used days a balance would read as untouched; show none rather than a wrong one.
   if (!usedRows) return requests;
-  const allowance = Math.max(0, Number(settingsRows[0]?.monthly_paid_leave_days ?? 3));
   const takenByEmployee = new Map();
   usedRows.forEach((row) => {
     if (!takenByEmployee.has(row.employee_id)) takenByEmployee.set(row.employee_id, new Set());
@@ -1339,6 +1334,7 @@ export const attachVacationBalances = async ({ tenantId = null, requests = [] } 
 
   return requests.map((request) => {
     const employeeId = String(request.employee_id);
+    const allowance = Math.max(0, Number(allowances.get(employeeId) ?? 3));
     const taken = takenByEmployee.get(employeeId) || new Set();
     const usedInMonth = (month) => [...taken].filter((day) => day.startsWith(month)).length;
     const dayKeys = vacationRequestDayKeys(request);
@@ -3786,7 +3782,7 @@ export const loadConvertedLeaveDates = async ({ tenantId, employeeId, from, to }
   return rows.map((row) => String(row.day).slice(0, 10));
 };
 
-export const convertManagerPortalAbsenceToLeave = async ({ manager = {}, employeeId, date: rawDate, confirmOverBalance = false } = {}) => {
+export const convertManagerPortalAbsenceToLeave = async ({ manager = {}, employeeId, date: rawDate } = {}) => {
   const { employee, tenantId } = await loadScopedEmployee({ manager, employeeId });
   const date = String(rawDate || "").slice(0, 10);
   await assertDayDeductionEditable({ tenantId, employee, date, type: "absence" });
@@ -3823,17 +3819,16 @@ export const convertManagerPortalAbsenceToLeave = async ({ manager = {}, employe
     error.status = 409;
     throw error;
   }
-  // The balance is checked here, against every approved leave in the month (requests included),
-  // the way payroll spends it. Past it the day costs a day's pay, and the manager has to say so
-  // explicitly: the screen's own count can be stale, this one is not.
+  // Owner's rule (2026-10-14): the balance's days become leave, any day after it stays an absence.
+  // Checked here against every approved leave in the month (requests included), the way payroll
+  // spends it — the screen's own count can be stale, this one is not.
   const [balance] = await attachVacationBalances({ tenantId, requests: [{ employee_id: employee.id, request_date: date, end_date: date }] });
-  // No count (the used-days query failed) is treated as no balance: the manager confirms either way.
+  // No count (the used-days query failed) is treated as no balance.
   const balanceKnown = balance?.paid_leave_total !== undefined;
-  const overBalance = !balanceKnown || Number(balance?.days_deducted || 0) > 0;
-  if (overBalance && !confirmOverBalance) {
+  if (!balanceKnown || Number(balance?.days_deducted || 0) > 0) {
     const error = new Error(balanceKnown
-      ? `رصيد الإجازات خلص (${Number(balance.paid_leave_used || 0)} من ${Number(balance.paid_leave_total || 0)})، اليوم ده هيتخصم من المرتب`
-      : "مقدرناش نتأكد من رصيد الإجازات، لو الرصيد خلص اليوم ده هيتخصم من المرتب");
+      ? `رصيد الإجازات خلص (${Number(balance.paid_leave_used || 0)} من ${Number(balance.paid_leave_total || 0)})، اليوم ده هيفضل غياب`
+      : "مقدرناش نتأكد من رصيد الإجازات، اليوم ده هيفضل غياب");
     error.status = 409;
     error.code = "leave_balance_exhausted";
     error.details = {
@@ -3862,12 +3857,10 @@ export const convertManagerPortalAbsenceToLeave = async ({ manager = {}, employe
     tenantId,
     employeeId: employee.id,
     title: "🌴 الغياب اتحول لإجازة",
-    body: overBalance
-      ? `غياب يوم ${date} اتحسب إجازة، والرصيد خلص فهيتخصم يوم واحد بدل يومين`
-      : `غياب يوم ${date} اتحسب إجازة من رصيدك`,
-    data: { event: "absence_to_leave", date, over_balance: overBalance },
+    body: `غياب يوم ${date} اتحسب إجازة من رصيدك`,
+    data: { event: "absence_to_leave", date },
   });
-  return { vacation: result.rows[0], over_balance: overBalance };
+  return { vacation: result.rows[0] };
 };
 
 export const undoManagerPortalAbsenceToLeave = async ({ manager = {}, employeeId, date: rawDate } = {}) => {

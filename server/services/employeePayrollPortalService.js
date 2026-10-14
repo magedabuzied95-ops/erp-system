@@ -12,7 +12,7 @@ import { sendEmployeePortalPush } from "./employeePortalPushService.js";
 import { emitToRooms } from "../utils/socket.js";
 import { ensureAccountingSchema, recordCashDrawerEvent } from "./accountingService.js";
 import { resolveAdvanceDeductionMonth } from "../utils/advanceDeductionMonth.js";
-import { lateAfterPermission, latePermissionCoverMinutes, loadAttendancePolicy, loadLatePermissionCoverForMonth } from "../utils/attendancePolicy.js";
+import { lateAfterPermission, latePermissionCoverMinutes, loadAttendancePolicy, loadLatePermissionCoverForMonth, loadPaidLeaveAllowance } from "../utils/attendancePolicy.js";
 
 const tokenBytes = 32;
 
@@ -2131,6 +2131,8 @@ const getEmployeeAttendancePolicy = async ({ employee, timeZone = "Africa/Cairo"
   ]);
   const usedPermissions = permissions.approved + permissions.pending;
   const usedLeave = toNumber(leaveResult.rows[0]?.used);
+  const paidLeaveTotal = await loadPaidLeaveAllowance(db, { tenantId: employee.tenant_id, employeeId: employee.id })
+    .catch(() => policy.monthly_paid_leave_days);
   return {
     month,
     rules: policy,
@@ -2139,9 +2141,9 @@ const getEmployeeAttendancePolicy = async ({ employee, timeZone = "Africa/Cairo"
       late_permissions_used: usedPermissions,
       late_permissions_pending: permissions.pending,
       late_permissions_left: Math.max(0, policy.monthly_late_permissions - usedPermissions),
-      paid_leave_total: policy.monthly_paid_leave_days,
+      paid_leave_total: paidLeaveTotal,
       paid_leave_used: usedLeave,
-      paid_leave_left: Math.max(0, policy.monthly_paid_leave_days - usedLeave),
+      paid_leave_left: Math.max(0, paidLeaveTotal - usedLeave),
     },
   };
 };

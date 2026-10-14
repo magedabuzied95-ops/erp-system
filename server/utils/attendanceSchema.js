@@ -177,6 +177,11 @@ const statements = [
   ALTER TABLE IF EXISTS employees
     ADD COLUMN IF NOT EXISTS working_days_per_week INTEGER NOT NULL DEFAULT 6;
   `,
+  // The employee's own paid-leave days a month; NULL = the company's number (hr_attendance_settings).
+  `
+  ALTER TABLE IF EXISTS employees
+    ADD COLUMN IF NOT EXISTS monthly_paid_leave_days INTEGER NULL;
+  `,
   `
   ALTER TABLE IF EXISTS employees
     ADD COLUMN IF NOT EXISTS work_start_time TIME NULL;

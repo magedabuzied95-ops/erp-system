@@ -164,6 +164,39 @@ export const loadLatePermissionCoverForMonth = async (clientOrPool, { tenantId =
   return countedLatePermissions(rows, resolvedPolicy);
 };
 
+// The month's paid-leave balance per employee: the employee's own number (employees.
+// monthly_paid_leave_days, set in the employee's settings) when it is set, else the company's
+// (hr_attendance_settings.monthly_paid_leave_days, default 3). Every place that counts the balance
+// (payroll, the manager portal, the attendance center, the employee portal) reads it from here.
+export const DEFAULT_MONTHLY_PAID_LEAVE_DAYS = 3;
+export const loadPaidLeaveAllowances = async (clientOrPool, { tenantId = null, employeeIds = [] } = {}) => {
+  const ids = [...new Set((employeeIds || []).map((id) => String(id)).filter(Boolean))];
+  const allowances = new Map();
+  if (!clientOrPool || !ids.length) return allowances;
+  const companyResult = await clientOrPool.query(
+    `SELECT COALESCE(monthly_paid_leave_days, $2)::int AS monthly_paid_leave_days
+     FROM hr_attendance_settings WHERE ($1::bigint IS NOT NULL AND tenant_id = $1::bigint) LIMIT 1`,
+    [tenantId, DEFAULT_MONTHLY_PAID_LEAVE_DAYS]
+  ).catch(() => ({ rows: [] }));
+  const company = Math.max(0, Number(companyResult.rows[0]?.monthly_paid_leave_days ?? DEFAULT_MONTHLY_PAID_LEAVE_DAYS));
+  ids.forEach((id) => allowances.set(id, company));
+  try {
+    const own = await clientOrPool.query(
+      `SELECT id::text AS id, monthly_paid_leave_days FROM employees WHERE id::text = ANY($1::text[]) AND monthly_paid_leave_days IS NOT NULL`,
+      [ids]
+    );
+    own.rows.forEach((row) => allowances.set(String(row.id), Math.max(0, Number(row.monthly_paid_leave_days) || 0)));
+  } catch (error) {
+    // Before the attendance schema adds the column every employee has the company's number.
+    if (error?.code !== "42703") throw error;
+  }
+  return allowances;
+};
+export const loadPaidLeaveAllowance = async (clientOrPool, { tenantId = null, employeeId } = {}) => {
+  const allowances = await loadPaidLeaveAllowances(clientOrPool, { tenantId, employeeIds: [employeeId] });
+  return allowances.get(String(employeeId)) ?? DEFAULT_MONTHLY_PAID_LEAVE_DAYS;
+};
+
 // A manager's edits to single days' deductions, `${date}|${type}` -> { penalty_days, note, ... }.
 // type is "absence" or "late"; penalty_days replaces the rule's for that day (0 = waived).
 export const DAY_DEDUCTION_TYPES = Object.freeze(["absence", "late"]);

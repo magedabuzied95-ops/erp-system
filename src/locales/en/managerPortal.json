@@ -856,7 +856,6 @@
       "hours": "{{count}} hours",
       "toLeave": "Turn into leave from the balance",
       "toLeaveConfirm": "Turn the absence on {{date}} into leave from the balance?\n{{left}} of {{total}} leave days left this month; the absence deduction is removed.",
-      "toLeaveNoBalance": "{{reason}}\nTurning {{date}} into leave deducts one day ({{amount}}) instead of two for the absence.\nContinue?",
       "toLeaveDone": "The day is now leave from the balance; the salary was recalculated",
       "leaveBadge": "Leave",
       "undoLeave": "Back to absent",
@@ -868,7 +867,7 @@
       "wasAbsent": "(was absent)",
       "requestLeave": "Approved leave",
       "balanceUsed": "The leave balance is used up ({{used}} of {{total}})",
-      "toLeaveDoneDeducted": "The day is now leave; the balance was used up, so one day was deducted"
+      "staysAbsent": "{{reason}}\n{{date}} stays an absence. Only the balance's days turn into leave."
     }
   },
   "weekdays": {

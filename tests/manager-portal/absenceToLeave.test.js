@@ -15,7 +15,7 @@ import {
 
 const manager = { id: 37, tenant_id: 1, full_name: "مدير", branch_scope: "all" };
 
-const withDb = async ({ attended = false, onLeave = false, undoRows = 1, usedDays = [] } = {}, run) => {
+const withDb = async ({ attended = false, onLeave = false, undoRows = 1, usedDays = [], ownAllowance = null } = {}, run) => {
   const calls = [];
   const original = { query: db.query, connect: db.connect };
   // The attendance schema bootstrap runs on a pooled client; one branch keeps its single-branch check happy.
@@ -28,6 +28,7 @@ const withDb = async ({ attended = false, onLeave = false, undoRows = 1, usedDay
     if (/FROM attendance_logs/.test(text)) return { rows: attended ? [{ "?column?": 1 }] : [] };
     // attachVacationBalances: the month's allowance and the leave days already approved.
     if (/FROM hr_attendance_settings/.test(text)) return { rows: [{ monthly_paid_leave_days: 3 }] };
+    if (/monthly_paid_leave_days FROM employees/.test(text)) return { rows: ownAllowance === null ? [] : [{ id: "7", monthly_paid_leave_days: ownAllowance }] };
     if (/generate_series/.test(text) && /AS leave_day/.test(text)) return { rows: usedDays.map((day) => ({ employee_id: "7", leave_day: day })) };
     if (/working_days_per_month FROM employees/.test(text)) return { rows: [{ employee_id: "7", salary: 5000, working_days_per_month: 26 }] };
     if (/SELECT 1 FROM employee_vacations/.test(text)) return { rows: onLeave ? [{ "?column?": 1 }] : [] };
@@ -57,7 +58,8 @@ test("an absent day becomes an approved, tagged annual leave, and its deduction 
 });
 
 // Owner (2026-10-14): four absences became leave with a balance of three and nothing said so.
-test("past the balance the server refuses until the manager confirms the day is deducted", async () => {
+// The rule since: the balance's days become leave, any day after it stays an absence.
+test("past the balance the day stays an absence: refused, nothing written", async () => {
   const used = ["2026-10-01", "2026-10-03", "2026-10-14"];
   await withDb({ usedDays: used }, async (calls) => {
     await assert.rejects(
@@ -66,14 +68,23 @@ test("past the balance the server refuses until the manager confirms the day is 
     );
     assert.ok(!calls.some((call) => /INSERT INTO employee_vacations/.test(call.text)));
   });
-  await withDb({ usedDays: used }, async (calls) => {
-    const result = await convertManagerPortalAbsenceToLeave({ manager, employeeId: 7, date: "2026-10-04", confirmOverBalance: true });
-    assert.equal(result.over_balance, true);
+  await withDb({ usedDays: used.slice(0, 2) }, async (calls) => {
+    await convertManagerPortalAbsenceToLeave({ manager, employeeId: 7, date: "2026-10-04" });
     assert.ok(calls.some((call) => /INSERT INTO employee_vacations/.test(call.text)));
   });
-  await withDb({ usedDays: used.slice(0, 2) }, async () => {
-    const result = await convertManagerPortalAbsenceToLeave({ manager, employeeId: 7, date: "2026-10-04" });
-    assert.equal(result.over_balance, false);
+});
+
+test("an employee's own balance in their settings replaces the company's", async () => {
+  const used = ["2026-10-01", "2026-10-03", "2026-10-14"];
+  await withDb({ usedDays: used, ownAllowance: 4 }, async (calls) => {
+    await convertManagerPortalAbsenceToLeave({ manager, employeeId: 7, date: "2026-10-04" });
+    assert.ok(calls.some((call) => /INSERT INTO employee_vacations/.test(call.text)));
+  });
+  await withDb({ usedDays: used, ownAllowance: 2 }, async () => {
+    await assert.rejects(
+      convertManagerPortalAbsenceToLeave({ manager, employeeId: 7, date: "2026-10-04" }),
+      (error) => error.code === "leave_balance_exhausted" && error.details.paid_leave_total === 2
+    );
   });
 });
 
@@ -91,11 +102,21 @@ test("payroll prices each leave day in date order: the balance first, a day's pa
     return { rows: [] };
   };
   let payroll;
+  let ownFour;
   try {
     payroll = (await getPayrollPreview({ tenantId: 1, employeeId: 7, filters: { month: "2026-10", startDate: "2026-10-01", endDate: "2026-10-06" } })).payroll;
+    // The same month for an employee whose own settings give four paid days.
+    const base = db.query;
+    db.query = async (sql, params) => (/monthly_paid_leave_days FROM employees/.test(String(sql))
+      ? { rows: [{ id: "7", monthly_paid_leave_days: 4 }] }
+      : base(sql, params));
+    ownFour = (await getPayrollPreview({ tenantId: 1, employeeId: 7, filters: { month: "2026-10", startDate: "2026-10-01", endDate: "2026-10-06" } })).payroll;
   } finally {
     db.query = original;
   }
+  assert.equal(ownFour.monthly_paid_leave_days, 4);
+  assert.ok(ownFour.leave_day_list.every((day) => day.paid));
+  assert.equal(ownFour.leave_deduction, 0);
   assert.deepEqual(payroll.leave_day_list.map((day) => [day.date, day.paid]), [
     ["2026-10-01", true], ["2026-10-03", true], ["2026-10-04", true], ["2026-10-05", false],
   ]);

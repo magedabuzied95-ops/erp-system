@@ -1002,6 +1002,30 @@ const parseJson = (value, fallback = []) => {
   return fallback;
 };
 
+// The employee's own paid-leave days a month, from the employee form. Not sent = leave the stored
+// value alone; empty = back to the company's number (NULL); otherwise a whole number of days.
+const paidLeaveDaysFromBody = (body = {}) => {
+  if (!body || !Object.prototype.hasOwnProperty.call(body, "monthly_paid_leave_days")) return { provided: false };
+  const raw = body.monthly_paid_leave_days;
+  if (raw === null || raw === undefined || String(raw).trim() === "") return { provided: true, value: null };
+  const days = Number(raw);
+  if (!Number.isInteger(days) || days < 0 || days > 31) {
+    const error = new Error("أيام الإجازة المدفوعة لازم تكون رقم صحيح من 0 لـ 31");
+    error.status = 400;
+    throw error;
+  }
+  return { provided: true, value: days };
+};
+const savePaidLeaveDays = async ({ employeeId, tenantId, body, row }) => {
+  const leave = paidLeaveDaysFromBody(body);
+  if (!leave.provided || !row) return row;
+  const result = await db.query(
+    `UPDATE employees SET monthly_paid_leave_days = $1 WHERE id = $2 AND ($3::bigint IS NULL OR tenant_id = $3::bigint) RETURNING *`,
+    [leave.value, employeeId, tenantId]
+  );
+  return result.rows[0] || row;
+};
+
 const normalizeEmployee = (row = {}) => ({
   id: row.id,
   tenant_id: row.tenant_id,
@@ -1027,6 +1051,8 @@ const normalizeEmployee = (row = {}) => ({
   missing_hours_deduction_enabled: row.missing_hours_deduction_enabled !== false,
   late_deduction_enabled: row.late_deduction_enabled !== false,
   early_leave_deduction_enabled: row.early_leave_deduction_enabled !== false,
+  // null = the company's number of paid leave days a month.
+  monthly_paid_leave_days: row.monthly_paid_leave_days === null || row.monthly_paid_leave_days === undefined ? null : Number(row.monthly_paid_leave_days),
   hire_date: row.hire_date || null,
   status: row.status || "active",
   can_open_branch: row.can_open_branch !== false,
@@ -1650,6 +1676,11 @@ export const createEmployee = async (req, res) => {
         message: "Employee full name is required",
       });
     }
+    try {
+      paidLeaveDaysFromBody(req.body);
+    } catch (validationError) {
+      return res.status(400).json({ success: false, message: validationError.message });
+    }
 
     const code = String(employee_code || `EMP-${Date.now()}`).trim();
     const resolvedJobTitle = String(job_title ?? jobTitle ?? position ?? "").trim();
@@ -1715,10 +1746,11 @@ export const createEmployee = async (req, res) => {
       ]
     );
 
+    const createdRow = await savePaidLeaveDays({ employeeId: created.rows[0]?.id, tenantId, body: req.body, row: created.rows[0] });
     return res.status(201).json({
       success: true,
-      data: normalizeEmployee(created.rows[0]),
-      employee: normalizeEmployee(created.rows[0]),
+      data: normalizeEmployee(createdRow),
+      employee: normalizeEmployee(createdRow),
     });
   } catch (error) {
     console.log("CREATE EMPLOYEE ERROR:", error);
@@ -1763,6 +1795,11 @@ export const updateEmployee = async (req, res) => {
       manager_portal_enabled = false,
     } = req.body || {};
 
+    try {
+      paidLeaveDaysFromBody(req.body);
+    } catch (validationError) {
+      return res.status(400).json({ success: false, message: validationError.message });
+    }
     const resolvedJobTitle = String(job_title ?? jobTitle ?? position ?? "").trim();
     const resolvedPosition = String(position ?? job_title ?? jobTitle ?? "").trim();
     const updated = await db.query(
@@ -1836,10 +1873,11 @@ export const updateEmployee = async (req, res) => {
       });
     }
 
+    const updatedRow = await savePaidLeaveDays({ employeeId: id, tenantId, body: req.body, row: updated.rows[0] });
     return res.status(200).json({
       success: true,
-      data: normalizeEmployee(updated.rows[0]),
-      employee: normalizeEmployee(updated.rows[0]),
+      data: normalizeEmployee(updatedRow),
+      employee: normalizeEmployee(updatedRow),
     });
   } catch (error) {
     console.log("UPDATE EMPLOYEE ERROR:", error);
@@ -3852,6 +3890,7 @@ const loadLeavePayrollImpact = async (filters) => {
         AND COALESCE(v.vacation_date, v.end_date, v.start_date) >= $2::date
     )
     SELECT ld.employee_id, e.full_name AS employee_name, e.branch_id, ld.leave_day, ld.leave_kind,
+      e.monthly_paid_leave_days AS employee_paid_leave_days,
       COALESCE(e.salary, 0)::numeric AS salary,
       COALESCE(e.working_days_per_month, 26)::int AS working_days_per_month
     FROM leave_days ld
@@ -3874,6 +3913,10 @@ const loadLeavePayrollImpact = async (filters) => {
     if (leaveDate < filters.startDate || leaveDate > filters.endDate) return;
 
     const employeeKey = String(row.employee_id);
+    // The employee's own balance when set, else the company's.
+    const allowance = row.employee_paid_leave_days === null || row.employee_paid_leave_days === undefined
+      ? paidAllowance
+      : Math.max(0, centerNumber(row.employee_paid_leave_days, paidAllowance));
     const dailyRate = centerNumber(row.salary) / Math.max(1, centerNumber(row.working_days_per_month, 26));
     const bucket = impactByEmployee.get(employeeKey) || {
       employee_id: row.employee_id,
@@ -3881,10 +3924,10 @@ const loadLeavePayrollImpact = async (filters) => {
       paid_leave_days: 0,
       deducted_leave_days: 0,
       leave_deduction: 0,
-      monthly_paid_leave_days: paidAllowance,
+      monthly_paid_leave_days: allowance,
     };
     bucket.leave_days += 1;
-    if (usedAfter <= paidAllowance) {
+    if (usedAfter <= allowance) {
       bucket.paid_leave_days += 1;
     } else {
       bucket.deducted_leave_days += 1;
