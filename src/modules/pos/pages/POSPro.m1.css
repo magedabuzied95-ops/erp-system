@@ -27,6 +27,47 @@
    counts or card sizing. Only colour, border, radius and type-step.
    ====================================================================== */
 
+/* --------------------------------------------------------------------------
+   0. STATUS INKS
+   The status tokens are tuned for fills and large type. POS sets them as
+   10-12px bold labels on their own -soft tint, and measured in Light they read
+   3.1:1 (warning), 3.9:1 (danger), 4.1:1 (success) and 3.4:1 (gold on
+   --primary-soft) — the faded buttons the cashier sees.
+
+   Each ink is the token pulled toward --text. That darkens it in Light and
+   lightens it in Dark, so one declaration lifts both themes (>=5:1 on the tint
+   in Light) without a theme gate or a literal. The token is re-declared on
+   body's CHILDREN from a copy taken on body itself: a custom property cannot
+   reference its own name on the same element, and children of body cover both
+   the POS shell and the modals POS portals onto body.
+
+   --primary is NOT re-declared: it is also the checkout button's fill. Text on
+   a gold tint uses --pos-primary-ink instead.
+   -------------------------------------------------------------------------- */
+body.pos-route {
+  --pos-base-success: var(--success);
+  --pos-base-warning: var(--warning);
+  --pos-base-danger: var(--danger);
+}
+
+body.pos-route > * {
+  --success: color-mix(in srgb, var(--pos-base-success) 80%, var(--text));
+  --warning: color-mix(in srgb, var(--pos-base-warning) 72%, var(--text));
+  --danger: color-mix(in srgb, var(--pos-base-danger) 80%, var(--text));
+}
+
+:is(.pos-pro-shell, body.pos-route) {
+  --pos-primary-ink: color-mix(in srgb, var(--primary) 72%, var(--text));
+}
+
+/* foundation.css paints a soft cyan/blue/sky button (bg + text of the same
+   family) as a gold "secondary action"; keep that, with the readable ink. */
+html :is(.pos-pro-shell.pos-pro-shell, body.pos-route.pos-route) :where(button,a):not(.pos-payment-method, .pos-checkout-paymob)[class*="bg-blue-"][class*="text-blue-"],
+html :is(.pos-pro-shell.pos-pro-shell, body.pos-route.pos-route) :where(button,a):not(.pos-payment-method, .pos-checkout-paymob)[class*="bg-sky-"][class*="text-sky-"],
+html :is(.pos-pro-shell.pos-pro-shell, body.pos-route.pos-route) :where(button,a):not(.pos-payment-method, .pos-checkout-paymob)[class*="bg-cyan-"][class*="text-cyan-"] {
+  color: var(--pos-primary-ink) !important;
+}
+
 @media (min-width: 1280px) {
   .pos-pro-shell .pos-main-layout {
     grid-template-columns: minmax(0, 12fr) minmax(0, 13fr);
@@ -49,15 +90,17 @@
    2. PANELS AND CHROME
    One card contract, matching .m1-surface. Previously five separate light-only
    rules with three different whites and a private shadow.
+   Doubled class: index.css maps `html[data-theme] .bg-zinc-950/90` to --bg at
+   0,2,1, which beat 0,2,0 and painted the payment panel as a grey page band.
    -------------------------------------------------------------------------- */
-.pos-pro-shell :is(.pos-session-pill, .pos-catalog-toolbar, .pos-customer-picker, .pos-payment-panel, .pos-cart-panel) {
+.pos-pro-shell.pos-pro-shell :is(.pos-session-pill, .pos-catalog-toolbar, .pos-customer-picker, .pos-payment-panel, .pos-cart-panel) {
   border-color: var(--border) !important;
   background: var(--card) !important;
   color: var(--text) !important;
   box-shadow: var(--shadow-card) !important;
 }
 
-.pos-pro-shell .pos-catalog-panel {
+.pos-pro-shell.pos-pro-shell .pos-catalog-panel {
   border-color: var(--border) !important;
   background: var(--surface) !important;
   color: var(--text) !important;
@@ -144,7 +187,7 @@
 .pos-pro-shell .pos-product-edit {
   border-color: color-mix(in srgb, var(--primary) 40%, var(--border)) !important;
   background: var(--primary-soft) !important;
-  color: var(--primary) !important;
+  color: var(--pos-primary-ink) !important;
 }
 
 .pos-pro-shell :is(.pos-product-article, .pos-product-meta) {
@@ -156,7 +199,7 @@
 .pos-pro-shell .pos-product-size {
   border-color: color-mix(in srgb, var(--primary) 34%, var(--border)) !important;
   background: var(--primary-soft) !important;
-  color: var(--primary) !important;
+  color: var(--pos-primary-ink) !important;
 }
 
 .pos-pro-shell .pos-product-price {
@@ -200,6 +243,17 @@
   color: var(--danger) !important;
 }
 
+/* Restock alerts: was a hardcoded pale-gold label (#f1dc9a) that vanished in Light. */
+.pos-pro-shell .pos-action-restock {
+  border-color: color-mix(in srgb, var(--primary) 40%, var(--border)) !important;
+  background: var(--primary-soft) !important;
+  color: var(--pos-primary-ink) !important;
+}
+
+.pos-pro-shell .pos-action-restock:hover {
+  border-color: color-mix(in srgb, var(--primary) 60%, var(--border)) !important;
+}
+
 /* --------------------------------------------------------------------------
    5. CART / TOTALS / PAYMENT
    -------------------------------------------------------------------------- */
@@ -232,42 +286,54 @@
    tones stay visually distinguishable (operators select by colour under time
    pressure) but now read as M1 semantic families rather than five bespoke
    pastel palettes. */
-.pos-pro-shell .pos-payment-method {
+/* `.pos-pro-shell.pos-pro-shell` is deliberate. foundation.css's soft-button rule
+   is `:is(.m1-shell-root .m1-shell-content, …)` + two attribute matches = 0,4,0,
+   because `:is()` takes its heaviest argument. At 0,3,1 these rules lost, and
+   VISA (bg-blue + text-blue) and Paymob (bg-cyan + text-cyan) both rendered gold —
+   the same colour as SPLIT. The doubled class (plus [data-tone] or the
+   checkout bar ancestor) lifts every rule here to 0,4,1. */
+.pos-pro-shell.pos-pro-shell button.pos-payment-method[data-tone] {
   background: var(--surface-soft) !important;
   box-shadow: none !important;
 }
 
-.pos-pro-shell .pos-payment-method[data-tone="green"] {
+.pos-pro-shell.pos-pro-shell button.pos-payment-method[data-tone="green"] {
   border-color: color-mix(in srgb, var(--success) 45%, var(--border)) !important;
   color: var(--success) !important;
 }
 
-.pos-pro-shell .pos-payment-method[data-tone="blue"] {
+.pos-pro-shell.pos-pro-shell button.pos-payment-method[data-tone="blue"] {
   border-color: color-mix(in srgb, var(--info) 45%, var(--border)) !important;
   color: var(--info) !important;
 }
 
-.pos-pro-shell .pos-payment-method[data-tone="purple"] {
+/* InstaPay is its own colour: sharing --info with VISA made the two buttons
+   identical, and the cashier picks the method by colour. The violet is --info
+   turned on the hue wheel, so it keeps --info's lightness in each theme. The
+   plain --info line stays as the fallback for a browser without relative
+   colour syntax, which drops the second declaration. */
+.pos-pro-shell.pos-pro-shell button.pos-payment-method[data-tone="purple"] {
   border-color: color-mix(in srgb, var(--info) 45%, var(--border)) !important;
   color: var(--info) !important;
+  color: oklch(from var(--info) l calc(c + 0.1) 295) !important;
 }
 
-.pos-pro-shell .pos-payment-method[data-tone="red"] {
+.pos-pro-shell.pos-pro-shell button.pos-payment-method[data-tone="red"] {
   border-color: color-mix(in srgb, var(--danger) 45%, var(--border)) !important;
   color: var(--danger) !important;
 }
 
-.pos-pro-shell .pos-payment-method[data-tone="gold"] {
+.pos-pro-shell.pos-pro-shell button.pos-payment-method[data-tone="gold"] {
   border-color: color-mix(in srgb, var(--primary) 45%, var(--border)) !important;
-  color: var(--primary) !important;
+  color: var(--pos-primary-ink) !important;
 }
 
-.pos-pro-shell .pos-payment-method[data-active="true"] {
+.pos-pro-shell.pos-pro-shell button.pos-payment-method[data-active="true"] {
   background: color-mix(in srgb, currentColor 12%, var(--surface)) !important;
   box-shadow: inset 0 0 0 1px currentColor !important;
 }
 
-.pos-pro-shell .pos-payment-method :is(span, svg) { color: inherit !important; }
+.pos-pro-shell.pos-pro-shell button.pos-payment-method :is(span, svg) { color: inherit !important; }
 
 /* --------------------------------------------------------------------------
    6. CHECKOUT BAR
@@ -283,25 +349,25 @@
 
 .pos-pro-shell .pos-checkout-actions button:disabled { opacity: .72 !important; }
 
-.pos-pro-shell .pos-checkout-primary {
+.pos-pro-shell.pos-pro-shell .pos-checkout-actions button.pos-checkout-primary {
   border-color: var(--primary-active) !important;
   background: var(--primary) !important;
   color: var(--primary-contrast) !important;
 }
 
-.pos-pro-shell .pos-checkout-primary:hover:not(:disabled) {
+.pos-pro-shell.pos-pro-shell .pos-checkout-actions button.pos-checkout-primary:hover:not(:disabled) {
   background: var(--primary-hover) !important;
 }
 
-.pos-pro-shell .pos-checkout-credit {
+.pos-pro-shell.pos-pro-shell .pos-checkout-actions button.pos-checkout-credit {
   border-color: color-mix(in srgb, var(--warning) 45%, var(--border)) !important;
   background: var(--warning-soft) !important;
   color: var(--warning) !important;
 }
 
-.pos-pro-shell .pos-checkout-credit span { color: inherit !important; }
+.pos-pro-shell.pos-pro-shell .pos-checkout-actions button.pos-checkout-credit span { color: inherit !important; }
 
-.pos-pro-shell .pos-checkout-paymob {
+.pos-pro-shell.pos-pro-shell .pos-checkout-actions button.pos-checkout-paymob {
   border-color: color-mix(in srgb, var(--info) 45%, var(--border)) !important;
   background: var(--info-soft) !important;
   color: var(--info) !important;

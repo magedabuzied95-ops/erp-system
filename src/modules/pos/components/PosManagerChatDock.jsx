@@ -326,16 +326,16 @@ export default function PosManagerChatDock({ branchId = "", branchName = "" }) {
         }}
         aria-label={unreadLabel || t("pos.managerChat.open")}
         title={unreadLabel || title}
-        className={`pos-manager-chat-fab fixed z-[70] inline-flex h-14 w-14 items-center justify-center rounded-full border text-white shadow-[0_16px_40px_rgba(0,0,0,0.45)] transition-transform duration-200 hover:scale-105 active:scale-95 ${
+        className={`pos-manager-chat-fab fixed z-[70] inline-flex h-14 w-14 items-center justify-center rounded-full border shadow-[var(--shadow-overlay)] transition-transform duration-200 hover:scale-105 active:scale-95 ${
           unread
-            ? "border-amber-300/60 bg-[linear-gradient(160deg,#f59e0b,#b45309)]"
-            : "border-white/15 bg-[linear-gradient(160deg,rgba(39,39,42,0.98),rgba(9,9,11,0.98))]"
+            ? "border-[var(--warning)] bg-[var(--warning)] text-slate-50"
+            : "border-[var(--border)] bg-[var(--card)] text-[var(--text)]"
         } ${flash ? "pos-manager-chat-fab--flash" : ""}`}
         style={{ insetInlineStart: "1rem", bottom: "calc(env(safe-area-inset-bottom) + 6.75rem)" }}
       >
         <MessageSquareText className="h-6 w-6" />
         {unread ? (
-          <span className="absolute -top-1.5 -end-1.5 inline-flex h-6 min-w-[1.5rem] items-center justify-center rounded-full border-2 border-zinc-950 bg-rose-500 px-1.5 text-[11px] font-black tabular-nums text-white">
+          <span className="absolute -top-1.5 -end-1.5 inline-flex h-6 min-w-[1.5rem] items-center justify-center rounded-full border-2 border-[var(--card)] bg-[var(--danger)] px-1.5 text-[11px] font-black tabular-nums text-slate-50">
             {badge}
           </span>
         ) : null}
@@ -346,7 +346,7 @@ export default function PosManagerChatDock({ branchId = "", branchName = "" }) {
         <div
           role="dialog"
           aria-label={title}
-          className="fixed z-[71] flex flex-col overflow-hidden rounded-[24px] border border-white/12 bg-zinc-950/97 text-white shadow-[0_30px_80px_rgba(0,0,0,0.6)] backdrop-blur-xl"
+          className="fixed z-[71] flex flex-col overflow-hidden rounded-[24px] border border-[var(--border)] bg-[var(--surface)] text-[var(--text)] shadow-[var(--shadow-overlay)]"
           style={{
             insetInlineStart: "1rem",
             bottom: "calc(env(safe-area-inset-bottom) + 1rem)",
@@ -354,15 +354,15 @@ export default function PosManagerChatDock({ branchId = "", branchName = "" }) {
             height: "min(36rem, calc(100dvh - 2rem))",
           }}
         >
-          <header className="flex items-center gap-3 border-b border-white/10 px-4 py-3">
-            <span className="relative inline-flex h-10 w-10 shrink-0 items-center justify-center rounded-2xl bg-amber-400/15 text-amber-200">
+          <header className="flex items-center gap-3 border-b border-[var(--border)] px-4 py-3">
+            <span className="relative inline-flex h-10 w-10 shrink-0 items-center justify-center rounded-2xl bg-[var(--warning-soft)] text-[var(--warning)]">
               <MessageSquareText className="h-5 w-5" />
             </span>
             <div className="min-w-0 flex-1">
               <div className="truncate text-sm font-black">{title}</div>
-              {subtitle ? <div className="truncate text-[11px] font-bold text-amber-200/80">{subtitle}</div> : null}
-              <div className="mt-0.5 flex items-center gap-1.5 truncate text-[11px] font-semibold text-zinc-400">
-                <span className={`inline-block h-1.5 w-1.5 shrink-0 rounded-full ${connected ? "bg-emerald-400" : "bg-amber-400"}`} />
+              {subtitle ? <div className="truncate text-[11px] font-bold text-[var(--warning)]">{subtitle}</div> : null}
+              <div className="mt-0.5 flex items-center gap-1.5 truncate text-[11px] font-semibold text-[var(--muted)]">
+                <span className={`inline-block h-1.5 w-1.5 shrink-0 rounded-full ${connected ? "bg-[var(--success)]" : "bg-[var(--warning)]"}`} />
                 <span className="truncate">{connected ? t("pos.managerChat.connected") : t("pos.managerChat.reconnecting")}</span>
               </div>
             </div>
@@ -372,7 +372,7 @@ export default function PosManagerChatDock({ branchId = "", branchName = "" }) {
               disabled={ringSending || chatRing.outgoing?.status === "ringing"}
               title={t("common.chatRing.ringTitle")}
               aria-label={t("common.chatRing.ringButton")}
-              className="inline-flex h-9 items-center gap-1.5 rounded-xl bg-amber-400 px-2.5 text-xs font-black text-zinc-950 disabled:opacity-50"
+              className="inline-flex h-9 items-center gap-1.5 rounded-xl bg-[var(--primary)] px-2.5 text-xs font-black text-[var(--primary-contrast)] disabled:opacity-50"
             >
               <PhoneCall className={`h-4 w-4 ${chatRing.outgoing?.status === "ringing" ? "animate-pulse" : ""}`} />
               {t("common.chatRing.ringButton")}
@@ -382,7 +382,7 @@ export default function PosManagerChatDock({ branchId = "", branchName = "" }) {
               onClick={testSound}
               title={t("pos.managerChat.testSound")}
               aria-label={t("pos.managerChat.testSound")}
-              className="inline-flex h-9 w-9 items-center justify-center rounded-xl border border-white/10 text-zinc-300 hover:bg-white/5"
+              className="inline-flex h-9 w-9 items-center justify-center rounded-xl border border-[var(--border)] text-[var(--muted)] hover:bg-[var(--surface-soft)] hover:text-[var(--text)]"
             >
               <Volume2 className="h-4 w-4" />
             </button>
@@ -390,7 +390,7 @@ export default function PosManagerChatDock({ branchId = "", branchName = "" }) {
               type="button"
               onClick={() => setOpen(false)}
               aria-label={t("pos.managerChat.close")}
-              className="inline-flex h-9 w-9 items-center justify-center rounded-xl border border-white/10 text-zinc-300 hover:bg-white/5"
+              className="inline-flex h-9 w-9 items-center justify-center rounded-xl border border-[var(--border)] text-[var(--muted)] hover:bg-[var(--surface-soft)] hover:text-[var(--text)]"
             >
               <X className="h-4 w-4" />
             </button>
@@ -398,10 +398,10 @@ export default function PosManagerChatDock({ branchId = "", branchName = "" }) {
 
           <div ref={listRef} className="flex-1 space-y-2 overflow-y-auto px-3 py-3">
             {messages.length === 0 ? (
-              <div className="flex h-full flex-col items-center justify-center gap-2 px-6 text-center text-xs font-semibold leading-5 text-zinc-500">
-                <MessageSquareText className="h-8 w-8 text-zinc-700" />
+              <div className="flex h-full flex-col items-center justify-center gap-2 px-6 text-center text-xs font-semibold leading-5 text-[var(--muted)]">
+                <MessageSquareText className="h-8 w-8 text-[var(--border)]" />
                 {t("pos.managerChat.empty")}
-                <span className="text-[11px] text-zinc-600">{t("pos.managerChat.soundHint")}</span>
+                <span className="text-[11px] text-[var(--muted)]">{t("pos.managerChat.soundHint")}</span>
               </div>
             ) : (
               messages.map((message) => {
@@ -413,19 +413,19 @@ export default function PosManagerChatDock({ branchId = "", branchName = "" }) {
                   <div key={messageKey(message)} className={`flex ${admin ? "justify-start" : "justify-end"}`}>
                     <div
                       className={`max-w-[85%] rounded-2xl px-3 py-2 text-[13px] leading-5 ${
-                        admin ? "rounded-ss-md border border-amber-300/20 bg-amber-400/10 text-amber-50" : "rounded-se-md bg-white/8 text-zinc-100"
+                        admin ? "rounded-ss-md border border-[color-mix(in_srgb,var(--warning)_30%,var(--border))] bg-[var(--warning-soft)] text-[var(--text)]" : "rounded-se-md bg-[var(--surface-soft)] text-[var(--text)]"
                       }`}
                     >
-                      <div className={`mb-0.5 text-[10px] font-black uppercase tracking-[0.14em] ${admin ? "text-amber-300/80" : "text-zinc-500"}`}>
+                      <div className={`mb-0.5 text-[10px] font-black uppercase tracking-[0.14em] ${admin ? "text-[var(--warning)]" : "text-[var(--muted)]"}`}>
                         {admin ? t("pos.managerChat.management") : message.sender_name || t("pos.managerChat.you")}
                       </div>
                       {deleted ? (
-                        <div className="italic text-zinc-500">—</div>
+                        <div className="italic text-[var(--muted)]">—</div>
                       ) : (
                         <>
                           {message.body ? <div className="whitespace-pre-wrap break-words">{message.body}</div> : null}
                           {hasAttachment && isPortalChatImageMessage(message) ? (
-                            <a href={url} target="_blank" rel="noreferrer" className="mt-1.5 block overflow-hidden rounded-xl border border-white/10">
+                            <a href={url} target="_blank" rel="noreferrer" className="mt-1.5 block overflow-hidden rounded-xl border border-[var(--border)]">
                               <img src={url} alt={portalChatAttachmentName(message) || labels.image} className="max-h-56 w-full object-cover" loading="lazy" />
                             </a>
                           ) : null}
@@ -433,13 +433,13 @@ export default function PosManagerChatDock({ branchId = "", branchName = "" }) {
                             <audio controls preload="none" src={url} className="mt-1.5 w-full" />
                           ) : null}
                           {hasAttachment && !isPortalChatImageMessage(message) && !isPortalChatAudioMessage(message) ? (
-                            <a href={url} target="_blank" rel="noreferrer" className="mt-1.5 inline-flex items-center gap-1 text-xs font-bold text-sky-300 underline-offset-2 hover:underline">
+                            <a href={url} target="_blank" rel="noreferrer" className="mt-1.5 inline-flex items-center gap-1 text-xs font-bold text-[var(--info)] underline-offset-2 hover:underline">
                               {portalChatAttachmentName(message) || t("pos.managerChat.attachment")}
                             </a>
                           ) : null}
                         </>
                       )}
-                      <div className={`mt-1 text-[10px] tabular-nums ${admin ? "text-amber-200/60" : "text-zinc-500"}`}>
+                      <div className={`mt-1 text-[10px] tabular-nums ${admin ? "text-[var(--warning)] opacity-80" : "text-[var(--muted)]"}`}>
                         {formatTime(message.created_at, locale)}
                         {!admin && message.read_at ? " ✓✓" : ""}
                       </div>
@@ -450,10 +450,10 @@ export default function PosManagerChatDock({ branchId = "", branchName = "" }) {
             )}
           </div>
 
-          {chatRing.outgoing ? <div className="border-t border-white/10 px-3 py-2"><ChatRingStatus outgoing={chatRing.outgoing} onClear={chatRing.clearOutgoing} /></div> : null}
-          {error ? <div className="border-t border-rose-500/20 bg-rose-500/10 px-4 py-2 text-xs font-bold text-rose-200">{error}</div> : null}
+          {chatRing.outgoing ? <div className="border-t border-[var(--border)] px-3 py-2"><ChatRingStatus outgoing={chatRing.outgoing} onClear={chatRing.clearOutgoing} /></div> : null}
+          {error ? <div className="border-t border-[var(--border)] bg-[var(--danger-soft)] px-4 py-2 text-xs font-bold text-[var(--danger)]">{error}</div> : null}
 
-          <footer className="flex items-end gap-2 border-t border-white/10 p-3">
+          <footer className="flex items-end gap-2 border-t border-[var(--border)] p-3">
             <textarea
               ref={inputRef}
               value={draft}
@@ -462,14 +462,14 @@ export default function PosManagerChatDock({ branchId = "", branchName = "" }) {
               onBlur={stopTyping}
               rows={1}
               placeholder={t("pos.managerChat.placeholder")}
-              className="max-h-28 min-h-[2.75rem] flex-1 resize-none rounded-2xl border border-white/10 bg-white/5 px-3 py-2.5 text-sm text-white placeholder:text-zinc-500 focus:border-amber-300/50 focus:outline-none"
+              className="max-h-28 min-h-[2.75rem] flex-1 resize-none rounded-2xl border border-[var(--border)] bg-[var(--surface-soft)] px-3 py-2.5 text-sm text-[var(--text)] placeholder:text-[var(--muted)] focus:border-[var(--primary)] focus:outline-none"
             />
             <button
               type="button"
               onClick={send}
               disabled={!draft.trim() || sending}
               aria-label={t("pos.managerChat.send")}
-              className="inline-flex h-11 w-11 shrink-0 items-center justify-center rounded-2xl bg-amber-400 text-zinc-950 transition disabled:cursor-not-allowed disabled:opacity-40"
+              className="inline-flex h-11 w-11 shrink-0 items-center justify-center rounded-2xl bg-[var(--primary)] text-[var(--primary-contrast)] transition disabled:cursor-not-allowed disabled:opacity-40"
             >
               <Send className="h-5 w-5 rtl:-scale-x-100" />
             </button>

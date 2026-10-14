@@ -9358,7 +9358,7 @@ function POSPro() {
             <button
               type="button"
               onClick={() => setRestockModalOpen(true)}
-              className="inline-flex h-[var(--control-height-md)] shrink-0 items-center gap-1.5 rounded-xl border border-[#d4af37]/30 bg-[#d4af37]/10 px-2.5 text-xs font-black text-[#f1dc9a] transition hover:border-[#d4af37]/55 hover:bg-[#d4af37]/15"
+              className="pos-toolbar-action pos-action-restock inline-flex h-[var(--control-height-md)] shrink-0 items-center gap-1.5 rounded-xl border px-2.5 text-xs font-black transition"
               title={t("pos.restock.title")}
               aria-label={t("pos.restock.title")}
             >
