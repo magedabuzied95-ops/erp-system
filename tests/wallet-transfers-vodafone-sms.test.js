@@ -210,3 +210,25 @@ test("wiring: boot creates the table, routes are mounted, checkout re-matches, s
   assert.match(routes, /walletSmsSecretMatches\(/);
   assert.match(read("../shared/settingsRegistry.js"), /"payments\.wallet_sms_webhook_secret", "payments", "secret"/);
 });
+
+// A bank SMS that names nobody (United Bank), or CIB's English name against an Arabic order:
+// the amount decides only for the ONE waiting order whose customer uploaded the screenshot.
+test("the one waiting order with an uploaded screenshot is approved by the amount alone", () => {
+  const paid = { provider: "united_bank", amount: 100, counterparty_phone: "", counterparty_name: "", reference: "20261014184500-100-5000", occurred_at: "2026-10-14T16:45:00Z" };
+  const withProof = (id, extra = {}) => ({ id, customer_name: "ماجد", customer_phone: "01000659301", shipping_payment_reference: "", shipping_payment_screenshot: "/uploads/payment-proofs/x.jpg", created_at: "2026-10-14T16:42:00Z", ...extra });
+
+  const decision = decideTransferMatch({ transfer: paid, candidates: [withProof(2103)], trustedSender: true });
+  assert.equal(decision.action, "confirm");
+  assert.equal(decision.order.id, 2103);
+  assert.equal(decision.matchMethod, "auto_amount_proof");
+
+  // No screenshot: still a person's call.
+  assert.equal(decideTransferMatch({ transfer: paid, candidates: [withProof(2103, { shipping_payment_screenshot: "" })], trustedSender: true }).reviewReason, "amount_only");
+  // A fake screenshot cannot take another customer's money: that payer's order is a second candidate.
+  assert.equal(decideTransferMatch({ transfer: paid, candidates: [withProof(2103), withProof(2104, { shipping_payment_screenshot: "" })], trustedSender: true }).action, "review");
+  // A forged SMS from a number is never trusted, whatever was uploaded.
+  assert.equal(decideTransferMatch({ transfer: paid, candidates: [withProof(2103)], trustedSender: false }).reviewReason, "untrusted_sender");
+  // An order placed long before the money, or long after it, is not this transfer's.
+  assert.equal(decideTransferMatch({ transfer: paid, candidates: [withProof(2103, { created_at: "2026-10-11T16:00:00Z" })], trustedSender: true }).action, "review");
+  assert.equal(decideTransferMatch({ transfer: paid, candidates: [withProof(2103, { created_at: "2026-10-14T20:00:00Z" })], trustedSender: true }).action, "review");
+});

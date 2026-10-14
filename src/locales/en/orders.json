@@ -1158,7 +1158,9 @@
       "auto_phone": "automatic by customer phone",
       "auto_reference": "automatic by transaction number",
       "manual": "manual",
-      "auto_name": "automatic by sender name"
+      "auto_name": "automatic by sender name",
+      "auto_amount_proof": "automatic by amount and uploaded proof",
+      "pos": "at the till"
     },
     "order": "Order",
     "candidates": "Orders it may belong to",

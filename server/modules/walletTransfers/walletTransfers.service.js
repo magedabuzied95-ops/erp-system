@@ -105,7 +105,7 @@ const knownWalletKeys = async () => {
 const findCandidateOrders = async (client, transfer) => {
   const result = await client.query(
     `
-    SELECT id, tenant_id, invoice_number, customer_name, customer_phone, shipping_payment_reference,
+    SELECT id, tenant_id, invoice_number, customer_name, customer_phone, shipping_payment_reference, shipping_payment_screenshot,
            COALESCE(NULLIF(total_amount, 0), NULLIF(total, 0), total_price, 0) AS order_total, created_at
     FROM orders
     WHERE ($1::bigint IS NULL OR tenant_id = $1::bigint OR tenant_id IS NULL)

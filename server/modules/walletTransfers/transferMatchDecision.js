@@ -31,6 +31,18 @@ export const namesMatch = (a = "", b = "") => {
 // domain is the same for everyone, so it never takes part in a comparison.
 const senderIdentity = (value = "") => String(value ?? "").split("@")[0].trim();
 
+// The order was placed within two days before the money, or (a customer who paid first and
+// checked out after) within two hours after it.
+const PROOF_WINDOW_BEFORE_MS = 48 * 60 * 60 * 1000;
+const PROOF_WINDOW_AFTER_MS = 2 * 60 * 60 * 1000;
+export const provedByUpload = (order = {}, transfer = {}) => {
+  if (!String(order.shipping_payment_screenshot || "").trim()) return false;
+  const placed = new Date(order.created_at).getTime();
+  const paid = new Date(transfer.occurred_at || transfer.created_at || Date.now()).getTime();
+  if (!Number.isFinite(placed) || !Number.isFinite(paid)) return false;
+  return placed >= paid - PROOF_WINDOW_BEFORE_MS && placed <= paid + PROOF_WINDOW_AFTER_MS;
+};
+
 // Pure: which of the waiting orders the transfer proves, and how sure we are.
 export const decideTransferMatch = ({ transfer, candidates = [], trustedSender = false, walletKnown = true }) => {
   const senderKey = canonicalPhoneKey(transfer.counterparty_phone);
@@ -53,6 +65,14 @@ export const decideTransferMatch = ({ transfer, candidates = [], trustedSender =
 
   if (strong.length === 1 && trustedSender && walletKnown) {
     return { action: "confirm", order: strong[0], matchMethod: methodFor(strong[0]), candidateIds };
+  }
+  // United Bank names nobody, and CIB writes the payer in English while the order says
+  // "ماجد". Then the amount may decide — but only when it is the ONE order anywhere waiting
+  // on exactly this sum, its customer uploaded the transfer screenshot, and it was placed
+  // close to the money. A fake screenshot cannot borrow somebody else's transfer: that
+  // payer's order would be a second candidate, and two candidates always wait for a person.
+  if (!strong.length && candidates.length === 1 && trustedSender && walletKnown && provedByUpload(candidates[0], transfer)) {
+    return { action: "confirm", order: candidates[0], matchMethod: "auto_amount_proof", candidateIds };
   }
   if (!candidates.length) return { action: "unmatched", reviewReason: null, candidateIds };
   const reviewReason = !trustedSender
