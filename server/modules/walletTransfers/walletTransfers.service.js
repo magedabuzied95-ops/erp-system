@@ -289,9 +289,6 @@ const notifyOutcome = (result) => {
 // Every incoming transfer no website order took is offered to the tenant's open tills;
 // the cashier is the one who says it belongs to the invoice on screen.
 const POS_TRANSFER_WINDOW_MINUTES = 30;
-// What the till sends in payment_breakdown for money that arrives by transfer ("wallet" is
-// the INSTAPAY button).
-export const POS_TRANSFER_PAYMENT_METHODS = ["vodafone_cash", "instapay", "wallet"];
 
 export const toPosTransfer = (row = {}) => ({
   id: Number(row.id),
@@ -335,7 +332,25 @@ export const listPosIncomingTransfers = async ({ tenantId = null } = {}) => {
 
 // Runs inside the till's sale transaction, after the order row exists. The one UPDATE is
 // the lock: of two tills confirming the same transfer, exactly one gets the row back.
-export const claimWalletTransferForPosOrder = async (client, { tenantId = null, transferId, orderId, amount, userId = null }) => {
+// The invoice records the money the way it actually came: a Vodafone Cash transfer only
+// pays the invoice's vodafone_cash part, and an InstaPay one (the app, CIB, United Bank)
+// only its instapay part — so an InstaPay transfer can never be booked as Vodafone Cash.
+export const posTransferMethodFor = (provider = "") => (provider === "vodafone_cash" ? "vodafone_cash" : "instapay");
+
+export const sumPosTransferParts = (paymentBreakdown = []) =>
+  (Array.isArray(paymentBreakdown) ? paymentBreakdown : []).reduce(
+    (parts, row) => {
+      const method = String(row?.method || row?.payment_method || "").trim().toLowerCase();
+      const amount = Number(row?.amount || 0);
+      if (!Number.isFinite(amount) || amount <= 0) return parts;
+      if (method === "vodafone_cash" || method === "vodafone") parts.vodafone_cash += amount;
+      else if (method === "instapay" || method === "insta_pay" || method === "wallet") parts.instapay += amount;
+      return parts;
+    },
+    { vodafone_cash: 0, instapay: 0 }
+  );
+
+export const claimWalletTransferForPosOrder = async (client, { tenantId = null, transferId, orderId, parts = {}, userId = null }) => {
   const result = await client.query(
     `
     UPDATE wallet_transfers
@@ -343,11 +358,11 @@ export const claimWalletTransferForPosOrder = async (client, { tenantId = null, 
         matched_at = NOW(), matched_by = $4, updated_at = NOW()
     WHERE id = $1
       AND direction = 'incoming' AND status IN ('unmatched', 'needs_review')
-      AND ABS(COALESCE(amount, 0) - $3::numeric) < 0.01
+      AND ABS(COALESCE(amount, 0) - CASE WHEN provider = 'vodafone_cash' THEN $3::numeric ELSE $6::numeric END) < 0.01
       AND ($5::bigint IS NULL OR tenant_id = $5::bigint OR tenant_id IS NULL)
     RETURNING *
     `,
-    [transferId, orderId, Number(amount || 0), userId, tenantId]
+    [transferId, orderId, Number(parts.vodafone_cash || 0), userId, tenantId, Number(parts.instapay || 0)]
   );
   const claimed = result.rows[0] || null;
   if (claimed) claimed.twins = await settleTransferTwins(client, claimed);

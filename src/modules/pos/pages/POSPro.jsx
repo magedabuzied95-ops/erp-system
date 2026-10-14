@@ -8998,18 +8998,44 @@ function POSPro() {
     }
     return checkoutActionRef.current(options);
   }, [isOnlineInvoiceMode]);
-  // What the open invoice waits to receive by Vodafone Cash / InstaPay ("wallet" is the
-  // INSTAPAY button). A transfer of exactly this amount is offered by PosWalletTransferAlert.
-  const expectedWalletTransferAmount = paymentMode === "vodafone_cash" || paymentMode === "instapay" || paymentMode === "wallet"
-    ? Number(paymentSummary.paidAmount || 0)
-    : paymentMode === "split"
-      ? Number(vodafoneCashAmount || 0) + Number(walletAmount || 0)
-      : 0;
+  // A transfer of exactly what the open invoice takes by transfer is offered by
+  // PosWalletTransferAlert, whatever button the cashier pressed: a split's Vodafone Cash +
+  // InstaPay parts, otherwise the whole amount due. Deferred, personal and store-credit
+  // invoices take no transfer.
+  const splitTransferPart = Number(vodafoneCashAmount || 0) + Number(walletAmount || 0);
+  const expectedWalletTransferAmount = ["credit_sale", "personal", "customer_wallet"].includes(paymentMode)
+    ? 0
+    : paymentMode === "split" && splitTransferPart > 0
+      ? splitTransferPart
+      : Number(amountDueNow || 0);
   const walletTransferAlertActive = cart.length > 0 && isShiftActive && !editingOrder?.id && !isOnlineInvoiceMode;
-  const handleConfirmWalletTransfer = useCallback(
-    (transfer) => handleCheckoutAction({ walletTransferId: transfer?.id || null }),
-    [handleCheckoutAction]
-  );
+  // Confirming books the money the way it actually came — a Vodafone Cash transfer as
+  // V.CASH, InstaPay / CIB / United Bank as INSTAPAY — then checks out on the next render,
+  // once the payment state carries it (the server refuses any other booking).
+  const pendingTransferCheckoutRef = useRef(null);
+  const [transferCheckoutTick, setTransferCheckoutTick] = useState(0);
+  const handleConfirmWalletTransfer = useCallback((transfer) => new Promise((resolve) => {
+    const method = transfer?.provider === "vodafone_cash" ? "vodafone_cash" : "instapay";
+    const amount = Number(transfer?.amount || 0);
+    pendingTransferCheckoutRef.current = { id: transfer?.id || null, resolve };
+    if (paymentMode === "split" && splitTransferPart > 0) {
+      setVodafoneCashAmount(method === "vodafone_cash" ? splitTransferPart : 0);
+      setWalletAmount(method === "instapay" ? splitTransferPart : 0);
+    } else {
+      setPaymentMode(method);
+      setCashAmount(0);
+      setCardAmount(0);
+      setVodafoneCashAmount(method === "vodafone_cash" ? amount : 0);
+      setWalletAmount(method === "instapay" ? amount : 0);
+    }
+    setTransferCheckoutTick((tick) => tick + 1);
+  }), [paymentMode, splitTransferPart]);
+  useEffect(() => {
+    const pending = pendingTransferCheckoutRef.current;
+    if (!pending || !transferCheckoutTick) return;
+    pendingTransferCheckoutRef.current = null;
+    Promise.resolve(handleCheckoutAction({ walletTransferId: pending.id })).then(pending.resolve, () => pending.resolve(null));
+  }, [transferCheckoutTick, handleCheckoutAction]);
   // The order is already committed server-side by the time this runs — stock was decremented
   // and the confirmation is on its way — so this only settles the till: empty the cart, drop
   // the sold stock out of the on-screen catalog, and refresh it from the server.

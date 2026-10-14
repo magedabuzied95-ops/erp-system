@@ -11,7 +11,7 @@ import { parseOrderSecondaryPhone } from "../utils/orderSecondaryPhone.js";
 import { adjustVariantStock, recordInventoryMovement } from "../services/inventoryService.js";
 import { createJournalEntry, ensureAccountingSchema, getCurrentCashDrawerShift, logAccountingAudit, postSaleEntry, postReturnEntry, postWalletLiabilityEntry, recordCashDrawerEvent, recordFinancialAccountActivity, resolveFinancialAccountForPayment, reverseMoneyTransactionsForReference } from "../services/accountingService.js";
 import { applyTransferPaymentConfirmation } from "../modules/walletTransfers/transferPaymentConfirmation.js";
-import { claimWalletTransferForPosOrder, emitPosTransferSettled, POS_TRANSFER_PAYMENT_METHODS } from "../modules/walletTransfers/walletTransfers.service.js";
+import { claimWalletTransferForPosOrder, emitPosTransferSettled, sumPosTransferParts } from "../modules/walletTransfers/walletTransfers.service.js";
 import { isWhatsappNumberMissingError, WHATSAPP_NUMBER_MISSING_MESSAGE } from "../utils/whatsappNotOnNumber.js";
 import { describeShippingFeeAdvance, markShippingFeePaid, waiveShippingFeeAdvance } from "../modules/shipping/shippingFeeAdvance.js";
 import { notifyPaymentProofApproved, sendShippingFeePaymentRequest } from "../modules/shipping/paymentProofLink.js";
@@ -4483,15 +4483,11 @@ export const createOrder = async (req, res) => {
     const walletTransferId = toPositiveIntegerOrNull(req.body?.wallet_transfer_id);
     let claimedWalletTransfer = null;
     if (walletTransferId && !isPersonalTransaction) {
-      const transferAmount = normalizeInvoiceMoney(
-        parsePaymentBreakdownRows(order.payment_breakdown)
-          .filter((row) => POS_TRANSFER_PAYMENT_METHODS.includes(normalizeMoneyPaymentMethod(row?.method || row?.payment_method)))
-          .reduce((sum, row) => sum + Number(row?.amount || 0), 0)
-      );
+      const parts = sumPosTransferParts(parsePaymentBreakdownRows(order.payment_breakdown));
       await client.query("SAVEPOINT pos_wallet_transfer_claim");
       try {
-        claimedWalletTransfer = transferAmount > 0
-          ? await claimWalletTransferForPosOrder(client, { tenantId, transferId: walletTransferId, orderId: order.id, amount: transferAmount, userId: req.user?.id || null })
+        claimedWalletTransfer = parts.vodafone_cash > 0 || parts.instapay > 0
+          ? await claimWalletTransferForPosOrder(client, { tenantId, transferId: walletTransferId, orderId: order.id, parts, userId: req.user?.id || null })
           : null;
         await client.query("RELEASE SAVEPOINT pos_wallet_transfer_claim");
       } catch (claimError) {

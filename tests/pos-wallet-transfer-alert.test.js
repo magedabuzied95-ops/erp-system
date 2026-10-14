@@ -1,7 +1,7 @@
 import test from "node:test";
 import assert from "node:assert/strict";
 import fs from "node:fs";
-import { claimWalletTransferForPosOrder, toPosTransfer } from "../server/modules/walletTransfers/walletTransfers.service.js";
+import { claimWalletTransferForPosOrder, posTransferMethodFor, sumPosTransferParts, toPosTransfer } from "../server/modules/walletTransfers/walletTransfers.service.js";
 
 // A customer at the counter pays by Vodafone Cash; the forwarded SMS is offered to the open
 // till, and the cashier's "confirm" checks the invoice out with the transfer attached. The
@@ -19,15 +19,28 @@ test("the till sees the provider in words, the amount as a number, and who sent 
 test("the claim takes only a waiting incoming transfer of exactly the wallet amount, in one statement", async () => {
   const calls = [];
   const client = { query: async (sql, params) => (calls.push({ sql, params }), { rows: [] }) };
-  const claimed = await claimWalletTransferForPosOrder(client, { tenantId: 1, transferId: 7, orderId: 99, amount: 2250, userId: 3 });
+  const claimed = await claimWalletTransferForPosOrder(client, { tenantId: 1, transferId: 7, orderId: 99, parts: { vodafone_cash: 0, instapay: 2250 }, userId: 3 });
   assert.equal(claimed, null, "no row back means another till took it, or the amount differs");
   assert.equal(calls.length, 1);
   const { sql, params } = calls[0];
   assert.match(sql, /UPDATE wallet_transfers/);
   assert.match(sql, /status IN \('unmatched', 'needs_review'\)/);
   assert.match(sql, /direction = 'incoming'/);
-  assert.match(sql, /ABS\(COALESCE\(amount, 0\) - \$3::numeric\) < 0\.01/);
-  assert.deepEqual(params, [7, 99, 2250, 3, 1]);
+  // Each transfer pays only the part booked under its own method.
+  assert.match(sql, /ABS\(COALESCE\(amount, 0\) - CASE WHEN provider = 'vodafone_cash' THEN \$3::numeric ELSE \$6::numeric END\) < 0\.01/);
+  assert.deepEqual(params, [7, 99, 0, 3, 1, 2250]);
+});
+
+test("the invoice books a transfer the way it came: Vodafone Cash as V.CASH, every InstaPay source as INSTAPAY", () => {
+  assert.equal(posTransferMethodFor("vodafone_cash"), "vodafone_cash");
+  for (const provider of ["instapay", "cib", "united_bank"]) assert.equal(posTransferMethodFor(provider), "instapay");
+  assert.deepEqual(
+    sumPosTransferParts([{ method: "cash", amount: 250 }, { method: "wallet", amount: 1000 }, { method: "instapay", amount: 500 }, { method: "vodafone_cash", amount: 300 }]),
+    { vodafone_cash: 300, instapay: 1500 }
+  );
+  const pos = read("../src/modules/pos/pages/POSPro.jsx");
+  assert.match(pos, /const method = transfer\?\.provider === "vodafone_cash" \? "vodafone_cash" : "instapay";/);
+  assert.match(pos, /setPaymentMode\(method\);/, "the payment button follows the transfer, not what the cashier pressed");
 });
 
 test("checkout refuses an online sale whose transfer is gone, and settles the claim before COMMIT", () => {
