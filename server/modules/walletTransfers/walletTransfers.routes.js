@@ -6,6 +6,7 @@ import {
   getWalletSmsSecret,
   ignoreWalletTransfer,
   ingestTransferSms,
+  listPosIncomingTransfers,
   listWalletTransfers,
   matchWalletTransferManually,
   rotateWalletSmsSecret,
@@ -58,6 +59,16 @@ router.get("/", protect, permit("orders", "view"), async (req, res) => {
     return res.json({ success: true, ...data });
   } catch (error) {
     return fail(res, error, "Failed to load wallet transfers");
+  }
+});
+
+// The till's feed: transfers of the last half hour no order has taken yet. Whoever may ring
+// up a sale may see them — the cashier is the one waiting on the money.
+router.get("/pos-incoming", protect, permit("orders", "create"), async (req, res) => {
+  try {
+    return res.json({ success: true, transfers: await listPosIncomingTransfers({ tenantId: tenantOf(req) }) });
+  } catch (error) {
+    return fail(res, error, "Failed to load incoming transfers");
   }
 });
 

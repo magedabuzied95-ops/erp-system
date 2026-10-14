@@ -11,6 +11,7 @@ import { parseOrderSecondaryPhone } from "../utils/orderSecondaryPhone.js";
 import { adjustVariantStock, recordInventoryMovement } from "../services/inventoryService.js";
 import { createJournalEntry, ensureAccountingSchema, getCurrentCashDrawerShift, logAccountingAudit, postSaleEntry, postReturnEntry, postWalletLiabilityEntry, recordCashDrawerEvent, recordFinancialAccountActivity, resolveFinancialAccountForPayment, reverseMoneyTransactionsForReference } from "../services/accountingService.js";
 import { applyTransferPaymentConfirmation } from "../modules/walletTransfers/transferPaymentConfirmation.js";
+import { claimWalletTransferForPosOrder, emitPosTransferSettled, POS_TRANSFER_PAYMENT_METHODS } from "../modules/walletTransfers/walletTransfers.service.js";
 import { isWhatsappNumberMissingError, WHATSAPP_NUMBER_MISSING_MESSAGE } from "../utils/whatsappNotOnNumber.js";
 import { describeShippingFeeAdvance, markShippingFeePaid, waiveShippingFeeAdvance } from "../modules/shipping/shippingFeeAdvance.js";
 import { notifyPaymentProofApproved, sendShippingFeePaymentRequest } from "../modules/shipping/paymentProofLink.js";
@@ -4476,8 +4477,43 @@ export const createOrder = async (req, res) => {
       });
     }
 
+    // The cashier pressed "confirm" on a wallet transfer the till was offered: the sale and
+    // the transfer settle together, so the same money can never pay two invoices. The
+    // transfer must carry exactly what this invoice takes by wallet.
+    const walletTransferId = toPositiveIntegerOrNull(req.body?.wallet_transfer_id);
+    let claimedWalletTransfer = null;
+    if (walletTransferId && !isPersonalTransaction) {
+      const transferAmount = normalizeInvoiceMoney(
+        parsePaymentBreakdownRows(order.payment_breakdown)
+          .filter((row) => POS_TRANSFER_PAYMENT_METHODS.includes(normalizeMoneyPaymentMethod(row?.method || row?.payment_method)))
+          .reduce((sum, row) => sum + Number(row?.amount || 0), 0)
+      );
+      await client.query("SAVEPOINT pos_wallet_transfer_claim");
+      try {
+        claimedWalletTransfer = transferAmount > 0
+          ? await claimWalletTransferForPosOrder(client, { tenantId, transferId: walletTransferId, orderId: order.id, amount: transferAmount, userId: req.user?.id || null })
+          : null;
+        await client.query("RELEASE SAVEPOINT pos_wallet_transfer_claim");
+      } catch (claimError) {
+        await client.query("ROLLBACK TO SAVEPOINT pos_wallet_transfer_claim");
+        console.error("[pos] wallet transfer claim failed", { transfer_id: walletTransferId, message: claimError?.message });
+      }
+      // A replayed offline sale already happened; it keeps its invoice and the transfer
+      // stays in the review list for a person.
+      if (!claimedWalletTransfer && !offline_origin) {
+        await client.query("ROLLBACK");
+        transactionStarted = false;
+        return res.status(409).json({
+          success: false,
+          code: "WALLET_TRANSFER_UNAVAILABLE",
+          message: "التحويل ده اتربط بفاتورة تانية أو مبلغه مش مطابق لمبلغ المحفظة في الفاتورة",
+        });
+      }
+    }
+
     await timedCheckout(checkoutTiming, "commit_ms", () => client.query("COMMIT"));
     transactionStarted = false;
+    if (claimedWalletTransfer) emitPosTransferSettled(claimedWalletTransfer);
 
     const sideEffectContext = {
       tenantId,

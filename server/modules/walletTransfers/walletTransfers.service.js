@@ -7,6 +7,7 @@ import { applyTransferPaymentConfirmation } from "./transferPaymentConfirmation.
 import { decideTransferMatch } from "./transferMatchDecision.js";
 import { isTrustedTransferSender, parseTransferSms } from "./transferSms.js";
 import { notifyPaymentProofApproved } from "../shipping/paymentProofLink.js";
+import { emitToRooms } from "../../utils/socket.js";
 
 // Every money message the owner's phone forwards — the SMS from Vodafone Cash, CIB and the
 // United Bank, and the InstaPay app's own notification — becomes one
@@ -234,6 +235,74 @@ const notifyOutcome = (result) => {
   }).catch((error) => console.warn("[wallet-transfers] notification skipped", { id: transfer.id, message: error?.message || String(error) }));
 };
 
+/* --------------------------------------------------------------------- pos */
+
+// A customer standing at the till pays by wallet and the cashier waits for the money.
+// Every incoming transfer no website order took is offered to the tenant's open tills;
+// the cashier is the one who says it belongs to the invoice on screen.
+const POS_TRANSFER_WINDOW_MINUTES = 30;
+// What the till sends in payment_breakdown for money that arrives by transfer ("wallet" is
+// the INSTAPAY button).
+export const POS_TRANSFER_PAYMENT_METHODS = ["vodafone_cash", "instapay", "wallet"];
+
+export const toPosTransfer = (row = {}) => ({
+  id: Number(row.id),
+  provider: row.provider || "vodafone_cash",
+  provider_label: PROVIDER_LABELS[row.provider] || "تحويل",
+  amount: Number(row.amount || 0),
+  counterparty_phone: row.counterparty_phone || "",
+  counterparty_name: row.counterparty_name || "",
+  occurred_at: row.occurred_at || row.created_at || null,
+});
+
+const posTransferRooms = (tenantId) => (tenantId ? [`tenant:${tenantId}`] : ["notifications:all"]);
+
+const emitPosTransferIncoming = (row) => {
+  if (!row || row.direction !== "incoming" || !["unmatched", "needs_review"].includes(row.status)) return;
+  emitToRooms(posTransferRooms(row.tenant_id), "wallet_transfers:incoming", toPosTransfer(row));
+};
+
+// Any till still offering this transfer drops it: it now belongs to an order, or to nobody.
+export const emitPosTransferSettled = (row) => {
+  if (!row?.id) return;
+  emitToRooms(posTransferRooms(row.tenant_id), "wallet_transfers:settled", { id: Number(row.id), status: row.status || "" });
+};
+
+export const listPosIncomingTransfers = async ({ tenantId = null } = {}) => {
+  await ensureWalletTransfersSchema();
+  const result = await db.query(
+    `
+    SELECT * FROM wallet_transfers
+    WHERE direction = 'incoming' AND status IN ('unmatched', 'needs_review')
+      AND ($1::bigint IS NULL OR tenant_id = $1::bigint OR tenant_id IS NULL)
+      AND COALESCE(occurred_at, created_at) >= NOW() - INTERVAL '${POS_TRANSFER_WINDOW_MINUTES} minutes'
+    ORDER BY COALESCE(occurred_at, created_at) DESC
+    LIMIT 20
+    `,
+    [tenantId]
+  );
+  return result.rows.map(toPosTransfer);
+};
+
+// Runs inside the till's sale transaction, after the order row exists. The one UPDATE is
+// the lock: of two tills confirming the same transfer, exactly one gets the row back.
+export const claimWalletTransferForPosOrder = async (client, { tenantId = null, transferId, orderId, amount, userId = null }) => {
+  const result = await client.query(
+    `
+    UPDATE wallet_transfers
+    SET status = 'matched', order_id = $2, match_method = 'pos', review_reason = NULL,
+        matched_at = NOW(), matched_by = $4, updated_at = NOW()
+    WHERE id = $1
+      AND direction = 'incoming' AND status IN ('unmatched', 'needs_review')
+      AND ABS(COALESCE(amount, 0) - $3::numeric) < 0.01
+      AND ($5::bigint IS NULL OR tenant_id = $5::bigint OR tenant_id IS NULL)
+    RETURNING *
+    `,
+    [transferId, orderId, Number(amount || 0), userId, tenantId]
+  );
+  return result.rows[0] || null;
+};
+
 /* ------------------------------------------------------------------ ingest */
 
 export const ingestTransferSms = async ({ tenantId = null, rawText = "", sender = "" } = {}) => {
@@ -277,6 +346,7 @@ export const ingestTransferSms = async ({ tenantId = null, rawText = "", sender 
     const result = await matchTransferRow(client, row);
     await client.query("COMMIT");
     notifyOutcome(result);
+    emitPosTransferIncoming(result.transfer);
     return result;
   } catch (error) {
     await client.query("ROLLBACK").catch(() => {});
@@ -313,7 +383,10 @@ export const rematchWalletTransfersForOrder = async ({ tenantId = null, orderId 
         }
         const result = await matchTransferRow(client, locked.rows[0]);
         await client.query("COMMIT");
-        if (result.outcome === "matched") notifyOutcome(result);
+        if (result.outcome === "matched") {
+          notifyOutcome(result);
+          emitPosTransferSettled(result.transfer);
+        }
       } catch (error) {
         await client.query("ROLLBACK").catch(() => {});
         throw error;
@@ -409,6 +482,7 @@ export const matchWalletTransferManually = async ({ tenantId = null, transferId,
     const result = await confirmOrderForTransfer(client, { transfer, orderId: found.rows[0].id, matchMethod: "manual", userId });
     await client.query("COMMIT");
     if (result?.confirmed && result.order) notifyPaymentProofApproved(result.order).catch(() => {});
+    emitPosTransferSettled(result?.transfer);
     return result;
   } catch (error) {
     await client.query("ROLLBACK").catch(() => {});
@@ -431,5 +505,6 @@ export const ignoreWalletTransfer = async ({ tenantId = null, transferId, userId
     [transferId, tenantId, userId]
   );
   if (!result.rows[0]) throw httpError(404, "التحويل غير موجود أو مربوط بطلب");
+  emitPosTransferSettled(result.rows[0]);
   return result.rows[0];
 };

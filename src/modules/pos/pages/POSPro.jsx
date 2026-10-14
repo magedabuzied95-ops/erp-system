@@ -46,6 +46,7 @@ import {
 import { api } from "../../../shared/api/api";
 import useDismissableLayer from "../../../shared/hooks/useDismissableLayer";
 import PosManagerChatDock from "../components/PosManagerChatDock";
+import PosWalletTransferAlert from "../components/PosWalletTransferAlert";
 import { useRealtimeFeedback } from "../../../hooks/useRealtimeFeedback";
 import { getCurrentTenant, getCurrentUser, hasPermission, isAdminUser } from "../../../shared/auth/authStorage";
 import { displayPublicOrderNumber } from "../../../shared/utils/publicOrderNumber";
@@ -6974,6 +6975,8 @@ function POSPro() {
         total: cartTotals.total,
         paid_amount: checkoutPaymentSummary.paidAmount,
         change_amount: checkoutPaymentSummary.changeAmount,
+        // The Vodafone Cash / InstaPay transfer the cashier confirmed from the till's alert.
+        wallet_transfer_id: editingOrder?.id ? null : options?.walletTransferId || null,
         status: checkoutPaymentSummary.paymentStatus,
         // On an edit "collect nothing now" does not mean "nothing was ever collected":
         // whatever the invoice already took stays paid, so the deferred edit is
@@ -8995,6 +8998,18 @@ function POSPro() {
     }
     return checkoutActionRef.current(options);
   }, [isOnlineInvoiceMode]);
+  // What the open invoice waits to receive by Vodafone Cash / InstaPay ("wallet" is the
+  // INSTAPAY button). A transfer of exactly this amount is offered by PosWalletTransferAlert.
+  const expectedWalletTransferAmount = paymentMode === "vodafone_cash" || paymentMode === "instapay" || paymentMode === "wallet"
+    ? Number(paymentSummary.paidAmount || 0)
+    : paymentMode === "split"
+      ? Number(vodafoneCashAmount || 0) + Number(walletAmount || 0)
+      : 0;
+  const walletTransferAlertActive = cart.length > 0 && isShiftActive && !editingOrder?.id && !isOnlineInvoiceMode;
+  const handleConfirmWalletTransfer = useCallback(
+    (transfer) => handleCheckoutAction({ walletTransferId: transfer?.id || null }),
+    [handleCheckoutAction]
+  );
   // The order is already committed server-side by the time this runs — stock was decremented
   // and the confirmation is on its way — so this only settles the till: empty the cart, drop
   // the sold stock out of the on-screen catalog, and refresh it from the server.
@@ -9096,6 +9111,7 @@ function POSPro() {
       className="pos-pro-shell h-[100dvh] w-full max-w-[100vw] min-w-0 overflow-hidden"
     >
       <PosManagerChatDock branchId={activePosShift?.branch_id || resolvedPosBranchId} branchName={posShiftBranch?.name || activePosShift?.branch_name || ""} />
+      <PosWalletTransferAlert active={walletTransferAlertActive} expectedAmount={expectedWalletTransferAmount} onConfirm={handleConfirmWalletTransfer} />
       <div className="flex h-full w-full min-w-0 max-w-none flex-col gap-2 overflow-y-auto overflow-x-hidden p-2 pb-[calc(6.25rem+env(safe-area-inset-bottom))] sm:p-3 sm:pb-[calc(8rem+env(safe-area-inset-bottom))] lg:min-h-0 lg:overflow-hidden lg:p-3 xl:pb-3">
         {viewportIsMobile ? (
           <div className="sticky top-0 z-40 -mx-2 -mt-2 border-b border-white/10 bg-zinc-950/96 px-2 pt-[calc(env(safe-area-inset-top)+0.6rem)] pb-2 shadow-2xl shadow-black/20 backdrop-blur-xl lg:hidden">

@@ -674,6 +674,14 @@
     "phoneRequired": "العميل ده ملوش رقم موبايل — طلب التوفر محتاج رقم عشان نقدر نبلغه.",
     "searching": "جارٍ البحث في كل العملاء..."
   },
+  "walletTransfer": {
+    "arrived": "وصل تحويل {{provider}}",
+    "from": "من {{who}}",
+    "matchesInvoice": "نفس مبلغ الفاتورة",
+    "confirm": "تأكيد الطلب",
+    "confirming": "جارٍ التأكيد...",
+    "dismiss": "مش التحويل ده"
+  },
   "managerChat": {
     "title": "رسائل الإدارة",
     "subtitle": "قناة مباشرة بينك وبين المدير",

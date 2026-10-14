@@ -1,0 +1,56 @@
+import test from "node:test";
+import assert from "node:assert/strict";
+import fs from "node:fs";
+import { claimWalletTransferForPosOrder, toPosTransfer } from "../server/modules/walletTransfers/walletTransfers.service.js";
+
+// A customer at the counter pays by Vodafone Cash; the forwarded SMS is offered to the open
+// till, and the cashier's "confirm" checks the invoice out with the transfer attached. The
+// server claims the transfer inside the sale, so one transfer can never pay two invoices.
+
+const read = (path) => fs.readFileSync(new URL(path, import.meta.url), "utf8");
+
+test("the till sees the provider in words, the amount as a number, and who sent it", () => {
+  assert.deepEqual(
+    toPosTransfer({ id: "12", provider: "vodafone_cash", amount: "2250.00", counterparty_phone: "01011112222", counterparty_name: "", occurred_at: "2026-10-14T10:00:00Z" }),
+    { id: 12, provider: "vodafone_cash", provider_label: "فودافون كاش", amount: 2250, counterparty_phone: "01011112222", counterparty_name: "", occurred_at: "2026-10-14T10:00:00Z" }
+  );
+});
+
+test("the claim takes only a waiting incoming transfer of exactly the wallet amount, in one statement", async () => {
+  const calls = [];
+  const client = { query: async (sql, params) => (calls.push({ sql, params }), { rows: [] }) };
+  const claimed = await claimWalletTransferForPosOrder(client, { tenantId: 1, transferId: 7, orderId: 99, amount: 2250, userId: 3 });
+  assert.equal(claimed, null, "no row back means another till took it, or the amount differs");
+  assert.equal(calls.length, 1);
+  const { sql, params } = calls[0];
+  assert.match(sql, /UPDATE wallet_transfers/);
+  assert.match(sql, /status IN \('unmatched', 'needs_review'\)/);
+  assert.match(sql, /direction = 'incoming'/);
+  assert.match(sql, /ABS\(COALESCE\(amount, 0\) - \$3::numeric\) < 0\.01/);
+  assert.deepEqual(params, [7, 99, 2250, 3, 1]);
+});
+
+test("checkout refuses an online sale whose transfer is gone, and settles the claim before COMMIT", () => {
+  const source = read("../server/controllers/ordersController.js");
+  const claimAt = source.indexOf("claimWalletTransferForPosOrder(client");
+  const refusalAt = source.indexOf('code: "WALLET_TRANSFER_UNAVAILABLE"');
+  const commitAt = source.indexOf('timedCheckout(checkoutTiming, "commit_ms"');
+  assert.ok(claimAt > 0 && refusalAt > claimAt && commitAt > refusalAt, "claim, then refuse, then commit");
+  const block = source.slice(claimAt, refusalAt);
+  assert.match(block, /if \(!claimedWalletTransfer && !offline_origin\)/, "an offline replay is a finished sale and is never refused");
+  assert.match(block, /await client\.query\("ROLLBACK"\)/);
+  assert.match(source.slice(refusalAt - 400, refusalAt), /status\(409\)/);
+});
+
+test("wiring: ingest pushes to the tills, the till feed is mounted, the POS sends the transfer id", () => {
+  const service = read("../server/modules/walletTransfers/walletTransfers.service.js");
+  assert.match(service, /notifyOutcome\(result\);\s*emitPosTransferIncoming\(result\.transfer\);/);
+  assert.match(read("../server/modules/walletTransfers/walletTransfers.routes.js"), /router\.get\("\/pos-incoming", protect, permit\("orders", "create"\)/);
+  const pos = read("../src/modules/pos/pages/POSPro.jsx");
+  assert.match(pos, /wallet_transfer_id: editingOrder\?\.id \? null : options\?\.walletTransferId \|\| null/);
+  assert.match(pos, /<PosWalletTransferAlert active=\{walletTransferAlertActive\} expectedAmount=\{expectedWalletTransferAmount\}/);
+  const alert = read("../src/modules/pos/components/PosWalletTransferAlert.jsx");
+  assert.match(alert, /subscribeRealtime\("wallet_transfers:incoming"/);
+  assert.match(alert, /subscribeRealtime\("wallet_transfers:settled"/);
+  assert.match(alert, /sameAmount\(item\.amount, expectedAmount\)/, "only a transfer of the invoice's wallet amount is offered");
+});

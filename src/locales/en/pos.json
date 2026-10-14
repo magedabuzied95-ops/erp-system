@@ -674,6 +674,14 @@
     "phoneRequired": "This customer has no phone number — a restock request needs one to notify them.",
     "searching": "Searching all customers..."
   },
+  "walletTransfer": {
+    "arrived": "{{provider}} transfer received",
+    "from": "from {{who}}",
+    "matchesInvoice": "Matches the invoice",
+    "confirm": "Confirm order",
+    "confirming": "Confirming...",
+    "dismiss": "Not this transfer"
+  },
   "managerChat": {
     "title": "Management messages",
     "subtitle": "Direct channel between you and your manager",
