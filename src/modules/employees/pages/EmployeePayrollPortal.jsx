@@ -4857,36 +4857,6 @@ export default function EmployeePayrollPortal() {
                   workedMinutes={workedMinutes}
                   language={language}
                 />
-
-                <div className="rounded-[var(--radius-card)] border border-border bg-surface p-3 shadow-sm">
-                  <h3 className="m1-section-title">{text.attendanceSummary}</h3>
-                  <div className="mt-3 grid grid-cols-2 gap-2 text-sm font-bold">
-                    <div className="rounded-[var(--radius-control)] bg-surface-soft p-3">
-                      <div className="text-text-muted">{text.presentDays}</div>
-                      <div className="mt-1 text-xl font-black tabular-nums">{attendance.attended_days || 0}</div>
-                    </div>
-                    <div className="rounded-[var(--radius-control)] bg-surface-soft p-3">
-                      <div className="text-text-muted">{text.absentDays}</div>
-                      <div className="mt-1 text-xl font-black tabular-nums">{attendance.absence_days || 0}</div>
-                    </div>
-                    <div className="rounded-[var(--radius-control)] bg-surface-soft p-3">
-                      <div className="text-text-muted">{text.lateDays}</div>
-                      <div className="mt-1 text-xl font-black tabular-nums">{attendance.late_days || 0}</div>
-                    </div>
-                    <div className="rounded-[var(--radius-control)] bg-surface-soft p-3">
-                      <div className="text-text-muted">{text.overtimeHours}</div>
-                      <div className="mt-1 text-xl font-black tabular-nums">{attendance.overtime_hours || 0}</div>
-                    </div>
-                    <div className="rounded-[var(--radius-control)] bg-surface-soft p-3">
-                      <div className="text-text-muted">{ui("attendedDays")}</div>
-                      <div className="mt-1 text-xl font-black tabular-nums" dir="ltr">{presentDays} / {expectedDays} {ui("attendedDaysSuffix")}</div>
-                    </div>
-                    <div className="rounded-[var(--radius-control)] bg-danger-subtle p-3 text-text">
-                      <div className="text-danger">{text.deductedAbsenceAmount}</div>
-                      <div className="mt-1 text-xl font-black tabular-nums" dir="ltr">{money(attendance.deducted_absence_amount || portal?.absence_deduction || 0)}</div>
-                    </div>
-                  </div>
-                </div>
               </>
             ) : null}
 
