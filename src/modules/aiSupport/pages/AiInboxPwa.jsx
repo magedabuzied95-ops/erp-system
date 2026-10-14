@@ -1982,7 +1982,7 @@ function MessageText({ text = "" }) {
   );
 }
 
-function PwaReplyEditor({ value = "", onChange, onSubmit, placeholder = "", disabled = false, editorRef: externalEditorRef = null, onPasteFiles = null, onFocus = null }) {
+function PwaReplyEditor({ value = "", onChange, onSubmit, placeholder = "", disabled = false, editorRef: externalEditorRef = null, onPasteFiles = null, onFocus = null, padEnd = false }) {
   const internalEditorRef = useRef(null);
   const editorRef = externalEditorRef || internalEditorRef;
   const allowLineBreakRef = useRef(false);
@@ -2057,7 +2057,7 @@ function PwaReplyEditor({ value = "", onChange, onSubmit, placeholder = "", disa
         }
         submitCurrentText(event);
       }}
-      className="ai-pwa-reply-editor max-h-28 min-h-12 flex-1 overflow-y-auto whitespace-pre-wrap break-words rounded-2xl border border-slate-200 bg-slate-50 px-4 py-3 text-[16px] leading-normal outline-none transition focus:border-slate-400 focus:bg-white"
+      className={`ai-pwa-reply-editor max-h-28 min-h-12 w-full overflow-y-auto whitespace-pre-wrap break-words rounded-2xl border border-slate-200 bg-slate-50 py-3 ps-4 text-[16px] leading-normal outline-none transition focus:border-slate-400 focus:bg-white ${padEnd ? "pe-12" : "pe-4"}`}
     />
   );
 }
@@ -2197,21 +2197,6 @@ const PwaComposerBar = memo(function PwaComposerBar({
             <Plus className="h-5 w-5" />
           </button>
         </div>
-        {/* ⚡ opens the quick replies without typing "/": the same list the slash
-            shows, so a tap and a keystroke land on one picker. */}
-        {quickReplies.length > 0 && mode !== "note" ? (
-          <button
-            type="button"
-            onClick={() => onSetText?.(draftState.slash ? "" : "/")}
-            className={`inline-flex h-10 w-10 shrink-0 items-center justify-center rounded-full transition ${draftState.slash ? "bg-amber-400 text-slate-950" : "text-amber-600 hover:bg-amber-50"} ${voiceRecording ? "hidden" : ""}`}
-            aria-label={t("aiSupport.quickReplies.title")}
-            title={t("aiSupport.quickReplies.title")}
-            aria-pressed={Boolean(draftState.slash)}
-            data-quick-replies-toggle="true"
-          >
-            <Zap className="h-5 w-5" />
-          </button>
-        ) : null}
         {/* A voice note is a reply, never an internal note: there is nothing to
             store staff-side in an audio file the customer never hears. */}
         {onRecordVoice && mode !== "note" ? (
@@ -2228,15 +2213,33 @@ const PwaComposerBar = memo(function PwaComposerBar({
             reason to stop the next one being written — that lock is what made
             sending feel slow even though the bubble appeared instantly. */}
         {voiceRecording ? null : (
-        <PwaReplyEditor
-          editorRef={editorRef}
-          value={seedText}
-          onChange={handleChange}
-          onSubmit={onSubmit}
-          onPasteFiles={onPasteFiles}
-          onFocus={onEditorFocus}
-          placeholder={placeholder}
-        />
+        <div className="relative min-w-0 flex-1">
+          <PwaReplyEditor
+            editorRef={editorRef}
+            value={seedText}
+            onChange={handleChange}
+            onSubmit={onSubmit}
+            onPasteFiles={onPasteFiles}
+            onFocus={onEditorFocus}
+            placeholder={placeholder}
+            padEnd={quickReplies.length > 0 && mode !== "note"}
+          />
+          {/* ⚡ sits inside the field, at its end — where WhatsApp keeps the sticker
+              icon — and opens the same quick-replies list the slash does. */}
+          {quickReplies.length > 0 && mode !== "note" ? (
+            <button
+              type="button"
+              onClick={() => onSetText?.(draftState.slash ? "" : "/")}
+              className={`absolute bottom-1.5 end-1.5 inline-flex h-9 w-9 items-center justify-center rounded-full transition ${draftState.slash ? "bg-amber-400 text-slate-950" : "text-amber-600 hover:bg-amber-50"}`}
+              aria-label={t("aiSupport.quickReplies.title")}
+              title={t("aiSupport.quickReplies.title")}
+              aria-pressed={Boolean(draftState.slash)}
+              data-quick-replies-toggle="true"
+            >
+              <Zap className="h-5 w-5" />
+            </button>
+          ) : null}
+        </div>
         )}
         <button
           type="button"
