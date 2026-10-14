@@ -33,6 +33,11 @@ test("commission switched off: the open month pays no commission, even for earli
   assert.equal(preview.payroll.commission_switched_off, true);
 });
 
+test("no sales profile reads as no commission, as the employee settings screen shows it", async () => {
+  const preview = await runPreview(null);
+  assert.equal(preview.payroll.commissions, 0);
+});
+
 test("commission on: the month's earned commission is paid as before", async () => {
   const preview = await runPreview("percent");
   assert.equal(preview.payroll.commissions, 300);

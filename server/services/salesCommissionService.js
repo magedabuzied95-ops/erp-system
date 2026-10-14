@@ -2614,7 +2614,9 @@ export const getPayrollPreview = async ({ tenantId = null, employeeId, filters =
   // month still being priced, including sales made before it was switched off (each order
   // snapshots the type it was sold under, so those kept earning). An approved month is a stored
   // run and is not re-priced by this preview.
-  const commissionSwitchedOff = String(employee.sales_commission_type || "").trim().toLowerCase() === "none";
+  // No sales profile at all reads as "بدون عمولة" in the employee settings screen
+  // (attendanceController: COALESCE(esp.commission_type, 'none')), so payroll reads it the same way.
+  const commissionSwitchedOff = String(employee.sales_commission_type || "none").trim().toLowerCase() === "none";
   const salesEarnings = commissionSwitchedOff ? 0 : toNumber(report.summary.earned_commissions);
   const providedBaseSalary = filters.base_salary ?? filters.baseSalary;
   const baseSalary = providedBaseSalary === undefined || providedBaseSalary === null || providedBaseSalary === "" ? toNumber(employee.salary) : toNumber(providedBaseSalary);
