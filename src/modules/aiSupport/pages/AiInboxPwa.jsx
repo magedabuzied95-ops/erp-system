@@ -2058,7 +2058,7 @@ function PwaReplyEditor({ value = "", onChange, onSubmit, placeholder = "", disa
         }
         submitCurrentText(event);
       }}
-      className={`ai-pwa-reply-editor max-h-28 min-h-12 w-full overflow-y-auto whitespace-pre-wrap break-words rounded-2xl border border-slate-200 bg-slate-50 py-3 ps-4 text-[16px] leading-normal outline-none transition focus:border-slate-400 focus:bg-white ${padEnd ? "pe-12" : "pe-4"}`}
+      className={`ai-pwa-reply-editor max-h-28 min-h-12 w-full overflow-y-auto whitespace-pre-wrap break-words rounded-2xl border border-slate-200 bg-slate-50 py-3 pl-4 text-[16px] leading-normal outline-none transition focus:border-slate-400 focus:bg-white ${padEnd ? "pr-12" : "pr-4"}`}
     />
   );
 }
@@ -2211,9 +2211,9 @@ const PwaComposerBar = memo(function PwaComposerBar({
             onPasteFiles={onPasteFiles}
             onFocus={onEditorFocus}
             placeholder={placeholder}
-            padEnd={quickReplies.length > 0 && mode !== "note"}
+            padEnd={quickReplies.length > 0 && mode !== "note" && !draftState.armed}
           />
-          {quickReplies.length > 0 && mode !== "note" ? (
+          {quickReplies.length > 0 && mode !== "note" && !draftState.armed ? (
             <button
               type="button"
               onClick={() => onSetText?.(draftState.slash ? "" : "/")}
