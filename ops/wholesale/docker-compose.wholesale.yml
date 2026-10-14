@@ -1,0 +1,54 @@
+# Wholesale copy of the ERP: same code and image as retail, its own database, Redis,
+# uploads and env. Lives in /opt/erp-wholesale on the production VPS.
+#
+# The backend runs the image the retail deploy builds (erp-erp-backend:latest), so one
+# build serves both copies. deploy-wholesale.sh recreates it after a retail deploy and
+# pins WHOLESALE_IMAGE to a rollback tag if the new image fails its health check.
+name: erp-wholesale
+
+services:
+  erp-wholesale-redis:
+    image: redis:7
+    container_name: erp-wholesale-redis
+    restart: unless-stopped
+    # Its own Redis, never a db index on erp-redis: queues and pub/sub channels share
+    # names across the two copies, and pub/sub ignores the db index entirely.
+    command: ["redis-server", "--appendonly", "yes"]
+    volumes:
+      - erp_wholesale_redis_data:/data
+    networks:
+      - erp_default
+
+  erp-wholesale-backend:
+    image: ${WHOLESALE_IMAGE:-erp-erp-backend:latest}
+    container_name: erp-wholesale-backend
+    restart: unless-stopped
+    env_file:
+      - /opt/erp-wholesale/backend.env
+    environment:
+      GIT_COMMIT: ${GIT_COMMIT:-unknown}
+    logging:
+      driver: json-file
+      options:
+        max-size: "20m"
+        max-file: "5"
+    ports:
+      - "127.0.0.1:8001:8000"
+    dns:
+      - 1.1.1.1
+      - 8.8.8.8
+    volumes:
+      - /opt/erp-wholesale/uploads:/app/uploads
+    depends_on:
+      - erp-wholesale-redis
+    networks:
+      - erp_default
+
+networks:
+  # Retail's network: reaches erp-postgres (the wholesale database lives in the same
+  # Postgres server, as its own database).
+  erp_default:
+    external: true
+
+volumes:
+  erp_wholesale_redis_data:

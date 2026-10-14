@@ -7,7 +7,16 @@ const browserOrigin = () =>
   typeof window !== "undefined" ? window.location.origin : "";
 
 const LOCAL_API_ORIGIN = "http://localhost:8000";
-const PRODUCTION_API_ORIGIN = "https://api.m1store-egy.com";
+const RETAIL_API_ORIGIN = "https://api.m1store-egy.com";
+// The wholesale copy is this same build served on its own host, talking to its own
+// backend and database. Add its final domain here when it moves off the jomla subdomain.
+const PRODUCTION_API_ORIGIN_BY_HOST = Object.freeze({
+  "jomla.m1store-egy.com": "https://api-jomla.m1store-egy.com",
+});
+const PRODUCTION_API_ORIGIN =
+  (typeof window !== "undefined" &&
+    PRODUCTION_API_ORIGIN_BY_HOST[String(window.location.hostname || "").toLowerCase()]) ||
+  RETAIL_API_ORIGIN;
 const PRODUCTION_API_BASE_URL = `${PRODUCTION_API_ORIGIN}/api`;
 const IS_PRODUCTION = Boolean(import.meta?.env?.PROD);
 

@@ -29,6 +29,7 @@ import {
   testMetaPublishCapability,
   verifyMetaWebhookEnablement,
 } from "../services/metaIntegrationService.js";
+import { forwardForeignMetaWebhookEntries } from "../modules/wholesaleBridge/metaWebhookForward.js";
 
 const integrationRouter = express.Router();
 const webhookRouter = express.Router();
@@ -492,6 +493,12 @@ webhookRouter.post("/webhook", async (req, res) => {
       entry_count: Array.isArray(req.body?.entry) ? req.body.entry.length : 0,
       object: req.body?.object || "",
     });
+    const forward = await forwardForeignMetaWebhookEntries({ req });
+    if (forward.forwarded && forward.kept === 0) {
+      // Nothing here is ours. A failed hand-off answers 502 so Meta redelivers it.
+      if (forward.failed) return res.status(502).json({ success: false, message: "Forward to the other copy failed" });
+      return res.json({ success: true, forwarded: forward.forwarded });
+    }
     const result = await processMetaWebhook({ req });
     res.json({ success: true, ...result });
   } catch (error) {
