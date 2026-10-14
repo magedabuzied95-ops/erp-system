@@ -4,7 +4,7 @@ import { createEmployeePortalNotification } from "./employeePayrollPortalService
 import { postPayrollApprovalEntry, postPayrollPaymentEntry, recordFinancialAccountActivity, resolveFinancialAccountForPayment } from "./accountingService.js";
 import { getTenantId, isSuperAdminUser } from "../utils/requestScope.js";
 import { ensureAttendanceSchema } from "../utils/attendanceSchema.js";
-import { countedLatePermissions, loadApprovedLatePermissionRows, loadAttendancePolicy, policyAppliesOn, resolveLateDay } from "../utils/attendancePolicy.js";
+import { countedLatePermissions, dayDeductionOverrideKey, loadApprovedLatePermissionRows, loadAttendancePolicy, loadDayDeductionOverrides, policyAppliesOn, resolveLateDay } from "../utils/attendancePolicy.js";
 import { getAttendanceTimeZone } from "../utils/attendanceTimezone.js";
 import { parseManualAttendanceTimestamp } from "../utils/attendanceManualEntry.js";
 import { ensureForeignKeyConstraint } from "../utils/schemaConstraints.js";
@@ -825,12 +825,13 @@ export const calculateAttendancePayrollDeductions = async ({ tenantId = null, em
   const lateEnabled = employee.late_deduction_enabled !== false;
   const earlyEnabled = employee.early_leave_deduction_enabled !== false;
 
-  const [holidayDates, leaveDates, vacationDates, approvedLatePermissions, policy] = await Promise.all([
+  const [holidayDates, leaveDates, vacationDates, approvedLatePermissions, policy, dayOverrides] = await Promise.all([
     safeDateSetFromTable({ tableName: "holidays", dateColumn: "holiday_date", tenantId, periodStart, periodEnd }),
     safeDateSetFromTable({ tableName: "employee_leaves", dateColumn: "leave_date", startColumn: "start_date", endColumn: "end_date", tenantId, employeeId, periodStart, periodEnd, statusValues: ["approved"] }),
     safeDateSetFromTable({ tableName: "employee_vacations", dateColumn: "vacation_date", startColumn: "start_date", endColumn: "end_date", tenantId, employeeId, periodStart, periodEnd, statusValues: ["approved"] }),
     loadApprovedLatePermissions({ tenantId, employeeId, periodStart, periodEnd }),
     loadAttendancePolicy(db, tenantId ?? employee?.tenant_id ?? null),
+    loadDayDeductionOverrides(db, { tenantId, employeeId, from: periodStart, to: periodEnd }),
   ]);
   const latePermissionByDate = countedLatePermissions(approvedLatePermissions, policy);
 
@@ -940,7 +941,6 @@ export const calculateAttendancePayrollDeductions = async ({ tenantId = null, em
   let latePenalizedDays = 0;
   let latePermissionDaysUsed = 0;
   // Days before the policy started keep the old pricing.
-  let legacyAbsenceDays = 0;
   let legacyLateHours = 0;
   const allPermissionsByDate = new Map();
   approvedLatePermissions.forEach(({ date, minutes }) => {
@@ -952,6 +952,16 @@ export const calculateAttendancePayrollDeductions = async ({ tenantId = null, em
   // A day with no attendance is an absence only once it is over: the preview of the month so far
   // reaches today, and charged today's two-day absence before an afternoon shift had even started.
   const todayKey = todayInAppTimeZone();
+  // A manager may change or waive one day's deduction from the manager portal; the day then costs
+  // what they set, and the line says so (rule_penalty_days keeps what the rule would have taken).
+  let absencePenaltyDays = 0;
+  const overrideOf = (item, type) => dayOverrides.get(dayDeductionOverrideKey(item, type)) || null;
+  const overrideFields = (override, rulePenaltyDays) => (!override ? {} : {
+    overridden: true,
+    rule_penalty_days: rulePenaltyDays,
+    override_note: override.note,
+    override_by: override.updated_by_name,
+  });
 
   expectedDates.forEach((item) => {
     const row = attendanceByDate.get(item);
@@ -959,9 +969,17 @@ export const calculateAttendancePayrollDeductions = async ({ tenantId = null, em
       if (absenceEnabled && item < todayKey) {
         absenceDays += 1;
         const legacy = !policyAppliesOn(item, policy);
-        if (legacy) legacyAbsenceDays += 1;
-        const penaltyDays = legacy ? 1 : toNumber(policy.absence_penalty_days);
-        dayDeductions.push({ date: item, type: "absence", penalty_days: penaltyDays, amount: Number((penaltyDays * dailyRate).toFixed(2)) });
+        const rulePenaltyDays = legacy ? 1 : toNumber(policy.absence_penalty_days);
+        const override = overrideOf(item, "absence");
+        const penaltyDays = override ? override.penalty_days : rulePenaltyDays;
+        absencePenaltyDays += penaltyDays;
+        dayDeductions.push({
+          date: item,
+          type: "absence",
+          penalty_days: penaltyDays,
+          amount: Number((penaltyDays * dailyRate).toFixed(2)),
+          ...overrideFields(override, rulePenaltyDays),
+        });
       }
       return;
     }
@@ -979,7 +997,13 @@ export const calculateAttendancePayrollDeductions = async ({ tenantId = null, em
       const legacyCovered = legacyPermission === null ? 0 : legacyPermission > 0 ? Math.min(rawLateMinutes, legacyPermission) : rawLateMinutes;
       if (legacyCovered > 0) latePermissionDaysUsed += 1;
       approvedLatePermissionMinutes += legacyCovered;
-      const legacyLate = Math.max(0, rawLateMinutes - legacyCovered) / 60;
+      const legacyLateOverride = rawLateMinutes > 0 ? overrideOf(item, "late") : null;
+      // An edited legacy day is priced in days like the policy's, not by the hour.
+      const legacyLate = legacyLateOverride ? 0 : Math.max(0, rawLateMinutes - legacyCovered) / 60;
+      if (legacyLateOverride) {
+        latePenaltyDays += legacyLateOverride.penalty_days;
+        if (legacyLateOverride.penalty_days > 0) latePenalizedDays += 1;
+      }
       const legacyEarly = earlyEnabled ? Math.max(toNumber(row.early_leave_minutes) / 60, fallbackEarly, 0) : 0;
       if (missingEnabled) missingHours += Math.max(0, Math.max(0, dailyWorkHours - workedHours) - legacyLate - legacyEarly);
       if (rawLateMinutes > 0) {
@@ -988,9 +1012,10 @@ export const calculateAttendancePayrollDeductions = async ({ tenantId = null, em
           type: "late",
           late_minutes: Math.round(rawLateMinutes),
           covered_minutes: Math.round(legacyCovered),
-          penalty_days: 0,
-          amount: Number((legacyLate * hourlyRate).toFixed(2)),
+          penalty_days: legacyLateOverride ? legacyLateOverride.penalty_days : 0,
+          amount: Number((legacyLateOverride ? legacyLateOverride.penalty_days * dailyRate : legacyLate * hourlyRate).toFixed(2)),
           legacy: true,
+          ...overrideFields(legacyLateOverride, 0),
         });
       }
       legacyLateHours += legacyLate;
@@ -1005,9 +1030,11 @@ export const calculateAttendancePayrollDeductions = async ({ tenantId = null, em
     });
     if (lateDay.covered_minutes > 0) latePermissionDaysUsed += 1;
     approvedLatePermissionMinutes += lateDay.covered_minutes;
-    if (lateDay.penalized) {
+    const lateOverride = rawLateMinutes > 0 ? overrideOf(item, "late") : null;
+    const latePenalty = lateOverride ? lateOverride.penalty_days : lateDay.penalty_days;
+    if (latePenalty > 0) {
       latePenalizedDays += 1;
-      latePenaltyDays += lateDay.penalty_days;
+      latePenaltyDays += latePenalty;
     }
     if (rawLateMinutes > 0) {
       dayDeductions.push({
@@ -1015,8 +1042,9 @@ export const calculateAttendancePayrollDeductions = async ({ tenantId = null, em
         type: "late",
         late_minutes: Math.round(rawLateMinutes),
         covered_minutes: Math.round(lateDay.covered_minutes),
-        penalty_days: lateDay.penalty_days,
-        amount: Number((lateDay.penalty_days * dailyRate).toFixed(2)),
+        penalty_days: latePenalty,
+        amount: Number((latePenalty * dailyRate).toFixed(2)),
+        ...overrideFields(lateOverride, lateDay.penalty_days),
       });
     }
     // The whole lateness stays out of the missing-hours shortfall: the policy
@@ -1072,7 +1100,6 @@ export const calculateAttendancePayrollDeductions = async ({ tenantId = null, em
     }),
   ]);
 
-  const absencePenaltyDays = legacyAbsenceDays + (absenceDays - legacyAbsenceDays) * policy.absence_penalty_days;
   const absenceDeduction = absencePenaltyDays * dailyRate;
   const missingHoursDeduction = missingHours * hourlyRate;
   const lateDeduction = latePenaltyDays * dailyRate + legacyLateHours * hourlyRate;

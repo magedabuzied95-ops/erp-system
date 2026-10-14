@@ -30,6 +30,8 @@ import {
   approveManagerPortalEmployeePayroll,
   cancelManagerPortalEmployeeAdjustment,
   changeManagerPortalEmployeeAdvance,
+  setManagerPortalDayDeduction,
+  clearManagerPortalDayDeduction,
   correctManagerPortalAttendance,
   reviewManagerPortalAdvanceRequest,
   reviewManagerPortalLatePermissionRequest,
@@ -525,6 +527,31 @@ const advanceChangeRoute = (action) => async (req, res) => {
 };
 router.patch("/:token/staff/:employeeId/advances/:advanceId", verifyManagerPortalToken, advanceChangeRoute("update"));
 router.delete("/:token/staff/:employeeId/advances/:advanceId", verifyManagerPortalToken, advanceChangeRoute("delete"));
+
+// الخصومات tab: change or waive one day's absence/late deduction (PUT), or put it back on the rule (DELETE).
+router.put("/:token/staff/:employeeId/day-deductions", verifyManagerPortalToken, async (req, res) => {
+  try {
+    const result = await setManagerPortalDayDeduction({ manager: req.managerPortalManager, employeeId: req.params.employeeId, payload: req.body || {} });
+    return res.json({ success: true, ...result });
+  } catch (error) {
+    if (!error?.status) console.error("[manager-portal] day deduction save error", error);
+    return res.status(error.status || 500).json({ success: false, message: error.message || "Failed to save deduction" });
+  }
+});
+router.delete("/:token/staff/:employeeId/day-deductions/:type/:date", verifyManagerPortalToken, async (req, res) => {
+  try {
+    const result = await clearManagerPortalDayDeduction({
+      manager: req.managerPortalManager,
+      employeeId: req.params.employeeId,
+      type: req.params.type,
+      date: req.params.date,
+    });
+    return res.json({ success: true, ...result });
+  } catch (error) {
+    if (!error?.status) console.error("[manager-portal] day deduction clear error", error);
+    return res.status(error.status || 500).json({ success: false, message: error.message || "Failed to restore deduction" });
+  }
+});
 
 router.post("/:token/staff/:employeeId/attendance", verifyManagerPortalToken, async (req, res) => {
   try {

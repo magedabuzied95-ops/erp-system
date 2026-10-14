@@ -3,6 +3,7 @@ import { Loader2, X, Plus, Minus, ChevronRight, ChevronLeft, Trash2, Pencil } fr
 import i18n from "../../../i18n/i18n";
 import { managerPortalApi } from "../services/managerPortalApi";
 import { EmployeeCountsTab, EmployeePerformanceTab, useEmployeePerformance } from "./EmployeePerformanceTabs";
+import { EmployeeDeductionsTab } from "./EmployeeDeductionsTab";
 import { formatCurrency } from "../../../shared/lib/currency";
 import { resolveEmployeeProfileImageUrl } from "../../../shared/lib/imageUrls";
 import {
@@ -66,7 +67,7 @@ const currentMonth = () => {
   return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}`;
 };
 
-const TABS = ["overview", "sales", "advances", "attendance", "counts", "performance", "adjustments"];
+const TABS = ["overview", "sales", "advances", "deductions", "attendance", "counts", "performance", "adjustments"];
 
 const Row = ({ label, value, tone = "" }) => (
   <div className="flex items-center justify-between gap-3 py-2 text-sm">
@@ -419,6 +420,7 @@ export default function EmployeeDetailsSheet({ token, employee, initialTab = "ov
     overview: tt("managerPortal.employeeDetails.tabs.overview"),
     sales: tt("managerPortal.employeeDetails.tabs.sales"),
     advances: tt("managerPortal.employeeDetails.tabs.advances"),
+    deductions: tt("managerPortal.employeeDetails.tabs.deductions"),
     attendance: tt("managerPortal.employeeDetails.tabs.attendance"),
     counts: tt("managerPortal.employeeDetails.tabs.counts"),
     performance: tt("managerPortal.employeeDetails.tabs.performance"),
@@ -862,6 +864,17 @@ export default function EmployeeDetailsSheet({ token, employee, initialTab = "ov
                     </div>
                   ) : <div className="rounded-xl border border-dashed border-slate-200 px-3 py-6 text-center text-xs font-bold text-slate-500">{tt("managerPortal.employeeDetails.noAttendance")}</div>}
                 </div>
+              ) : null}
+
+              {tab === "deductions" ? (
+                <EmployeeDeductionsTab
+                  token={token}
+                  employeeId={employeeId}
+                  details={d}
+                  formatDay={formatDay}
+                  formatMinutes={formatMinutes}
+                  onChanged={async () => { await load(); onChanged?.(); }}
+                />
               ) : null}
 
               {tab === "counts" ? <EmployeeCountsTab perf={perf} /> : null}

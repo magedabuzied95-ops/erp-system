@@ -2,7 +2,7 @@ import { randomBytes } from "node:crypto";
 import db from "../database/db.js";
 import { nextMonth as nextPayrollMonth } from "../utils/advanceDeductionMonth.js";
 import { ensureAttendanceSchema } from "../utils/attendanceSchema.js";
-import { lateAfterPermission, loadLatePermissionCoverForMonth } from "../utils/attendancePolicy.js";
+import { DAY_DEDUCTION_TYPES, lateAfterPermission, loadLatePermissionCoverForMonth } from "../utils/attendancePolicy.js";
 import { calculateTodayProfit, DEFAULT_BUSINESS_DAY_START_HOUR, getDashboardOverview, getHourlySales, getLowStock, getSalesTrend, getTopProducts, getAiInsights, personalOrderClause, resolveBusinessDayStartHour } from "./dashboardAnalyticsService.js";
 import { aggregatePaymentDistribution } from "./managerPortalPaymentDistribution.js";
 import { getSetting } from "./settingsService.js";
@@ -3675,6 +3675,105 @@ export const changeManagerPortalEmployeeAdvance = async ({ manager = {}, employe
     data: { event: action === "delete" ? "advance_cancelled" : "advance_updated", advance_id: result.advance.id, amount: Number(change.new_amount) },
   });
   return result;
+};
+
+// الخصومات tab: a manager changes or waives one day's attendance deduction (absence or late).
+// The override is stored per day and type; payroll (calculateAttendancePayrollDeductions) prices
+// that day with it, so the salary preview, the approval and the employee portal all follow.
+// Clearing it puts the day back on the rule. An approved month is frozen.
+const assertDayDeductionEditable = async ({ tenantId, employee, date, type }) => {
+  if (!DAY_DEDUCTION_TYPES.includes(type)) {
+    const error = new Error("نوع الخصم لازم يكون غياب أو تأخير");
+    error.status = 400;
+    throw error;
+  }
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(String(date || "")) || String(date) > cairoToday()) {
+    const error = new Error("تاريخ اليوم مش صحيح");
+    error.status = 400;
+    throw error;
+  }
+  if (await loadEmployeePayrollRun({ tenantId, employeeId: employee.id, month: String(date).slice(0, 7) })) {
+    const error = new Error("مرتب الشهر ده اتعتمد، مينفعش تعديل خصوماته");
+    error.status = 409;
+    throw error;
+  }
+  await ensureAttendanceSchema();
+};
+
+export const setManagerPortalDayDeduction = async ({ manager = {}, employeeId, payload = {} } = {}) => {
+  const { employee, tenantId } = await loadScopedEmployee({ manager, employeeId });
+  const type = String(payload.type || "").trim().toLowerCase();
+  const date = String(payload.date || "").slice(0, 10);
+  await assertDayDeductionEditable({ tenantId, employee, date, type });
+  const days = Number(payload.penalty_days);
+  if (payload.penalty_days === "" || payload.penalty_days === null || !Number.isFinite(days) || days < 0 || days > 31 || Math.round(days * 2) !== days * 2) {
+    const error = new Error("الخصم لازم يكون نص يوم أو مضاعفاته (٠ = من غير خصم)");
+    error.status = 400;
+    throw error;
+  }
+  const rule = Number(payload.rule_penalty_days);
+  const note = String(payload.note || "").trim().slice(0, 300) || null;
+  const result = await db.query(
+    `
+    INSERT INTO attendance_day_deduction_overrides
+      (tenant_id, employee_id, deduction_date, deduction_type, penalty_days, rule_penalty_days, note, updated_by_manager_id, updated_by_name)
+    VALUES ($1::bigint, $2::bigint, $3::date, $4, $5::numeric, $6::numeric, $7, $8::bigint, $9)
+    ON CONFLICT (COALESCE(tenant_id, 0), employee_id, deduction_date, deduction_type)
+    DO UPDATE SET penalty_days = EXCLUDED.penalty_days,
+                  rule_penalty_days = COALESCE(EXCLUDED.rule_penalty_days, attendance_day_deduction_overrides.rule_penalty_days),
+                  note = EXCLUDED.note,
+                  updated_by_manager_id = EXCLUDED.updated_by_manager_id,
+                  updated_by_name = EXCLUDED.updated_by_name,
+                  updated_at = CURRENT_TIMESTAMP
+    RETURNING id, deduction_date, deduction_type, penalty_days, rule_penalty_days, note, updated_by_name, updated_at
+    `,
+    [
+      tenantId,
+      employee.id,
+      date,
+      type,
+      days,
+      Number.isFinite(rule) && payload.rule_penalty_days !== "" && payload.rule_penalty_days !== null ? rule : null,
+      note,
+      numberOrNull(manager.id),
+      manager.full_name || manager.name || null,
+    ]
+  );
+  const label = type === "absence" ? "غياب" : "تأخير";
+  notifyEmployeeSalaryChange({
+    tenantId,
+    employeeId: employee.id,
+    title: days === 0 ? "✅ اتشال خصم يوم" : "تم تعديل خصم يوم",
+    body: days === 0 ? `اتشال خصم ${label} يوم ${date}` : `خصم ${label} يوم ${date} بقى ${describeDays(days)}`,
+    data: { event: "day_deduction_updated", date, type, penalty_days: days },
+  });
+  return { override: result.rows[0] };
+};
+
+export const clearManagerPortalDayDeduction = async ({ manager = {}, employeeId, type: rawType, date: rawDate } = {}) => {
+  const { employee, tenantId } = await loadScopedEmployee({ manager, employeeId });
+  const type = String(rawType || "").trim().toLowerCase();
+  const date = String(rawDate || "").slice(0, 10);
+  await assertDayDeductionEditable({ tenantId, employee, date, type });
+  const result = await db.query(
+    `
+    DELETE FROM attendance_day_deduction_overrides
+    WHERE ($1::bigint IS NULL OR tenant_id = $1::bigint)
+      AND employee_id = $2::bigint AND deduction_date = $3::date AND deduction_type = $4
+    RETURNING id
+    `,
+    [tenantId, employee.id, date, type]
+  );
+  if (result.rowCount) {
+    notifyEmployeeSalaryChange({
+      tenantId,
+      employeeId: employee.id,
+      title: "خصم يوم رجع للقاعدة",
+      body: `خصم ${type === "absence" ? "الغياب" : "التأخير"} يوم ${date} رجع زي القاعدة`,
+      data: { event: "day_deduction_restored", date, type },
+    });
+  }
+  return { cleared: result.rowCount > 0 };
 };
 
 // Manager-side check-in / check-out correction. Same engine as the admin

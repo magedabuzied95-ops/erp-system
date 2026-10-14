@@ -161,12 +161,16 @@ const deductionLine = (item, threshold) => {
       const left = Math.max(0, item.late_minutes - (item.covered_minutes || 0));
       const parts = [`تأخير ${formatMinutes(item.late_minutes)}`];
       if (item.covered_minutes > 0) parts.push(`الإذن غطّى ${formatMinutes(item.covered_minutes)}`);
-      if (!(item.amount > 0)) parts.push(threshold && left <= threshold ? `مفيش خصم (${arNumber(threshold)} دقيقة مسموح)` : "مفيش خصم");
+      if (!(item.amount > 0)) parts.push(!item.overridden && threshold && left <= threshold ? `مفيش خصم (${arNumber(threshold)} دقيقة مسموح)` : "مفيش خصم");
       else if (item.penalty_days) parts.push(item.penalty_days === 0.5 ? "خصم نص يوم" : `خصم ${arNumber(item.penalty_days)} يوم`);
+      if (item.overridden) parts.push("اتعدل من المدير");
       return { title: day, detail: parts.join(" · ") };
     }
-    case "absence":
-      return { title: day, detail: `غياب · خصم ${item.penalty_days === 1 ? "يوم" : item.penalty_days === 2 ? "يومين" : `${arNumber(item.penalty_days)} يوم`}` };
+    case "absence": {
+      const penalty = !(item.penalty_days > 0) ? "مفيش خصم"
+        : `خصم ${item.penalty_days === 0.5 ? "نص يوم" : item.penalty_days === 1 ? "يوم" : item.penalty_days === 2 ? "يومين" : `${arNumber(item.penalty_days)} يوم`}`;
+      return { title: day, detail: ["غياب", penalty, item.overridden ? "اتعدل من المدير" : ""].filter(Boolean).join(" · ") };
+    }
     case "absence_total": return { title: "أيام الغياب", detail: `${arNumber(item.days)} يوم` };
     case "late_total": return { title: "التأخير", detail: "" };
     case "leave": return { title: "إجازات برّه الرصيد", detail: `${arNumber(item.days)} يوم بعد الإجازات المدفوعة` };

@@ -897,7 +897,7 @@ export const buildEmployeeMoneyBreakdown = ({ figures = null, facts = null, snap
   if (dayRows) {
     dayRows.forEach((row) => {
       if (row.type === "absence") {
-        deductions.push({ kind: "absence", date: dateOnly(row.date), penalty_days: toNumber(row.penalty_days), amount: money(row.amount) });
+        deductions.push({ kind: "absence", date: dateOnly(row.date), penalty_days: toNumber(row.penalty_days), amount: money(row.amount), overridden: row.overridden === true });
       } else if (row.type === "late") {
         deductions.push({
           kind: "late",
@@ -906,6 +906,8 @@ export const buildEmployeeMoneyBreakdown = ({ figures = null, facts = null, snap
           covered_minutes: toNumber(row.covered_minutes),
           penalty_days: toNumber(row.penalty_days),
           amount: money(row.amount),
+          // A manager changed this day's deduction from the manager portal.
+          overridden: row.overridden === true,
         });
       }
     });

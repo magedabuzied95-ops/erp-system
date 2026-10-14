@@ -98,7 +98,9 @@ test("the rules start on 2026-09-18; earlier days keep the old pricing", async (
   assert.equal(normalizeAttendancePolicy({ policy_effective_from: new Date("2026-10-01T00:00:00.000Z") }).effective_from, "2026-10-01");
   const source = fs.readFileSync(new URL("../server/services/salesCommissionService.js", import.meta.url), "utf8");
   assert.match(source, /if \(!policyAppliesOn\(item, policy\)\) \{/);
-  assert.match(source, /legacyAbsenceDays \+ \(absenceDays - legacyAbsenceDays\) \* policy\.absence_penalty_days/);
+  // Absence is priced per day (a legacy day costs one, a manager's edit replaces either).
+  assert.match(source, /const rulePenaltyDays = legacy \? 1 : toNumber\(policy\.absence_penalty_days\);/);
+  assert.match(source, /absencePenaltyDays \+= penaltyDays;/);
   assert.match(source, /latePenaltyDays \* dailyRate \+ legacyLateHours \* hourlyRate/);
 });
 

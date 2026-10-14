@@ -164,6 +164,40 @@ export const loadLatePermissionCoverForMonth = async (clientOrPool, { tenantId =
   return countedLatePermissions(rows, resolvedPolicy);
 };
 
+// A manager's edits to single days' deductions, `${date}|${type}` -> { penalty_days, note, ... }.
+// type is "absence" or "late"; penalty_days replaces the rule's for that day (0 = waived).
+export const DAY_DEDUCTION_TYPES = Object.freeze(["absence", "late"]);
+export const dayDeductionOverrideKey = (date, type) => `${toDateKey(date)}|${type}`;
+export const loadDayDeductionOverrides = async (clientOrPool, { tenantId = null, employeeId, from, to } = {}) => {
+  const overrides = new Map();
+  if (!clientOrPool || !employeeId || !from || !to) return overrides;
+  try {
+    const result = await clientOrPool.query(
+      `
+      SELECT id, deduction_date, deduction_type, penalty_days, rule_penalty_days, note, updated_by_name, updated_at
+      FROM attendance_day_deduction_overrides
+      WHERE ($1::bigint IS NULL OR tenant_id = $1::bigint)
+        AND employee_id::text = $2::text
+        AND deduction_date BETWEEN $3::date AND $4::date
+      `,
+      [tenantId, employeeId, from, to]
+    );
+    result.rows.forEach((row) => {
+      overrides.set(dayDeductionOverrideKey(row.deduction_date, row.deduction_type), {
+        id: row.id,
+        penalty_days: Math.max(0, Number(row.penalty_days) || 0),
+        note: row.note || "",
+        updated_by_name: row.updated_by_name || "",
+        updated_at: row.updated_at || null,
+      });
+    });
+  } catch (error) {
+    // Before the attendance schema has created the table there is nothing to apply.
+    if (error?.code !== "42P01") throw error;
+  }
+  return overrides;
+};
+
 // One attendance day's lateness after its permission: what the salary actually counts.
 export const lateAfterPermission = (lateMinutes, coverMinutes) => {
   const raw = Math.max(0, Math.round(Number(lateMinutes) || 0));

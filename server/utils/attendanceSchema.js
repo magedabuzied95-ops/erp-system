@@ -733,6 +733,29 @@ const statements = [
   ALTER TABLE IF EXISTS hr_attendance_settings
     ADD COLUMN IF NOT EXISTS policy_effective_from DATE NOT NULL DEFAULT DATE '2026-09-18';
   `,
+  // A manager's decision on one day's attendance deduction (absence or late): the
+  // penalty the salary takes for that day instead of the rule's. 0 = no deduction.
+  // Read by calculateAttendancePayrollDeductions through attendancePolicy.js.
+  `
+  CREATE TABLE IF NOT EXISTS attendance_day_deduction_overrides (
+    id BIGSERIAL PRIMARY KEY,
+    tenant_id BIGINT NULL,
+    employee_id BIGINT NOT NULL,
+    deduction_date DATE NOT NULL,
+    deduction_type VARCHAR(20) NOT NULL,
+    penalty_days NUMERIC(5,2) NOT NULL DEFAULT 0,
+    rule_penalty_days NUMERIC(5,2) NULL,
+    note TEXT NULL,
+    updated_by_manager_id BIGINT NULL,
+    updated_by_name TEXT NULL,
+    created_at TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    updated_at TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP
+  );
+  `,
+  `
+  CREATE UNIQUE INDEX IF NOT EXISTS idx_attendance_day_deduction_overrides_unique
+    ON attendance_day_deduction_overrides (COALESCE(tenant_id, 0), employee_id, deduction_date, deduction_type);
+  `,
   `
   ALTER TABLE IF EXISTS attendance_logs
     DROP CONSTRAINT IF EXISTS attendance_logs_tenant_id_employee_id_attendance_date_key;
