@@ -542,9 +542,19 @@ export const mergeProductRecord = (product, variant = null) => {
   };
 };
 
+// Only a browser that never saved a list gets the starter one. A list the owner emptied
+// stays empty -- it used to refill with Footwear / Sneakers / Apparel on every visit.
+const hasSavedCategories = () => {
+  try {
+    return safeWindow()?.localStorage.getItem(STORAGE_KEYS.categories) != null;
+  } catch {
+    return false;
+  }
+};
+
 export const seedCategories = () => {
   const categories = getCategories();
-  if (!categories || categories.length === 0) {
+  if (!hasSavedCategories() && (!categories || categories.length === 0 || categories === DEFAULT_CATEGORIES)) {
     saveCategories(DEFAULT_CATEGORIES);
     return DEFAULT_CATEGORIES;
   }
