@@ -1712,7 +1712,12 @@
       "lastSeen": "Last seen {{time}}",
       "noRecentActivity": "No recent activity",
       "close": "Close",
-      "teamTools": "Team tools"
+      "teamTools": "Team tools",
+      "attachPhotos": "Photos",
+      "attachVideos": "Videos",
+      "attachCamera": "Camera",
+      "attachProduct": "Product",
+      "attachPaste": "Paste"
     },
     "pwaOrder": {
       "aiInboxOrder": "AI Inbox Order",

@@ -8,6 +8,7 @@ import {
   CheckCheck,
   ChevronLeft,
   Camera,
+  Film,
   ClipboardPaste,
   Clock3,
   Download,
@@ -2080,6 +2081,8 @@ const PwaComposerBar = memo(function PwaComposerBar({
   onSubmit,
   onSetText,
   onPickImage,
+  onPickAttachment = null,
+  onPickProduct = null,
   onRecordVoice,
   onPasteFiles,
   onPasteClipboardImage = null,
@@ -2160,34 +2163,38 @@ const PwaComposerBar = memo(function PwaComposerBar({
                 type="button"
                 aria-label={t("aiSupport.inbox.pwa.close")}
                 onClick={() => setAttachOpen(false)}
-                className="fixed inset-0 z-30 cursor-default bg-slate-900/10"
+                className="fixed inset-0 z-30 cursor-default bg-slate-900/40"
               />
-              {/* The menu opens INWARD: start-0 pins it to the button's inline
-                  start, so in Arabic — where the + sits at the right edge of the
-                  composer — it grows leftwards instead of off the screen. With
-                  left-0 it was anchored to the physical left of the button and
-                  ran past the right edge of the phone. */}
-              <div className="absolute bottom-14 start-0 z-40 min-w-[11rem] overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-[0_18px_44px_rgba(15,23,42,0.2)]">
-                <button
-                  type="button"
-                  onClick={() => { setAttachOpen(false); onPickImage?.(); }}
-                  className="flex w-full items-center gap-3 px-4 py-3 text-sm font-semibold text-slate-900 hover:bg-slate-100"
-                >
-                  <Image className="h-4 w-4 text-slate-500" />
-                  {t("aiSupport.inbox.pwa.attachImage")}
-                </button>
-                {onPasteClipboardImage ? (
-                  <button
-                    type="button"
-                    // No await before the read: Safari only shows its Paste
-                    // callout for a read made inside the tap itself.
-                    onClick={() => { setAttachOpen(false); void onPasteClipboardImage(); }}
-                    className="flex w-full items-center gap-3 border-t border-slate-100 px-4 py-3 text-sm font-semibold text-slate-900 hover:bg-slate-100"
-                  >
-                    <ClipboardPaste className="h-4 w-4 text-slate-500" />
-                    {t("aiSupport.inbox.composer.pasteFromClipboard")}
-                  </button>
-                ) : null}
+              {/* WhatsApp's + sheet: a grid of what can be attached. The photo
+                  and video tiles open the phone's own picker, which is where the
+                  album, the multi-select and the photo/video filter live — a web
+                  app has no gallery of its own to draw. */}
+              <div dir="rtl" className="fixed inset-x-0 bottom-0 z-40 rounded-t-[26px] bg-white px-4 pb-[calc(1.25rem+env(safe-area-inset-bottom))] pt-3 shadow-[0_-20px_60px_rgba(15,23,42,0.25)]" data-pwa-attach-sheet="true">
+                <div className="mx-auto mb-4 h-1.5 w-12 rounded-full bg-slate-300" aria-hidden="true" />
+                <div className="grid grid-cols-4 gap-3">
+                  {[
+                    { key: "photos", label: t("aiSupport.inbox.pwa.attachPhotos"), Icon: Image, tone: "bg-sky-100 text-sky-600", action: () => (onPickAttachment ? onPickAttachment("photos") : onPickImage?.()) },
+                    { key: "videos", label: t("aiSupport.inbox.pwa.attachVideos"), Icon: Film, tone: "bg-violet-100 text-violet-600", action: () => (onPickAttachment ? onPickAttachment("videos") : onPickImage?.()) },
+                    { key: "camera", label: t("aiSupport.inbox.pwa.attachCamera"), Icon: Camera, tone: "bg-slate-200 text-slate-700", action: () => (onPickAttachment ? onPickAttachment("camera") : onPickImage?.()) },
+                    ...(onPickProduct ? [{ key: "product", label: t("aiSupport.inbox.pwa.attachProduct"), Icon: PackagePlus, tone: "bg-emerald-100 text-emerald-600", action: () => onPickProduct() }] : []),
+                    ...(onPasteClipboardImage ? [{ key: "paste", label: t("aiSupport.inbox.pwa.attachPaste"), Icon: ClipboardPaste, tone: "bg-amber-100 text-amber-700", action: () => void onPasteClipboardImage() }] : []),
+                  ].map((tile) => (
+                    <button
+                      key={tile.key}
+                      type="button"
+                      // No await before a clipboard read: Safari only shows its
+                      // Paste callout for a read made inside the tap itself.
+                      onClick={() => { setAttachOpen(false); tile.action(); }}
+                      className="flex flex-col items-center gap-2 py-1"
+                      data-pwa-attach={tile.key}
+                    >
+                      <span className={`grid h-16 w-16 place-items-center rounded-[22px] ${tile.tone}`}>
+                        <tile.Icon className="h-7 w-7" strokeWidth={1.75} />
+                      </span>
+                      <span className="text-[12px] font-semibold text-slate-800">{tile.label}</span>
+                    </button>
+                  ))}
+                </div>
               </div>
             </>
           ) : null}
@@ -7149,12 +7156,40 @@ export default function AiInboxPwa({ portal = null } = {}) {
   }, [headers, patchConversation, readComposerText, selectedConversation, selectedConversationRouteId, setComposerText, t, tenantId]);
 
   const handleImageAttachmentChange = useCallback((event) => {
-    const file = event.target.files?.[0] || null;
+    const files = Array.from(event.target.files || []);
     // Reset before anything async: picking the same file twice must fire
     // onChange again, and it will not while the value is still set.
     event.target.value = "";
-    if (file) sendAttachmentFile(file);
+    if (!files.length) return;
+    // One after the other, in the order they were picked, so the thread reads
+    // the way the album did — WhatsApp sends a multi-select the same way.
+    void (async () => {
+      for (const file of files) {
+        // eslint-disable-next-line no-await-in-loop
+        await sendAttachmentFile(file);
+      }
+    })();
   }, [sendAttachmentFile]);
+
+  // The + sheet: one hidden input, retargeted per tile. iOS reads `capture` and
+  // `accept` at click time, so photos / videos / camera are the same element.
+  const pickAttachment = useCallback((kind = "photos") => {
+    const input = imageInputRef.current;
+    if (!input) return;
+    input.value = "";
+    if (kind === "camera") {
+      input.accept = "image/*";
+      input.multiple = false;
+      input.setAttribute("capture", "environment");
+    } else {
+      input.removeAttribute("capture");
+      input.multiple = true;
+      input.accept = kind === "videos"
+        ? "video/mp4,video/quicktime,video/3gpp,.mp4,.mov,.m4v,.3gp"
+        : "image/*";
+    }
+    input.click();
+  }, []);
 
   /*
    * A pasted screenshot, or one noticed on the clipboard, waits on the
@@ -8882,6 +8917,7 @@ export default function AiInboxPwa({ portal = null } = {}) {
               <input
                 ref={imageInputRef}
                 type="file"
+                multiple
                 accept="image/*,video/mp4,video/quicktime,video/3gpp,.mp4,.mov,.m4v,.3gp"
                 onChange={handleImageAttachmentChange}
                 className="hidden"
@@ -8903,6 +8939,8 @@ export default function AiInboxPwa({ portal = null } = {}) {
                 onSubmit={sendManualReply}
                 onSetText={setComposerText}
                 onPickImage={openImagePicker}
+                onPickAttachment={pickAttachment}
+                onPickProduct={() => setProductSheetOpen(true)}
                 onRecordVoice={(file) => sendAttachmentFile(file)}
                 onPasteFiles={handleComposerPasteFiles}
                 onPasteClipboardImage={composerMode === "note" ? null : pasteImageFromClipboard}
