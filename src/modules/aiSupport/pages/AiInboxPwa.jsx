@@ -2059,7 +2059,7 @@ function PwaReplyEditor({ value = "", onChange, onSubmit, placeholder = "", disa
         }
         submitCurrentText(event);
       }}
-      className={`ai-pwa-reply-editor max-h-28 min-h-12 w-full overflow-y-auto whitespace-pre-wrap break-words rounded-2xl border border-slate-200 bg-slate-50 py-3 pl-4 text-[16px] leading-normal outline-none transition focus:border-slate-400 focus:bg-white ${padEnd ? "pr-12" : "pr-4"}`}
+      className={`ai-pwa-reply-editor max-h-28 min-h-9 w-full overflow-y-auto whitespace-pre-wrap break-words rounded-[18px] border border-slate-200 bg-slate-50 py-[5px] pl-3.5 text-[16px] leading-normal outline-none transition focus:border-slate-400 focus:bg-white ${padEnd ? "pr-10" : "pr-3.5"}`}
     />
   );
 }
@@ -2155,7 +2155,7 @@ const PwaComposerBar = memo(function PwaComposerBar({
       {/* The WhatsApp row, in WhatsApp's physical order whatever the UI language:
           + | field (⚡ inside, where the sticker icon sits) | camera | mic — and the
           mic becomes the green send button the moment there is text. */}
-      <div dir="ltr" className="flex items-end gap-2">
+      <div dir="ltr" className="flex items-end gap-1.5">
         <div className={`relative shrink-0 ${voiceRecording ? "hidden" : ""}`}>
           {attachOpen ? (
             <>
@@ -2201,11 +2201,11 @@ const PwaComposerBar = memo(function PwaComposerBar({
           <button
             type="button"
             onClick={() => setAttachOpen((current) => !current)}
-            className={`inline-flex h-11 w-11 items-center justify-center rounded-full transition ${attachOpen ? "bg-slate-900 text-slate-50" : "text-slate-700 hover:bg-slate-100"}`}
+            className={`inline-flex h-9 w-9 items-center justify-center rounded-full transition ${attachOpen ? "bg-slate-900 text-slate-50" : "text-slate-700 hover:bg-slate-100"}`}
             aria-label={t("aiSupport.inbox.pwa.attachImage")}
             aria-expanded={attachOpen}
           >
-            <Plus className="h-7 w-7" strokeWidth={1.75} />
+            <Plus className="h-6 w-6" strokeWidth={1.75} />
           </button>
         </div>
         {voiceRecording ? null : (
@@ -2224,13 +2224,13 @@ const PwaComposerBar = memo(function PwaComposerBar({
             <button
               type="button"
               onClick={() => onSetText?.(draftState.slash ? "" : "/")}
-              className={`absolute bottom-1.5 right-1.5 inline-flex h-9 w-9 items-center justify-center rounded-full transition ${draftState.slash ? "bg-amber-400 text-slate-950" : "text-slate-600 hover:bg-slate-100"}`}
+              className={`absolute bottom-0 right-0.5 inline-flex h-9 w-9 items-center justify-center rounded-full transition ${draftState.slash ? "bg-amber-400 text-slate-950" : "text-slate-600 hover:bg-slate-100"}`}
               aria-label={t("aiSupport.quickReplies.title")}
               title={t("aiSupport.quickReplies.title")}
               aria-pressed={Boolean(draftState.slash)}
               data-quick-replies-toggle="true"
             >
-              <Zap className="h-5 w-5" strokeWidth={1.75} />
+              <Zap className="h-[18px] w-[18px]" strokeWidth={1.75} />
             </button>
           ) : null}
         </div>
@@ -2239,11 +2239,11 @@ const PwaComposerBar = memo(function PwaComposerBar({
           <button
             type="button"
             onClick={() => onPickImage?.()}
-            className="inline-flex h-11 w-11 shrink-0 items-center justify-center rounded-full text-slate-700 transition hover:bg-slate-100"
+            className="inline-flex h-9 w-9 shrink-0 items-center justify-center rounded-full text-slate-700 transition hover:bg-slate-100"
             aria-label={t("aiSupport.inbox.pwa.attachImage")}
             data-composer-camera="true"
           >
-            <Camera className="h-6 w-6" strokeWidth={1.75} />
+            <Camera className="h-[22px] w-[22px]" strokeWidth={1.75} />
           </button>
         ) : null}
         {onRecordVoice && mode !== "note" && !draftState.armed && !sending ? (
@@ -2260,10 +2260,10 @@ const PwaComposerBar = memo(function PwaComposerBar({
           type="button"
           onClick={() => void onSubmit?.()}
           disabled={!draftState.armed}
-          className={`${voiceRecording || (!draftState.armed && !sending && mode !== "note" && onRecordVoice) ? "hidden" : "inline-flex"} h-11 w-11 shrink-0 items-center justify-center rounded-full text-white disabled:opacity-50 ${sendTone === "amber" ? "bg-amber-500" : "bg-[#00a884]"}`}
+          className={`${voiceRecording || (!draftState.armed && !sending && mode !== "note" && onRecordVoice) ? "hidden" : "inline-flex"} h-9 w-9 shrink-0 items-center justify-center rounded-full text-white disabled:opacity-50 ${sendTone === "amber" ? "bg-amber-500" : "bg-[#00a884]"}`}
           aria-label={mode === "note" ? t("aiSupport.inbox.pwa.saveNote") : t("aiSupport.inbox.pwa.sendReply")}
         >
-          {sending && !draftState.armed ? <Loader2 className="h-5 w-5 animate-spin" /> : <Send className="h-5 w-5 translate-x-[1px]" fill="currentColor" strokeWidth={1.5} />}
+          {sending && !draftState.armed ? <Loader2 className="h-5 w-5 animate-spin" /> : <Send className="h-[18px] w-[18px] translate-x-[1px]" fill="currentColor" strokeWidth={1.5} />}
         </button>
       </div>
     </>
@@ -3770,11 +3770,19 @@ export default function AiInboxPwa({ portal = null } = {}) {
     const root = document.documentElement;
     let frame = 0;
     let lastInset = -1;
+    let lastPan = -1;
     const measure = () => {
       frame = 0;
       const inset = Math.max(0, Math.round(window.innerHeight - (viewport.height + viewport.offsetTop)));
       // Below ~80px it is the browser's own toolbar moving, not a keyboard.
       const keyboard = inset > 80 ? inset : 0;
+      // How far iOS panned the page to reach the field: the fixed header went up
+      // by exactly this much, so it is pushed back down by the same amount.
+      const panned = keyboard ? Math.max(0, Math.round(viewport.offsetTop)) : 0;
+      if (panned !== lastPan) {
+        lastPan = panned;
+        root.style.setProperty("--ai-pwa-vv-top", `${panned}px`);
+      }
       if (keyboard === lastInset) return;
       lastInset = keyboard;
       root.style.setProperty("--ai-pwa-kb", `${keyboard}px`);
@@ -3799,6 +3807,7 @@ export default function AiInboxPwa({ portal = null } = {}) {
       viewport.removeEventListener("resize", schedule);
       viewport.removeEventListener("scroll", schedule);
       root.style.removeProperty("--ai-pwa-kb");
+      root.style.removeProperty("--ai-pwa-vv-top");
       root.removeAttribute("data-ai-pwa-kb");
     };
   }, []);
@@ -8901,7 +8910,7 @@ export default function AiInboxPwa({ portal = null } = {}) {
               onPick={(item) => void forwardQuickMedia(item)}
               onClose={() => setForwardSheetOpen(false)}
             />
-            <div className="ai-pwa-composer-bar rounded-[24px] border border-slate-200 bg-white p-2.5 shadow-[0_18px_40px_rgba(15,23,42,0.14)]">
+            <div className="ai-pwa-composer-bar rounded-[22px] border border-slate-200 bg-white px-1.5 py-1 shadow-[0_10px_28px_rgba(15,23,42,0.12)]">
               {composerMode === "note" ? (
                 <div className="mb-2 flex items-center gap-2 text-xs font-medium text-amber-700">
                   <Sparkles className="h-3.5 w-3.5" />

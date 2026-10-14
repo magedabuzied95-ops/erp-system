@@ -191,12 +191,12 @@ function VoiceNoteRecorder({
         onClick={() => void start()}
         disabled={disabled || busy}
         className={compact
-          ? "inline-flex h-11 w-11 shrink-0 items-center justify-center rounded-full bg-[#00a884] text-white transition disabled:opacity-50"
+          ? "inline-flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-[#00a884] text-white transition disabled:opacity-50"
           : `inline-flex h-12 w-12 shrink-0 items-center justify-center rounded-2xl ring-1 transition disabled:opacity-50 ${idleClass}`}
         aria-label={t("aiSupport.inbox.composer.recordVoice")}
         title={t("aiSupport.inbox.composer.recordVoice")}
       >
-        <Mic className="h-5 w-5" />
+        <Mic className={compact ? "h-[18px] w-[18px]" : "h-5 w-5"} />
       </button>
     );
   }

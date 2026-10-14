@@ -692,3 +692,9 @@ html[data-ai-pwa-kb="open"] .ai-pwa-main {
 html[data-ai-pwa-kb="open"] .ai-pwa-nav {
   display: none;
 }
+
+/* The chat header stays put while typing, as in WhatsApp: iOS pans the page up
+   to the field and the fixed header would ride off the top with it. */
+html[data-ai-pwa-kb="open"] .ai-pwa-conversation-header {
+  transform: translateY(var(--ai-pwa-vv-top, 0px));
+}
