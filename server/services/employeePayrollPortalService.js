@@ -1786,7 +1786,7 @@ const buildLeaderboard = async ({ tenantId, period, bounds, limit = 10 }) => {
   }));
 };
 
-const getWalletTransactions = async ({ tenantId, employeeId, payrollRun, recentAdvances, attendanceDeductionTotal, bonuses }) => {
+const getWalletTransactions = async ({ tenantId, employeeId, payrollRun, recentAdvances, attendanceDeductionTotal, bonuses, hideCommissionsFrom = null }) => {
   const advanceTransactions = recentAdvances.map((row) =>
     transaction({
       id: `advance-${row.id}`,
@@ -1838,7 +1838,14 @@ const getWalletTransactions = async ({ tenantId, employeeId, payrollRun, recentA
       description: payrollRun.payroll_reference || "",
     }));
   }
-  return [...generated, ...advanceTransactions, ...penaltyTransactions, ...commissionTransactions]
+  // Commission switched off: the open month pays none, so its sale-time entries are not shown either.
+  const shownCommissions = hideCommissionsFrom
+    ? commissionTransactions.filter((row) => {
+      const date = row.date ? new Date(row.date) : null;
+      return !date || Number.isNaN(date.getTime()) || date.toISOString().slice(0, 10) < hideCommissionsFrom;
+    })
+    : commissionTransactions;
+  return [...generated, ...advanceTransactions, ...penaltyTransactions, ...shownCommissions]
     .sort((a, b) => new Date(b.date || 0).getTime() - new Date(a.date || 0).getTime())
     .slice(0, 20);
 };
@@ -2349,6 +2356,7 @@ export const buildEmployeePayrollPortalPayload = async ({ employee, includeOptio
     recentAdvances,
     attendanceDeductionTotal: toNumber(latestPayrollRun?.attendance_deduction_total),
     bonuses: toNumber(latestPayrollRun?.bonuses),
+    hideCommissionsFrom: !payrollRun && livePayroll?.commission_switched_off ? bounds.start : null,
   });
   const payslip = {
     employee_name: employee.full_name,

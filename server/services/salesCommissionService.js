@@ -2589,7 +2589,8 @@ export const getPayrollPreview = async ({ tenantId = null, employeeId, filters =
     SELECT
       e.*,
       COALESCE(esp.pos_alias, '') AS pos_alias,
-      COALESCE(esp.is_sales_active, TRUE) AS is_sales_active
+      COALESCE(esp.is_sales_active, TRUE) AS is_sales_active,
+      esp.commission_type AS sales_commission_type
     FROM employees e
     LEFT JOIN employee_sales_profiles esp ON esp.employee_id = e.id
     WHERE e.id = $1
@@ -2609,7 +2610,12 @@ export const getPayrollPreview = async ({ tenantId = null, employeeId, filters =
   const report = await getSalesCommissionReport({ tenantId, filters: { ...filters, employeeId, branchId } });
   const earnedSalesAmount = toNumber(report.summary.net_sales);
   const eligibleItemsCount = toNumber(report.summary.total_items_sold) - toNumber(report.summary.returns_refunds);
-  const salesEarnings = toNumber(report.summary.earned_commissions);
+  // Owner's rule (2026-10-14): commission switched off for an employee means no commission for a
+  // month still being priced, including sales made before it was switched off (each order
+  // snapshots the type it was sold under, so those kept earning). An approved month is a stored
+  // run and is not re-priced by this preview.
+  const commissionSwitchedOff = String(employee.sales_commission_type || "").trim().toLowerCase() === "none";
+  const salesEarnings = commissionSwitchedOff ? 0 : toNumber(report.summary.earned_commissions);
   const providedBaseSalary = filters.base_salary ?? filters.baseSalary;
   const baseSalary = providedBaseSalary === undefined || providedBaseSalary === null || providedBaseSalary === "" ? toNumber(employee.salary) : toNumber(providedBaseSalary);
   const manualBonuses = toNumber(filters.bonuses);
@@ -3123,6 +3129,7 @@ export const getPayrollPreview = async ({ tenantId = null, employeeId, filters =
       missing_attendance_dates: Array.isArray(attendanceDeductions.missing_attendance_dates) ? attendanceDeductions.missing_attendance_dates : [],
       leave_dates: Array.isArray(attendanceDeductions.leave_dates) ? attendanceDeductions.leave_dates : [],
       day_deductions: Array.isArray(attendanceDeductions.day_deductions) ? attendanceDeductions.day_deductions : [],
+      commission_switched_off: commissionSwitchedOff,
       late_threshold_minutes: attendanceDeductions.late_threshold_minutes,
       // The rows behind penalties_total and bonuses, for the employee portal's الخصومات / الإضافات sheets.
       penalty_rows: penaltyRows.map((row) => ({
