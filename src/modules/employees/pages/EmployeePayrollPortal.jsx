@@ -1463,7 +1463,15 @@ function EmployeeStatsCards({ cards = [] }) {
                 <Icon className="h-3.5 w-3.5" />
               </span>
             </div>
-            <div className={`mt-3 break-words text-[16px] font-black leading-5 tabular-nums text-text ${numeric ? "text-start" : ""}`} dir={numeric ? "ltr" : "auto"}>{value}</div>
+            {/* `.tabular-nums` forces direction ltr + left in Arabic (index.css), which turned
+                "11 ساعة و24 دقيقة" into "ساعة و24 دقيقة 11" and "27 يوم" into "يوم 27". Only a
+                pure number keeps the class; text values get the digit width alone. */}
+            <div
+              className={`mt-3 break-words text-[16px] font-black leading-5 text-text ${numeric ? "tabular-nums text-start" : "[font-variant-numeric:tabular-nums]"}`}
+              dir={numeric ? "ltr" : "auto"}
+            >
+              {value}
+            </div>
             {subtitle ? <div className="mt-1 text-[10px] font-bold leading-4 text-text-muted">{subtitle}</div> : null}
             {onClick ? <div className="mt-1 text-[10px] font-black leading-4 text-text-muted underline underline-offset-2">اضغط للتفاصيل</div> : null}
           </Tag>
