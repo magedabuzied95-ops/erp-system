@@ -998,5 +998,26 @@
       "expensesCashPart": "Of which cash, out of the drawer",
       "expensesNote": "Employee advances are counted here too — anything that left the drawer."
     }
+  },
+  "quickExpense": {
+    "button": "Expense",
+    "drawer": "Drawer",
+    "noOpenShift": "No shift is open in this branch right now. An expense comes out of an open POS drawer.",
+    "loadFailed": "Could not load the open shifts",
+    "selectShift": "Select the shift",
+    "invalidShift": "Select an open shift",
+    "invalidAmount": "Enter an amount greater than zero",
+    "selectEmployee": "Select the employee for the advance",
+    "saved": "Expense saved",
+    "advanceSaved": "Employee advance saved",
+    "saveFailed": "Failed to save expense",
+    "close": "Close",
+    "cancel": "Cancel",
+    "save": "Save",
+    "methods": {
+      "cash": "Cash",
+      "card": "Card",
+      "wallet": "Wallet"
+    }
   }
 }

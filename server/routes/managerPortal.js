@@ -59,6 +59,7 @@ import {
   loadManagerPortalByToken,
 } from "../services/managerPortalService.js";
 import { getManagerPortalReports } from "../services/managerPortalReportsService.js";
+import { createManagerPortalExpense, getManagerPortalExpenseContext } from "../modules/managerPortal/managerPortalExpense.js";
 import { getManagerPortalEmployeePerformance } from "../services/managerPortalEmployeePerformanceService.js";
 import { getManagerPortalInventoryCoverage } from "../services/managerPortalInventoryCoverageService.js";
 import { getLinkPreview } from "../services/linkPreviewService.js";
@@ -646,6 +647,32 @@ router.get("/:token/tasks", async (req, res) => {
   } catch (error) {
     console.error("[manager-portal] tasks error", error);
     return res.status(error.status || 500).json({ success: false, message: error.message || "Failed to load tasks" });
+  }
+});
+
+// مصروف: the POS quick expense, booked on an open drawer of the manager's branch.
+router.get("/:token/expenses/context", verifyManagerPortalToken, async (req, res) => {
+  try {
+    res.set("Cache-Control", "no-store");
+    const context = await getManagerPortalExpenseContext({ manager: req.managerPortalManager });
+    return res.json({ success: true, ...context });
+  } catch (error) {
+    console.error("[manager-portal] expense context error", error);
+    return res.status(error.status || 500).json({ success: false, message: error.message || "Failed to load open shifts" });
+  }
+});
+
+router.post("/:token/expenses", verifyManagerPortalToken, async (req, res) => {
+  try {
+    const { status, payload } = await createManagerPortalExpense({
+      manager: req.managerPortalManager,
+      body: req.body || {},
+      idempotencyKey: req.get("Idempotency-Key") || req.get("X-Idempotency-Key") || "",
+    });
+    return res.status(status).json(payload);
+  } catch (error) {
+    console.error("[manager-portal] expense error", error);
+    return res.status(error.status || 500).json({ success: false, message: error.message || "Failed to save expense" });
   }
 });
 

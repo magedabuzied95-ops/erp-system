@@ -45,10 +45,10 @@ test("manual terminal confirm: cashier limits, provider check, website order voc
 });
 
 test("a POS quick expense refuses non-numeric and absurd amounts", () => {
-  const quick = sliceBetween(posSource, "export const createQuickPosExpense", "await client.query(\"BEGIN\")");
+  const quick = sliceBetween(posSource, "export const bookQuickPosExpense", "await client.query(\"BEGIN\")");
   assert.match(quick, /const amount = Number\.isFinite\(rawAmount\) \? money\(rawAmount\) : NaN;/);
-  assert.match(quick, /if \(!Number\.isFinite\(amount\) \|\| amount <= 0\) return res\.status\(400\)/);
-  assert.match(quick, /if \(amount > POS_QUICK_EXPENSE_MAX_AMOUNT\) \{\s*return res\.status\(400\)/);
+  assert.match(quick, /if \(!Number\.isFinite\(amount\) \|\| amount <= 0\) return reply\(400/);
+  assert.match(quick, /if \(amount > POS_QUICK_EXPENSE_MAX_AMOUNT\) \{\s*return reply\(400/);
   assert.match(posSource, /const POS_QUICK_EXPENSE_MAX_AMOUNT = 1000000;/);
 });
 

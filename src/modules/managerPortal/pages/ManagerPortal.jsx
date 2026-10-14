@@ -55,6 +55,7 @@ import {
   Wallet,
   VolumeX,
   X,
+  ReceiptText,
 } from "lucide-react";
 import toast from "react-hot-toast";
 
@@ -83,6 +84,7 @@ import { ACCENTS } from "../../../theme/themes";
 import EmployeeDetailsSheet from "../components/EmployeeDetailsSheet";
 import { whenWorkerActive } from "../../aiSupport/services/serviceWorkerActivation";
 import ManagerPortalBottomNav from "../components/ManagerPortalBottomNav";
+import ManagerExpenseSheet from "../components/ManagerExpenseSheet";
 import "./ManagerPortal.m1.css";
 
 import { useTranslation } from "react-i18next";
@@ -1095,6 +1097,7 @@ export default function ManagerPortal() {
   const [showMoreLowStock, setShowMoreLowStock] = useState(false);
   const [expandedTaskIds, setExpandedTaskIds] = useState({});
   const [notificationsOpen, setNotificationsOpen] = useState(false);
+  const [expenseOpen, setExpenseOpen] = useState(false);
   const [notificationCategory, setNotificationCategory] = useState("all");
   const socketRef = useRef(null);
   const notificationPanelRef = useRef(null);
@@ -2753,6 +2756,15 @@ export default function ManagerPortal() {
                   </div>
                 </div>
                 <div className="flex items-center gap-2">
+                  <button
+                    type="button"
+                    data-testid="manager-expense-button"
+                    onClick={() => setExpenseOpen(true)}
+                    className="inline-flex h-[var(--control-height-md)] shrink-0 items-center gap-1.5 rounded-[var(--radius-control)] border border-slate-700 bg-primary px-2.5 text-xs font-black text-slate-100"
+                  >
+                    <ReceiptText className="h-4 w-4" />
+                    <span>{tt("managerPortal.quickExpense.button")}</span>
+                  </button>
                   <button type="button" onClick={() => setTheme(theme.mode === "dark" ? "light" : "dark")} className="manager-theme-toggle inline-flex h-[var(--control-height-md)] w-10 shrink-0 items-center justify-center rounded-[var(--radius-control)] border border-slate-700 bg-primary text-slate-100" aria-label={theme.mode === "dark" ? tt("managerPortal.theme.light") : tt("managerPortal.theme.dark")}>
                     {theme.mode === "dark" ? <SunMedium className="h-4 w-4" /> : <Moon className="h-4 w-4" />}
                   </button>
@@ -2784,6 +2796,15 @@ export default function ManagerPortal() {
                   <div className="flex items-center gap-2">
                     <button type="button" onClick={() => setTheme(theme.mode === "dark" ? "light" : "dark")} className="manager-theme-toggle inline-flex h-[var(--control-height-lg)] w-11 items-center justify-center rounded-[var(--radius-control)] border border-slate-700 bg-primary text-[var(--primary-contrast)]" aria-label={theme.mode === "dark" ? tt("managerPortal.theme.light") : tt("managerPortal.theme.dark")} title={theme.mode === "dark" ? tt("managerPortal.theme.light") : tt("managerPortal.theme.dark")}>
                       {theme.mode === "dark" ? <SunMedium className="h-4 w-4" /> : <Moon className="h-4 w-4" />}
+                    </button>
+                    <button
+                      type="button"
+                      data-testid="manager-expense-button"
+                      onClick={() => setExpenseOpen(true)}
+                      className="inline-flex items-center gap-2 rounded-[var(--radius-control)] bg-white px-3 py-2 text-sm font-black text-slate-950 shadow-sm"
+                    >
+                      <ReceiptText className="h-4 w-4" />
+                      <span>{tt("managerPortal.quickExpense.button")}</span>
                     </button>
                     <button
                       type="button"
@@ -2821,6 +2842,10 @@ export default function ManagerPortal() {
               </div>
             </header>
           )) : null}
+
+          {expenseOpen ? (
+            <ManagerExpenseSheet token={token} onClose={() => setExpenseOpen(false)} onSaved={() => void loadAll({ silent: true })} />
+          ) : null}
 
           {showInstallCard ? (
             <div className="rounded-[var(--radius-card)] border border-slate-200 bg-white p-4 text-slate-950 shadow-sm">

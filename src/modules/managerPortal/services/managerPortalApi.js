@@ -23,6 +23,9 @@ export const managerPortalApi = {
   reviewLatePermissionRequest: (token, requestId, payload) => api.patch(`${tokenPath(token)}/late-permission-requests/${encodeURIComponent(requestId)}`, payload),
   reviewVacationRequest: (token, requestId, payload) => api.patch(`${tokenPath(token)}/vacation-requests/${encodeURIComponent(requestId)}`, payload),
   tasks: (token, options = {}) => api.get(`${tokenPath(token)}/tasks`, options),
+  expenseContext: (token, options = {}) => api.get(`${tokenPath(token)}/expenses/context`, { cache: "no-store", ...options }),
+  createExpense: (token, payload, idempotencyKey) =>
+    api.post(`${tokenPath(token)}/expenses`, payload, { headers: { "Idempotency-Key": idempotencyKey }, suppressErrorStatuses: [400, 403, 404] }),
   sales: (token, options = {}) => api.get(`${tokenPath(token)}/sales`, options),
   operations: (token, params = {}, options = {}) => api.get(`${tokenPath(token)}/operations`, { ...options, params }),
   onlineOrders: (token, params = {}, options = {}) => api.get(`${tokenPath(token)}/online-orders`, { cache: "no-store", ...options, params }),

@@ -1921,45 +1921,43 @@ export const closePosShift = async (req, res) => {
   }
 };
 
-export const createQuickPosExpense = async (req, res) => {
+// One quick expense taken out of an open drawer. The till books it on its own
+// shift; the manager portal books it on any open shift of a branch the manager
+// covers (`manager`), which is why the ownership check and the offline replay
+// are till-only. Returns { status, payload } so each caller keeps its own route.
+export const bookQuickPosExpense = async ({ tenantId, actorUserId = null, body = {}, idempotencyKey: rawIdempotencyKey = "", manager = null } = {}) => {
+  const reply = (status, payload) => ({ status, payload });
   const client = await db.connect();
   try {
     await ensurePosUserShiftSchema(client);
     await ensurePosExpenseSchema(client);
-    const tenantId = resolveTenantId(req);
-    const shiftId = numberOrNull(req.body?.shift_id || req.body?.shiftId);
+    const shiftId = numberOrNull(body?.shift_id || body?.shiftId);
     // money("abc") is NaN and `NaN <= 0` is false, so the raw number is checked
     // for finiteness before anything else reads it.
-    const rawAmount = Number(req.body?.amount);
+    const rawAmount = Number(body?.amount);
     const amount = Number.isFinite(rawAmount) ? money(rawAmount) : NaN;
-    const paymentMethod = clean(req.body?.payment_method || req.body?.paymentMethod || "cash").toLowerCase();
-    const expenseType = normalizeQuickExpenseType(req.body?.expense_type || req.body?.expenseType || req.body?.category);
+    const paymentMethod = clean(body?.payment_method || body?.paymentMethod || "cash").toLowerCase();
+    const expenseType = normalizeQuickExpenseType(body?.expense_type || body?.expenseType || body?.category);
     const isEmployeeAdvance = expenseType === "employee_advance";
-    const category = isEmployeeAdvance ? "employee_advance" : clean(req.body?.category || req.body?.expense_type || req.body?.expenseType || "other") || expenseType;
-    const employeeId = numberOrNull(req.body?.employee_id || req.body?.employeeId);
-    const notes = clean(req.body?.notes || req.body?.note);
+    const category = isEmployeeAdvance ? "employee_advance" : clean(body?.category || body?.expense_type || body?.expenseType || "other") || expenseType;
+    const employeeId = numberOrNull(body?.employee_id || body?.employeeId);
+    const notes = clean(body?.notes || body?.note);
     // Same replay contract as a POS invoice: the money already left the drawer
     // while the till was offline, so this is a routing problem, never a refusal.
-    const offlineOrigin = Boolean(req.body?.offline_origin ?? req.body?.offlineOrigin ?? false);
-    const offlineCreatedAt = clean(req.body?.offline_created_at || req.body?.offlineCreatedAt) || null;
-    const idempotencyKey = clean(
-      req.get?.("Idempotency-Key") ||
-        req.get?.("X-Idempotency-Key") ||
-        req.body?.idempotency_key ||
-        req.body?.idempotencyKey ||
-        ""
-    ).slice(0, 120);
+    const offlineOrigin = !manager && Boolean(body?.offline_origin ?? body?.offlineOrigin ?? false);
+    const offlineCreatedAt = offlineOrigin ? clean(body?.offline_created_at || body?.offlineCreatedAt) || null : null;
+    const idempotencyKey = clean(rawIdempotencyKey || body?.idempotency_key || body?.idempotencyKey || "").slice(0, 120);
 
-    if (!shiftId && !offlineOrigin) return res.status(400).json({ success: false, message: "Open POS shift is required" });
-    if (!Number.isFinite(amount) || amount <= 0) return res.status(400).json({ success: false, message: "Expense amount must be greater than zero" });
+    if (!shiftId && !offlineOrigin) return reply(400, { success: false, message: "Open POS shift is required" });
+    if (!Number.isFinite(amount) || amount <= 0) return reply(400, { success: false, message: "Expense amount must be greater than zero" });
     if (amount > POS_QUICK_EXPENSE_MAX_AMOUNT) {
-      return res.status(400).json({ success: false, message: `Expense amount cannot exceed ${POS_QUICK_EXPENSE_MAX_AMOUNT}` });
+      return reply(400, { success: false, message: `Expense amount cannot exceed ${POS_QUICK_EXPENSE_MAX_AMOUNT}` });
     }
-    if (!quickExpensePayments.has(paymentMethod)) return res.status(400).json({ success: false, message: "Payment method must be cash, card, or wallet" });
-    if (isEmployeeAdvance && !employeeId) return res.status(400).json({ success: false, message: "Employee is required for employee advance" });
-    const rawExpenseType = isEmployeeAdvance ? "" : clean(req.body?.expense_type || req.body?.expenseType || req.body?.category).toLowerCase();
+    if (!quickExpensePayments.has(paymentMethod)) return reply(400, { success: false, message: "Payment method must be cash, card, or wallet" });
+    if (isEmployeeAdvance && !employeeId) return reply(400, { success: false, message: "Employee is required for employee advance" });
+    const rawExpenseType = isEmployeeAdvance ? "" : clean(body?.expense_type || body?.expenseType || body?.category).toLowerCase();
     if (rawExpenseType.includes("advance") || rawExpenseType.includes("سلفة")) {
-      return res.status(400).json({ success: false, message: "Employee advances cannot be created from POS" });
+      return reply(400, { success: false, message: "Employee advances cannot be created from POS" });
     }
 
     await client.query("BEGIN");
@@ -1980,7 +1978,7 @@ export const createQuickPosExpense = async (req, res) => {
       if (existing.rows[0]) {
         const duplicateReport = await buildPosShiftReport(client, { tenantId, shiftId: existing.rows[0].shift_id });
         await client.query("COMMIT");
-        return res.status(200).json({ success: true, duplicate: true, expense: existing.rows[0], advance: null, report: duplicateReport });
+        return reply(200, { success: true, duplicate: true, expense: existing.rows[0], advance: null, report: duplicateReport });
       }
     }
 
@@ -2007,15 +2005,15 @@ export const createQuickPosExpense = async (req, res) => {
     if (!shift && offlineOrigin) {
       const currentShift = await getCurrentCashDrawerShift(client, {
         tenantId,
-        userId: req.user?.id || null,
-        branchId: numberOrNull(req.body?.branch_id || req.body?.branchId),
+        userId: actorUserId,
+        branchId: numberOrNull(body?.branch_id || body?.branchId),
       });
       if (currentShift) {
         offlineOriginalShiftId = shiftId || null;
         shift = currentShift;
       } else {
         await client.query("ROLLBACK");
-        return res.status(409).json({
+        return reply(409, {
           success: false,
           code: "OFFLINE_REPLAY_NO_OPEN_SHIFT",
           message: "لا توجد وردية مفتوحة لاستقبال المصروف المؤجل. افتح وردية وسيتم رفعه تلقائيًا",
@@ -2025,11 +2023,16 @@ export const createQuickPosExpense = async (req, res) => {
 
     if (!shift) {
       await client.query("ROLLBACK");
-      return res.status(404).json({ success: false, message: "Open POS shift not found" });
+      return reply(404, { success: false, message: "Open POS shift not found" });
     }
-    if (String(shift.opened_by) !== String(req.user?.id || "")) {
+    if (manager) {
+      if (manager.branchId && String(shift.branch_id) !== String(manager.branchId)) {
+        await client.query("ROLLBACK");
+        return reply(403, { success: false, message: "هذه الوردية ليست في فرعك" });
+      }
+    } else if (String(shift.opened_by) !== String(actorUserId || "")) {
       await client.query("ROLLBACK");
-      return res.status(403).json({ success: false, message: "You cannot create expenses for another cashier's shift" });
+      return reply(403, { success: false, message: "You cannot create expenses for another cashier's shift" });
     }
 
     let employee = null;
@@ -2049,12 +2052,15 @@ export const createQuickPosExpense = async (req, res) => {
       employee = employeeResult.rows[0] || null;
       if (!employee) {
         await client.query("ROLLBACK");
-        return res.status(400).json({ success: false, message: "Selected employee is not available for this shift branch" });
+        return reply(400, { success: false, message: "Selected employee is not available for this shift branch" });
       }
     }
 
     const employeeName = employee?.full_name || employee?.employee_code || "";
-    const title = clean(req.body?.title) || (isEmployeeAdvance ? `POS employee advance${employeeName ? ` - ${employeeName}` : ""}` : `POS expense - ${category}`);
+    const origin = manager ? `Manager expense${manager.name ? ` (${manager.name})` : ""}` : "POS expense";
+    const title = clean(body?.title) || (isEmployeeAdvance
+      ? `${manager ? `Manager advance${manager.name ? ` (${manager.name})` : ""}` : "POS employee advance"}${employeeName ? ` - ${employeeName}` : ""}`
+      : `${origin} - ${category}`);
     const expenseResult = await client.query(
       `
       INSERT INTO expenses (
@@ -2063,7 +2069,7 @@ export const createQuickPosExpense = async (req, res) => {
         source, shift_id, created_by, created_at, updated_at,
         idempotency_key, offline_origin, offline_created_at, offline_original_shift_id
       )
-      VALUES ($1,$2,$3,$4,$5,$6,$7,$8,CURRENT_DATE,$9,'paid',NOW(),$10,'pos',$11,$10,NOW(),NOW(),$12,$13,$14::timestamptz,$15::bigint)
+      VALUES ($1,$2,$3,$4,$5,$6,$7,$8,CURRENT_DATE,$9,'paid',NOW(),$10,$16,$11,$10,NOW(),NOW(),$12,$13,$14::timestamptz,$15::bigint)
       RETURNING *
       `,
       [
@@ -2076,12 +2082,13 @@ export const createQuickPosExpense = async (req, res) => {
         shift.branch_id,
         isEmployeeAdvance ? employeeId : null,
         notes,
-        req.user?.id || null,
+        actorUserId,
         shift.id,
         idempotencyKey || null,
         offlineOrigin,
         offlineCreatedAt,
         offlineOriginalShiftId,
+        manager ? "manager_portal" : "pos",
       ]
     );
     const expense = expenseResult.rows[0];
@@ -2100,7 +2107,7 @@ export const createQuickPosExpense = async (req, res) => {
         VALUES ($1,$2,$3,0,$3,$7,'pending','active',$4,$5,$6,NOW(),NOW())
         RETURNING *
         `,
-        [tenantId, employeeId, amount, notes, expense.id, req.user?.id || null, advanceDeductionMonth]
+        [tenantId, employeeId, amount, notes, expense.id, actorUserId, advanceDeductionMonth]
       );
       advance = advanceResult.rows[0] || null;
     }
@@ -2110,7 +2117,8 @@ export const createQuickPosExpense = async (req, res) => {
         tenantId,
         branchId: shift.branch_id,
         shiftId: shift.id,
-        createdBy: req.user?.id || null,
+        // A manager with no linked user still moves this drawer; it is booked under the drawer's own cashier.
+        createdBy: actorUserId || (manager ? shift.opened_by : null),
         eventType: "expense_cash",
         sourceType: isEmployeeAdvance ? "employee_advance" : "expense",
         sourceId: expense.id,
@@ -2125,19 +2133,34 @@ export const createQuickPosExpense = async (req, res) => {
       expense_id: expense.id,
       shift_id: shift.id,
       branch_id: shift.branch_id,
-      created_by: req.user?.id || null,
+      created_by: actorUserId,
       payment_method: paymentMethod,
       amount,
       employee_id: isEmployeeAdvance ? employeeId : null,
       advance_id: advance?.id || null,
     });
-    return res.status(201).json({ success: true, expense, advance, report });
+    return reply(201, { success: true, expense, advance, report });
   } catch (error) {
     await client.query("ROLLBACK").catch(() => null);
     console.error("[pos-expense] create failed", error);
-    return res.status(error.status || 500).json({ success: false, message: error.message || "Failed to create POS expense" });
+    return reply(error.status || 500, { success: false, message: error.message || "Failed to create POS expense" });
   } finally {
     client.release();
+  }
+};
+
+export const createQuickPosExpense = async (req, res) => {
+  try {
+    const { status, payload } = await bookQuickPosExpense({
+      tenantId: resolveTenantId(req),
+      actorUserId: req.user?.id || null,
+      body: req.body || {},
+      idempotencyKey: req.get?.("Idempotency-Key") || req.get?.("X-Idempotency-Key") || "",
+    });
+    return res.status(status).json(payload);
+  } catch (error) {
+    console.error("[pos-expense] create failed", error);
+    return res.status(error.status || 500).json({ success: false, message: error.message || "Failed to create POS expense" });
   }
 };
 
