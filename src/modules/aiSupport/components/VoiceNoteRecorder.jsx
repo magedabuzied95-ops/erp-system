@@ -72,6 +72,8 @@ function VoiceNoteRecorder({
   // hands the whole row over (as WhatsApp does) instead of squeezing the editor
   // into two lines beside a timer.
   expand = false,
+  // A bare icon the size of a chat-app mic, for a composer row that must stay slim.
+  compact = false,
   onSend,
   onError,
   onRecordingChange,
@@ -188,7 +190,9 @@ function VoiceNoteRecorder({
         type="button"
         onClick={() => void start()}
         disabled={disabled || busy}
-        className={`inline-flex h-12 w-12 shrink-0 items-center justify-center rounded-2xl ring-1 transition disabled:opacity-50 ${idleClass}`}
+        className={compact
+          ? `inline-flex h-10 w-10 shrink-0 items-center justify-center rounded-full transition disabled:opacity-50 ${dark ? "text-slate-300 hover:text-white" : "text-slate-500 hover:bg-slate-100"}`
+          : `inline-flex h-12 w-12 shrink-0 items-center justify-center rounded-2xl ring-1 transition disabled:opacity-50 ${idleClass}`}
         aria-label={t("aiSupport.inbox.composer.recordVoice")}
         title={t("aiSupport.inbox.composer.recordVoice")}
       >

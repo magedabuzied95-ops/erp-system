@@ -2148,7 +2148,7 @@ const PwaComposerBar = memo(function PwaComposerBar({
         }}
         light={light}
       />
-      <div className="flex items-end gap-2">
+      <div className="flex items-end gap-1">
         <div className={`relative shrink-0 ${voiceRecording ? "hidden" : ""}`}>
           {attachOpen ? (
             <>
@@ -2190,7 +2190,7 @@ const PwaComposerBar = memo(function PwaComposerBar({
           <button
             type="button"
             onClick={() => setAttachOpen((current) => !current)}
-            className={`inline-flex h-12 w-12 items-center justify-center rounded-2xl ring-1 transition ${attachOpen ? "bg-slate-900 text-slate-50 ring-slate-900" : "bg-slate-100 text-slate-600 ring-slate-200"}`}
+            className={`inline-flex h-10 w-10 items-center justify-center rounded-full transition ${attachOpen ? "bg-slate-900 text-slate-50" : "text-slate-500 hover:bg-slate-100"}`}
             aria-label={t("aiSupport.inbox.pwa.attachImage")}
             aria-expanded={attachOpen}
           >
@@ -2203,7 +2203,7 @@ const PwaComposerBar = memo(function PwaComposerBar({
           <button
             type="button"
             onClick={() => onSetText?.(draftState.slash ? "" : "/")}
-            className={`inline-flex h-12 w-12 shrink-0 items-center justify-center rounded-2xl ring-1 transition ${draftState.slash ? "bg-amber-400 text-slate-950 ring-amber-400" : "bg-amber-50 text-amber-700 ring-amber-200"} ${voiceRecording ? "hidden" : ""}`}
+            className={`inline-flex h-10 w-10 shrink-0 items-center justify-center rounded-full transition ${draftState.slash ? "bg-amber-400 text-slate-950" : "text-amber-600 hover:bg-amber-50"} ${voiceRecording ? "hidden" : ""}`}
             aria-label={t("aiSupport.quickReplies.title")}
             title={t("aiSupport.quickReplies.title")}
             aria-pressed={Boolean(draftState.slash)}
@@ -2218,6 +2218,7 @@ const PwaComposerBar = memo(function PwaComposerBar({
           <VoiceNoteRecorder
             busy={sending}
             expand
+            compact
             onSend={(file) => void onRecordVoice(file)}
             onError={(message) => toast.error(message)}
             onRecordingChange={setVoiceRecording}
@@ -2241,7 +2242,7 @@ const PwaComposerBar = memo(function PwaComposerBar({
           type="button"
           onClick={() => void onSubmit?.()}
           disabled={!draftState.armed}
-          className={`${voiceRecording ? "hidden" : "inline-flex"} h-12 w-12 shrink-0 items-center justify-center rounded-2xl text-slate-50 disabled:opacity-50 ${sendTone === "amber" ? "bg-amber-500" : "bg-sky-600"}`}
+          className={`${voiceRecording ? "hidden" : "inline-flex"} h-10 w-10 shrink-0 items-center justify-center rounded-full text-slate-50 disabled:opacity-50 ${sendTone === "amber" ? "bg-amber-500" : "bg-sky-600"}`}
           aria-label={mode === "note" ? t("aiSupport.inbox.pwa.saveNote") : t("aiSupport.inbox.pwa.sendReply")}
         >
           {sending && !draftState.armed ? <Loader2 className="h-5 w-5 animate-spin" /> : <Send className="h-5 w-5" />}
