@@ -44,11 +44,14 @@ test("the POS sells wholesale units only on the wholesale host", () => {
   const picker = read("../../src/modules/wholesale/components/WholesalePosPicker.jsx");
   // No wholesale price (so the retail price stands) and no wholesale API call on retail.
   assert.match(picker, /const priceOf = useCallback\(\(productId\) => \{\s*if \(!IS_WHOLESALE_APP\) return null;/);
-  assert.match(picker, /const reloadPrices = useCallback\(\(\) => \{\s*if \(!IS_WHOLESALE_APP\) return;/);
+  assert.match(picker, /useEffect\(\(\) => \{\s*if \(!IS_WHOLESALE_APP\) return;\s*api\.get\("\/wholesale\/prices"\)/);
   const pos = read("../../src/modules/pos/pages/POSPro.jsx");
   assert.match(pos, /const activePrice = wholesalePrice !== null \? wholesalePrice : Number\(variant\.price/);
-  assert.match(pos, /if \(wholesalePricing\.enabled\) \{\s*setWholesalePickerProduct\(product\);/);
   assert.match(pos, /wholesalePricing\.enabled\s*\? orderedVisibleProducts\.map/);
+  // The same colour picker as retail; only the size slot changes.
+  assert.equal((pos.match(/\{wholesalePricing\.enabled \? renderWholesaleUnitChoices\(/g) || []).length, 2);
+  assert.match(pos, /\(variants\.length === 1 && !wholesalePricing\.enabled\)\) return false;/);
+  assert.match(pos, /if \(wholesalePricing\.enabled\) \{ void handleAddSelectedProductToCart\(\); return; \}/);
   assert.doesNotMatch(read("../../src/App.jsx"), /wholesale\/invoice/, "the separate wholesale invoice page is gone");
 });
 

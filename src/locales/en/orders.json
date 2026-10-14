@@ -1331,11 +1331,9 @@
       "halfWholesale": "Half-wholesale"
     },
     "pos": {
+      "unit": "Unit",
       "notSetUp": "This model has no wholesale setup. Open the product and fill in \"Wholesale selling\".",
-      "cartonColors": "Carton colour, or several for a mixed carton",
-      "summary": "{{pieces}} pcs × {{price}}",
-      "shortage": "Not enough stock: {{where}} needs {{wanted}}, has {{stock}}",
-      "add": "Add to invoice"
+      "shortage": "Not enough stock: {{where}} needs {{wanted}}, has {{stock}}"
     }
   }
 }

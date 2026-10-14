@@ -156,7 +156,7 @@ import {
 import BarcodeScanner, { barcodeScannerMessages } from "../../../components/BarcodeScanner";
 import ProductGrid from "../components/ProductGrid";
 import CartSidebar from "../components/CartSidebar";
-import WholesalePosPicker, { priceCatalogForWholesale, useWholesalePosPricing, withWholesalePrice } from "../../wholesale/components/WholesalePosPicker";
+import { priceCatalogForWholesale, useWholesalePosPricing, useWholesaleProductUnits, wholesaleUnits, withWholesalePrice } from "../../wholesale/components/WholesalePosPicker";
 import ThemedSelect from "../../../shared/ui/ThemedSelect";
 import ProductAvailabilityModal from "../components/ProductAvailabilityModal";
 // Restock requests: the same panel + catalogue picker the AI Inbox uses, so the
@@ -1818,6 +1818,10 @@ function POSPro() {
   // so it prices lines like the cart does (null on retail = the catalogue as is).
   const wholesalePriceOfRef = useRef(null);
   const wholesaleCatalog = (catalog) => priceCatalogForWholesale(catalog, wholesalePriceOfRef.current);
+  // The picker's add button is defined before addWholesaleUnit; it reaches it through this.
+  const addWholesaleUnitRef = useRef(null);
+  // The unit chosen where retail picks a size (carton / series / dozen / piece).
+  const [wholesaleUnit, setWholesaleUnit] = useState("");
   const [search, setSearch] = useState(() => persisted.search || defaultState.search);
   const [cameraScannerOpen, setCameraScannerOpen] = useState(false);
   const [selectedMainCategoryId, setSelectedMainCategoryId] = useState(
@@ -3223,12 +3227,10 @@ function POSPro() {
       customers.find((item) => String(item?.id || item?.customer_id) === String(selectedCustomerId)) || null,
     [customers, selectedCustomerId]
   );
-  // Wholesale copy only: tier piece prices (wholesale / half-wholesale) and the unit
-  // picker. On retail `enabled` is false and nothing below changes behaviour.
+  // Wholesale copy only: the piece price of the selected customer's tier (wholesale /
+  // half-wholesale). On retail `enabled` is false and nothing below changes behaviour.
   const wholesalePricing = useWholesalePosPricing(customer?.id || customer?.customer_id || null);
   wholesalePriceOfRef.current = wholesalePricing.enabled ? wholesalePricing.priceOf : null;
-  const [wholesalePickerProduct, setWholesalePickerProduct] = useState(null);
-  const closeWholesalePicker = useCallback(() => setWholesalePickerProduct(null), []);
   const mobileSelectedCustomerLabel = useMemo(
     () => String(customer?.name || customer?.customer_name || customerSearch?.trim() || "عميل غير محدد").trim() || "عميل غير محدد",
     [customer?.customer_name, customer?.name, customerSearch]
@@ -4256,13 +4258,68 @@ function POSPro() {
     });
   }, [deferredSearch, visibleProducts]);
 
-  const handleAddSelectedProductToCart = useCallback(() => {
+  // Wholesale copy: the units this model is sold by, shown where retail shows sizes.
+  const wholesaleProductSettings = useWholesaleProductUnits(
+    wholesalePricing.enabled ? (activeProduct?.product_id ?? activeProduct?.id ?? null) : null
+  );
+  const wholesaleUnitOptions = useMemo(() => wholesaleUnits(wholesaleProductSettings), [wholesaleProductSettings]);
+  useEffect(() => {
+    if (!wholesalePricing.enabled) return;
+    if (!wholesaleUnitOptions.some((option) => option.unit === wholesaleUnit)) setWholesaleUnit(wholesaleUnitOptions[0]?.unit || "");
+  }, [wholesalePricing.enabled, wholesaleUnit, wholesaleUnitOptions]);
+  const wholesaleColorName = activeVariant?.color || activeVariant?.variant_color || "";
+  const wholesaleColorStock = useMemo(() => (
+    (activeProduct?.variants || [])
+      .filter((variant) => getVariantColorKey(variant) === String(selectedColor || ""))
+      .reduce((sum, variant) => sum + normalizeStockQuantity(variant.stock_quantity ?? variant.stock), 0)
+  ), [activeProduct?.variants, selectedColor]);
+
+  const handleAddSelectedProductToCart = useCallback(async () => {
     if (!activeProduct || !activeVariant) return;
+    if (wholesalePricing.enabled) {
+      const units = Math.max(1, Math.trunc(Number(mobileProductQuantity || 1) || 1));
+      const added = await addWholesaleUnitRef.current?.(activeProduct, wholesaleColorName, wholesaleUnit, units);
+      if (added) {
+        setSelectedProduct(null);
+        setMobileProductQuantity(1);
+      }
+      return;
+    }
     const quantity = Math.min(mobileProductStock, Math.max(1, Math.trunc(Number(mobileProductQuantity || 1) || 1)));
     addVariantToCart(activeProduct, activeVariant, { quantity });
     setSelectedProduct(null);
     setMobileProductQuantity(1);
-  }, [activeProduct, activeVariant, mobileProductQuantity, mobileProductStock]);
+  }, [activeProduct, activeVariant, mobileProductQuantity, mobileProductStock, wholesaleColorName, wholesalePricing.enabled, wholesaleUnit]);
+
+  // Wholesale copy: carton / series / dozen / piece buttons in the size slot of the picker.
+  // One tap selects (the quantity + add button below add it), a double tap adds one at once.
+  const renderWholesaleUnitChoices = (buttonClass) => {
+    const piecePrice = wholesalePricing.priceOf(activeProduct?.product_id ?? activeProduct?.id);
+    if (!wholesaleProductSettings) return <div className="text-xs font-bold text-zinc-400">{t("orders.wholesale.common.loading")}</div>;
+    if (!wholesaleUnitOptions.length) return <div className="text-xs font-bold text-amber-300">{t("orders.wholesale.pos.notSetUp")}</div>;
+    return wholesaleUnitOptions.map(({ unit, pieces }) => {
+      const available = Math.floor(wholesaleColorStock / pieces);
+      const disabled = available <= 0;
+      return (
+        <button
+          key={unit}
+          type="button"
+          onClick={() => setWholesaleUnit(unit)}
+          onDoubleClick={() => { if (!disabled) addWholesaleUnitRef.current?.(activeProduct, wholesaleColorName, unit, 1); }}
+          disabled={disabled}
+          className={buttonClass(wholesaleUnit === unit, disabled)}
+        >
+          <span className="block leading-tight">{t(`orders.wholesale.units.${unit}`)}{unit !== "piece" ? ` (${pieces})` : ""}</span>
+          {piecePrice !== null ? (
+            <span className="block text-[10px] leading-tight">{formatCurrency(piecePrice * pieces)}</span>
+          ) : null}
+          <span className={`block text-[10px] leading-tight ${disabled ? "text-zinc-600" : "text-zinc-300"}`}>
+            {t("pos.labels.stock")}: {available}
+          </span>
+        </button>
+      );
+    });
+  };
 
   const liveBarcodeShopProduct = useMemo(() => {
     if (!barcodeShopProduct) return null;
@@ -5105,15 +5162,38 @@ function POSPro() {
     });
   }, [wholesalePricing.enabled, wholesalePricing.priceOf]);
 
-  const addWholesaleSelection = useCallback((priced) => {
-    const catalogProduct = getCatalogProductById(products, priced.product_id) || wholesalePickerProduct;
-    const variants = Array.isArray(catalogProduct?.variants) ? catalogProduct.variants : [];
-    for (const part of priced.composition || []) {
-      const variant = variants.find((v) => String(v.variant_id ?? v.variantId ?? v.id) === String(part.variant_id));
-      if (variant) addVariantToCart(catalogProduct, variant, { quantity: part.qty, silent: true });
+  // Wholesale copy: N units (carton / series / dozen / piece) of one colour. The server splits
+  // them into pieces per variant and checks stock; the pieces go in as ordinary cart lines.
+  const addWholesaleUnit = useCallback(async (product, colorName, unit, quantity = 1) => {
+    const productId = product?.product_id ?? product?.id;
+    if (!productId || !colorName || !unit) return false;
+    try {
+      const res = await api.post("/wholesale/invoices/preview", {
+        customer_id: customer?.id || customer?.customer_id || null,
+        tier: wholesalePricing.tier,
+        lines: [{ product_id: productId, unit, qty: quantity, color: colorName, colors: [colorName] }],
+      });
+      const short = res?.data?.shortages?.[0];
+      if (short) {
+        toast.error(t("orders.wholesale.pos.shortage", { where: short.size ? `${short.color} / ${short.size}` : short.color, wanted: short.wanted, stock: short.stock }));
+        return false;
+      }
+      const priced = res?.data?.lines?.[0];
+      if (!priced) return false;
+      const catalogProduct = getCatalogProductById(products, productId) || product;
+      const variants = Array.isArray(catalogProduct?.variants) ? catalogProduct.variants : [];
+      for (const part of priced.composition || []) {
+        const variant = variants.find((v) => String(v.variant_id ?? v.variantId ?? v.id) === String(part.variant_id));
+        if (variant) addVariantToCart(catalogProduct, variant, { quantity: part.qty, silent: true });
+      }
+      toast.success(t("pos.toasts.addedToCart", { name: `${priced.product_name} — ${priced.unit_qty} × ${priced.unit_label}` }));
+      return true;
+    } catch (error) {
+      toast.error(error.message);
+      return false;
     }
-    toast.success(t("pos.toasts.addedToCart", { name: `${priced.product_name} — ${priced.unit_qty} × ${priced.unit_label}` }));
-  }, [addVariantToCart, products, t, wholesalePickerProduct]);
+  }, [addVariantToCart, customer, products, t, wholesalePricing.tier]);
+  addWholesaleUnitRef.current = addWholesaleUnit;
 
   const handleVariantSizeDoubleClick = useCallback((size, variant) => {
     if (!activeProduct || !variant || getVariantStockQuantity(variant) <= 0) return;
@@ -5176,7 +5256,8 @@ function POSPro() {
       return true;
     }
 
-    if (variants.length <= 1) return false;
+    // Wholesale copy: even a one-colour model opens, to pick carton / series / dozen / piece.
+    if (variants.length === 0 || (variants.length === 1 && !wholesalePricing.enabled)) return false;
 
     const firstVariant =
       selectionMatch.matchedVariant ||
@@ -5195,7 +5276,7 @@ function POSPro() {
     setMobileProductQuantity(1);
     setSelectedProduct(product);
     return true;
-  }, [setMobileProductQuantity, setSelectedColor, setSelectedProduct, setSelectedSize, viewportIsMobile]);
+  }, [setMobileProductQuantity, setSelectedColor, setSelectedProduct, setSelectedSize, viewportIsMobile, wholesalePricing.enabled]);
 
   const quickAddProduct = useCallback((product) => {
     const variants = Array.isArray(product.variants) ? product.variants : [];
@@ -5249,15 +5330,10 @@ function POSPro() {
   }, [saleModeSettings]);
 
   const handleSelectProduct = useCallback(async (product) => {
-    // Wholesale copy: a tap opens piece / series / carton / dozen instead of colour + size.
-    if (wholesalePricing.enabled) {
-      setWholesalePickerProduct(product);
-      return;
-    }
     const productForModal = await hydrateProductForArticleModal(product);
     if (openProductVariantPicker(productForModal)) return;
     quickAddProduct(productForModal);
-  }, [hydrateProductForArticleModal, openProductVariantPicker, quickAddProduct, wholesalePricing.enabled]);
+  }, [hydrateProductForArticleModal, openProductVariantPicker, quickAddProduct]);
 
   // The star on the card is the only place a cashier can curate the POS feed,
   // so flip it locally first and let the request confirm it in the background.
@@ -6006,6 +6082,13 @@ function POSPro() {
         return false;
       }
 
+      // Wholesale copy: the tier is saved before the customer is selected, so the cart
+      // prices from it at once.
+      if (wholesalePricing.enabled) {
+        await api.put(`/wholesale/customers/${createdCustomerId}/terms`, { tier: quickCustomer.wholesale_tier || "wholesale" })
+          .catch((error) => toast.error(error.message));
+      }
+
       const upsertCreatedCustomer = (prev) => {
         const safePrev = Array.isArray(prev) ? prev : [];
         const withoutDuplicate = safePrev.filter((item) => String(item?.id || item?.customer_id) !== String(createdCustomerId));
@@ -6093,6 +6176,7 @@ function POSPro() {
     quickCustomer.name,
     quickCustomer.phone,
     quickCustomer.source_key,
+    quickCustomer.wholesale_tier,
     quickCustomerExistingMatch,
     resolveMarketingAttributionFromSelection,
     setCustomerSearch,
@@ -6100,6 +6184,7 @@ function POSPro() {
     setQuickCustomer,
     setSelectedCustomerId,
     t,
+    wholesalePricing.enabled,
   ]);
 
   // A shift that exists only on this device, so the shop can open and sell on a
@@ -9477,6 +9562,24 @@ function POSPro() {
                     />
                   </label>
 
+                  {wholesalePricing.enabled && !quickCustomerExistingMatch ? (
+                    <div className="block">
+                      <div className="mb-2 text-[11px] font-black uppercase tracking-[0.18em] text-zinc-500">{t("orders.wholesale.customer.title")}</div>
+                      <div className="flex gap-2">
+                        {["wholesale", "half_wholesale"].map((tier) => (
+                          <button
+                            key={tier}
+                            type="button"
+                            onClick={() => setQuickCustomer((prev) => ({ ...prev, wholesale_tier: tier }))}
+                            className={`h-[var(--control-height-md)] flex-1 rounded-2xl border px-3 text-sm font-black ${ (quickCustomer.wholesale_tier || "wholesale") === tier ? "border-emerald-400/30 bg-emerald-500 text-black" : "border-white/10 bg-black/30 text-white" }`}
+                          >
+                            {t(`orders.wholesale.tiers.${tier}`)}
+                          </button>
+                        ))}
+                      </div>
+                    </div>
+                  ) : null}
+
                   {quickCustomerExistingMatch ? (
                     <div className="rounded-2xl border border-cyan-400/20 bg-cyan-400/10 px-3 py-2 text-xs font-semibold text-cyan-100">
                       Existing customer found: {quickCustomerExistingMatch.name || quickCustomerExistingMatch.phone}. Saving will select this customer automatically.
@@ -9727,16 +9830,6 @@ function POSPro() {
                 onSelectProduct={handleSelectProduct}
                 onToggleFavorite={handleToggleFavorite}
               />
-              {wholesalePickerProduct ? (
-                <WholesalePosPicker
-                  product={wholesalePickerProduct}
-                  customerId={customer?.id || customer?.customer_id || null}
-                  tier={wholesalePricing.tier}
-                  onTierChange={wholesalePricing.setTier}
-                  onAdd={addWholesaleSelection}
-                  onClose={closeWholesalePicker}
-                />
-              ) : null}
             </div>
             </div>
           </section>
@@ -10086,9 +10179,9 @@ function POSPro() {
                 </div>
 
                 <div className="rounded-2xl border border-white/10 bg-white/[0.04] p-3">
-                  <div className="text-[10px] font-black uppercase tracking-[0.18em] text-zinc-500">{t("pos.labels.size")}</div>
+                  <div className="text-[10px] font-black uppercase tracking-[0.18em] text-zinc-500">{wholesalePricing.enabled ? t("orders.wholesale.pos.unit") : t("pos.labels.size")}</div>
                   <div className="mt-2 flex flex-wrap gap-2">
-                    {topSelectionInfo.sizes.map((size) => {
+                    {wholesalePricing.enabled ? renderWholesaleUnitChoices((selected, disabled) => `min-h-[var(--control-height-md)] rounded-full border px-3 py-2 text-xs font-black transition ${ selected ? "border-emerald-400/30 bg-emerald-500 text-black" : disabled ? "cursor-not-allowed border-white/5 bg-black/20 text-zinc-600" : "border-white/10 bg-black/30 text-white hover:bg-white/10" }`) : topSelectionInfo.sizes.map((size) => {
                       const sizeVariant = (activeProduct.variants || []).find(
                         (variant) =>
                           getVariantColorKey(variant) === String(selectedColor || "") &&
@@ -10228,9 +10321,9 @@ function POSPro() {
                       />
                     </div>
                     <div className="rounded-2xl border border-white/10 bg-white/5 p-2.5 sm:rounded-3xl sm:p-4">
-                      <div className="text-[10px] uppercase tracking-[0.16em] text-zinc-500 sm:text-xs sm:tracking-[0.18em]">{t("pos.labels.size")}</div>
+                      <div className="text-[10px] uppercase tracking-[0.16em] text-zinc-500 sm:text-xs sm:tracking-[0.18em]">{wholesalePricing.enabled ? t("orders.wholesale.pos.unit") : t("pos.labels.size")}</div>
                       <div className="mt-2 flex flex-wrap gap-1.5 sm:mt-3 sm:gap-2">
-                        {topSelectionInfo.sizes.map((size) => {
+                        {wholesalePricing.enabled ? renderWholesaleUnitChoices((selected, disabled) => `min-h-[var(--control-height-md)] rounded-full px-3 py-1.5 text-xs font-black transition sm:px-4 sm:py-2 sm:text-sm ${ selected ? "bg-emerald-500 text-black" : disabled ? "cursor-not-allowed border border-white/5 bg-black/20 text-zinc-600" : "border border-white/10 bg-black/30 text-white hover:bg-white/10" }`) : topSelectionInfo.sizes.map((size) => {
                           const sizeVariant = (activeProduct.variants || []).find(
                             (variant) =>
                               getVariantColorKey(variant) === String(selectedColor || "") &&
@@ -10307,6 +10400,7 @@ function POSPro() {
                     <button
                       type="button"
                       onClick={() => {
+                        if (wholesalePricing.enabled) { void handleAddSelectedProductToCart(); return; }
                         if (activeVariant) addVariantToCart(activeProduct, activeVariant);
                         setSelectedProduct(null);
                         setMobileProductQuantity(1);
@@ -10323,6 +10417,7 @@ function POSPro() {
                   <button
                     type="button"
                     onClick={() => {
+                      if (wholesalePricing.enabled) { void handleAddSelectedProductToCart(); return; }
                       if (activeVariant) addVariantToCart(activeProduct, activeVariant);
                       setSelectedProduct(null);
                       setMobileProductQuantity(1);
