@@ -25,6 +25,7 @@ import {
   saveShipment,
   saveTransfer,
 } from "./wholesale.imports.js";
+import { setWholesaleOrderPhone, wholesaleOrderPhone } from "./wholesale.telegram.js";
 import {
   approveSubmission,
   customerCreditPosition,
@@ -153,6 +154,12 @@ router.get("/imports/reports/fx", protect, permit("purchases", "view"), handle("
   fxReport({ tenantId })));
 router.get("/imports/reports/capital", protect, permit("purchases", "view"), handle("Unable to load the report", (req, tenantId) =>
   capitalReport({ tenantId })));
+
+// Telegram wholesale channel: the WhatsApp number its posts send orders to.
+router.get("/telegram/order-phone", protect, permit("marketing", "settings"), handle("Unable to load the number", async (req, tenantId) =>
+  ({ order_whatsapp: await wholesaleOrderPhone({ tenantId }) })));
+router.put("/telegram/order-phone", protect, permit("marketing", "settings"), handle("Unable to save the number", (req, tenantId) =>
+  setWholesaleOrderPhone({ tenantId, phone: req.body?.order_whatsapp })));
 
 // POS unit picker: splits a series / carton / dozen into pieces per colour and checks stock.
 router.post("/invoices/preview", protect, permit("pos", "view"), handle("Unable to price the selection", (req, tenantId) =>

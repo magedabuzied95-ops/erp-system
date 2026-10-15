@@ -1,5 +1,7 @@
 import db from "../database/db.js";
 import { getSetting } from "./settingsService.js";
+import { isWholesaleMode } from "../modules/wholesale/wholesaleMode.js";
+import { wholesaleOrderPhone } from "../modules/wholesale/wholesale.telegram.js";
 import { telegramDeepLinkToken, telegramTenantId } from "./telegramBotService.js";
 import {
   TELEGRAM_CATALOG_AUDIENCES,
@@ -220,6 +222,8 @@ export const loadTelegramCatalogSettings = async () => {
     daily_digest: digestEnabled === true || text(digestEnabled).toLowerCase() === "true",
     digest_hour: asNumber(digestHour, 21, { min: 0, max: 23 }),
     post_order: text(postOrder) || TELEGRAM_CATALOG_DEFAULTS.post_order,
+    // Wholesale copy only: the WhatsApp number its posts send orders to.
+    ...(isWholesaleMode() ? { wholesale_order_phone: await wholesaleOrderPhone({ tenantId: telegramCatalogTenantId() }).catch(() => "") } : {}),
   };
 };
 

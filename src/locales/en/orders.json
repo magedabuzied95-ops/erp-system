@@ -1528,6 +1528,12 @@
         "actual": "Actually paid",
         "count": "Transfers"
       }
+    },
+    "telegram": {
+      "title": "Wholesale order number (WhatsApp)",
+      "hint": "Channel posts carry no price. Their button opens WhatsApp with this number, with the model and colour already written.",
+      "save": "Save",
+      "saved": "Number saved"
     }
   }
 }

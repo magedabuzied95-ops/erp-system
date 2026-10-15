@@ -138,6 +138,8 @@ CREATE TABLE IF NOT EXISTS wholesale_settings (
   reminder_instance VARCHAR(160) NOT NULL DEFAULT '',
   updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
 );
+-- v7 (phase 5): the WhatsApp number the Telegram wholesale posts send orders to.
+ALTER TABLE wholesale_settings ADD COLUMN IF NOT EXISTS order_whatsapp VARCHAR(20) NOT NULL DEFAULT '';
 -- v6 (phase 4): import shipments priced in CNY / USD, the money sent for them, landed cost.
 CREATE TABLE IF NOT EXISTS wholesale_shipments (
   id BIGSERIAL PRIMARY KEY,

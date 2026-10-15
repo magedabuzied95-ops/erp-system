@@ -29,6 +29,11 @@ import {
   sortTelegramSizes,
   telegramCatalogTags,
 } from "../../shared/telegramCatalogDefaults.js";
+import { isWholesaleMode } from "../modules/wholesale/wholesaleMode.js";
+import {
+  buildWholesaleTelegramCards,
+  wholesaleOrderButton,
+} from "../modules/wholesale/wholesale.telegram.js";
 
 /*
  * What each Telegram channel SHOULD look like, and what therefore has to change.
@@ -76,7 +81,25 @@ export const telegramCardFacts = (card = {}, { audience = "" } = {}) => {
     grade: text(card.grade),
     brand: text(card.brand_name || card.brand),
     code: text(card.article_code || card.code),
+    // Wholesale copy only: how the model is sold and the pieces available (no price).
+    ...(card.wholesale_units !== undefined ? { units: text(card.wholesale_units), stock: Number(card.wholesale_stock) || 0 } : {}),
   };
+};
+
+// Wholesale copy: no price line. Name, colour, code, the units it is sold by, pieces available.
+const wholesalePostCaption = ({ facts = {}, settings = {}, soldOut = false, tags = "" } = {}) => {
+  const sizes = sortTelegramSizes(facts.sizes || []);
+  const lines = [`<b>${escapeTelegramHtml(facts.name || "")}</b>`, ""];
+  if (facts.color) lines.push(`🎨 اللون: ${escapeTelegramHtml(facts.color)}`);
+  if (facts.code) lines.push(`🔖 الكود: ${escapeTelegramHtml(facts.code)}`);
+  if (facts.units) lines.push(`📦 بيتباع: ${escapeTelegramHtml(facts.units)}`);
+  if (soldOut) lines.push(escapeTelegramHtml(settings.sold_out_label || TELEGRAM_CATALOG_DEFAULTS.sold_out_label));
+  else {
+    if (Number(facts.stock) > 0) lines.push(`✅ متاح: ${Number(facts.stock)} قطعة`);
+    if (sizes.length) lines.push(`📏 المقاسات: ${escapeTelegramHtml(sizes.join(" · "))}`);
+  }
+  if (tags) lines.push("", tags);
+  return lines.join("\n").slice(0, 1024);
 };
 
 /*
@@ -137,6 +160,8 @@ export const telegramProductUrl = (facts = {}, { baseUrl = storefrontBaseUrl() }
 // deep link into the bot or a plain link to the storefront, never a web_app
 // here. Getting this wrong is a 400 from Telegram on every single post.
 export const telegramPostButtons = ({ facts = {}, settings = {} } = {}) => {
+  // Wholesale copy: there is no shop window to link to; the order goes to WhatsApp.
+  if (isWholesaleMode()) return wholesaleOrderButton({ facts, phone: settings.wholesale_order_phone });
   const productUrl = telegramProductUrl(facts);
   const botUrl = telegramDeepLinkUrl({
     botUsername: settings.bot_username,
@@ -173,6 +198,19 @@ export const telegramPostButtons = ({ facts = {}, settings = {} } = {}) => {
 export const telegramPostCaption = ({ facts = {}, settings = {}, soldOut = false, labels = {}, scopedTags = [] } = {}) => {
   const scoped = (group) => (Array.isArray(scopedTags) ? scopedTags : []).includes(group);
   const sizes = sortTelegramSizes(facts.sizes || []);
+  if (isWholesaleMode()) {
+    return wholesalePostCaption({
+      facts,
+      settings,
+      soldOut,
+      tags: telegramCatalogTags({
+        audience_tag: scoped("gender") ? "" : classificationLabel(labels, "gender", facts.audience),
+        product_type_tag: scoped("product_type") ? "" : classificationLabel(labels, "product_type", facts.product_type),
+        grade_tag: scoped("grade") ? "" : classificationLabel(labels, "grade", facts.grade),
+        brand_tag: scoped("brand") ? "" : facts.brand,
+      }),
+    });
+  }
   return renderTelegramCaption(settings.caption_template || TELEGRAM_CATALOG_DEFAULTS.caption_template, {
     name: facts.name,
     color: facts.color,
@@ -537,7 +575,10 @@ export const syncTelegramChannel = async ({
 
   // Oldest first: see orderCardsOldestFirst -- the last post is the first thing
   // a visitor sees, so the newest model has to be the last one in.
-  const catalogue = (await loadCards({ tenantId, audience: channel.audience || "" }))
+  // Wholesale copy: the cards come from stock (no storefront there), and carry no price.
+  const wholesale = isWholesaleMode();
+  const cardLoader = wholesale && loadCards === buildStorefrontColorCardsForAudience ? buildWholesaleTelegramCards : loadCards;
+  const catalogue = (await cardLoader({ tenantId, audience: channel.audience || "" }))
     // A school bag is a kids product wherever else it is listed.
     .filter((card) => !isSchoolBagForAdultChannel(card, channel.audience));
   // The channel's own order wins; the shop-wide one is the fallback.
@@ -562,7 +603,7 @@ export const syncTelegramChannel = async ({
     // "بكام؟" message instead of a sale. It is already in `seen`, so an existing
     // post keeps its last good caption rather than being rewritten as sold out
     // over what is really a missing price.
-    if (!(Number(facts.price) > 0)) {
+    if (!wholesale && !(Number(facts.price) > 0)) {
       summary.skipped += 1;
       continue;
     }
@@ -639,8 +680,11 @@ export const syncTelegramChannel = async ({
 
   // Queued last, so the menu goes out after the posts it points at.
   const indexBody = buildTelegramChannelIndex({ cards, labels, scopedTags });
-  const indexMarkup = telegramIndexKeyboard({ audience: channel.audience, siblings: await listSiblings({ tenantId, client }) });
-  const description = buildTelegramChannelDescription({ channel, shopName: await shopDisplayName() });
+  // Wholesale copy: no catalogue site to filter on, and the description points at WhatsApp.
+  const indexMarkup = wholesale ? null : telegramIndexKeyboard({ audience: channel.audience, siblings: await listSiblings({ tenantId, client }) });
+  const description = wholesale
+    ? tidyTelegramText(`كتالوج الجملة — ${tidyTelegramText(await shopDisplayName()) || tidyTelegramText(channel.title) || ""}. الأسعار والطلب على واتساب${settings.wholesale_order_phone ? ` ${settings.wholesale_order_phone}` : ""}`).slice(0, 255)
+    : buildTelegramChannelDescription({ channel, shopName: await shopDisplayName() });
   const indexHash = telegramIndexFingerprint(indexBody, indexMarkup);
   if (indexBody && indexHash !== text(channel.index_hash)) {
     await enqueue({

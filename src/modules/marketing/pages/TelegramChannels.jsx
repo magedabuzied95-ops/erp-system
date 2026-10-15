@@ -13,6 +13,7 @@ import { useTranslation } from "react-i18next";
 
 import { api } from "../../../shared/api/api";
 import ThemedSelect from "../../../shared/ui/ThemedSelect";
+import WholesaleTelegramOrderPhone from "../../wholesale/components/WholesaleTelegramOrderPhone.jsx";
 
 // Theme tokens, not raw palette utilities: this page has to read in both the
 // light and the dark theme, and the design system remaps bare colour utilities
@@ -132,6 +133,8 @@ export default function TelegramChannels() {
           </div>
         </div>
       </header>
+
+      <WholesaleTelegramOrderPhone cardClassName={card} />
 
       {!loading && settings.enabled === false && (
         <div className={`${card} flex items-start gap-2 border-[var(--warning,#fbbf24)]/40 text-[var(--text)]`}>
