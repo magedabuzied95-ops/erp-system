@@ -12,7 +12,8 @@ import { escapeHtml, formatPrintDate, normalizePrintLanguage, openPrintHtml, PRI
 import "./Customers.m1.css";
 
 import i18n from "../../../i18n/i18n";
-import WholesaleCustomerTerms, { useWholesaleCustomerTerms } from "../../wholesale/components/WholesaleCustomerTerms";
+import WholesaleCustomerTerms, { StatementLinkActions, useWholesaleCustomerTerms } from "../../wholesale/components/WholesaleCustomerTerms";
+import { IS_WHOLESALE_APP } from "../../../shared/constants/app";
 
 /** Module-scope translator for helpers defined outside a component. */
 const tt = (key, options) => i18n.t(key, options);
@@ -1796,6 +1797,10 @@ function CustomerStatementDrawer({
                 {formatDateTime(lastUpdated)}
               </span>
             </div>
+            {/* Wholesale copy only: the customer's private statement + payment link. */}
+            {IS_WHOLESALE_APP && (customer?.id || statement?.customer?.id) ? (
+              <StatementLinkActions customer={{ id: customer?.id || statement?.customer?.id, name: customerName, phone: customerPhone }} />
+            ) : null}
           </div>
           <div className="flex flex-wrap gap-2">
             <button

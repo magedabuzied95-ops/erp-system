@@ -39,7 +39,7 @@ export function useWholesaleCustomerTerms() {
 }
 
 /** The customer's statement link: copy, open, send on WhatsApp, or replace. */
-function StatementLinkActions({ customer }) {
+export function StatementLinkActions({ customer }) {
   const { t } = useTranslation();
   const [busy, setBusy] = useState(false);
   const button = "rounded-full border border-border bg-surface px-3 py-1.5 text-xs font-black text-text disabled:opacity-50";
