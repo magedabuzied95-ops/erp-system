@@ -26,6 +26,10 @@ export const managerPortalApi = {
   expenseContext: (token, options = {}) => api.get(`${tokenPath(token)}/expenses/context`, { cache: "no-store", ...options }),
   createExpense: (token, payload, idempotencyKey) =>
     api.post(`${tokenPath(token)}/expenses`, payload, { headers: { "Idempotency-Key": idempotencyKey }, suppressErrorStatuses: [400, 403, 404] }),
+  // Wholesale copy only: record a credit customer's payment.
+  wholesaleCustomers: (token, search = "") => api.get(`${tokenPath(token)}/wholesale/customers`, { cache: "no-store", params: { search } }),
+  wholesaleCustomerBalance: (token, customerId) => api.get(`${tokenPath(token)}/wholesale/customers/${encodeURIComponent(customerId)}/balance`, { cache: "no-store" }),
+  recordWholesalePayment: (token, formData) => api.post(`${tokenPath(token)}/wholesale/customer-payments`, formData, { suppressErrorStatuses: [400, 404] }),
   sales: (token, options = {}) => api.get(`${tokenPath(token)}/sales`, options),
   operations: (token, params = {}, options = {}) => api.get(`${tokenPath(token)}/operations`, { ...options, params }),
   onlineOrders: (token, params = {}, options = {}) => api.get(`${tokenPath(token)}/online-orders`, { cache: "no-store", ...options, params }),

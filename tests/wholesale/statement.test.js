@@ -24,12 +24,22 @@ test("the statement ledger: invoices minus paid-at-sale, payments and account re
   assert.doesNotMatch(src, /wallet_transactions/, "the loyalty wallet must not enter the debt");
 });
 
-test("the public link can read and submit, never approve", () => {
+test("the public link only reads: no payment can be sent or recorded from it", () => {
   const pub = read("../../server/modules/wholesale/wholesale.public.routes.js");
   assert.match(pub, /router\.use\(requireWholesaleMode\)/);
-  assert.doesNotMatch(pub, /approveSubmission|recordStaffPayment|rejectSubmission/);
-  assert.match(pub, /source: "customer"/);
+  assert.doesNotMatch(pub, /router\.(post|put|patch|delete)\(/);
+  assert.doesNotMatch(pub, /approveSubmission|recordStaffPayment|rejectSubmission|createSubmission/);
+  const page = read("../../src/modules/wholesale/pages/PublicStatementPage.jsx");
+  assert.doesNotMatch(page, /api\.post|FormData|type="file"/);
   const payments = read("../../server/modules/wholesale/wholesale.payments.js");
   assert.match(payments, /if \(source === "customer" && !imageUrl\) throw/);
   assert.match(payments, /if \(submission\.status !== "pending"\) throw/);
+});
+
+test("the manager portal records a wholesale payment only in the wholesale copy", () => {
+  const routes = read("../../server/routes/managerPortal.js");
+  assert.match(routes, /"\/:token\/wholesale\/customer-payments",\s*requireWholesaleMode,\s*verifyManagerPortalToken/);
+  assert.match(routes, /"\/:token\/wholesale\/customers", requireWholesaleMode, verifyManagerPortalToken/);
+  const portal = read("../../src/modules/managerPortal/pages/ManagerPortal.jsx");
+  assert.match(portal, /IS_WHOLESALE_APP && wholesalePaymentOpen/);
 });

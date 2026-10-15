@@ -171,6 +171,7 @@ export const buildWholesaleStatement = async ({ tenantId, customerId, client = d
       type: ret.disposition === "restock" ? "return" : "return_damaged",
       date: ret.created_at,
       reference: ret.return_number,
+      order_id: Number(ret.order_id),
       invoice: invoiceNumberOf.get(Number(ret.order_id)) || "",
       reason: ret.reason,
       refunded_in_cash: !toAccount,

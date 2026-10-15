@@ -74,7 +74,7 @@ import { createChunkPreloader } from "../../../shared/utils/chunkLoadRecovery";
 import { formatCurrency } from "../../../shared/lib/currency";
 import { formatInAppTimezone, instantToWallClock, wallClockToInstant } from "../../../shared/lib/appTimezone";
 import { resolveProductImageUrl, resolveEmployeeProfileImageUrl } from "../../../shared/lib/imageUrls";
-import { SOCKET_URL } from "../../../shared/constants/app";
+import { IS_WHOLESALE_APP, SOCKET_URL } from "../../../shared/constants/app";
 import { playRealtimeSound, requestBrowserNotificationPermission, unlockRealtimeFeedbackAudio } from "../../../services/realtimeFeedbackService";
 import { managerPortalApi } from "../services/managerPortalApi";
 import { buildPageTitle } from "../../../shared/hooks/usePageTitle";
@@ -85,6 +85,7 @@ import EmployeeDetailsSheet from "../components/EmployeeDetailsSheet";
 import { whenWorkerActive } from "../../aiSupport/services/serviceWorkerActivation";
 import ManagerPortalBottomNav from "../components/ManagerPortalBottomNav";
 import ManagerExpenseSheet from "../components/ManagerExpenseSheet";
+import WholesalePaymentSheet from "../components/WholesalePaymentSheet";
 import "./ManagerPortal.m1.css";
 
 import { useTranslation } from "react-i18next";
@@ -1098,6 +1099,8 @@ export default function ManagerPortal() {
   const [expandedTaskIds, setExpandedTaskIds] = useState({});
   const [notificationsOpen, setNotificationsOpen] = useState(false);
   const [expenseOpen, setExpenseOpen] = useState(false);
+  // Wholesale copy only: record a credit customer's payment.
+  const [wholesalePaymentOpen, setWholesalePaymentOpen] = useState(false);
   const [notificationCategory, setNotificationCategory] = useState("all");
   const socketRef = useRef(null);
   const notificationPanelRef = useRef(null);
@@ -2765,6 +2768,17 @@ export default function ManagerPortal() {
                     <ReceiptText className="h-4 w-4" />
                     <span>{tt("managerPortal.quickExpense.button")}</span>
                   </button>
+                  {IS_WHOLESALE_APP ? (
+                    <button
+                      type="button"
+                      data-testid="manager-wholesale-payment-button"
+                      onClick={() => setWholesalePaymentOpen(true)}
+                      aria-label={tt("orders.wholesale.portalPayment.title")}
+                      className="inline-flex h-[var(--control-height-md)] w-10 shrink-0 items-center justify-center rounded-[var(--radius-control)] border border-slate-700 bg-primary text-slate-100"
+                    >
+                      <Wallet className="h-4 w-4" />
+                    </button>
+                  ) : null}
                   <button type="button" onClick={() => setTheme(theme.mode === "dark" ? "light" : "dark")} className="manager-theme-toggle inline-flex h-[var(--control-height-md)] w-10 shrink-0 items-center justify-center rounded-[var(--radius-control)] border border-slate-700 bg-primary text-slate-100" aria-label={theme.mode === "dark" ? tt("managerPortal.theme.light") : tt("managerPortal.theme.dark")}>
                     {theme.mode === "dark" ? <SunMedium className="h-4 w-4" /> : <Moon className="h-4 w-4" />}
                   </button>
@@ -2806,6 +2820,16 @@ export default function ManagerPortal() {
                       <ReceiptText className="h-4 w-4" />
                       <span>{tt("managerPortal.quickExpense.button")}</span>
                     </button>
+                    {IS_WHOLESALE_APP ? (
+                      <button
+                        type="button"
+                        onClick={() => setWholesalePaymentOpen(true)}
+                        className="inline-flex items-center gap-2 rounded-[var(--radius-control)] bg-white px-3 py-2 text-sm font-black text-slate-950 shadow-sm"
+                      >
+                        <Wallet className="h-4 w-4" />
+                        <span>{tt("orders.wholesale.portalPayment.button")}</span>
+                      </button>
+                    ) : null}
                     <button
                       type="button"
                       onClick={openInventoryApprovals}
@@ -4454,6 +4478,7 @@ export default function ManagerPortal() {
               <Card title={tt("managerPortal.settings.title")} subtitle={tt("managerPortal.nav.more")} icon={Settings} compact={isMobilePortal} className={isMobilePortal ? "manager-portal-mobile-panel" : ""} tone="amber">
                 <div className="manager-portal-more-actions grid grid-cols-2 gap-2 sm:grid-cols-4">
                   {[
+                    ...(IS_WHOLESALE_APP ? [{ key: "wholesale-payment", label: tt("orders.wholesale.portalPayment.button"), icon: Wallet, tone: "bg-amber-500/15 text-amber-500", onClick: () => setWholesalePaymentOpen(true) }] : []),
                     { key: "reports", label: tt("managerPortal.nav.reports"), icon: BarChart3, tone: "bg-indigo-500/15 text-indigo-500", onClick: () => setActiveTab("reports") },
                     { key: "chat", label: tt("managerPortal.nav.chat"), icon: MessageSquare, tone: "bg-emerald-500/15 text-emerald-500", onClick: () => setActiveTab("chat") },
                     { key: "alerts", label: tt("managerPortal.settings.alerts"), icon: Bell, tone: "bg-amber-500/15 text-amber-500", badge: unreadCount, onClick: () => setActiveTab("notifications") },
@@ -5004,6 +5029,10 @@ export default function ManagerPortal() {
           ) : null}
         </aside>
       </div>
+
+      {IS_WHOLESALE_APP && wholesalePaymentOpen ? (
+        <WholesalePaymentSheet token={token} onClose={() => setWholesalePaymentOpen(false)} />
+      ) : null}
 
       <ManagerPortalBottomNav
         activeTab={activeTab}

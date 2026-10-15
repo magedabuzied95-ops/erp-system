@@ -56,21 +56,19 @@ export const resolveStatementToken = async (token) => {
   return { tenantId: Number(row.tenant_id), customerId: Number(row.customer_id) };
 };
 
-/** What the customer sees at /s/:token -- the statement, plus their payments still waiting. */
+/** What the customer sees at /s/:token -- read only: invoices, payments, returns, balance. */
 export const loadPublicStatement = async ({ token }) => {
   const { tenantId, customerId } = await resolveStatementToken(token);
   const statement = await buildWholesaleStatement({ tenantId, customerId });
-  const { rows: pending } = await db.query(
-    `SELECT id, amount, method, created_at FROM wholesale_payment_submissions
-      WHERE tenant_id = $1 AND customer_id = $2 AND status = 'pending' ORDER BY created_at DESC`,
-    [tenantId, customerId]
-  );
   const { rows: [company] } = await db.query("SELECT company_name FROM company_profiles WHERE tenant_id = $1", [tenantId]).catch(() => ({ rows: [] }));
   return {
     company: company?.company_name || "",
     ...statement,
-    pending: pending.map((row) => ({ ...row, amount: Number(row.amount), method_label: METHOD_LABEL[row.method] || row.method })),
-    methods: PAYMENT_METHODS.filter((m) => m !== "cash").map((m) => ({ value: m, label: METHOD_LABEL[m] })),
+    // Staff notes stay inside the shop; the customer sees the method and the reference.
+    entries: statement.entries.map(({ notes: _notes, ...entry }) => ({
+      ...entry,
+      ...(entry.type === "payment" ? { method_label: METHOD_LABEL[entry.method] || entry.method } : {}),
+    })),
   };
 };
 

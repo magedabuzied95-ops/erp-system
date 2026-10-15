@@ -123,7 +123,7 @@ export const saveCustomerReminder = async ({ tenantId, customerId, settings = {}
 export const reminderMessage = ({ name, balance, url }) => [
   `أهلاً ${text(name) || "بيك"} 👋`,
   `رصيد حسابك عندنا: ${money(balance)} ج.م`,
-  "تقدر تشوف كشف الحساب كامل وتبعت صورة التحويل من اللينك ده:",
+  "تقدر تشوف كشف الحساب كامل (الفواتير والدفعات والمرتجعات) من اللينك ده:",
   url,
   "شكراً لتعاملك معانا 🙏",
 ].join("\n");

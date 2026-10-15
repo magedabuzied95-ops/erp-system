@@ -60,6 +60,9 @@ import {
 } from "../services/managerPortalService.js";
 import { getManagerPortalReports } from "../services/managerPortalReportsService.js";
 import { createManagerPortalExpense, getManagerPortalExpenseContext } from "../modules/managerPortal/managerPortalExpense.js";
+import paymentProofUpload from "../config/paymentProofUpload.js";
+import { requireWholesaleMode } from "../modules/wholesale/wholesaleMode.js";
+import { portalCustomerBalance, recordPortalPayment, searchPortalCustomers } from "../modules/wholesale/wholesale.portal.js";
 import { getManagerPortalEmployeePerformance } from "../services/managerPortalEmployeePerformanceService.js";
 import { getManagerPortalInventoryCoverage } from "../services/managerPortalInventoryCoverageService.js";
 import { getLinkPreview } from "../services/linkPreviewService.js";
@@ -675,6 +678,49 @@ router.post("/:token/expenses", verifyManagerPortalToken, async (req, res) => {
     return res.status(error.status || 500).json({ success: false, message: error.message || "Failed to save expense" });
   }
 });
+
+// Wholesale copy only (404 on retail): the manager records a credit customer's payment.
+const wholesalePortalError = (res, error, fallback) => {
+  const status = Number(error?.status) || 500;
+  if (status >= 500) console.error("[manager-portal] wholesale payment error", error);
+  return res.status(status).json({ success: false, message: status >= 500 ? fallback : error.message });
+};
+router.get("/:token/wholesale/customers", requireWholesaleMode, verifyManagerPortalToken, async (req, res) => {
+  try {
+    res.set("Cache-Control", "no-store");
+    return res.json({ success: true, data: await searchPortalCustomers({ manager: req.managerPortalManager, search: req.query.search }) });
+  } catch (error) {
+    return wholesalePortalError(res, error, "Failed to load customers");
+  }
+});
+router.get("/:token/wholesale/customers/:customerId/balance", requireWholesaleMode, verifyManagerPortalToken, async (req, res) => {
+  try {
+    res.set("Cache-Control", "no-store");
+    return res.json({ success: true, data: await portalCustomerBalance({ manager: req.managerPortalManager, customerId: req.params.customerId }) });
+  } catch (error) {
+    return wholesalePortalError(res, error, "Failed to load the balance");
+  }
+});
+router.post(
+  "/:token/wholesale/customer-payments",
+  requireWholesaleMode,
+  verifyManagerPortalToken,
+  (req, res, next) => paymentProofUpload.single("screenshot")(req, res, (error) => (
+    error ? res.status(400).json({ success: false, message: "صورة التحويل لازم تكون PNG أو JPG أو WEBP وأصغر من 10 ميجا." }) : next()
+  )),
+  async (req, res) => {
+    try {
+      const data = await recordPortalPayment({
+        manager: req.managerPortalManager,
+        body: req.body || {},
+        imageUrl: req.file ? `/uploads/payment-proofs/${req.file.filename}` : "",
+      });
+      return res.json({ success: true, data });
+    } catch (error) {
+      return wholesalePortalError(res, error, "Failed to record the payment");
+    }
+  }
+);
 
 router.get("/:token/sales", async (req, res) => {
   try {
