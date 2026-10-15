@@ -1421,7 +1421,8 @@
     },
     "returns": {
       "damaged": "Damaged",
-      "toAccount": "Deduct from customer account"
+      "toAccount": "Deduct from customer account",
+      "piecesHint": "Quantity is in pieces: one piece of a carton = 1, the whole carton = its pieces"
     },
     "nav": {
       "payments": "Customer payments"

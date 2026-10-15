@@ -9511,27 +9511,68 @@ export const createReturn = async (req, res) => {
       loyaltyReason: loyaltyReversal.reason || null,
     });
 
-    logReturnFlowStep(routeName, { orderId, tenantId, step: "return_accounting:before", returnId: returnRow.id });
-    await postReturnEntry(client, {
-      tenantId,
-      referenceType: "return",
-      referenceId: returnRow.id,
-      description: `Return #${returnRow.return_number || returnNumberBase}`,
-      amount: effectiveRefundAmount,
-      // A customer refund always leaves an account; restock only decides whether the
-      // cost comes back into Inventory. "in" is the supplier-return shape and would
-      // book the refund as inventory at sale price with nothing credited.
-      direction: "out",
-      refundMethod,
-      cogsAmount: returnCogsTotal,
-      restock: shouldRestock,
-      createdBy: req.user?.id || null,
-      branchId: orderRow?.branch_id || null,
-      notes: reason || "",
-    });
-    logReturnFlowStep(routeName, { orderId, tenantId, step: "return_accounting:after", returnId: returnRow.id });
+    // Store credit (refund to the customer's account), the same as the POS return path:
+    // the wallet transaction and its liability entry are the whole record — no drawer, no
+    // money account, no return entry (that would credit an e-wallet for money that never moved).
+    if (refundMethod === "wallet") {
+      if (!orderRow?.customer_id) {
+        const error = new Error("يجب ربط الفاتورة بعميل لإضافة الرصيد إلى حسابه");
+        error.status = 400;
+        throw error;
+      }
+      await recordWalletTransaction(client, {
+        tenantId,
+        customerId: orderRow.customer_id,
+        type: "refund",
+        amount: effectiveRefundAmount,
+        orderId,
+        referenceType: "return",
+        referenceId: returnRow.id,
+        notes: `${reason || ""} / ${orderRow?.invoice_number || orderId}`,
+        userId: req.user?.id || null,
+      });
+      try {
+        logReturnFlowStep(routeName, { orderId, tenantId, step: "wallet_accounting:before", returnId: returnRow.id });
+        await postWalletLiabilityEntry(client, {
+          tenantId,
+          amount: effectiveRefundAmount,
+          direction: "credit",
+          referenceType: "return",
+          referenceId: returnRow.id,
+          description: "Return refund added to customer wallet",
+          createdBy: req.user?.id || null,
+          branchId: orderRow?.branch_id || null,
+          notes: `${reason || ""} / ${orderRow?.invoice_number || orderId}`,
+        });
+        logReturnFlowStep(routeName, { orderId, tenantId, step: "wallet_accounting:after", returnId: returnRow.id });
+      } catch (walletAccountingError) {
+        console.error("[orders] wallet refund accounting fallback", walletAccountingError.message);
+      }
+    } else {
+      logReturnFlowStep(routeName, { orderId, tenantId, step: "return_accounting:before", returnId: returnRow.id });
+      await postReturnEntry(client, {
+        tenantId,
+        referenceType: "return",
+        referenceId: returnRow.id,
+        description: `Return #${returnRow.return_number || returnNumberBase}`,
+        amount: effectiveRefundAmount,
+        // A customer refund always leaves an account; restock only decides whether the
+        // cost comes back into Inventory. "in" is the supplier-return shape and would
+        // book the refund as inventory at sale price with nothing credited.
+        direction: "out",
+        refundMethod,
+        cogsAmount: returnCogsTotal,
+        restock: shouldRestock,
+        createdBy: req.user?.id || null,
+        branchId: orderRow?.branch_id || null,
+        notes: reason || "",
+      });
+      logReturnFlowStep(routeName, { orderId, tenantId, step: "return_accounting:after", returnId: returnRow.id });
+    }
 
-    if (refundMethod === "cash") {
+    if (refundMethod === "wallet") {
+      logReturnFlowStep(routeName, { orderId, tenantId, step: "wallet_refund:no_money_movement", returnId: returnRow.id });
+    } else if (refundMethod === "cash") {
       if (!refundFunding?.shift?.id) {
         const error = new Error("لا يوجد درج نقدي نشط لهذا المرتجع. افتح وردية نقدية فعالة أولاً.");
         error.status = 400;

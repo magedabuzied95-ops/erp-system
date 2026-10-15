@@ -27,6 +27,8 @@ import { fetchAllOrders } from "../../../shared/api/ordersFetch";
 import { isCashierUser } from "../../../shared/auth/authStorage";
 import OrdersShell from "../components/OrdersShell";
 import StatusBadge from "../components/StatusBadge";
+import { IS_WHOLESALE_APP } from "../../../shared/constants/app";
+import { useWholesaleUnitsCatalog, wholesaleUnitsLabel } from "../../wholesale/components/WholesalePosPicker";
 import {
   addReturnRecord,
   deleteReturnRecord,
@@ -43,7 +45,13 @@ const tt = (key, options) => i18n.t(key, options);
 
 const RETURN_STATUS_OPTIONS = ["Draft", "Submitted", "Approved", "Rejected", "Returned", "Refunded"];
 const REFUND_STATUS_OPTIONS = ["pending", "processing", "refunded", "partial_refund", "rejected"];
-const REFUND_METHOD_OPTIONS = ["cash", "vodafone_cash", "instapay"];
+// Wholesale copy only: a return can also be credited to the customer's account (آجل).
+const REFUND_METHOD_OPTIONS = IS_WHOLESALE_APP ? ["wallet", "cash", "vodafone_cash", "instapay"] : ["cash", "vodafone_cash", "instapay"];
+const refundMethodLabel = (option) => (option === "wallet" ? tt("orders.wholesale.returns.toAccount") : humanizeKey(option));
+const isCreditOrder = (order = {}) => {
+  const legs = Array.isArray(order.payment_breakdown) ? order.payment_breakdown : [];
+  return lower(order.payment_method).includes("credit") || legs.some((leg) => lower(leg?.method || leg?.payment_method) === "credit_sale");
+};
 const RETURN_DISPOSITION_OPTIONS = [
   { value: "restock", get label() { return tt("orders.returns.page.disposition.restock"); } },
   { value: "manufacturing_defect", get label() { return tt("orders.returns.page.disposition.manufacturingDefect"); } },
@@ -82,6 +90,7 @@ const getDateInputValue = () => todayInAppTimezone();
 const normalizeRefundMethod = (value = "cash") => {
   const key = lower(value);
   if (["cash", "vodafone_cash", "instapay"].includes(key)) return key;
+  if (IS_WHOLESALE_APP && ["wallet", "customer_wallet"].includes(key)) return "wallet";
   if (["same_payment_method", "original", "wallet", "bank_transfer", "card"].includes(key)) return "cash";
   return "cash";
 };
@@ -184,6 +193,15 @@ function OrderReturnsPage() {
     () => orderMap.get(String(form.selectedOrderId)) || null,
     [form.selectedOrderId, orderMap]
   );
+
+  // Wholesale copy only: quantities read in cartons / series too, and a return on a credit
+  // (آجل) invoice comes off the customer's account instead of out of the drawer.
+  useWholesaleUnitsCatalog();
+  const selectedOrderIsCredit = IS_WHOLESALE_APP && isCreditOrder(selectedOrder || {});
+  useEffect(() => {
+    if (!IS_WHOLESALE_APP || !form.selectedOrderId || drawerMode === "edit") return;
+    setForm((current) => ({ ...current, refundMethod: selectedOrderIsCredit ? "wallet" : current.refundMethod === "wallet" ? "cash" : current.refundMethod }));
+  }, [form.selectedOrderId, selectedOrderIsCredit, drawerMode]);
 
   useEffect(() => {
     const items = Array.isArray(selectedOrder?.items) ? selectedOrder.items : [];
@@ -1000,7 +1018,7 @@ function ReturnFormDrawer({ t, mode, form, setForm, orders, selectedOrder, onClo
                 className="w-full rounded-[var(--radius-control)] border border-[var(--border)] bg-[var(--card)] px-4 py-3 text-sm text-[var(--text)] outline-none"
               >
                 {REFUND_METHOD_OPTIONS.map((option) => (
-                  <option key={option} value={option}>{humanizeKey(option)}</option>
+                  <option key={option} value={option}>{refundMethodLabel(option)}</option>
                 ))}
               </select>
             </Field>
@@ -1071,6 +1089,7 @@ function ReturnFormDrawer({ t, mode, form, setForm, orders, selectedOrder, onClo
                           <div className="font-semibold text-[var(--text)]">{item.product_name || item.name}</div>
                           <div className="mt-1 text-sm text-[var(--muted)]">
                             {[item.color, item.size].filter(Boolean).join(" / ") || t("orders.fallback.variant")} - {t("orders.drawer.qty")} {item.quantity || 0}
+                            {IS_WHOLESALE_APP && wholesaleUnitsLabel(item.product_id, item.quantity, t) ? ` (${wholesaleUnitsLabel(item.product_id, item.quantity, t)})` : ""}
                           </div>
                         </div>
                         <div className="text-sm font-semibold text-[var(--text)]">{formatCurrency(resolveOrderItemUnitPrice(item) * Number(item.quantity || 0))}</div>
@@ -1087,6 +1106,9 @@ function ReturnFormDrawer({ t, mode, form, setForm, orders, selectedOrder, onClo
                               onChange={(event) => updateItem(item.id, { quantity: Number(event.target.value || 0) })}
                               className="w-full rounded-[var(--radius-control)] border border-[var(--border)] bg-[var(--card)] px-4 py-3 text-sm text-[var(--text)] outline-none"
                             />
+                            {IS_WHOLESALE_APP ? (
+                              <span className="mt-1 block text-xs font-bold text-[var(--muted)]">{t("orders.wholesale.returns.piecesHint")}</span>
+                            ) : null}
                           </Field>
                           <div className="md:col-span-2">
                             <Field label={t("orders.returns.reason")}>

@@ -44,6 +44,20 @@ export const wholesaleUnitsLabel = (productId, pieces, t) => {
   return parts.join(" + ");
 };
 
+/** Loads every model's units once, so wholesaleUnitsLabel works outside the POS too. */
+export function useWholesaleUnitsCatalog() {
+  const [, setVersion] = useState(0);
+  useEffect(() => {
+    if (!IS_WHOLESALE_APP) return undefined;
+    let alive = true;
+    api.get("/wholesale/prices").then((res) => {
+      unitsByProduct = res?.data || {};
+      if (alive) setVersion((value) => value + 1);
+    }).catch(() => {});
+    return () => { alive = false; };
+  }, []);
+}
+
 /**
  * Tier prices for the whole catalogue plus the selected customer's tier.
  * priceOf(productId) -> the piece price the cart should use, or null (not set up / retail).
