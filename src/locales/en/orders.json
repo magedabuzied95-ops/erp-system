@@ -1334,6 +1334,92 @@
       "unit": "Unit",
       "notSetUp": "This model has no wholesale setup. Open the product and fill in \"Wholesale selling\".",
       "shortage": "Not enough stock: {{where}} needs {{wanted}}, has {{stock}}"
+    },
+    "statement": {
+      "title": "Account statement",
+      "balanceLabel": "Balance you owe",
+      "creditNote": "Credit in your favour",
+      "invoiced": "Total invoiced",
+      "paid": "Total paid",
+      "returned": "Returns",
+      "date": "Date",
+      "description": "Description",
+      "debit": "Debit",
+      "credit": "Credit",
+      "balance": "Balance",
+      "invoice": "Invoice {{ref}}",
+      "paidAtSale": "Paid with invoice {{ref}}",
+      "payment": "Payment — {{method}}",
+      "returnRow": "Return {{ref}}",
+      "returnDamaged": "Damaged return {{ref}}",
+      "refundedCash": "Refunded in cash",
+      "proof": "Transfer screenshot",
+      "empty": "No movements yet",
+      "print": "Download PDF",
+      "pendingTitle": "Payments awaiting review",
+      "pendingRow": "{{amount}} EGP — {{method}}",
+      "payTitle": "Send a payment",
+      "payHint": "After transferring, enter the amount and upload the screenshot. It is recorded after review.",
+      "amount": "Amount",
+      "method": "Transfer method",
+      "reference": "Transaction no. (optional)",
+      "note": "Note (optional)",
+      "screenshot": "Transfer screenshot",
+      "send": "Send payment",
+      "sent": "Payment sent; it will be recorded after review.",
+      "notFound": "This link is not valid or has changed. Ask for a new one.",
+      "loading": "Loading...",
+      "methods": {
+        "vodafone_cash": "Vodafone Cash",
+        "instapay": "InstaPay",
+        "post": "Postal transfer",
+        "bank_transfer": "Bank transfer",
+        "cash": "Cash"
+      }
+    },
+    "links": {
+      "title": "Statement link",
+      "copy": "Copy link",
+      "copied": "Copied",
+      "open": "Open",
+      "whatsapp": "Send on WhatsApp",
+      "rotate": "New link",
+      "rotateConfirm": "The old link will stop working. Continue?",
+      "message": "Hello {{name}}, here is your account statement; you can send any payment with its screenshot from it: {{url}}",
+      "saveFirst": "Save the customer first"
+    },
+    "payments": {
+      "title": "Customer payments",
+      "subtitle": "Payments customers sent with a screenshot, and payments you record",
+      "tabs": {
+        "pending": "Pending",
+        "approved": "Approved",
+        "rejected": "Rejected"
+      },
+      "approve": "Approve",
+      "reject": "Reject",
+      "rejectReason": "Reason (optional)",
+      "approved": "Payment recorded",
+      "rejected": "Rejected",
+      "empty": "No payments here",
+      "fromCustomer": "From the customer link",
+      "fromStaff": "Recorded by staff",
+      "add": "Record a payment",
+      "customer": "Customer",
+      "customerPlaceholder": "Search the customer",
+      "save": "Record",
+      "openProof": "Open image"
+    },
+    "credit": {
+      "overLimit": "Warning: {{name}} goes over the credit limit. Balance {{balance}} + invoice {{total}} vs limit {{limit}}",
+      "position": "Balance {{balance}} of limit {{limit}}"
+    },
+    "returns": {
+      "damaged": "Damaged",
+      "toAccount": "Deduct from customer account"
+    },
+    "nav": {
+      "payments": "Customer payments"
     }
   }
 }

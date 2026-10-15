@@ -447,6 +447,7 @@ const RAW_SIDEBAR_SECTIONS = [
     items: [
       { label: "POS PRO", to: "/pos", permission: "pos.view", icon: Store },
       // Wholesale copy only (jomla host); hidden on retail.
+      { label: "Customer payments", sidebarLabelKey: "sidebar.wholesalePayments", to: "/wholesale/payments", permission: "customers.view", icon: Wallet, wholesaleOnly: true, keywords: "wholesale payments transfer screenshot vodafone instapay post" },
       { label: "Orders", to: "/orders", permission: "orders.view", icon: ShoppingCart },
       { label: "Website Orders", to: "/orders?channel=website", permission: "website.orders", icon: ShoppingBag },
       { label: "Returns", to: "/orders/returns", permission: "orders.view", icon: ReceiptText },

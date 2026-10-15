@@ -140,13 +140,20 @@ export const getWholesalePrices = async ({ tenantId, productIds = [] }) => {
 export const listAllWholesalePrices = async ({ tenantId }) => {
   await ensureWholesaleSchema();
   const { rows } = await db.query(
-    `SELECT product_id, price_wholesale, price_half_wholesale FROM wholesale_product_packs
-      WHERE tenant_id = $1 AND (price_wholesale IS NOT NULL OR price_half_wholesale IS NOT NULL)`,
+    `SELECT product_id, price_wholesale, price_half_wholesale,
+            sell_series, series_pieces, sell_carton, carton_pieces, sell_dozen
+       FROM wholesale_product_packs WHERE tenant_id = $1`,
     [tenantId]
   );
+  // The units ride along so the receipt can say "1 كرتونة" instead of "24".
   return Object.fromEntries(rows.map((row) => [row.product_id, {
     price_wholesale: numOrNull(row.price_wholesale),
     price_half_wholesale: numOrNull(row.price_half_wholesale),
+    sell_series: row.sell_series,
+    series_pieces: numOrNull(row.series_pieces),
+    sell_carton: row.sell_carton,
+    carton_pieces: numOrNull(row.carton_pieces),
+    sell_dozen: row.sell_dozen,
   }]));
 };
 

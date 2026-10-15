@@ -1087,7 +1087,7 @@ function Customers() {
             <span>{tt("customers.personalUse.allow")}</span>
           </label>
 
-          <WholesaleCustomerTerms value={wholesaleTerms.value} onChange={wholesaleTerms.setValue} inputClass={inputClass} />
+          <WholesaleCustomerTerms value={wholesaleTerms.value} onChange={wholesaleTerms.setValue} inputClass={inputClass} customer={editingId ? { id: editingId, name, phone } : null} />
 
           <div className="mt-4 rounded-[var(--radius-card)] border border-amber-400/20 bg-amber-400/10 px-4 py-3">
             <label className="block text-sm font-semibold text-amber-50">

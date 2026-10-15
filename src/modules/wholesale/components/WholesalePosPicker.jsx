@@ -20,6 +20,30 @@ export const wholesaleUnits = (settings) => {
   });
 };
 
+// The units of every model, kept by the POS hook for receipts (which render outside it).
+let unitsByProduct = {};
+
+/** 30 pieces of a model with carton 24 / series 6 -> "1 كرتونة + 1 سيرية"; "" when just pieces. */
+export const wholesaleUnitsLabel = (productId, pieces, t) => {
+  if (!IS_WHOLESALE_APP) return "";
+  const settings = unitsByProduct[productId];
+  let left = Math.max(0, Math.trunc(Number(pieces) || 0));
+  if (!settings || !left) return "";
+  const parts = [];
+  const take = (size, unit) => {
+    if (!size || size <= 1 || left < size) return;
+    const count = Math.floor(left / size);
+    left -= count * size;
+    parts.push(`${count} ${t(`orders.wholesale.units.${unit}`)}`);
+  };
+  if (settings.sell_carton) take(Number(settings.carton_pieces), "carton");
+  if (settings.sell_series) take(Number(settings.series_pieces), "series");
+  if (settings.sell_dozen) take(12, "dozen");
+  if (!parts.length) return "";
+  if (left) parts.push(`${left} ${t("orders.wholesale.units.piece")}`);
+  return parts.join(" + ");
+};
+
 /**
  * Tier prices for the whole catalogue plus the selected customer's tier.
  * priceOf(productId) -> the piece price the cart should use, or null (not set up / retail).
@@ -30,7 +54,10 @@ export function useWholesalePosPricing(customerId) {
 
   useEffect(() => {
     if (!IS_WHOLESALE_APP) return;
-    api.get("/wholesale/prices").then((res) => setPrices(res?.data || {})).catch(() => {});
+    api.get("/wholesale/prices").then((res) => {
+      unitsByProduct = res?.data || {};
+      setPrices(res?.data || {});
+    }).catch(() => {});
   }, []);
 
   useEffect(() => {

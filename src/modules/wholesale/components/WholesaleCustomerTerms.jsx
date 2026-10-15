@@ -1,5 +1,6 @@
 import { useCallback, useState } from "react";
 import { useTranslation } from "react-i18next";
+import toast from "react-hot-toast";
 import { api } from "../../../shared/api/api";
 import { IS_WHOLESALE_APP } from "../../../shared/constants/app";
 
@@ -37,7 +38,54 @@ export function useWholesaleCustomerTerms() {
   return { enabled: IS_WHOLESALE_APP, value, setValue, load, reset, save };
 }
 
-export default function WholesaleCustomerTerms({ value, onChange, inputClass = "" }) {
+/** The customer's statement link: copy, open, send on WhatsApp, or replace. */
+function StatementLinkActions({ customer }) {
+  const { t } = useTranslation();
+  const [busy, setBusy] = useState(false);
+  const button = "rounded-full border border-border bg-surface px-3 py-1.5 text-xs font-black text-text disabled:opacity-50";
+
+  const getLink = async (rotate = false) => {
+    const res = await api.post(`/wholesale/customers/${customer.id}/statement-link`, { rotate });
+    return res?.data?.url || "";
+  };
+  const run = async (action) => {
+    setBusy(true);
+    try {
+      if (action === "rotate" && !window.confirm(t("orders.wholesale.links.rotateConfirm"))) return;
+      const url = await getLink(action === "rotate");
+      if (!url) return;
+      if (action === "copy" || action === "rotate") {
+        await navigator.clipboard?.writeText(url);
+        toast.success(t("orders.wholesale.links.copied"));
+      } else if (action === "open") {
+        window.open(url, "_blank", "noopener");
+      } else if (action === "whatsapp") {
+        const phone = String(customer.phone || "").replace(/\D/g, "").replace(/^0/, "20");
+        const message = t("orders.wholesale.links.message", { name: customer.name || "", url });
+        window.open(`https://wa.me/${phone}?text=${encodeURIComponent(message)}`, "_blank", "noopener");
+      }
+    } catch (error) {
+      toast.error(error.message);
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  return (
+    <div className="mt-3">
+      <span className="block text-xs font-black text-text-muted">{t("orders.wholesale.links.title")}</span>
+      <div className="mt-2 flex flex-wrap gap-2">
+        {["copy", "open", "whatsapp", "rotate"].map((action) => (
+          <button key={action} type="button" disabled={busy} className={button} onClick={() => run(action)}>
+            {t(`orders.wholesale.links.${action}`)}
+          </button>
+        ))}
+      </div>
+    </div>
+  );
+}
+
+export default function WholesaleCustomerTerms({ value, onChange, inputClass = "", customer = null }) {
   const { t } = useTranslation();
   if (!IS_WHOLESALE_APP) return null;
   const set = (patch) => onChange({ ...value, ...patch });
@@ -68,6 +116,7 @@ export default function WholesaleCustomerTerms({ value, onChange, inputClass = "
           <input className={inputClass} inputMode="numeric" value={value.due_days} onChange={(e) => set({ due_days: e.target.value.replace(/[^\d]/g, "") })} />
         </label>
       </div>
+      {customer?.id ? <StatementLinkActions customer={customer} /> : null}
     </div>
   );
 }

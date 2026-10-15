@@ -235,6 +235,7 @@ import Forbidden from "./pages/Forbidden";
 
 import { TenantProvider } from "./modules/saas/context/TenantContext";
 import { SEO_CATEGORY_PATHS, legacyShopToRootPath } from "./storefront/lib/paths";
+import { IS_WHOLESALE_APP } from "./shared/constants/app";
 
 const RegisterCompany = lazy(() => import("./modules/saas/pages/RegisterCompany"));
 const PublicInvoice = lazy(() => import("./pages/PublicInvoice"));
@@ -249,6 +250,8 @@ const DataDeletionPage = lazy(() => importWithChunkRetry(() => import("./storefr
 const OrderConfirmationActionPage = lazy(() => importWithChunkRetry(() => import("./storefront/pages/OrderConfirmationActionPage.jsx")).then((module) => ({ default: module.OrderConfirmationActionPage })));
 const CustomerAddressPage = lazy(() => importWithChunkRetry(() => import("./storefront/pages/CustomerAddressPage.jsx")).then((module) => ({ default: module.CustomerAddressPage })));
 const PaymentProofPage = lazy(() => importWithChunkRetry(() => import("./storefront/pages/PaymentProofPage.jsx")).then((module) => ({ default: module.PaymentProofPage })));
+const PublicStatementPage = lazy(() => import("./modules/wholesale/pages/PublicStatementPage"));
+const WholesalePayments = lazy(() => import("./modules/wholesale/pages/WholesalePayments"));
 const ProductReviewLinkPage = lazy(() => importWithChunkRetry(() => import("./storefront/pages/ProductReviewLinkPage.jsx")).then((module) => ({ default: module.ProductReviewLinkPage })));
 
 const Workspace = lazy(() => import("./modules/saas/pages/Workspace"));
@@ -593,6 +596,18 @@ function App() {
           </Suspense>
         }
       />
+
+      {/* Wholesale copy only: the credit customer's own statement link. */}
+      {IS_WHOLESALE_APP ? (
+        <Route
+          path="/s/:token"
+          element={
+            <Suspense fallback={<RouteSkeleton />}>
+              <PublicStatementPage />
+            </Suspense>
+          }
+        />
+      ) : null}
 
       <Route
         path="/review/:code"
@@ -1652,6 +1667,18 @@ function App() {
             </ProtectedRoute>
           }
         />
+
+        {/* Wholesale copy only: customer payments sent with a screenshot. */}
+        {IS_WHOLESALE_APP ? (
+          <Route
+            path="wholesale/payments"
+            element={
+              <ProtectedRoute requiredPermissions={["customers.view"]}>
+                <WholesalePayments />
+              </ProtectedRoute>
+            }
+          />
+        ) : null}
 
         <Route
           path="operations/shipping"

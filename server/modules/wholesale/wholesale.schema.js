@@ -85,6 +85,53 @@ ALTER TABLE wholesale_product_packs ADD COLUMN IF NOT EXISTS price_half_wholesal
 -- 'wholesale' | 'half_wholesale'
 ALTER TABLE wholesale_customer_terms ADD COLUMN IF NOT EXISTS tier VARCHAR(20) NOT NULL DEFAULT 'wholesale';
 ALTER TABLE wholesale_invoice_lines ADD COLUMN IF NOT EXISTS tier VARCHAR(20) NULL;
+
+-- v3 (phase 2): the customer's private statement link, and payments sent with a screenshot
+-- (by the customer from that link, or entered by staff). Pending until approved; approving
+-- records a normal customer payment.
+CREATE TABLE IF NOT EXISTS wholesale_statement_links (
+  tenant_id BIGINT NOT NULL,
+  customer_id BIGINT NOT NULL,
+  token VARCHAR(64) NOT NULL UNIQUE,
+  created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+  PRIMARY KEY (tenant_id, customer_id)
+);
+CREATE TABLE IF NOT EXISTS wholesale_payment_submissions (
+  id BIGSERIAL PRIMARY KEY,
+  tenant_id BIGINT NOT NULL,
+  customer_id BIGINT NOT NULL,
+  amount NUMERIC(14,2) NOT NULL CHECK (amount > 0),
+  method VARCHAR(30) NOT NULL,
+  reference TEXT NOT NULL DEFAULT '',
+  note TEXT NOT NULL DEFAULT '',
+  image_url TEXT NOT NULL DEFAULT '',
+  source VARCHAR(20) NOT NULL DEFAULT 'customer',
+  status VARCHAR(20) NOT NULL DEFAULT 'pending',
+  customer_payment_id BIGINT NULL,
+  decided_by BIGINT NULL,
+  decided_at TIMESTAMPTZ NULL,
+  reject_reason TEXT NOT NULL DEFAULT '',
+  created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+);
+CREATE INDEX IF NOT EXISTS idx_wholesale_payment_submissions_status ON wholesale_payment_submissions (tenant_id, status, created_at DESC);
+
+-- v4 (phase 3): each customer's own weekly balance reminder (Cairo day / hour).
+ALTER TABLE wholesale_customer_terms ADD COLUMN IF NOT EXISTS reminder_enabled BOOLEAN NOT NULL DEFAULT FALSE;
+ALTER TABLE wholesale_customer_terms ADD COLUMN IF NOT EXISTS reminder_weekday SMALLINT NOT NULL DEFAULT 6;
+ALTER TABLE wholesale_customer_terms ADD COLUMN IF NOT EXISTS reminder_hour SMALLINT NOT NULL DEFAULT 11;
+ALTER TABLE wholesale_customer_terms ADD COLUMN IF NOT EXISTS reminder_min_balance NUMERIC(14,2) NOT NULL DEFAULT 1000;
+ALTER TABLE wholesale_customer_terms ADD COLUMN IF NOT EXISTS reminder_skip_paid_days SMALLINT NOT NULL DEFAULT 7;
+ALTER TABLE wholesale_customer_terms ADD COLUMN IF NOT EXISTS reminder_last_sent_at TIMESTAMPTZ NULL;
+CREATE TABLE IF NOT EXISTS wholesale_reminder_log (
+  id BIGSERIAL PRIMARY KEY,
+  tenant_id BIGINT NOT NULL,
+  customer_id BIGINT NOT NULL,
+  balance NUMERIC(14,2) NOT NULL,
+  status VARCHAR(20) NOT NULL,
+  detail TEXT NOT NULL DEFAULT '',
+  created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+);
+CREATE INDEX IF NOT EXISTS idx_wholesale_reminder_log_customer ON wholesale_reminder_log (tenant_id, customer_id, created_at DESC);
 `;
 
 let ready = null;

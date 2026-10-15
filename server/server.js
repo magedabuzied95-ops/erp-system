@@ -693,6 +693,7 @@ const { default: googleMerchantFeedRoutes } = await import("./routes/googleMerch
 const { default: shippingRoutes } = await import("./modules/shipping/shipping.routes.js");
 const { default: walletTransfersRoutes } = await import("./modules/walletTransfers/walletTransfers.routes.js");
 const { default: wholesaleRoutes } = await import("./modules/wholesale/wholesale.routes.js");
+const { default: wholesalePublicRoutes } = await import("./modules/wholesale/wholesale.public.routes.js");
 const { businessMode } = await import("./modules/wholesale/wholesaleMode.js");
 const { default: liveActivityRoutes } = await import("./routes/liveActivity.js");
 const { default: productClassificationsRoutes } = await import("./routes/productClassifications.js");
@@ -1970,6 +1971,8 @@ app.use("/api/shipping", shippingRoutes);
 app.use("/api/wallet-transfers", walletTransfersRoutes);
 // 404 on retail; answers only where BUSINESS_MODE=wholesale.
 app.use("/api/wholesale", wholesaleRoutes);
+// The credit customer's statement link (/s/:token on the frontend); wholesale only.
+app.use("/api/public/wholesale", wholesalePublicRoutes);
 app.get("/shop/product/:identifier", getPublicProductSharePage);
 app.get("/share/product/:identifier", getPublicProductSharePage);
 app.get("/share/available", getPublicAvailableSharePage);

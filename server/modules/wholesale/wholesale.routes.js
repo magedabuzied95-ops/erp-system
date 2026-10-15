@@ -2,7 +2,17 @@ import express from "express";
 import { protect } from "../../middleware/authMiddleware.js";
 import permit from "../../middleware/permissionMiddleware.js";
 import { getTenantId } from "../../utils/requestScope.js";
+import paymentProofUpload from "../../config/paymentProofUpload.js";
 import { requireWholesaleMode } from "./wholesaleMode.js";
+import { buildWholesaleStatement } from "./wholesale.statement.js";
+import {
+  approveSubmission,
+  customerCreditPosition,
+  getStatementLink,
+  listSubmissions,
+  recordStaffPayment,
+  rejectSubmission,
+} from "./wholesale.payments.js";
 import {
   getCustomerTerms,
   getWholesalePrices,
@@ -51,6 +61,38 @@ router.put("/prices", protect, permit("products", "edit"), handle("Unable to sav
 router.get("/customers", protect, permit("customers", "view"), handle("Unable to load customers", (req, tenantId) => listWholesaleCustomers({ tenantId, search: req.query.search, limit: req.query.limit })));
 router.get("/customers/:id/terms", protect, permit("customers", "view"), handle("Unable to load customer terms", (req, tenantId) => getCustomerTerms({ tenantId, customerId: req.params.id })));
 router.put("/customers/:id/terms", protect, permit("customers", "edit"), handle("Unable to save customer terms", (req, tenantId) => saveCustomerTerms({ tenantId, customerId: req.params.id, ...req.body })));
+
+// Credit customers: their ledger, private link, POS warning, and payments with screenshots.
+router.get("/customers/:id/statement", protect, permit("customers", "view"), handle("Unable to load the statement", (req, tenantId) =>
+  buildWholesaleStatement({ tenantId, customerId: Number(req.params.id) })));
+router.post("/customers/:id/statement-link", protect, permit("customers", "view"), handle("Unable to create the link", (req, tenantId) =>
+  getStatementLink({ tenantId, customerId: req.params.id, rotate: req.body?.rotate === true })));
+router.get("/customers/:id/credit", protect, permit("pos", "view"), handle("Unable to load the customer balance", (req, tenantId) =>
+  customerCreditPosition({ tenantId, customerId: req.params.id })));
+router.get("/payments", protect, permit("customers", "view"), handle("Unable to load payments", (req, tenantId) =>
+  listSubmissions({ tenantId, status: req.query.status || "pending", limit: req.query.limit })));
+router.post(
+  "/payments",
+  protect,
+  permit("customers", "edit"),
+  (req, res, next) => paymentProofUpload.single("screenshot")(req, res, (error) => (
+    error ? res.status(400).json({ success: false, message: "صورة التحويل لازم تكون PNG أو JPG أو WEBP وأصغر من 10 ميجا." }) : next()
+  )),
+  handle("Unable to record the payment", (req, tenantId) => recordStaffPayment({
+    req,
+    tenantId,
+    customerId: req.body?.customer_id,
+    amount: req.body?.amount,
+    method: req.body?.method,
+    reference: req.body?.reference,
+    note: req.body?.note,
+    imageUrl: req.file ? `/uploads/payment-proofs/${req.file.filename}` : "",
+  }))
+);
+router.post("/payments/:id/approve", protect, permit("customers", "edit"), handle("Unable to approve the payment", (req, tenantId) =>
+  approveSubmission({ req, tenantId, id: req.params.id, amount: req.body?.amount })));
+router.post("/payments/:id/reject", protect, permit("customers", "edit"), handle("Unable to reject the payment", (req, tenantId) =>
+  rejectSubmission({ req, tenantId, id: req.params.id, reason: req.body?.reason })));
 
 // POS unit picker: splits a series / carton / dozen into pieces per colour and checks stock.
 router.post("/invoices/preview", protect, permit("pos", "view"), handle("Unable to price the selection", (req, tenantId) =>

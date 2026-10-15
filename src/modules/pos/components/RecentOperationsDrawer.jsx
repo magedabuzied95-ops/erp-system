@@ -27,6 +27,7 @@ import { formatCurrency } from "../lib/posUtils";
 import { getOrderOutstandingAmount, resolveOrderPaymentState } from "../lib/orderPaymentState";
 import { CurrencyText } from "../../../shared/components/CurrencyAmount";
 import { formatOrderPaymentMethods } from "../../../../shared/paymentMethods";
+import { IS_WHOLESALE_APP } from "../../../shared/constants/app";
 
 const DEFAULT_EDIT_LOCK_HOURS = Number(import.meta.env.VITE_POS_INVOICE_EDIT_LOCK_HOURS || 24);
 const POS_DEBUG = Boolean(
@@ -245,6 +246,9 @@ const returnReasons = [
   { value: "استبدال", labelKey: "pos.recentOps.returnReasons.exchange" },
   { value: RETURN_REASON_OTHER, labelKey: "pos.recentOps.returnReasons.other" },
 ];
+// Wholesale copy: a damaged return is credited to the customer but never goes back to stock.
+const WHOLESALE_DAMAGED_REASON = "هالك";
+if (IS_WHOLESALE_APP) returnReasons.splice(1, 0, { value: WHOLESALE_DAMAGED_REASON, labelKey: "orders.wholesale.returns.damaged" });
 
 const returnModes = [
   { key: "full", labelKey: "pos.recentOps.returnModes.full" },
@@ -257,6 +261,8 @@ const refundMethods = [
   { key: "vodafone_cash", label: "Vodafone Cash" },
   { key: "instapay", label: "InstaPay" },
 ];
+// Wholesale copy: a credit customer's return lowers what they owe (the account / wallet leg).
+if (IS_WHOLESALE_APP) refundMethods.unshift({ key: "wallet", labelKey: "orders.wholesale.returns.toAccount" });
 
 const RECENT_ORDERS_PAGE_SIZE = 10;
 const ORDER_SUMMARY_CACHE_TTL_MS = 45_000;
@@ -1065,7 +1071,9 @@ function ReturnExchangeModal({ order, currentCartTotal = 0, onClose, onCreated }
   const { t } = useTranslation();
   const [mode, setMode] = useState("partial");
   const [reason, setReason] = useState(returnReasons[0].value);
-  const [refundMethod, setRefundMethod] = useState("cash");
+  const [refundMethod, setRefundMethod] = useState(() => (
+    IS_WHOLESALE_APP && String(order?.payment_method || "").toLowerCase() === "credit_sale" ? "wallet" : "cash"
+  ));
   const [customReason, setCustomReason] = useState("");
   const [quantities, setQuantities] = useState(() =>
     Object.fromEntries((order.items || []).map((item) => [item.id, 0]))
@@ -1131,6 +1139,7 @@ function ReturnExchangeModal({ order, currentCartTotal = 0, onClose, onCreated }
       const response = await api.post(`/orders/${order.id}/return`, {
         mode,
         refund_method: refundMethod,
+        ...(IS_WHOLESALE_APP && reason === WHOLESALE_DAMAGED_REASON ? { disposition: "damaged" } : {}),
         reason: resolvedReason || reason,
         refund_amount: returnTotal,
         exchange_difference: mode === "exchange" ? exchangeDifference : 0,

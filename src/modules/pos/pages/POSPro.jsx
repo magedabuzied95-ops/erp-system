@@ -6740,6 +6740,25 @@ function POSPro() {
     const paymobTerminalConfirmed = options?.paymobTerminalConfirmed === true;
     const creditSaleCheckout = options?.creditSale === true;
     const partialCreditCheckout = options?.partialCredit === true;
+    // Wholesale copy: a credit sale past the customer's limit goes through, with a warning.
+    const wholesaleCustomerId = customer?.id || customer?.customer_id || null;
+    if (wholesalePricing.enabled && (creditSaleCheckout || partialCreditCheckout) && wholesaleCustomerId) {
+      const invoiceTotal = Number(cartTotals.total || 0);
+      api.get(`/wholesale/customers/${wholesaleCustomerId}/credit`)
+        .then((res) => {
+          const limit = Number(res?.data?.credit_limit || 0);
+          const balance = Number(res?.data?.balance || 0);
+          if (limit > 0 && balance + invoiceTotal > limit + 0.009) {
+            toast(t("orders.wholesale.credit.overLimit", {
+              name: customer?.name || customer?.customer_name || "",
+              balance: formatCurrency(balance),
+              total: formatCurrency(invoiceTotal),
+              limit: formatCurrency(limit),
+            }), { icon: "⚠️", duration: 9000 });
+          }
+        })
+        .catch(() => {});
+    }
     const terminalConfirmedAmount = paymobTerminalConfirmed
       ? Math.max(0, Number(options?.terminalAmount || paymobTerminalState?.amount || 0))
       : 0;

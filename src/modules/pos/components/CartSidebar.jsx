@@ -48,6 +48,7 @@ import { getCurrentTenant } from "../../../shared/auth/authStorage";
 import { getCrocsSizeInputDisplayLabel, isCrocsProductType } from "../../products/lib/variantBulkSizes";
 import { normalizeInvoicePaymentBreakdown } from "../../../shared/utils/invoicePaymentBreakdown";
 import ThemedSelect from "../../../shared/ui/ThemedSelect";
+import { wholesaleUnitsLabel } from "../../wholesale/components/WholesalePosPicker";
 
 const QRCodeSVG = lazy(() => import("qrcode.react").then((module) => ({ default: module.QRCodeSVG })));
 import { getBarcodeSvg } from "../../products/lib/barcodeLabels";
@@ -1643,7 +1644,10 @@ export function ReceiptPreview({ invoiceNumber, customer, cart, totals, paymentS
                       </div>
                     </div>
                   </div>
-                  <div className="self-center text-center font-bold text-zinc-700">{item.quantity}</div>
+                  <div className="self-center text-center font-bold text-zinc-700">
+                    {item.quantity}
+                    {wholesaleUnitsLabel(item.product_id, item.quantity, i18n.t) ? <div className="text-[10px] font-black text-zinc-500">{wholesaleUnitsLabel(item.product_id, item.quantity, i18n.t)}</div> : null}
+                  </div>
                   <div className="self-center text-right font-black text-zinc-950">{formatReceiptPrice(unitPrice)}</div>
                   <div className="self-center text-right font-black text-emerald-700">{formatReceiptPrice(lineTotal)}</div>
                 </div>
@@ -1891,7 +1895,7 @@ function ThermalReceiptFinal({
             return (
               <tr key={String(item.key || item.id || item.variant_id || `${item.name || "item"}-${index}`)}>
                 <td><div className="thermal-product">{imageUrl ? <img className="thermal-item-image" src={imageUrl} alt="" /> : null}<div className="thermal-item-copy"><div className="thermal-item-name">{item.name || item.product_name || "منتج"}</div>{details ? <div className="thermal-item-detail">{details}</div> : null}</div></div></td>
-                <td>{Number(item.quantity || 0)}</td><td>{amount(getReceiptItemUnitPrice(item))}</td><td>{amount(getReceiptItemTotal(item))}</td>
+                <td>{Number(item.quantity || 0)}{wholesaleUnitsLabel(item.product_id, item.quantity, i18n.t) ? <div className="thermal-item-detail">{wholesaleUnitsLabel(item.product_id, item.quantity, i18n.t)}</div> : null}</td><td>{amount(getReceiptItemUnitPrice(item))}</td><td>{amount(getReceiptItemTotal(item))}</td>
               </tr>
             );
           }) : <tr><td colSpan="4" style={{ textAlign: "center" }}>لا توجد منتجات</td></tr>}
