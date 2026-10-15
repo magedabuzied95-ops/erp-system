@@ -13,6 +13,19 @@ import {
   setReminderLine,
 } from "./wholesale.reminders.js";
 import {
+  applyLandedCost,
+  capitalReport,
+  deleteShipment,
+  deleteTransfer,
+  fxReport,
+  getShipment,
+  listShipments,
+  listTransfers,
+  purchaseLinesForShipment,
+  saveShipment,
+  saveTransfer,
+} from "./wholesale.imports.js";
+import {
   approveSubmission,
   customerCreditPosition,
   getStatementLink,
@@ -112,6 +125,34 @@ router.put("/customers/:id/reminder", protect, permit("customers", "edit"), hand
   saveCustomerReminder({ tenantId, customerId: req.params.id, settings: req.body?.settings || req.body })));
 router.post("/customers/:id/reminder/send", protect, permit("customers", "edit"), handle("Unable to send the reminder", (req, tenantId) =>
   sendCustomerReminderNow({ tenantId, customerId: req.params.id })));
+
+// Import shipments in CNY / USD: transfers (agent or cash dollars), landed cost, FX and capital.
+router.get("/imports/shipments", protect, permit("purchases", "view"), handle("Unable to load shipments", (req, tenantId) =>
+  listShipments({ tenantId })));
+router.get("/imports/shipments/:id", protect, permit("purchases", "view"), handle("Unable to load the shipment", (req, tenantId) =>
+  getShipment({ tenantId, shipmentId: req.params.id })));
+router.post("/imports/shipments", protect, permit("purchases", "create"), handle("Unable to save the shipment", (req, tenantId) =>
+  saveShipment({ tenantId, userId: req.user?.id, input: req.body })));
+router.put("/imports/shipments/:id", protect, permit("purchases", "edit"), handle("Unable to save the shipment", (req, tenantId) =>
+  saveShipment({ tenantId, userId: req.user?.id, shipmentId: req.params.id, input: req.body })));
+router.delete("/imports/shipments/:id", protect, permit("purchases", "delete"), handle("Unable to delete the shipment", (req, tenantId) =>
+  deleteShipment({ tenantId, shipmentId: req.params.id })));
+router.post("/imports/shipments/:id/apply-cost", protect, permit("purchases", "edit"), handle("Unable to apply the cost", (req, tenantId) =>
+  applyLandedCost({ tenantId, shipmentId: req.params.id })));
+router.get("/imports/purchase-lines", protect, permit("purchases", "view"), handle("Unable to load the purchase", (req, tenantId) =>
+  purchaseLinesForShipment({ tenantId, purchase: req.query.purchase })));
+router.get("/imports/transfers", protect, permit("purchases", "view"), handle("Unable to load transfers", (req, tenantId) =>
+  listTransfers({ tenantId })));
+router.post("/imports/transfers", protect, permit("purchases", "create"), handle("Unable to save the transfer", (req, tenantId) =>
+  saveTransfer({ tenantId, userId: req.user?.id, input: req.body })));
+router.put("/imports/transfers/:id", protect, permit("purchases", "edit"), handle("Unable to save the transfer", (req, tenantId) =>
+  saveTransfer({ tenantId, userId: req.user?.id, transferId: req.params.id, input: req.body })));
+router.delete("/imports/transfers/:id", protect, permit("purchases", "delete"), handle("Unable to delete the transfer", (req, tenantId) =>
+  deleteTransfer({ tenantId, transferId: req.params.id })));
+router.get("/imports/reports/fx", protect, permit("purchases", "view"), handle("Unable to load the report", (req, tenantId) =>
+  fxReport({ tenantId })));
+router.get("/imports/reports/capital", protect, permit("purchases", "view"), handle("Unable to load the report", (req, tenantId) =>
+  capitalReport({ tenantId })));
 
 // POS unit picker: splits a series / carton / dozen into pieces per colour and checks stock.
 router.post("/invoices/preview", protect, permit("pos", "view"), handle("Unable to price the selection", (req, tenantId) =>

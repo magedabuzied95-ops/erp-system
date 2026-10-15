@@ -138,6 +138,66 @@ CREATE TABLE IF NOT EXISTS wholesale_settings (
   reminder_instance VARCHAR(160) NOT NULL DEFAULT '',
   updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
 );
+-- v6 (phase 4): import shipments priced in CNY / USD, the money sent for them, landed cost.
+CREATE TABLE IF NOT EXISTS wholesale_shipments (
+  id BIGSERIAL PRIMARY KEY,
+  tenant_id BIGINT NOT NULL,
+  name VARCHAR(160) NOT NULL,
+  supplier_name VARCHAR(160) NOT NULL DEFAULT '',
+  currency VARCHAR(3) NOT NULL DEFAULT 'USD',
+  booking_rate NUMERIC(14,4) NOT NULL DEFAULT 0,
+  purchase_id BIGINT NULL,
+  status VARCHAR(20) NOT NULL DEFAULT 'open',
+  notes TEXT NOT NULL DEFAULT '',
+  ordered_at DATE NULL,
+  arrived_at DATE NULL,
+  cost_applied_at TIMESTAMPTZ NULL,
+  created_by BIGINT NULL,
+  created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+  updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+  deleted_at TIMESTAMPTZ NULL
+);
+CREATE INDEX IF NOT EXISTS idx_wholesale_shipments_tenant ON wholesale_shipments (tenant_id, created_at DESC);
+CREATE TABLE IF NOT EXISTS wholesale_shipment_lines (
+  id BIGSERIAL PRIMARY KEY,
+  tenant_id BIGINT NOT NULL,
+  shipment_id BIGINT NOT NULL REFERENCES wholesale_shipments(id) ON DELETE CASCADE,
+  product_id BIGINT NULL,
+  variant_id BIGINT NULL,
+  label VARCHAR(255) NOT NULL DEFAULT '',
+  pieces INTEGER NOT NULL DEFAULT 0,
+  unit_foreign NUMERIC(14,4) NOT NULL DEFAULT 0,
+  color VARCHAR(120) NOT NULL DEFAULT ''
+);
+ALTER TABLE wholesale_shipment_lines ADD COLUMN IF NOT EXISTS color VARCHAR(120) NOT NULL DEFAULT '';
+CREATE INDEX IF NOT EXISTS idx_wholesale_shipment_lines_shipment ON wholesale_shipment_lines (shipment_id);
+CREATE TABLE IF NOT EXISTS wholesale_shipment_costs (
+  id BIGSERIAL PRIMARY KEY,
+  tenant_id BIGINT NOT NULL,
+  shipment_id BIGINT NOT NULL REFERENCES wholesale_shipments(id) ON DELETE CASCADE,
+  kind VARCHAR(30) NOT NULL DEFAULT 'other',
+  amount_egp NUMERIC(14,2) NOT NULL DEFAULT 0,
+  note TEXT NOT NULL DEFAULT '',
+  created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+);
+CREATE INDEX IF NOT EXISTS idx_wholesale_shipment_costs_shipment ON wholesale_shipment_costs (shipment_id);
+CREATE TABLE IF NOT EXISTS wholesale_fx_transfers (
+  id BIGSERIAL PRIMARY KEY,
+  tenant_id BIGINT NOT NULL,
+  shipment_id BIGINT NULL REFERENCES wholesale_shipments(id) ON DELETE SET NULL,
+  channel VARCHAR(20) NOT NULL DEFAULT 'agent',
+  currency VARCHAR(3) NOT NULL DEFAULT 'USD',
+  foreign_amount NUMERIC(14,2) NOT NULL DEFAULT 0,
+  egp_amount NUMERIC(14,2) NOT NULL DEFAULT 0,
+  fees_egp NUMERIC(14,2) NOT NULL DEFAULT 0,
+  agent_name VARCHAR(160) NOT NULL DEFAULT '',
+  transfer_date DATE NOT NULL DEFAULT CURRENT_DATE,
+  note TEXT NOT NULL DEFAULT '',
+  created_by BIGINT NULL,
+  created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+  deleted_at TIMESTAMPTZ NULL
+);
+CREATE INDEX IF NOT EXISTS idx_wholesale_fx_transfers_tenant ON wholesale_fx_transfers (tenant_id, transfer_date DESC);
 `;
 
 let ready = null;

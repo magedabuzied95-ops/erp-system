@@ -464,6 +464,8 @@ const RAW_SIDEBAR_SECTIONS = [
     title: "Purchasing",
     items: [
       { label: "Purchases", to: "/purchases", permission: "purchases.view", icon: ReceiptText },
+      // Wholesale copy only: shipments bought in dollars / yuan, transfers, landed cost, FX and capital.
+      { label: "Import shipments", sidebarLabelKey: "sidebar.wholesaleImports", to: "/wholesale/imports", permission: "purchases.view", icon: Truck, wholesaleOnly: true, keywords: "wholesale import shipment dollar yuan usd cny transfer agent fx capital landed cost" },
       { label: "Suppliers", to: "/suppliers", permission: "suppliers.view", icon: Building2 },
     ],
   },

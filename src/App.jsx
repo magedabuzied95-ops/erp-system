@@ -252,6 +252,7 @@ const CustomerAddressPage = lazy(() => importWithChunkRetry(() => import("./stor
 const PaymentProofPage = lazy(() => importWithChunkRetry(() => import("./storefront/pages/PaymentProofPage.jsx")).then((module) => ({ default: module.PaymentProofPage })));
 const PublicStatementPage = lazy(() => import("./modules/wholesale/pages/PublicStatementPage"));
 const WholesalePayments = lazy(() => import("./modules/wholesale/pages/WholesalePayments"));
+const WholesaleImports = lazy(() => import("./modules/wholesale/pages/WholesaleImports"));
 const ProductReviewLinkPage = lazy(() => importWithChunkRetry(() => import("./storefront/pages/ProductReviewLinkPage.jsx")).then((module) => ({ default: module.ProductReviewLinkPage })));
 
 const Workspace = lazy(() => import("./modules/saas/pages/Workspace"));
@@ -1675,6 +1676,16 @@ function App() {
             element={
               <ProtectedRoute requiredPermissions={["customers.view"]}>
                 <WholesalePayments />
+              </ProtectedRoute>
+            }
+          />
+        ) : null}
+        {IS_WHOLESALE_APP ? (
+          <Route
+            path="wholesale/imports"
+            element={
+              <ProtectedRoute requiredPermissions={["purchases.view"]}>
+                <WholesaleImports />
               </ProtectedRoute>
             }
           />

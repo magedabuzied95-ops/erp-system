@@ -932,7 +932,8 @@
     "surveillanceAudit": "سجل التدقيق",
     "invoiceStudio": "استوديو الفاتورة",
     "amazon": "أمازون",
-    "wholesalePayments": "دفعات العملاء"
+    "wholesalePayments": "دفعات العملاء",
+    "wholesaleImports": "شحنات الاستيراد"
   },
   "language": {
     "label": "اللغة",

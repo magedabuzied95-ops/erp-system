@@ -932,7 +932,8 @@
     "surveillanceAudit": "Audit Log",
     "invoiceStudio": "Invoice Studio",
     "amazon": "Amazon",
-    "wholesalePayments": "Customer payments"
+    "wholesalePayments": "Customer payments",
+    "wholesaleImports": "Import shipments"
   },
   "language": {
     "label": "Language",
