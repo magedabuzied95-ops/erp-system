@@ -694,7 +694,8 @@ const { default: shippingRoutes } = await import("./modules/shipping/shipping.ro
 const { default: walletTransfersRoutes } = await import("./modules/walletTransfers/walletTransfers.routes.js");
 const { default: wholesaleRoutes } = await import("./modules/wholesale/wholesale.routes.js");
 const { default: wholesalePublicRoutes } = await import("./modules/wholesale/wholesale.public.routes.js");
-const { businessMode } = await import("./modules/wholesale/wholesaleMode.js");
+const { businessMode, isWholesaleMode } = await import("./modules/wholesale/wholesaleMode.js");
+const { runWholesaleReminderTick } = await import("./modules/wholesale/wholesale.reminders.js");
 const { default: liveActivityRoutes } = await import("./routes/liveActivity.js");
 const { default: productClassificationsRoutes } = await import("./routes/productClassifications.js");
 const { default: variantsInventoryRoutes } = await import("./routes/variantsInventory.js");
@@ -2567,6 +2568,15 @@ const runDeferredStartupSyncs = async ({ skipStartupSyncs = false } = {}) => {
         });
       }, Math.max(60_000, Number(process.env.PRICE_DROP_ALERT_INTERVAL_MS || 15 * 60 * 1000)));
       backgroundIntervals.add(priceDropInterval);
+      // Wholesale copy only: each credit customer's weekly balance reminder (their own Cairo day/hour).
+      if (isWholesaleMode()) {
+        const wholesaleReminderInterval = setInterval(() => {
+          void runWholesaleReminderTick().catch((error) => {
+            console.error("[server] wholesale reminder tick error", { message: error?.message || String(error) });
+          });
+        }, Math.max(60_000, Number(process.env.WHOLESALE_REMINDER_INTERVAL_MS || 5 * 60 * 1000)));
+        backgroundIntervals.add(wholesaleReminderInterval);
+      }
       // Same address, another name and phone: checks new/edited online orders every minute. The
       // first passes walk the whole order history (the backfill) without notifying anyone.
       if (globalThis.__ORDER_IDENTITY_SCHEMA_READY) {

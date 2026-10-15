@@ -1420,6 +1420,31 @@
     },
     "nav": {
       "payments": "Customer payments"
+    },
+    "reminder": {
+      "title": "Weekly balance reminder",
+      "hint": "A WhatsApp message with the balance and the statement link, on this customer's own day and hour.",
+      "enabled": "Send the reminder",
+      "day": "Day",
+      "hour": "Hour",
+      "minBalance": "Only when the balance is at least",
+      "skipPaid": "Skip if they paid in the last (days)",
+      "line": "WhatsApp line for reminders (all customers)",
+      "noLine": "Choose a line — nothing is sent until you do",
+      "noLines": "No WhatsApp line is linked yet",
+      "save": "Save",
+      "saved": "Reminder saved",
+      "sendNow": "Send now",
+      "sent": "Reminder sent",
+      "lastSent": "Last sent",
+      "never": "Not sent yet",
+      "history": "Recent",
+      "weekdays": ["Sunday", "Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday"],
+      "status": {
+        "sent": "Sent",
+        "skipped": "Skipped",
+        "failed": "Failed"
+      }
     }
   }
 }

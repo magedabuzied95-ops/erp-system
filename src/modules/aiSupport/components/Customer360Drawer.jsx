@@ -25,6 +25,8 @@ import RestockRequestsPanel from "./RestockRequestsPanel.jsx";
 import InboxCustomerOrdersPanel from "../../../shared/components/inboxCustomerOrders/InboxCustomerOrdersPanel.jsx";
 import CustomerAvatar from "./CustomerAvatar.jsx";
 import CustomerTagsEditor from "./CustomerTagsEditor.jsx";
+import WholesaleReminderCard from "../../wholesale/components/WholesaleReminderCard.jsx";
+import { IS_WHOLESALE_APP } from "../../../shared/constants/app";
 import "./Customer360Drawer.css";
 
 const clean = (value = "") => String(value ?? "").trim();
@@ -436,6 +438,7 @@ export default function Customer360Drawer({
                 tags={erpCustomer.tags}
                 onChange={(tags) => setErpCustomer((current) => ({ ...current, tags }))}
               />
+              {IS_WHOLESALE_APP && erpCustomer.id ? <WholesaleReminderCard customerId={erpCustomer.id} /> : null}
               <div className="grid grid-cols-2 gap-3">
                 {metricCard("Total Orders", metrics.totalOrders ?? context.totalOrders ?? 0)}
                 {metricCard("Completed Orders", metrics.completedOrders ?? context.completedOrders ?? 0)}

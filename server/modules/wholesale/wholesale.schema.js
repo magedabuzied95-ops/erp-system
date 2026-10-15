@@ -132,6 +132,12 @@ CREATE TABLE IF NOT EXISTS wholesale_reminder_log (
   created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
 );
 CREATE INDEX IF NOT EXISTS idx_wholesale_reminder_log_customer ON wholesale_reminder_log (tenant_id, customer_id, created_at DESC);
+-- v5: shop-wide wholesale settings (the WhatsApp line reminders leave from).
+CREATE TABLE IF NOT EXISTS wholesale_settings (
+  tenant_id BIGINT PRIMARY KEY,
+  reminder_instance VARCHAR(160) NOT NULL DEFAULT '',
+  updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+);
 `;
 
 let ready = null;

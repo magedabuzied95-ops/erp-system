@@ -6,6 +6,13 @@ import paymentProofUpload from "../../config/paymentProofUpload.js";
 import { requireWholesaleMode } from "./wholesaleMode.js";
 import { buildWholesaleStatement } from "./wholesale.statement.js";
 import {
+  getCustomerReminder,
+  getReminderLineOptions,
+  saveCustomerReminder,
+  sendCustomerReminderNow,
+  setReminderLine,
+} from "./wholesale.reminders.js";
+import {
   approveSubmission,
   customerCreditPosition,
   getStatementLink,
@@ -93,6 +100,18 @@ router.post("/payments/:id/approve", protect, permit("customers", "edit"), handl
   approveSubmission({ req, tenantId, id: req.params.id, amount: req.body?.amount })));
 router.post("/payments/:id/reject", protect, permit("customers", "edit"), handle("Unable to reject the payment", (req, tenantId) =>
   rejectSubmission({ req, tenantId, id: req.params.id, reason: req.body?.reason })));
+
+// Weekly balance reminder: each customer's own day / hour (Customer 360), one shop-wide line.
+router.get("/reminders/line", protect, permit("customers", "view"), handle("Unable to load the reminder line", (req, tenantId) =>
+  getReminderLineOptions({ tenantId })));
+router.put("/reminders/line", protect, permit("customers", "edit"), handle("Unable to save the reminder line", (req, tenantId) =>
+  setReminderLine({ tenantId, instance: req.body?.instance })));
+router.get("/customers/:id/reminder", protect, permit("customers", "view"), handle("Unable to load the reminder", (req, tenantId) =>
+  getCustomerReminder({ tenantId, customerId: req.params.id })));
+router.put("/customers/:id/reminder", protect, permit("customers", "edit"), handle("Unable to save the reminder", (req, tenantId) =>
+  saveCustomerReminder({ tenantId, customerId: req.params.id, settings: req.body?.settings || req.body })));
+router.post("/customers/:id/reminder/send", protect, permit("customers", "edit"), handle("Unable to send the reminder", (req, tenantId) =>
+  sendCustomerReminderNow({ tenantId, customerId: req.params.id })));
 
 // POS unit picker: splits a series / carton / dozen into pieces per colour and checks stock.
 router.post("/invoices/preview", protect, permit("pos", "view"), handle("Unable to price the selection", (req, tenantId) =>
