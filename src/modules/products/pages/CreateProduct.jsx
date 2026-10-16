@@ -1152,7 +1152,8 @@ function CreateProduct({ portal = null } = {}) {
   });
 
   const pageNavSections = [
-    { id: "entry-employee", title: t("products.entryEmployee.navTitle", "الموظف المُدخِل") },
+    // From the portal the employee is already known (the session names them).
+    ...(portal ? [] : [{ id: "entry-employee", title: t("products.entryEmployee.navTitle", "الموظف المُدخِل") }]),
     { id: "basic-info", title: t("products.editor.basicInfoNav") },
     { id: "media-ai", title: t("products.editor.mediaNav") },
     { id: "content-seo", title: t("products.editor.seoNav") },
@@ -2160,7 +2161,7 @@ function CreateProduct({ portal = null } = {}) {
 
     // The server refuses an unstamped product too; asking here keeps the
     // filled form on screen instead of bouncing it off a 400.
-    if (!entryEmployee.isReady) {
+    if (!portal && !entryEmployee.isReady) {
       toast.error(t("products.entryEmployee.required", "أكّد الموظف اللي بيدخل المنتج برقمه السري قبل الحفظ"), { duration: 6000 });
       document.getElementById("entry-employee")?.scrollIntoView({ behavior: "smooth", block: "start" });
       return;
@@ -2467,7 +2468,7 @@ function CreateProduct({ portal = null } = {}) {
         variants: generatedVariants,
         colorImages: colorImagesPayload,
         ...getManufacturerPayload(defaultManufacturerIds),
-        ...entryEmployee.payload,
+        ...(portal ? {} : entryEmployee.payload),
       });
       setSavingStep("Saving images...");
       const wholesaleProblem = wholesaleSettings.problem();
@@ -2648,6 +2649,16 @@ function CreateProduct({ portal = null } = {}) {
           </div>
 
           <div className="space-y-4">
+            {portal ? (
+              // The employee portal's session already says who this is; the
+              // server stamps them on the product from it.
+              portal.employeeName ? (
+                <div className="flex items-center gap-2 rounded-[var(--radius-card)] border border-[var(--border)] bg-[var(--surface)] px-4 py-3 text-sm font-semibold text-[var(--text)]">
+                  <ShieldCheck size={16} />
+                  {`هيتسجل باسم: ${portal.employeeName}`}
+                </div>
+              ) : null
+            ) : (
             <SectionCard id="entry-employee">
               <SectionHeader
                 icon={ShieldCheck}
@@ -2657,6 +2668,7 @@ function CreateProduct({ portal = null } = {}) {
               />
               <ProductEntryEmployeeCard state={entryEmployee} />
             </SectionCard>
+            )}
 
             <SectionCard id="basic-info">
               <SectionHeader

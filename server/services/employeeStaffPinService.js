@@ -248,8 +248,19 @@ export const resolveProductEntryEmployee = async ({
   token = "",
   employeeId = null,
   pin = "",
+  // The employee portal's إضافة منتج: the session was minted from that
+  // employee's own portal link (a signed claim, see productEntryPortal), so the
+  // portal already says who is typing — no picker, no PIN.
+  portalEmployeeId = null,
   clientOrPool = db,
 } = {}) => {
+  if (portalEmployeeId) {
+    const employee = await loadEmployeeForPin({ employeeId: portalEmployeeId, tenantId, clientOrPool });
+    if (!employee || String(employee.status || "active").toLowerCase() !== "active") {
+      throw fail(403, "employee_not_found", "الموظف غير موجود أو موقوف");
+    }
+    return { id: Number(employee.id), name: employee.full_name || "", employee_code: employee.employee_code || "" };
+  }
   const fromToken = verifyProductEntryToken(token);
   if (fromToken) {
     if (employeeId && Number(employeeId) !== fromToken.id) {

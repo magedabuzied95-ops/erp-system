@@ -58,6 +58,7 @@ import { wholePoundPriceErrors, wholePoundVariantPriceErrors } from "../utils/pr
 import { applyProvisionalStockFromEditor } from "../utils/provisionalStock.js";
 import { buildProductEditChangeSummary } from "../utils/productEditChangeSummary.js";
 import { sendManagerProductEditedPush } from "../services/managerPortalPushService.js";
+import { isPortalProductsRole } from "../modules/productEntryPortal/portalProductAccess.js";
 
 const invalidateProductStorefrontCache = async (tenantId) => {
   const scopes = new Set([tenantId || "public", "public"]);
@@ -5712,6 +5713,9 @@ export const createProduct = async (req, res) => {
         token: req.body?.entry_employee_token || "",
         employeeId: req.body?.entry_employee_id || null,
         pin: req.body?.entry_employee_pin || "",
+        // Only a portal product session carries this claim; checking the role
+        // too keeps any other token from naming an employee this way.
+        portalEmployeeId: isPortalProductsRole(req.user?.role) ? req.user?.portal_products_employee_id || null : null,
       });
     } catch (error) {
       client.release();

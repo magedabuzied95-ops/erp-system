@@ -43,6 +43,7 @@ export default function EmployeePortalProductCreate() {
   const { token = "" } = useParams();
   const navigate = useNavigate();
   const [state, setState] = useState({ status: "opening", message: "" });
+  const [employeeName, setEmployeeName] = useState("");
   const mintingRef = useRef(false);
   const readyRef = useRef(false);
   useDesktopViewport();
@@ -63,6 +64,7 @@ export default function EmployeePortalProductCreate() {
       if (!response?.token) throw new Error("");
       setAuthSessionOverride({ token: response.token, user: response.user });
       readyRef.current = true;
+      setEmployeeName(String(response.user?.name || ""));
       setState({ status: "ready", message: "" });
     } catch (error) {
       readyRef.current = false;
@@ -91,13 +93,16 @@ export default function EmployeePortalProductCreate() {
 
   const portal = useMemo(() => ({
     backHref: receiptPath,
+    // Who the product is recorded under: the portal's own employee, so the page
+    // skips its name + PIN step (the server takes it from the session).
+    employeeName,
     // Back to استلام بضاعة with a fresh catalogue, so the new model is
     // searchable straight away.
     onCreated: () => {
       toast.success("المنتج اتضاف — دوّر عليه وضيف الكميات");
       navigate(receiptPath, { replace: true, state: { refreshCatalog: true } });
     },
-  }), [navigate, receiptPath]);
+  }), [navigate, receiptPath, employeeName]);
 
   if (state.status === "ready") {
     return (
