@@ -1,4 +1,5 @@
 import {
+  TIKTOK_EVENTS,
   buildTikTokEventProperties,
   isTikTokOrderPlaced,
   isTikTokPaymentComplete,
@@ -14,6 +15,9 @@ const SDK_URL = "https://analytics.tiktok.com/i18n/pixel/events.js";
 // A viewer who opted out of marketing tracking: the pixel is never loaded for them.
 export const TIKTOK_CONSENT_STORAGE_KEY = "m1.tracking.consent";
 const ORDER_STORAGE_PREFIX = "m1.tiktok.order.";
+// The ad click id lands on the first page only; checkout is pages later, so it is kept.
+const TTCLID_STORAGE_KEY = "m1.tiktok.ttclid";
+const TTCLID_MAX_AGE_MS = 7 * 24 * 60 * 60 * 1000;
 
 // Same gate as Meta and GA4: a local or preview session must not write into the live pixel.
 const isLiveStorefrontHost = () => {
@@ -33,6 +37,51 @@ const consentAllowed = () => {
 };
 
 export const canTrackTikTok = () => Boolean(TIKTOK_PIXEL_ID) && isLiveStorefrontHost() && consentAllowed();
+
+const rememberClickId = () => {
+  try {
+    const ttclid = new URLSearchParams(window.location.search).get("ttclid") || "";
+    if (ttclid) window.localStorage?.setItem(TTCLID_STORAGE_KEY, JSON.stringify({ value: ttclid.slice(0, 500), at: Date.now() }));
+  } catch {
+    // Blocked storage: the server event simply goes without the click id.
+  }
+};
+
+const storedClickId = () => {
+  try {
+    const stored = JSON.parse(window.localStorage?.getItem(TTCLID_STORAGE_KEY) || "null");
+    return stored?.value && Date.now() - Number(stored.at || 0) < TTCLID_MAX_AGE_MS ? String(stored.value) : "";
+  } catch {
+    return "";
+  }
+};
+
+const cookie = (name) => {
+  try {
+    const part = document.cookie.split(";").map((item) => item.trim()).find((item) => item.startsWith(`${name}=`));
+    return part ? decodeURIComponent(part.slice(name.length + 1)) : "";
+  } catch {
+    return "";
+  }
+};
+
+/*
+ * What the checkout forwards so the server's Events API copy of the order can be matched
+ * to the ad: the pixel's _ttp cookie and the stored click id. The API host is another
+ * origin, so neither reaches it on its own. consent:false tells the server to send
+ * nothing to TikTok for this order, ever (its Purchase included).
+ */
+export const captureTikTokIdentity = () => {
+  if (typeof window === "undefined") return { consent: false };
+  if (!canTrackTikTok()) return { consent: false };
+  return {
+    consent: true,
+    ttp: cookie("_ttp").slice(0, 200),
+    ttclid: storedClickId(),
+    page_url: String(window.location.href || "").slice(0, 1000),
+    referrer: String(typeof document !== "undefined" ? document.referrer || "" : "").slice(0, 1000),
+  };
+};
 
 /* TikTok's official base code, minus its trailing ttq.page(): the SPA sends page views itself. */
 const installBaseCode = (pixelId) => {
@@ -79,6 +128,7 @@ export const initTikTokPixel = () => {
     const alreadyLoaded = Boolean(window.ttq?._i?.[TIKTOK_PIXEL_ID]);
     if (!alreadyLoaded) installBaseCode(TIKTOK_PIXEL_ID);
     window.__M1_TIKTOK_PIXEL_LOADED__ = true;
+    rememberClickId();
   }
   return typeof window.ttq?.track === "function";
 };
@@ -172,17 +222,18 @@ const orderEventOnce = (eventName, order, items, value) => {
   return sent;
 };
 
-// The order exists (COD, awaiting a transfer, ...): not a payment yet.
+// The order exists (COD, awaiting a transfer, ...): not a payment yet. The server's
+// Events API sends the same event with the same id; TikTok keeps one.
 export const trackTikTokPlaceAnOrder = ({ order = {}, items = [], value = 0 } = {}) =>
-  isTikTokOrderPlaced(order) ? orderEventOnce("PlaceAnOrder", order, items, value) : null;
+  isTikTokOrderPlaced(order) ? orderEventOnce(TIKTOK_EVENTS.placeAnOrder, order, items, value) : null;
 
-// Only when the server says the order is paid.
-export const trackTikTokCompletePayment = ({ order = {}, items = [], value = 0 } = {}) =>
-  isTikTokPaymentComplete(order) ? orderEventOnce("CompletePayment", order, items, value) : null;
+// Only when the server says the order is paid. TikTok's standard event for that is Purchase.
+export const trackTikTokPurchase = ({ order = {}, items = [], value = 0 } = {}) =>
+  isTikTokPaymentComplete(order) ? orderEventOnce(TIKTOK_EVENTS.purchase, order, items, value) : null;
 
 export const trackTikTokOrder = (args = {}) => {
   const placed = trackTikTokPlaceAnOrder(args);
-  const paid = trackTikTokCompletePayment(args);
+  const paid = trackTikTokPurchase(args);
   return { placed, paid };
 };
 

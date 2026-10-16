@@ -97,7 +97,7 @@ test("InitiateCheckout is not repeated by rerenders of the same cart", () => {
   assert.equal(queued().filter((c) => c.args[0] === "InitiateCheckout").length, 1);
 });
 
-test("an unpaid order is PlaceAnOrder only; CompletePayment waits for payment_status paid", () => {
+test("an unpaid order is PlaceAnOrder only; Purchase waits for payment_status paid", () => {
   const items = [{ sku: "AR-42-BLK", name: "Air Runner", price: 1500, quantity: 1 }];
   pixel.trackTikTokOrder({ order: { id: 501, status: "pending", payment_status: "unpaid" }, items, value: 1550 });
   pixel.trackTikTokOrder({ order: { id: 501, status: "pending", payment_status: "unpaid" }, items, value: 1550 });
@@ -110,8 +110,8 @@ test("an unpaid order is PlaceAnOrder only; CompletePayment waits for payment_st
   pixel.__resetTikTokGuardsForTests(); // a reload: localStorage still remembers
   pixel.trackTikTokOrder({ order: { id: 501, status: "confirmed", payment_status: "paid" }, items, value: 1550 });
   events = queued().map((c) => c.args[0]);
-  assert.deepEqual(events, ["PlaceAnOrder", "CompletePayment"]);
-  assert.equal(queued().at(-1).args[2].event_id, tiktokOrderEventId("CompletePayment", { id: 501 }));
+  assert.deepEqual(events, ["PlaceAnOrder", "Purchase"]);
+  assert.equal(queued().at(-1).args[2].event_id, "m1_tt_purchase_order_501");
 });
 
 test("payment-complete rule", () => {

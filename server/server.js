@@ -677,6 +677,7 @@ const { ensureAmazonSchema } = await import("./modules/amazon/amazonSchema.js");
 const { closeAbandonedRuns: closeAbandonedAmazonRuns } = await import("./modules/amazon/amazonSyncRuns.js");
 const { startAmazonScheduler } = await import("./modules/amazon/amazonScheduler.js");
 const { ensureOrderIdentityAlertsSchema, startOrderIdentitySweeper } = await import("./modules/orders/addressIdentityAlerts.js");
+const { ensureTikTokEventsSchema, startTikTokEventsWorker } = await import("./modules/tiktok/tiktokEventsApi.js");
 const { default: brandsRoutes } = await import("./routes/brands.js");
 const { default: manufacturersRoutes } = await import("./routes/manufacturers.js");
 const { default: purchaseRoutes } = await import("./routes/purchases.js");
@@ -2586,6 +2587,12 @@ const runDeferredStartupSyncs = async ({ skipStartupSyncs = false } = {}) => {
         const orderIdentityInterval = startOrderIdentitySweeper();
         if (orderIdentityInterval) backgroundIntervals.add(orderIdentityInterval);
       }
+      // TikTok Events API: sends queued order events and turns newly paid orders into Purchase.
+      // No-op without TIKTOK_EVENTS_ACCESS_TOKEN.
+      if (globalThis.__TIKTOK_EVENTS_SCHEMA_READY) {
+        const tiktokEventsInterval = startTikTokEventsWorker();
+        if (tiktokEventsInterval) backgroundIntervals.add(tiktokEventsInterval);
+      }
       /*
        * The WhatsApp outbound queue worker. It is what stands between a reconnecting session and
        * the day's backlog: it drains at the configured rate, never while the session is down, and
@@ -2698,6 +2705,9 @@ const bootstrapStartup = async () => {
     await ensureOrderIdentityAlertsSchema(db)
       .then(() => { globalThis.__ORDER_IDENTITY_SCHEMA_READY = true; console.log("[server] order identity alerts schema ensured"); })
       .catch((error) => console.error("[server] order identity alerts schema failed; alerts disabled", { message: error?.message || String(error) }));
+    await ensureTikTokEventsSchema(db)
+      .then(() => { globalThis.__TIKTOK_EVENTS_SCHEMA_READY = true; })
+      .catch((error) => console.error("[server] tiktok events schema failed; Events API disabled", { message: error?.message || String(error) }));
     await ensureWebsiteSettingsSchema(db);
     await ensureSystemSettingsSchema(db);
     const openAiCredentials = await refreshOpenAiCredentialOverrides();

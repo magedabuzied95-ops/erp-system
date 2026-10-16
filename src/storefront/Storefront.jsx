@@ -190,6 +190,7 @@ import {
   trackGa4ViewCart,
 } from "./lib/ga4Events";
 import {
+  captureTikTokIdentity,
   initTikTokPixel,
   trackTikTokAddToCart,
   trackTikTokInitiateCheckout,
@@ -9466,6 +9467,7 @@ function CheckoutPage({ cart, clearCart, profile, setProfile, themeMode, reprice
         external_id: metaIdentity.externalId || "",
         source_url: typeof window !== "undefined" ? window.location.href : "",
       };
+      const tiktokIdentityPayload = captureTikTokIdentity();
       const requestBody = shippingPaymentFile
         ? (() => {
             const formData = new FormData();
@@ -9474,6 +9476,7 @@ function CheckoutPage({ cart, clearCart, profile, setProfile, themeMode, reprice
             formData.append("delivery_fee", String(deliveryFee));
             formData.append("discount", "0");
             formData.append("meta_identity", JSON.stringify(metaIdentityPayload));
+            formData.append("tiktok_identity", JSON.stringify(tiktokIdentityPayload));
             if (paymentMode !== "cod") formData.append("shipping_payment_screenshot", shippingPaymentFile);
             return formData;
           })()
@@ -9483,6 +9486,7 @@ function CheckoutPage({ cart, clearCart, profile, setProfile, themeMode, reprice
             delivery_fee: deliveryFee,
             discount: 0,
             meta_identity: metaIdentityPayload,
+            tiktok_identity: tiktokIdentityPayload,
       };
       const data = await api.post("/storefront/checkout", requestBody);
       const successPayload = {

@@ -22,15 +22,44 @@ const quantity = (value) => Math.max(1, Math.floor(Number(value) || 1));
 
 export const TIKTOK_CURRENCY = "EGP";
 
+/*
+ * Event names, from TikTok's current "Supported events" list (Events API 2.0, v1.3).
+ * Purchase is the standard "payment completed" event (it replaced CompletePayment).
+ * PlaceAnOrder is no longer on that list: TikTok takes it as a custom event, good for
+ * reporting and audiences but not for optimisation.
+ */
+export const TIKTOK_EVENTS = Object.freeze({
+  viewContent: "ViewContent",
+  addToCart: "AddToCart",
+  initiateCheckout: "InitiateCheckout",
+  placeAnOrder: "PlaceAnOrder",
+  purchase: "Purchase",
+});
+
 export const tiktokContentId = metaCatalogContentId;
 
 /*
- * Paid means the money is in: a cash-on-delivery or awaiting-verification order is
- * a placed order (PlaceAnOrder), not a completed payment.
+ * Paid means the order's payment_status says paid — never its shipping status — and,
+ * where the order carries it, paid_amount covers the whole total. Every automatic path
+ * (Bosta collection, wallet transfer, Paymob, shipping prepayment) writes both together;
+ * the amount check stops a hand-edited "paid" on an order that is still owed money.
+ * A cash-on-delivery, partially paid or awaiting-verification order is a placed order
+ * (PlaceAnOrder), not a completed payment.
  */
-export const isTikTokPaymentComplete = (order = {}) =>
-  text(order.payment_status).toLowerCase() === "paid" &&
-  !["cancelled", "canceled", "failed", "payment_failed", "rejected"].includes(text(order.status).toLowerCase());
+const orderTotal = (order = {}) => {
+  for (const value of [order.total_amount, order.total, order.total_price]) {
+    const number = Number(value);
+    if (Number.isFinite(number) && number > 0) return number;
+  }
+  return 0;
+};
+
+export const isTikTokPaymentComplete = (order = {}) => {
+  if (text(order.payment_status).toLowerCase() !== "paid") return false;
+  if (["cancelled", "canceled", "failed", "payment_failed", "rejected", "returned", "refunded"].includes(text(order.status).toLowerCase())) return false;
+  if (order.paid_amount === undefined || order.paid_amount === null || order.paid_amount === "") return true;
+  return Number(order.paid_amount) >= orderTotal(order) - 0.01;
+};
 
 export const isTikTokOrderPlaced = (order = {}) =>
   Boolean(metaOrderReference(order)) &&
