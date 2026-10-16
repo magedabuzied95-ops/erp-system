@@ -182,6 +182,7 @@ const EmployeePortal = lazy(() => import("./modules/employees/pages/EmployeePort
 const EmployeePortalProducts = lazy(() => import("./modules/employees/pages/EmployeePortalProducts"));
 const EmployeePortalInventory = lazy(() => import("./modules/employees/pages/EmployeePortalInventory"));
 const EmployeePortalStockReceipt = lazy(() => import("./modules/employees/pages/EmployeePortalStockReceipt"));
+const EmployeePortalProductCreate = lazy(() => import("./modules/employees/pages/EmployeePortalProductCreate"));
 // Retried past a CDN-cached 404 like the storefront's pages: الشحن is the portal page people
 // open right after a deploy, and a poisoned edge made that first open crash.
 const EmployeePortalOnlineOrders = lazy(() => importWithChunkRetry(() => import("./modules/employees/pages/EmployeePortalOnlineOrders")));
@@ -474,6 +475,7 @@ function App() {
             <Route path="/employee-app/:token/products" element={<EmployeePortalProducts />} />
             <Route path="/employee-app/:token/inventory" element={<EmployeePortalInventory />} />
             <Route path="/employee-app/:token/stock-receipt" element={<EmployeePortalStockReceipt />} />
+            <Route path="/employee-app/:token/new-product" element={<EmployeePortalProductCreate />} />
             <Route path="/employee-app/:token/inventory/:sessionId" element={<EmployeePortalInventory />} />
             <Route path="/employee-app/:token/online-orders" element={<EmployeePortalOnlineOrders />} />
             <Route path="/employee-app/:token/inbox" element={<EmployeePortalInbox />} />
@@ -661,6 +663,11 @@ function App() {
       />
 
       <Route
+        path="/employee/portal/:token/new-product"
+        element={<EmployeePortalProductCreate />}
+      />
+
+      <Route
         path="/employee/portal/:token/inventory/:sessionId"
         element={<EmployeePortalInventory />}
       />
@@ -691,6 +698,11 @@ function App() {
       <Route
         path="/employee-portal/:token/stock-receipt"
         element={<EmployeePortalStockReceipt />}
+      />
+
+      <Route
+        path="/employee-portal/:token/new-product"
+        element={<EmployeePortalProductCreate />}
       />
 
       <Route

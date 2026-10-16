@@ -22,6 +22,7 @@ import {
 import { setEmployeeStaffPin } from "../services/employeeStaffPinService.js";
 import { getManagerPortalInventoryCoverage } from "../services/managerPortalInventoryCoverageService.js";
 import { createEmployeeStockReceiptDraft, listEmployeeStockReceiptDrafts } from "./purchases.js";
+import { mintPortalProductsSession } from "../modules/productEntryPortal/portalProductAccess.js";
 import { loadEmployeePortalProducts, loadEmployeePortalCompactProducts, loadEmployeePortalProductVariants, loadEmployeePortalFacets } from "../services/employeePortalProductsService.js";
 import { loadEmployeeDisplayAudit, markEmployeeProductDisplayed } from "../services/employeeDisplayAuditService.js";
 import {
@@ -1202,6 +1203,21 @@ router.post("/:token/stock-receipts", async (req, res) => {
   } catch (error) {
     console.error("[employee-payroll-portal] stock receipt create error", error);
     return res.status(error.status || 500).json({ success: false, code: error.code, message: error.message || "Failed to send stock receipt" });
+  }
+});
+
+// إضافة منتج: a session confined to the ERP's Add Product page (see
+// modules/productEntryPortal). The page still asks for the employee's PIN.
+router.post("/:token/product-session", async (req, res) => {
+  try {
+    const employee = await loadVerifiedEmployee(req, res);
+    if (!employee) return;
+    const session = await mintPortalProductsSession({ employee, portalToken: req.params.token });
+    res.set("Cache-Control", "no-store, private");
+    return res.json({ success: true, ...session });
+  } catch (error) {
+    console.error("[employee-payroll-portal] product session error", error);
+    return res.status(error.status || 500).json({ success: false, code: error.code, message: error.message || "Failed to open product entry" });
   }
 });
 

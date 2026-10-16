@@ -449,7 +449,10 @@ const normalizeBrandRows = (rows = []) =>
     .filter((item) => item && item.active !== false && item.is_active !== false);
 
 
-function CreateProduct() {
+// `portal` = the employee portal's إضافة منتج (EmployeePortalProductCreate):
+// same page, but "back" and a finished save return to the portal, and the tabs
+// to the rest of the products module are hidden.
+function CreateProduct({ portal = null } = {}) {
   const { t } = useTranslation();
   const navigate = useNavigate();
 
@@ -2554,7 +2557,8 @@ function CreateProduct() {
         variants_count: createdCount,
         image_rows_count: colorImagesPayload.reduce((sum, group) => sum + (Array.isArray(group.images) ? group.images.length : 0), 0),
       });
-      navigate("/products");
+      if (portal?.onCreated) portal.onCreated(product);
+      else navigate("/products");
     } catch (err) {
       console.log(err);
       console.error("[products:add] create error details:", {
@@ -2606,9 +2610,10 @@ function CreateProduct() {
   return (
     <ProductsShell
       title={t("products.editor.createTitle", "إنشاء منتج")}
+      hideTabs={Boolean(portal)}
       actions={
         <Link
-          to="/products"
+          to={portal?.backHref || "/products"}
           onClick={confirmLeaveIfDirty}
           className={buttonClasses("secondary", "h-[var(--control-height-md)] rounded-[var(--radius-control)] px-4")}
         >

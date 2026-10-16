@@ -69,3 +69,7 @@ export const listEmployeePortalStockReceipts = (token, params = {}) =>
 
 export const createEmployeePortalStockReceipt = (token, body = {}) =>
   api.post(`/employee-portal/${encodeURIComponent(token)}/stock-receipts`, body);
+
+// إضافة منتج: a session that can only create a product (see EmployeePortalProductCreate).
+export const openEmployeePortalProductSession = (token) =>
+  api.post(`/employee-portal/${encodeURIComponent(token)}/product-session`, {});

@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useRef, useState } from "react";
-import { useNavigate, useParams } from "react-router-dom";
+import { useLocation, useNavigate, useParams } from "react-router-dom";
 import { CheckCircle2, Loader2, Minus, Package, PackagePlus, Plus, Search, Send, Trash2, X } from "lucide-react";
 import toast from "react-hot-toast";
 
@@ -41,7 +41,14 @@ export default function EmployeePortalStockReceipt() {
   usePageTitle("Stock Receipt");
   const navigate = useNavigate();
   const { token = "" } = useParams();
-  const { snapshot, refreshing } = usePortalCatalog(token);
+  const location = useLocation();
+  const { snapshot, refreshing, refresh } = usePortalCatalog(token);
+  // Back from إضافة منتج: skip the catalogue's recheck window once, so the
+  // model just added is in the search.
+  const refreshAsked = Boolean(location.state?.refreshCatalog);
+  useEffect(() => {
+    if (refreshAsked) void refresh({ force: true });
+  }, [refreshAsked, refresh]);
   const index = useMemo(() => (snapshot ? getCountSearchIndex(snapshot) : []), [snapshot]);
 
   const initial = useMemo(() => readSheet(token), [token]);
@@ -146,6 +153,19 @@ export default function EmployeePortalStockReceipt() {
           <p className="mt-1 text-sm font-semibold leading-6 text-text-muted">
             دوّر على الموديل واكتب الكمية الجديدة لكل مقاس. هتتبعت للإدارة مسودة فاتورة مشتريات، والمخزون مش هيتغير غير لما تتحفظ.
           </p>
+
+          {/* A model the shop doesn't have yet: the ERP's own Add Product page at
+              desktop width, no ERP login (EmployeePortalProductCreate). A save
+              comes back here with a fresh catalogue. */}
+          <button
+            type="button"
+            onClick={() => navigate(`${buildEmployeePortalHomePath({ pathname: window.location.pathname, token })}/new-product`)}
+            onPointerEnter={() => { void import("./EmployeePortalProductCreate"); }}
+            className="mt-3 inline-flex min-h-11 w-full items-center justify-center gap-2 rounded-[var(--radius-control)] border border-border bg-surface-soft px-4 text-sm font-black text-text transition hover:bg-surface"
+          >
+            <Plus className="h-4 w-4" />
+            موديل جديد؟ إضافة منتج
+          </button>
 
           <label className="mt-3 flex items-center gap-2 rounded-[var(--radius-control)] border border-border bg-surface-soft px-3">
             <Search className="h-4 w-4 shrink-0 text-text-muted" />

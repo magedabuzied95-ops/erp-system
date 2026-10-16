@@ -22,6 +22,9 @@ export default function ProductsShell({
   description,
   actions,
   children,
+  // The employee portal's إضافة منتج shows this page alone: the other product
+  // screens are not reachable from its session, so their tabs would only 403.
+  hideTabs = false,
 }) {
   const location = useLocation();
   const { t } = useTranslation();
@@ -62,6 +65,7 @@ export default function ProductsShell({
           {actions ? <div className="flex flex-wrap gap-2 sm:gap-3">{actions}</div> : null}
         </div>
 
+        {hideTabs ? null : (
         <ResponsiveTabs className="mobile-scroll-tabs mt-4 sm:mt-6">
           {tabs.map(({ to, label, icon: Icon }) => {
             const active =
@@ -80,6 +84,7 @@ export default function ProductsShell({
             );
           })}
         </ResponsiveTabs>
+        )}
       </div>
 
       {children}

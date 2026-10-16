@@ -9,6 +9,7 @@ import { ensureStaffTasksSchema, resolveEmployeeForUser } from "../services/staf
 import { ensureDefaultTenantAndBackfillUsers } from "../utils/tenantBootstrap.js";
 import { isMetaReviewerRole, metaReviewerAccountExpired } from "../services/metaReviewerAccessService.js";
 import { isPortalInboxRole } from "../modules/aiInboxPortal/portalInboxAccess.js";
+import { isPortalProductsRole, PORTAL_PRODUCTS_EMAIL_RE } from "../modules/productEntryPortal/portalProductAccess.js";
 import { recordSecurityEvent } from "../modules/security/securityAudit.js";
 import { passwordPolicyErrorResponse } from "../modules/security/passwordPolicy.js";
 import {
@@ -493,7 +494,9 @@ export const login = async (req, res) => {
     }
 
     // The hidden per-employee messages account opens only from the employee portal.
-    if (isPortalInboxRole(getRoleName(user)) || /^portal-inbox-\d+@employee-portal\.invalid$/i.test(String(user.email || ""))) {
+    // Same for the hidden product-entry account (إضافة منتج from the portal).
+    if (isPortalInboxRole(getRoleName(user)) || /^portal-inbox-\d+@employee-portal\.invalid$/i.test(String(user.email || ""))
+      || isPortalProductsRole(getRoleName(user)) || PORTAL_PRODUCTS_EMAIL_RE.test(String(user.email || ""))) {
       return res.status(403).json({ success: false, message: "Account Disabled" });
     }
 
