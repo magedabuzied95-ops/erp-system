@@ -61,3 +61,11 @@ export const getEmployeePortalInventoryCatalogVersion = (token) =>
 // Which models of the branch were counted in a month (same view as the manager portal).
 export const getEmployeePortalInventoryCoverage = (token, params = {}) =>
   api.get(`/employee-portal/${encodeURIComponent(token)}/inventory/coverage`, { params });
+
+// استلام بضاعة: new quantities for existing models, sent as a draft purchase
+// invoice for the owner. `client_ref` makes a resend after a dropped line safe.
+export const listEmployeePortalStockReceipts = (token, params = {}) =>
+  api.get(`/employee-portal/${encodeURIComponent(token)}/stock-receipts`, { params });
+
+export const createEmployeePortalStockReceipt = (token, body = {}) =>
+  api.post(`/employee-portal/${encodeURIComponent(token)}/stock-receipts`, body);

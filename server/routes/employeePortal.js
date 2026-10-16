@@ -21,6 +21,7 @@ import {
 } from "../services/employeePayrollPortalService.js";
 import { setEmployeeStaffPin } from "../services/employeeStaffPinService.js";
 import { getManagerPortalInventoryCoverage } from "../services/managerPortalInventoryCoverageService.js";
+import { createEmployeeStockReceiptDraft, listEmployeeStockReceiptDrafts } from "./purchases.js";
 import { loadEmployeePortalProducts, loadEmployeePortalCompactProducts, loadEmployeePortalProductVariants, loadEmployeePortalFacets } from "../services/employeePortalProductsService.js";
 import { loadEmployeeDisplayAudit, markEmployeeProductDisplayed } from "../services/employeeDisplayAuditService.js";
 import {
@@ -1173,6 +1174,37 @@ router.get("/:token/inventory/catalog-snapshot", async (req, res) => {
 
 // A few bytes answering "is the catalogue my phone holds still current?", so a
 // weak line never pays for a snapshot download that would change nothing.
+// استلام بضاعة: new quantities for models that already exist, sent as a draft
+// purchase invoice the owner finishes in المشتريات. Stock does not move here.
+router.get("/:token/stock-receipts", async (req, res) => {
+  try {
+    const employee = await loadVerifiedEmployee(req, res);
+    if (!employee) return;
+    const receipts = await listEmployeeStockReceiptDrafts({ employee, limit: req.query?.limit });
+    return res.json({ success: true, receipts });
+  } catch (error) {
+    console.error("[employee-payroll-portal] stock receipts list error", error);
+    return res.status(error.status || 500).json({ success: false, code: error.code, message: error.message || "Failed to load stock receipts" });
+  }
+});
+
+router.post("/:token/stock-receipts", async (req, res) => {
+  try {
+    const employee = await loadVerifiedEmployee(req, res);
+    if (!employee) return;
+    const result = await createEmployeeStockReceiptDraft({
+      employee,
+      lines: req.body?.lines,
+      notes: req.body?.notes,
+      clientRef: req.body?.client_ref,
+    });
+    return res.status(result.idempotent ? 200 : 201).json({ success: true, ...result });
+  } catch (error) {
+    console.error("[employee-payroll-portal] stock receipt create error", error);
+    return res.status(error.status || 500).json({ success: false, code: error.code, message: error.message || "Failed to send stock receipt" });
+  }
+});
+
 // Same "which models were counted this month" view the manager portal has,
 // scoped to the employee's own branch.
 router.get("/:token/inventory/coverage", async (req, res) => {

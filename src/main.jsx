@@ -122,6 +122,7 @@ if (isEmployeeAppRoute) {
   lockPortalViewport();
   const EmployeePortalOnlineOrders = lazy(() => importWithChunkRetry(() => import("./modules/employees/pages/EmployeePortalOnlineOrders.jsx")));
   const EmployeePortalInbox = lazy(() => importWithChunkRetry(() => import("./modules/employees/pages/EmployeePortalInbox.jsx")));
+  const EmployeePortalStockReceipt = lazy(() => importWithChunkRetry(() => import("./modules/employees/pages/EmployeePortalStockReceipt.jsx")));
   Promise.all([
     import("./modules/employees/pages/EmployeeAppShell.jsx"),
     import("./modules/employees/pages/EmployeePortalProducts.jsx"),
@@ -141,6 +142,7 @@ if (isEmployeeAppRoute) {
             <Route path="/employee-app/:token/products" element={<EmployeePortalProducts />} />
             <Route path="/employee-app/:token/inventory" element={<EmployeePortalInventory />} />
             <Route path="/employee-app/:token/inventory/:sessionId" element={<EmployeePortalInventory />} />
+            <Route path="/employee-app/:token/stock-receipt" element={<Suspense fallback={null}><EmployeePortalStockReceipt /></Suspense>} />
             <Route path="/employee-app/:token/online-orders" element={<Suspense fallback={null}><EmployeePortalOnlineOrders /></Suspense>} />
             <Route path="/employee-app/:token/inbox" element={<Suspense fallback={null}><EmployeePortalInbox /></Suspense>} />
             <Route path="/employee-app/:token/inbox/:conversationId" element={<Suspense fallback={null}><EmployeePortalInbox /></Suspense>} />

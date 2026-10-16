@@ -531,7 +531,7 @@ const postPurchaseEntryFast = async (client, data = {}) => {
   return journalEntry;
 };
 
-const ensureDraftSupplier = async (client, tenantId, supplierId = null) => {
+const ensureDraftSupplier = async (client, tenantId, supplierId = null, fallbackName = "Smart Reorder Draft Supplier") => {
   if (supplierId) {
     const existing = await client.query(
       "SELECT id FROM suppliers WHERE id = $1 AND (tenant_id = $2 OR tenant_id IS NULL) LIMIT 1",
@@ -540,7 +540,7 @@ const ensureDraftSupplier = async (client, tenantId, supplierId = null) => {
     if (existing.rows[0]?.id) return existing.rows[0].id;
   }
 
-  const name = "Smart Reorder Draft Supplier";
+  const name = fallbackName;
   const found = await client.query(
     "SELECT id FROM suppliers WHERE (tenant_id = $1 OR tenant_id IS NULL) AND LOWER(name) = LOWER($2) ORDER BY id ASC LIMIT 1",
     [tenantId, name]
@@ -5130,6 +5130,131 @@ const ensurePurchaseSchemaReady = () => {
 // Called right after listen(), so the verified flag is set before the first receive/reverse
 // transaction instead of after the first purchases list or create.
 export const warmPurchaseSchema = () => ensurePurchaseSchemaReady();
+
+// بوابة الموظف ← استلام بضاعة: the employee picks existing models and types the
+// new quantities; that becomes a DRAFT purchase invoice. Nothing reaches stock
+// here — the owner opens the draft, sets supplier and prices, and saves it.
+// `lines` = [{ variant_id, quantity }]. `clientRef` makes a resend idempotent.
+export const createEmployeeStockReceiptDraft = async ({ employee = {}, lines = [], notes = "", clientRef = "" } = {}) => {
+  const tenantId = employee.tenant_id ?? null;
+  const qtyByVariant = new Map();
+  for (const line of Array.isArray(lines) ? lines : []) {
+    const variantId = Number(line?.variant_id ?? line?.product_variant_id);
+    const quantity = Math.floor(Number(line?.quantity));
+    if (!Number.isInteger(variantId) || variantId <= 0 || !Number.isFinite(quantity) || quantity <= 0) continue;
+    qtyByVariant.set(variantId, (qtyByVariant.get(variantId) || 0) + Math.min(quantity, 100000));
+  }
+  if (!qtyByVariant.size) {
+    const error = new Error("Add a quantity to at least one size");
+    error.status = 400;
+    error.code = "receipt_empty";
+    throw error;
+  }
+
+  const client = await pool.connect();
+  try {
+    await client.query("BEGIN");
+    await ensurePurchaseCreateSchema(client);
+    const ref = String(clientRef || "").trim().slice(0, 80);
+    const fingerprint = ref ? `employee-receipt:${tenantId}:${employee.id}:${ref}` : "";
+    if (fingerprint) {
+      await client.query("SELECT pg_advisory_xact_lock(hashtext($1))", [fingerprint]);
+      const existing = await client.query(
+        "SELECT * FROM purchases WHERE ($1::bigint IS NULL OR tenant_id = $1::bigint) AND metadata->>'trigger_fingerprint' = $2 ORDER BY id DESC LIMIT 1",
+        [tenantId, fingerprint]
+      );
+      if (existing.rows[0]) {
+        await client.query("COMMIT");
+        return { purchase: existing.rows[0], idempotent: true, lineCount: 0 };
+      }
+    }
+
+    const found = await loadVariantDraftLines(client, { tenantId, variantIds: [...qtyByVariant.keys()] });
+    const draftLines = found.map((line) => ({ ...line, quantity: qtyByVariant.get(Number(line.variant_id)) || 0 }))
+      .filter((line) => line.product_id && line.variant_id && line.quantity > 0);
+    if (!draftLines.length) {
+      const error = new Error("None of these sizes exist any more");
+      error.status = 404;
+      error.code = "receipt_variants_missing";
+      throw error;
+    }
+
+    const supplierIds = [...new Set(draftLines.map((line) => Number(line.supplier_id)).filter((value) => Number.isInteger(value) && value > 0))];
+    const supplierId = await ensureDraftSupplier(client, tenantId, supplierIds.length === 1 ? supplierIds[0] : null, "مورد لسه ما اتحددش");
+    const branchId = await resolvePurchaseBranchId(client, tenantId, employee.branch_id || null);
+    const subtotal = draftLines.reduce((sum, line) => sum + line.quantity * Number(line.cost_price || 0), 0);
+    const units = draftLines.reduce((sum, line) => sum + line.quantity, 0);
+    const metadata = {
+      source: "employee_portal_receipt",
+      employee: { id: employee.id || null, name: employee.full_name || "", branch_id: employee.branch_id || null, branch_name: employee.branch_name || "" },
+      supplier_prefill: supplierIds.length === 1 ? "known" : "fallback",
+      units,
+      ...(fingerprint ? { trigger_fingerprint: fingerprint } : {}),
+    };
+    const note = [`استلام بضاعة من ${employee.full_name || "موظف"}${employee.branch_name ? ` — ${employee.branch_name}` : ""}`, String(notes || "").trim().slice(0, 500)].filter(Boolean).join("\n");
+
+    const purchaseResult = await client.query(
+      `
+      INSERT INTO purchases (tenant_id, supplier_id, branch_id, status, payment_status, subtotal, total, notes, created_by, metadata)
+      VALUES ($1, $2, $3, 'draft', 'unpaid', $4, $4, $5, NULL, $6::jsonb)
+      RETURNING *
+      `,
+      [tenantId, supplierId, branchId, subtotal, note, JSON.stringify(metadata)]
+    );
+    const purchase = purchaseResult.rows[0];
+    for (const line of draftLines) {
+      await insertPurchaseItem(client, {
+        tenantId,
+        purchaseId: purchase.id,
+        item: {
+          product_id: line.product_id,
+          variant_id: line.variant_id,
+          quantity: line.quantity,
+          unit_cost: line.cost_price,
+          cost_price: line.cost_price,
+          total: line.quantity * Number(line.cost_price || 0),
+        },
+        metadata: { ...(line.metadata || {}), source: "employee_portal_receipt" },
+      });
+    }
+    await client.query("COMMIT");
+
+    createSystemNotification("purchase_draft_from_employee", {
+      tenant_id: tenantId,
+      message: `${employee.full_name || "موظف"} سجّل ${units} قطعة جديدة — افتح المسودة وحدد المورد والأسعار`,
+      action_url: `/purchases/${purchase.id}/edit`,
+      entity_type: "purchase",
+      entity_id: purchase.id,
+      metadata: { purchase_id: purchase.id, employee_id: employee.id || null, units },
+    }).catch((error) => console.warn("[notifications] employee receipt skipped", error?.message || error));
+
+    return { purchase, idempotent: false, lineCount: draftLines.length, units };
+  } catch (error) {
+    await client.query("ROLLBACK").catch(() => {});
+    throw error;
+  } finally {
+    client.release();
+  }
+};
+
+// The employee's own receipts, newest first, for the "what I sent" list.
+export const listEmployeeStockReceiptDrafts = async ({ employee = {}, limit = 20 } = {}) => {
+  const result = await pool.query(
+    `
+    SELECT p.id, p.purchase_number, p.status, p.created_at,
+           COALESCE((p.metadata->>'units')::int, 0) AS units,
+           (SELECT COUNT(*)::int FROM purchase_items pi WHERE pi.purchase_id = p.id) AS line_count
+    FROM purchases p
+    WHERE ($1::bigint IS NULL OR p.tenant_id = $1::bigint)
+      AND p.metadata->>'source' = 'employee_portal_receipt'
+      AND p.metadata->'employee'->>'id' = $2::text
+    ORDER BY p.id DESC
+    LIMIT $3::int
+    `,
+    [employee.tenant_id ?? null, String(employee.id || ""), Math.min(Math.max(Number(limit) || 20, 1), 50)]
+  );
+  return result.rows;
+};
 
 router.post(
   "/",

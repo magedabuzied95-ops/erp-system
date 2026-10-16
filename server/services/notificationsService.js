@@ -344,6 +344,7 @@ export const createSystemNotification = async (type, payload = {}) => {
     "payment_proof_uploaded",
     "low_stock",
     "purchase_confirmed",
+    "purchase_draft_from_employee",
     "security_sensitive_action",
   ]);
   const presets = {
@@ -370,6 +371,12 @@ export const createSystemNotification = async (type, payload = {}) => {
       priority: "medium",
       title: "تم تأكيد فاتورة شراء",
       action_label: "فتح المشتريات",
+    },
+    purchase_draft_from_employee: {
+      category: "purchases",
+      priority: "high",
+      title: "كميات جديدة من الفرع تستنى فاتورة شراء",
+      action_label: "فتح المسودة",
     },
     security_sensitive_action: {
       category: "security",

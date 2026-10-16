@@ -49,6 +49,7 @@ import {
   X,
   PhoneCall,
   ScrollText,
+  PackagePlus,
 } from "lucide-react";
 
 import { api } from "../../../shared/api/api";
@@ -4112,6 +4113,19 @@ export default function EmployeePayrollPortal() {
               >
                 <ClipboardList className="h-4 w-4" />
                 <span>{text.inventoryTab}</span>
+              </a>
+
+              {/* New pieces of a model the shop already has; becomes a draft
+                  purchase invoice for the owner. */}
+              <a
+                href={`${employeeFeatureBasePath}/${encodeURIComponent(token)}/stock-receipt`}
+                data-testid="employee-stock-receipt-link"
+                onPointerEnter={() => { void import("./EmployeePortalStockReceipt"); }}
+                onFocus={() => { void import("./EmployeePortalStockReceipt"); }}
+                className="mt-2 inline-flex min-h-12 w-full items-center justify-center gap-2 rounded-[var(--radius-card)] border border-border bg-surface px-4 py-3 text-sm font-black text-text shadow-sm transition hover:bg-surface-soft"
+              >
+                <PackagePlus className="h-4 w-4" />
+                <span>استلام بضاعة</span>
               </a>
 
               <div className="mt-3 grid grid-cols-2 gap-2 sm:grid-cols-4">
