@@ -19,7 +19,8 @@ const CreateProduct = lazy(() => import("../../products/pages/CreateProduct"));
 //
 // Laid out at desktop width on purpose (owner's ask): the phone shows the whole
 // 1280px page and the employee pinches and pans across the wide parts.
-const DESKTOP_VIEWPORT = "width=1280, user-scalable=yes";
+// maximum-scale spelled out: WebKit otherwise may keep the portal's old cap.
+const DESKTOP_VIEWPORT = "width=1280, minimum-scale=0.1, maximum-scale=5, user-scalable=yes";
 
 const useDesktopViewport = () => {
   useEffect(() => {

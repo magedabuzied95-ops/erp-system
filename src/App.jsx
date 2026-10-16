@@ -24,7 +24,7 @@ import { getPublicSettings } from "./shared/api/publicSettings";
 import { setAppTimezoneFromSettings } from "./shared/lib/appTimezone";
 import { setCurrency } from "./shared/lib/currency";
 import { importWithChunkRetry } from "./shared/utils/chunkLoadRecovery";
-import { isPortalPath, lockPortalViewport, releasePortalViewport } from "./shared/utils/portalViewportLock";
+import { isPortalPath, isZoomablePortalPath, lockPortalViewport, releasePortalViewport } from "./shared/utils/portalViewportLock";
 import { useTheme } from "./theme/useTheme";
 import { FeatureFlagProvider } from "./modules/aiSupport/integration/FeatureFlagProvider";
 
@@ -408,7 +408,7 @@ function App() {
   // the storefront and the ERP keep their own viewport — see
   // shared/utils/portalViewportLock.js for why both halves are needed.
   useEffect(() => {
-    if (!isPortalPath(location.pathname)) {
+    if (!isPortalPath(location.pathname) || isZoomablePortalPath(location.pathname)) {
       releasePortalViewport();
       return undefined;
     }
