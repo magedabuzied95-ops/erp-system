@@ -6,7 +6,7 @@ import toast from "react-hot-toast";
 import EmployeePortalNavControls, { buildEmployeePortalHomePath } from "../components/EmployeePortalNavControls";
 import { openEmployeePortalProductSession } from "../services/employeePortalInventoryApi";
 import { clearAuthSessionOverride, setAuthSessionOverride } from "../../../shared/auth/authStorage";
-import { whenLocalesReady } from "../../../i18n/i18n";
+import { activateRuntimeLanguage } from "../../managerPortal/lib/portalLanguage";
 import usePageTitle from "../../../shared/hooks/usePageTitle";
 
 const CreateProduct = lazy(() => import("../../products/pages/CreateProduct"));
@@ -57,7 +57,9 @@ export default function EmployeePortalProductCreate() {
     mintingRef.current = true;
     if (!quiet) setState({ status: "opening", message: "" });
     try {
-      const [response] = await Promise.all([openEmployeePortalProductSession(token), whenLocalesReady()]);
+      // Arabic like the rest of the portal (the ERP page otherwise follows the
+      // phone's / system language), switched before the page first paints.
+      const [response] = await Promise.all([openEmployeePortalProductSession(token), activateRuntimeLanguage("ar")]);
       if (!response?.token) throw new Error("");
       setAuthSessionOverride({ token: response.token, user: response.user });
       readyRef.current = true;
