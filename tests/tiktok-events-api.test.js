@@ -13,6 +13,8 @@ import {
   queuePaidTikTokPurchases,
   recordTikTokPlaceAnOrder,
   runTikTokEventsSweep,
+  queueTikTokRefunds,
+  tiktokOutboxStats,
   activeTestEventCode,
   tiktokEventsConfig,
   tiktokHashedEmail,
@@ -21,7 +23,8 @@ import {
 import { TIKTOK_EVENTS, isTikTokPaymentComplete, tiktokOrderEventId } from "../shared/tiktokPixelEvent.js";
 
 const sha = (value) => crypto.createHash("sha256").update(value).digest("hex");
-const config = { accessToken: "test-token-never-real", pixelId: "DB9980JC77UAEK31A0AG", testEventCode: "TEST123", enabled: true };
+// A test window is open for these tests: every order that is not a test order must still go out live.
+const config = { accessToken: "test-token-never-real", pixelId: "DB9980JC77UAEK31A0AG", testEventCode: "TEST123", testPhones: new Set(["201099999999"]), enabled: true };
 
 const items = [
   { product_id: 7, variant_id: 31, sku: "AR-42-BLK", meta_content_id: "AR-42-BLK", product_name: "Air Runner", price: 1500, quantity: 2 },
@@ -133,6 +136,9 @@ before(async () => {
   await client.query(`CREATE SCHEMA ${schema}`);
   await client.query(`SET search_path TO ${schema}`);
   await client.query(`CREATE TABLE orders (id BIGINT PRIMARY KEY, tenant_id BIGINT, status TEXT, payment_status TEXT, total_amount NUMERIC, total NUMERIC, total_price NUMERIC, paid_amount NUMERIC NOT NULL DEFAULT 0)`);
+  // The shape ordersController creates (only the columns the sweep reads).
+  await client.query(`CREATE TABLE returns (id BIGSERIAL PRIMARY KEY, tenant_id BIGINT NULL, order_id BIGINT NOT NULL, status VARCHAR(50) NOT NULL DEFAULT 'pending', refund_amount NUMERIC(12,2) NOT NULL DEFAULT 0, created_at TIMESTAMPTZ NOT NULL DEFAULT NOW())`);
+  await client.query(`CREATE TABLE return_items (id BIGSERIAL PRIMARY KEY, return_id BIGINT NOT NULL REFERENCES returns(id) ON DELETE CASCADE, order_item_id BIGINT NOT NULL DEFAULT 0, variant_id BIGINT NULL, quantity INTEGER NOT NULL DEFAULT 1, refund_amount NUMERIC(12,2) NOT NULL DEFAULT 0)`);
   await ensureTikTokEventsSchema(client);
 });
 
@@ -145,7 +151,7 @@ after(async () => {
 beforeEach(async () => {
   sent.length = 0;
   if (!client) return;
-  await client.query(`TRUNCATE orders, tiktok_event_outbox`);
+  await client.query(`TRUNCATE orders, tiktok_event_outbox, return_items, returns`);
 });
 
 const db = (t) => {
@@ -262,4 +268,154 @@ test("an event left unsent for over a week is expired, never sent late", async (
   await runTikTokEventsSweep({ client: c, config, fetchImpl: fetchOk });
   assert.equal(sent.length, 0);
   assert.equal((await outbox(c))[0].status, "expired");
+});
+
+/* ------------------------------------------------------------------ test mode is per order */
+
+const placeAs = async (c, { id, phone, browser }) => {
+  await c.query(`INSERT INTO orders (id, tenant_id, status, payment_status, total_amount, total) VALUES ($1, 1, 'pending', 'unpaid', 1000, 1000)`, [id]);
+  const result = await recordTikTokPlaceAnOrder({ req, tenantId: 1, order: { id, status: "pending", total_amount: 1000 }, items, checkout: { ...checkout, primary_phone: phone }, identity: browser, client: c, config, fetchImpl: fetchOk });
+  await result.delivery;
+  return result;
+};
+const sentFor = (orderId) => sent.filter((entry) => entry.body.data[0].properties.order_id === String(orderId));
+
+test("while a test runs, only a test-session order from a listed phone goes to Test Events", async (t) => {
+  const c = db(t);
+  if (!c) return;
+  const testSession = { consent: true, test: true };
+  const real = await placeAs(c, { id: 1001, phone: "01012345678", browser: identity });
+  const testOrder = await placeAs(c, { id: 1002, phone: "01099999999", browser: testSession });
+  const flagOnly = await placeAs(c, { id: 1003, phone: "01012345678", browser: testSession });
+  const phoneOnly = await placeAs(c, { id: 1004, phone: "01099999999", browser: identity });
+  assert.deepEqual([real.isTest, testOrder.isTest, flagOnly.isTest, phoneOnly.isTest], [false, true, false, false]);
+  assert.equal("test_event_code" in sentFor(1001)[0].body, false, "a real customer is live during the test");
+  assert.equal(sentFor(1002)[0].body.test_event_code, "TEST123");
+  assert.equal("test_event_code" in sentFor(1003)[0].body, false, "the URL flag alone cannot hide an order");
+  assert.equal("test_event_code" in sentFor(1004)[0].body, false, "a listed phone shopping normally is live");
+});
+
+test("a test order's Purchase inherits test mode, and never goes live once the window closes", async (t) => {
+  const c = db(t);
+  if (!c) return;
+  await placeAs(c, { id: 1101, phone: "01099999999", browser: { consent: true, test: true } });
+  await c.query(`UPDATE orders SET payment_status = 'paid', paid_amount = 1000 WHERE id = 1101`);
+  const closed = { ...config, testEventCode: "" };
+  await queuePaidTikTokPurchases({ client: c, config: closed });
+  sent.length = 0;
+  await drainTikTokOutbox({ client: c, config: closed, fetchImpl: fetchOk });
+  assert.equal(sent.length, 0);
+  const row = (await c.query(`SELECT is_test, status, last_error FROM tiktok_event_outbox WHERE event_name = 'Purchase'`)).rows[0];
+  assert.deepEqual(row, { is_test: true, status: "expired", last_error: "test window closed" });
+});
+
+/* ------------------------------------------------------------------ refunds */
+
+const paidAndSent = async (c, id) => {
+  await placeOrder(c, { id, status: "pending", payment_status: "unpaid", total_amount: 3000 });
+  await c.query(`UPDATE orders SET payment_status = 'paid', paid_amount = 3000 WHERE id = $1`, [id]);
+  await queuePaidTikTokPurchases({ client: c, config });
+  await drainTikTokOutbox({ client: c, config, fetchImpl: fetchOk });
+  sent.length = 0;
+};
+const addReturn = async (c, { orderId, amount, status = "completed", quantity = 1 }) => {
+  const { rows } = await c.query(`INSERT INTO returns (tenant_id, order_id, status, refund_amount) VALUES (1, $1, $2, $3) RETURNING id`, [orderId, status, amount]);
+  await c.query(`INSERT INTO return_items (return_id, variant_id, quantity, refund_amount) VALUES ($1, 31, $2, $3)`, [rows[0].id, quantity, amount]);
+  return rows[0].id;
+};
+
+test("Refund: one per return, mapped to the catalogue id the Purchase carried, never a second Purchase", async (t) => {
+  const c = db(t);
+  if (!c) return;
+  await paidAndSent(c, 1201);
+  const first = await addReturn(c, { orderId: 1201, amount: 1500 });
+  await addReturn(c, { orderId: 1201, amount: 0 }); // an exchange with no money back
+  await addReturn(c, { orderId: 1201, amount: 900, status: "pending" });
+  assert.equal((await queueTikTokRefunds({ client: c, config })).refunds, 1);
+  // The return is saved again, the order flips back and forth: nothing new.
+  await c.query(`UPDATE orders SET payment_status = 'partially_refunded' WHERE id = 1201`);
+  assert.equal((await queueTikTokRefunds({ client: c, config })).refunds, 0);
+  assert.equal((await queuePaidTikTokPurchases({ client: c, config })).queued, 0);
+  await c.query(`UPDATE orders SET payment_status = 'paid' WHERE id = 1201`);
+  assert.equal((await queuePaidTikTokPurchases({ client: c, config })).queued, 0);
+
+  const second = await addReturn(c, { orderId: 1201, amount: 1500 });
+  assert.equal((await queueTikTokRefunds({ client: c, config })).refunds, 1);
+  await c.query(`UPDATE tiktok_event_outbox SET next_attempt_at = NOW()`);
+  await drainTikTokOutbox({ client: c, config, fetchImpl: fetchOk });
+  const refunds = sent.map((entry) => entry.body.data[0]);
+  assert.deepEqual(refunds.map((event) => event.event_id).sort(), [`m1_tt_refund_return_${first}`, `m1_tt_refund_return_${second}`].sort());
+  assert.ok(refunds.every((event) => event.event === "Refund"));
+  assert.deepEqual(refunds[0].properties.contents, [{ content_id: "AR-42-BLK", content_type: "product", content_name: "Air Runner", quantity: 1, price: 1500 }]);
+  assert.equal(refunds[0].properties.value, 1500);
+  assert.equal(refunds[0].properties.currency, "EGP");
+  assert.equal(refunds[0].user.email, sha("buyer@example.com"));
+  const purchases = (await c.query(`SELECT COUNT(*)::int AS n FROM tiktok_event_outbox WHERE event_name = 'Purchase'`)).rows[0].n;
+  assert.equal(purchases, 1);
+});
+
+test("no Refund before the Purchase went out, and none for an order TikTok never heard of", async (t) => {
+  const c = db(t);
+  if (!c) return;
+  await placeOrder(c, { id: 1301, status: "pending", payment_status: "unpaid", total_amount: 3000 });
+  await addReturn(c, { orderId: 1301, amount: 1000 }); // returned while still unpaid
+  await c.query(`INSERT INTO orders (id, tenant_id, status, payment_status, total_amount, total, paid_amount) VALUES (1302, 1, 'pending', 'paid', 500, 500, 500)`);
+  await addReturn(c, { orderId: 1302, amount: 500 });
+  assert.equal((await queueTikTokRefunds({ client: c, config })).refunds, 0);
+
+  // Paid, its Purchase queued but not yet delivered (TikTok down): the Refund waits for it.
+  await placeOrder(c, { id: 1303, status: "pending", payment_status: "unpaid", total_amount: 3000 });
+  await c.query(`UPDATE orders SET payment_status = 'paid', paid_amount = 3000 WHERE id = 1303`);
+  await queuePaidTikTokPurchases({ client: c, config });
+  await addReturn(c, { orderId: 1303, amount: 1500 });
+  assert.equal((await queueTikTokRefunds({ client: c, config })).refunds, 0);
+  await c.query(`UPDATE tiktok_event_outbox SET next_attempt_at = NOW()`);
+  await drainTikTokOutbox({ client: c, config, fetchImpl: fetchOk });
+  assert.equal((await queueTikTokRefunds({ client: c, config })).refunds, 1);
+});
+
+/* ------------------------------------------------------------------ the 60-day window */
+
+test("paid after 60 days: recorded as late, counted, never sent; inside 60 days it is sent", async (t) => {
+  const c = db(t);
+  if (!c) return;
+  await placeOrder(c, { id: 1401, status: "pending", payment_status: "unpaid", total_amount: 3000 });
+  await placeOrder(c, { id: 1402, status: "pending", payment_status: "unpaid", total_amount: 3000 });
+  await c.query(`UPDATE tiktok_event_outbox SET created_at = NOW() - INTERVAL '61 days' WHERE order_id = 1401`);
+  await c.query(`UPDATE tiktok_event_outbox SET created_at = NOW() - INTERVAL '59 days' WHERE order_id = 1402`);
+  await c.query(`UPDATE orders SET payment_status = 'paid', paid_amount = 3000`);
+  assert.deepEqual(await queuePaidTikTokPurchases({ client: c, config }), { queued: 1, late: 1 });
+  assert.deepEqual(await queuePaidTikTokPurchases({ client: c, config }), { queued: 0, late: 0 }, "counted once");
+  sent.length = 0;
+  await drainTikTokOutbox({ client: c, config, fetchImpl: fetchOk });
+  assert.deepEqual(sent.map((entry) => entry.body.data[0].properties.order_id), ["1402"]);
+  const stats = await tiktokOutboxStats({ client: c });
+  assert.ok(stats.some((row) => row.event_name === "Purchase" && row.status === "late" && row.count === 1));
+});
+
+/* ------------------------------------------------------------------ migrating the first table shape */
+
+test("a table made by the first version (no ref_id, three-column key) is upgraded in place", async (t) => {
+  const c = db(t);
+  if (!c) return;
+  const old = `${schema}_v1`;
+  await c.query(`CREATE SCHEMA ${old}`);
+  try {
+    await c.query(`SET search_path TO ${old}`);
+    await c.query(`CREATE TABLE tiktok_event_outbox (id BIGSERIAL PRIMARY KEY, tenant_id BIGINT NOT NULL, order_id BIGINT NOT NULL, event_name TEXT NOT NULL, event_id TEXT NOT NULL, payload JSONB NOT NULL, status TEXT NOT NULL DEFAULT 'pending', attempts INTEGER NOT NULL DEFAULT 0, next_attempt_at TIMESTAMPTZ NOT NULL DEFAULT NOW(), last_error TEXT, sent_at TIMESTAMPTZ, created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(), UNIQUE (tenant_id, event_name, order_id))`);
+    await c.query(`INSERT INTO tiktok_event_outbox (tenant_id, order_id, event_name, event_id, payload) VALUES (1, 5, 'PlaceAnOrder', 'x', '{}')`);
+    await ensureTikTokEventsSchema(c);
+    await ensureTikTokEventsSchema(c); // a second boot is a no-op
+    await c.query(`INSERT INTO tiktok_event_outbox (tenant_id, order_id, event_name, ref_id, event_id, payload) VALUES (1, 5, 'Refund', '10', 'a', '{}'), (1, 5, 'Refund', '11', 'b', '{}')`);
+    await assert.rejects(c.query(`INSERT INTO tiktok_event_outbox (tenant_id, order_id, event_name, ref_id, event_id, payload) VALUES (1, 5, 'Refund', '10', 'c', '{}')`));
+    const rows = (await c.query(`SELECT event_name, ref_id, is_test FROM tiktok_event_outbox ORDER BY id`)).rows;
+    assert.deepEqual(rows, [
+      { event_name: "PlaceAnOrder", ref_id: "", is_test: false },
+      { event_name: "Refund", ref_id: "10", is_test: false },
+      { event_name: "Refund", ref_id: "11", is_test: false },
+    ]);
+  } finally {
+    await c.query(`SET search_path TO ${schema}`);
+    await c.query(`DROP SCHEMA ${old} CASCADE`);
+  }
 });

@@ -3,31 +3,35 @@ import db from "../../database/db.js";
 import { normalizeMetaEgyptPhone, normalizeMetaEmail } from "../../../shared/metaEventMatching.js";
 import { metaOrderReference } from "../../../shared/metaPurchaseEvent.js";
 import {
+  TIKTOK_CURRENCY,
   TIKTOK_EVENTS,
   buildTikTokEventProperties,
   isTikTokOrderPlaced,
   isTikTokPaymentComplete,
   tiktokContentId,
   tiktokOrderEventId,
+  tiktokRefundEventId,
 } from "../../../shared/tiktokPixelEvent.js";
 import { resolveTrustedClientIp } from "../../utils/trustedClientIp.js";
 
 /*
  * TikTok Events API 2.0 (POST /open_api/v1.3/event/track/) for storefront orders.
  *
- * Two events, both keyed on the order so the browser Pixel and this sender agree on
- * `event` + `event_id` and TikTok keeps one of each:
+ * Keyed on the order, so the browser Pixel and this sender agree on `event` +
+ * `event_id` and TikTok keeps one of each:
  *   - PlaceAnOrder when the checkout commits the order;
- *   - Purchase once the order's payment_status is "paid" (never its shipping status).
+ *   - Purchase once the order's payment_status is "paid" and paid_amount covers the
+ *     total (never its shipping status);
+ *   - Refund for each return that gives money back, after a Purchase went out.
  *
  * Every event goes through tiktok_event_outbox first. UNIQUE (tenant_id, event_name,
- * order_id) is what makes a re-saved order, a replayed webhook or a second worker
- * unable to send a second Purchase. The sweep finds paid orders on its own, so no
- * payment path (Bosta collection, wallet transfer, shipping prepayment, Paymob, a
- * manual edit) has to remember to call in here.
+ * order_id, ref_id) is what makes a re-saved order, a replayed webhook or a second
+ * worker unable to send a second Purchase; ref_id is '' for the order events and the
+ * return id for a Refund, so two partial returns are two Refunds. The sweep finds paid
+ * orders and new returns on its own, so no payment or return path has to call in here.
  *
- * Only orders whose checkout carried TikTok consent get a PlaceAnOrder row, and a
- * Purchase is only ever derived from one — an opted-out or till-raised order never
+ * Only orders whose checkout carried TikTok consent get a PlaceAnOrder row, and every
+ * later event is derived from that row — an opted-out or till-raised order never
  * reaches TikTok. Matching data is hashed email, phone (E.164) and customer id, plus
  * ip / user agent / _ttp / ttclid, as TikTok's parameter reference asks. Names and
  * addresses are not sent.
@@ -39,8 +43,13 @@ const REQUEST_TIMEOUT_MS = 10_000;
 // Minutes before attempt n+1. After the last one the row is left as failed.
 const RETRY_DELAYS_MINUTES = [1, 5, 15, 60, 360, 1440];
 const MAX_ATTEMPTS = RETRY_DELAYS_MINUTES.length + 1;
-// A PlaceAnOrder older than this no longer watches for its payment.
-const PAYMENT_WATCH_DAYS = 45;
+/*
+ * A PlaceAnOrder watches for its payment this long. An order paid later still gets a
+ * Purchase row, marked 'late' and never sent: TikTok's click window is at most 28 days,
+ * so it could not be credited to an ad, and the row is the durable count of how many
+ * real sales arrived that late (tiktokOutboxStats).
+ */
+export const PAYMENT_WATCH_DAYS = 60;
 const RETENTION_DAYS = 90;
 // Unsent after this long (the API was off, TikTok was down for days): stale attribution,
 // closed as expired instead of being sent late.
@@ -48,15 +57,24 @@ const MAX_EVENT_AGE_DAYS = 7;
 
 const text = (value = "") => String(value ?? "").trim();
 const enabledFlag = (value) => !["0", "false", "no", "off"].includes(text(value).toLowerCase());
+const parseJson = (value, fallback = null) => {
+  if (value && typeof value === "object") return value;
+  try {
+    return value ? JSON.parse(value) : fallback;
+  } catch {
+    return fallback;
+  }
+};
 
 const TEST_WINDOW_MAX_MS = 24 * 60 * 60 * 1000;
 let warnedStaleTestCode = false;
 
 /*
- * A test code routes every event to Events Manager → Test Events, where none counts. Left
- * set by mistake it would quietly drop the shop's real conversions, so it only applies
- * together with TIKTOK_EVENTS_TEST_UNTIL — a time at most 24h ahead. Past that time, or
- * without it, the code is ignored and events are live again.
+ * A test code sends an event to Events Manager → Test Events, where it never counts.
+ * It only applies together with TIKTOK_EVENTS_TEST_UNTIL — a time at most 24h ahead —
+ * so it cannot be left on by mistake, and only to orders placed in a test session from
+ * a phone in TIKTOK_EVENTS_TEST_PHONES (see isTestOrder). Every other order stays live
+ * while a test runs.
  */
 export const activeTestEventCode = (env = process.env, now = Date.now()) => {
   const code = text(env.TIKTOK_EVENTS_TEST_EVENT_CODE);
@@ -70,12 +88,16 @@ export const activeTestEventCode = (env = process.env, now = Date.now()) => {
   return "";
 };
 
+const testPhones = (value = "") =>
+  new Set(text(value).split(/[\s,;]+/).map((phone) => normalizeMetaEgyptPhone(phone)).filter(Boolean));
+
 export const tiktokEventsConfig = (env = process.env, now = Date.now()) => {
   const accessToken = text(env.TIKTOK_EVENTS_ACCESS_TOKEN);
   return {
     accessToken,
     pixelId: text(env.TIKTOK_PIXEL_ID) || DEFAULT_PIXEL_ID,
     testEventCode: activeTestEventCode(env, now),
+    testPhones: testPhones(env.TIKTOK_EVENTS_TEST_PHONES),
     enabled: Boolean(accessToken) && enabledFlag(env.TIKTOK_EVENTS_API_ENABLED ?? "true"),
   };
 };
@@ -96,11 +118,23 @@ export const tiktokHashedPhone = (value = "") => {
 
 const cleanIdentity = (identity = {}) => ({
   consent: identity?.consent !== false && identity?.consent !== "false",
+  // The browser of a test session sends no TikTok events of its own and says so here.
+  test: identity?.test === true || identity?.test === "true",
   ttp: text(identity?.ttp).slice(0, 200),
   ttclid: text(identity?.ttclid).slice(0, 500),
   page_url: text(identity?.page_url).slice(0, 1000),
   referrer: text(identity?.referrer).slice(0, 1000),
 });
+
+/*
+ * Test traffic needs all three: a test session in the browser, a phone the owner listed,
+ * and an open test window. A customer who adds ?m1_tt_test=1 only switches off their own
+ * browser events; their order still reports live.
+ */
+export const isTestOrder = ({ identity = {}, checkout = {}, customer = {}, order = {}, config = tiktokEventsConfig() } = {}) =>
+  Boolean(identity.test) &&
+  Boolean(config.testEventCode) &&
+  config.testPhones.has(normalizeMetaEgyptPhone(checkout.primary_phone || customer.phone || order.customer_phone));
 
 const compact = (object = {}) =>
   Object.fromEntries(Object.entries(object).filter(([, value]) => value !== "" && value !== null && value !== undefined));
@@ -124,6 +158,20 @@ export const buildTikTokOrderContents = (items = []) =>
     quantity: item?.quantity,
   }));
 
+/*
+ * Kept beside the event, never sent: which catalogue id each ordered size went out as,
+ * so a later return line (which only knows its variant) maps to the id TikTok saw.
+ */
+export const buildTikTokOrderContext = (items = []) => ({
+  lines: (Array.isArray(items) ? items : [])
+    .map((item) => ({
+      variant_id: text(item?.variant_id),
+      content_id: tiktokContentId(item || {}, item || {}),
+      content_name: text(item?.product_name || item?.name),
+    }))
+    .filter((line) => line.variant_id && line.content_id),
+});
+
 const orderValue = (order = {}, fallback = 0) =>
   Number(order.total_amount) > 0 ? Number(order.total_amount) : Number(order.total) > 0 ? Number(order.total) : Number(fallback) || 0;
 
@@ -141,10 +189,40 @@ export const buildTikTokOrderEvent = ({ eventName, order = {}, items = [], value
   };
 };
 
-export const buildTrackRequestBody = (event, config = tiktokEventsConfig()) => ({
+/*
+ * A return that gave money back. Its lines map through the order's context to the ids
+ * the Purchase carried; a line that cannot be mapped is left out, the value still is the
+ * whole refund.
+ */
+export const buildTikTokRefundEvent = ({ returnId, orderId, refundAmount = 0, returnItems = [], context = null, user = {}, page = {}, eventTime = null } = {}) => {
+  const value = Math.round((Number(refundAmount) || 0) * 100) / 100;
+  if (!text(returnId) || !text(orderId) || value <= 0) return null;
+  const byVariant = new Map((context?.lines || []).map((line) => [text(line.variant_id), line]));
+  const contents = (Array.isArray(returnItems) ? returnItems : [])
+    .map((item) => {
+      const line = byVariant.get(text(item?.variant_id));
+      if (!line) return null;
+      const quantity = Math.max(1, Math.floor(Number(item?.quantity) || 1));
+      const price = Math.round(((Number(item?.refund_amount) || 0) / quantity) * 100) / 100;
+      return { content_id: line.content_id, content_name: line.content_name, price, quantity };
+    })
+    .filter(Boolean);
+  const lineProperties = contents.length ? buildTikTokEventProperties({ contents, value }) : null;
+  return {
+    event: TIKTOK_EVENTS.refund,
+    event_time: Number.isFinite(eventTime) ? eventTime : Math.floor(Date.now() / 1000),
+    event_id: tiktokRefundEventId(returnId),
+    user,
+    page: compact({ url: page.url || "https://m1store-egy.com/checkout", referrer: page.referrer }),
+    properties: { ...(lineProperties || { value, currency: TIKTOK_CURRENCY }), order_id: text(orderId) },
+  };
+};
+
+// testEventCode is passed only for a row that was placed as test traffic.
+export const buildTrackRequestBody = (event, { pixelId = DEFAULT_PIXEL_ID, testEventCode = "" } = {}) => ({
   event_source: "web",
-  event_source_id: config.pixelId,
-  ...(config.testEventCode ? { test_event_code: config.testEventCode } : {}),
+  event_source_id: pixelId,
+  ...(testEventCode ? { test_event_code: testEventCode } : {}),
   data: [event],
 });
 
@@ -157,16 +235,28 @@ export const ensureTikTokEventsSchema = async (client = db) => {
       tenant_id BIGINT NOT NULL,
       order_id BIGINT NOT NULL,
       event_name TEXT NOT NULL,
+      ref_id TEXT NOT NULL DEFAULT '',
       event_id TEXT NOT NULL,
       payload JSONB NOT NULL,
+      context JSONB,
+      is_test BOOLEAN NOT NULL DEFAULT FALSE,
       status TEXT NOT NULL DEFAULT 'pending',
       attempts INTEGER NOT NULL DEFAULT 0,
       next_attempt_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
       last_error TEXT,
       sent_at TIMESTAMPTZ,
-      created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
-      UNIQUE (tenant_id, event_name, order_id)
+      created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
     )
+  `);
+  // A table made by the first version of this file (three-column key, no ref_id) is
+  // brought to the current shape; on a new table these are no-ops.
+  await client.query(`ALTER TABLE tiktok_event_outbox ADD COLUMN IF NOT EXISTS ref_id TEXT NOT NULL DEFAULT ''`);
+  await client.query(`ALTER TABLE tiktok_event_outbox ADD COLUMN IF NOT EXISTS context JSONB`);
+  await client.query(`ALTER TABLE tiktok_event_outbox ADD COLUMN IF NOT EXISTS is_test BOOLEAN NOT NULL DEFAULT FALSE`);
+  await client.query(`ALTER TABLE tiktok_event_outbox DROP CONSTRAINT IF EXISTS tiktok_event_outbox_tenant_id_event_name_order_id_key`);
+  await client.query(`
+    CREATE UNIQUE INDEX IF NOT EXISTS uq_tiktok_event_outbox_event
+      ON tiktok_event_outbox (tenant_id, event_name, order_id, ref_id)
   `);
   await client.query(`
     CREATE INDEX IF NOT EXISTS idx_tiktok_event_outbox_due
@@ -175,13 +265,13 @@ export const ensureTikTokEventsSchema = async (client = db) => {
   `);
 };
 
-const insertOutboxEvent = async (client, { tenantId, orderId, event }) => {
+const insertOutboxEvent = async (client, { tenantId, orderId, event, refId = "", context = null, isTest = false, status = "pending" }) => {
   const result = await client.query(
-    `INSERT INTO tiktok_event_outbox (tenant_id, order_id, event_name, event_id, payload)
-     VALUES ($1, $2, $3, $4, $5::jsonb)
-     ON CONFLICT (tenant_id, event_name, order_id) DO NOTHING
+    `INSERT INTO tiktok_event_outbox (tenant_id, order_id, event_name, ref_id, event_id, payload, context, is_test, status)
+     VALUES ($1, $2, $3, $4, $5, $6::jsonb, $7::jsonb, $8, $9)
+     ON CONFLICT (tenant_id, event_name, order_id, ref_id) DO NOTHING
      RETURNING id`,
-    [tenantId, orderId, event.event, event.event_id, JSON.stringify(event)]
+    [tenantId, orderId, event.event, text(refId), event.event_id, JSON.stringify(event), context ? JSON.stringify(context) : null, Boolean(isTest), status]
   );
   return result.rows[0]?.id || null;
 };
@@ -223,6 +313,9 @@ export const postTikTokEvent = async (body, { config = tiktokEventsConfig(), fet
  * processes never post the same row at once, and a process that dies mid-send
  * leaves the row to be picked up again when the lease runs out. A repeat that
  * does reach TikTok carries the same event_id and is dropped there.
+ *
+ * A test row goes out with the test code, or — once the window has closed — not at
+ * all: test traffic must never land in the live data.
  */
 export const drainTikTokOutbox = async ({ client = db, config = tiktokEventsConfig(), fetchImpl = globalThis.fetch, limit = 25 } = {}) => {
   if (!config.enabled) return { sent: 0, failed: 0, retried: 0, skipped: "disabled" };
@@ -234,13 +327,18 @@ export const drainTikTokOutbox = async ({ client = db, config = tiktokEventsConf
          AND created_at > NOW() - ($2::int * INTERVAL '1 day')
        ORDER BY id LIMIT $1 FOR UPDATE SKIP LOCKED
      )
-     RETURNING id, order_id, event_name, payload, attempts`,
+     RETURNING id, order_id, event_name, payload, attempts, is_test`,
     [limit, MAX_EVENT_AGE_DAYS]
   );
   const summary = { sent: 0, failed: 0, retried: 0 };
   for (const row of claimed.rows) {
-    const event = typeof row.payload === "string" ? JSON.parse(row.payload) : row.payload;
-    const result = await postTikTokEvent(buildTrackRequestBody(event, config), { config, fetchImpl });
+    if (row.is_test && !config.testEventCode) {
+      await client.query(`UPDATE tiktok_event_outbox SET status = 'expired', last_error = 'test window closed' WHERE id = $1`, [row.id]);
+      continue;
+    }
+    const event = parseJson(row.payload, {});
+    const body = buildTrackRequestBody(event, { pixelId: config.pixelId, testEventCode: row.is_test ? config.testEventCode : "" });
+    const result = await postTikTokEvent(body, { config, fetchImpl });
     if (result.ok) {
       await client.query(`UPDATE tiktok_event_outbox SET status = 'sent', sent_at = NOW(), last_error = NULL WHERE id = $1`, [row.id]);
       summary.sent += 1;
@@ -260,7 +358,7 @@ export const drainTikTokOutbox = async ({ client = db, config = tiktokEventsConf
   return summary;
 };
 
-/* ------------------------------------------------------------------ the two events */
+/* ------------------------------------------------------------------ the events */
 
 export const recordTikTokPlaceAnOrder = async ({
   req = null,
@@ -291,41 +389,46 @@ export const recordTikTokPlaceAnOrder = async ({
     page: { url: browser.page_url, referrer: browser.referrer },
   });
   if (!event) return { queued: false, reason: "missing_content_ids" };
-  const id = await insertOutboxEvent(client, { tenantId, orderId: order.id, event });
+  const isTest = isTestOrder({ identity: browser, checkout, customer, order, config });
+  const id = await insertOutboxEvent(client, { tenantId, orderId: order.id, event, context: buildTikTokOrderContext(items), isTest });
   // Sent now rather than on the next sweep: TikTok asks for real time. Awaitable, never thrown.
   const delivery = id && send ? drainTikTokOutbox({ client, config, fetchImpl, limit: 5 }).catch(() => null) : null;
-  return { queued: Boolean(id), eventId: event.event_id, delivery };
+  return { queued: Boolean(id), eventId: event.event_id, isTest, delivery };
 };
 
 /*
  * Purchase rows for orders that became paid. The PlaceAnOrder row is the order's
- * TikTok record: its matching data and contents carry over, the value is read from
- * the order now (an edit after checkout changes what was paid), and event_time is
- * when the payment was seen.
+ * TikTok record: its matching data, contents, context and test flag carry over, the
+ * value is read from the order now (an edit after checkout changes what was paid),
+ * and event_time is when the payment was seen. Paid after PAYMENT_WATCH_DAYS: the row
+ * is written as 'late' and never sent.
  */
 export const queuePaidTikTokPurchases = async ({ client = db, config = tiktokEventsConfig(), limit = 100 } = {}) => {
-  if (!config.enabled) return { queued: 0 };
+  if (!config.enabled) return { queued: 0, late: 0 };
   const result = await client.query(
-    `SELECT p.tenant_id, p.order_id, p.payload, o.id, o.status, o.payment_status, o.paid_amount, o.total_amount, o.total, o.total_price
+    `SELECT p.tenant_id, p.order_id, p.payload, p.context, p.is_test,
+            p.created_at <= NOW() - ($3::int * INTERVAL '1 day') AS late,
+            o.id, o.status, o.payment_status, o.paid_amount, o.total_amount, o.total, o.total_price
      FROM tiktok_event_outbox p
      JOIN orders o ON o.id = p.order_id AND o.tenant_id = p.tenant_id
-     WHERE p.event_name = $1
-       AND p.created_at > NOW() - ($3::int * INTERVAL '1 day')
+     WHERE p.event_name = $1 AND p.ref_id = ''
+       AND p.created_at > NOW() - ($4::int * INTERVAL '1 day')
        AND LOWER(COALESCE(o.payment_status, '')) = 'paid'
        AND COALESCE(o.paid_amount, 0) >= COALESCE(NULLIF(o.total_amount, 0), NULLIF(o.total, 0), o.total_price, 0) - 0.01
        AND NOT EXISTS (
          SELECT 1 FROM tiktok_event_outbox x
-         WHERE x.tenant_id = p.tenant_id AND x.order_id = p.order_id AND x.event_name = $2
+         WHERE x.tenant_id = p.tenant_id AND x.order_id = p.order_id AND x.event_name = $2 AND x.ref_id = ''
        )
      ORDER BY p.id
-     LIMIT $4`,
-    [TIKTOK_EVENTS.placeAnOrder, TIKTOK_EVENTS.purchase, PAYMENT_WATCH_DAYS, limit]
+     LIMIT $5`,
+    [TIKTOK_EVENTS.placeAnOrder, TIKTOK_EVENTS.purchase, PAYMENT_WATCH_DAYS, RETENTION_DAYS, limit]
   );
   let queued = 0;
+  let late = 0;
   for (const row of result.rows) {
     const order = { id: row.id, status: row.status, payment_status: row.payment_status, paid_amount: row.paid_amount, total_amount: row.total_amount, total: row.total, total_price: row.total_price };
     if (!isTikTokPaymentComplete(order)) continue;
-    const placed = typeof row.payload === "string" ? JSON.parse(row.payload) : row.payload;
+    const placed = parseJson(row.payload, {});
     const contents = placed?.properties?.contents || [];
     const event = buildTikTokOrderEvent({
       eventName: TIKTOK_EVENTS.purchase,
@@ -335,9 +438,82 @@ export const queuePaidTikTokPurchases = async ({ client = db, config = tiktokEve
       page: placed?.page || {},
     });
     if (!event) continue;
-    if (await insertOutboxEvent(client, { tenantId: row.tenant_id, orderId: row.order_id, event })) queued += 1;
+    const id = await insertOutboxEvent(client, {
+      tenantId: row.tenant_id,
+      orderId: row.order_id,
+      event,
+      context: parseJson(row.context),
+      isTest: row.is_test,
+      status: row.late ? "late" : "pending",
+    });
+    if (!id) continue;
+    if (row.late) late += 1;
+    else queued += 1;
   }
-  return { queued };
+  return { queued, late };
+};
+
+/*
+ * Refund rows for returns that gave money back on an order whose Purchase was sent.
+ * One per return (ref_id = return id), however often the return is saved again.
+ */
+export const queueTikTokRefunds = async ({ client = db, config = tiktokEventsConfig(), limit = 100 } = {}) => {
+  if (!config.enabled) return { refunds: 0 };
+  const exists = await client.query(`SELECT to_regclass('returns') IS NOT NULL AS returns, to_regclass('return_items') IS NOT NULL AS items`);
+  if (!exists.rows[0]?.returns) return { refunds: 0 };
+  const result = await client.query(
+    `SELECT r.id AS return_id, r.order_id, r.refund_amount, pu.tenant_id, pu.payload, pu.context, pu.is_test
+     FROM returns r
+     JOIN tiktok_event_outbox pu
+       ON pu.order_id = r.order_id AND pu.event_name = $1 AND pu.ref_id = '' AND pu.status = 'sent'
+      AND (r.tenant_id IS NULL OR r.tenant_id = pu.tenant_id)
+     WHERE COALESCE(r.refund_amount, 0) > 0
+       AND LOWER(COALESCE(r.status, '')) NOT IN ('pending', 'draft', 'rejected', 'cancelled', 'canceled')
+       AND r.created_at > NOW() - ($3::int * INTERVAL '1 day')
+       AND NOT EXISTS (
+         SELECT 1 FROM tiktok_event_outbox x
+         WHERE x.tenant_id = pu.tenant_id AND x.order_id = r.order_id AND x.event_name = $2 AND x.ref_id = r.id::text
+       )
+     ORDER BY r.id
+     LIMIT $4`,
+    [TIKTOK_EVENTS.purchase, TIKTOK_EVENTS.refund, MAX_EVENT_AGE_DAYS, limit]
+  );
+  if (!result.rows.length) return { refunds: 0 };
+  const itemsByReturn = new Map();
+  if (exists.rows[0]?.items) {
+    const items = await client.query(
+      `SELECT return_id, variant_id, quantity, refund_amount FROM return_items WHERE return_id = ANY($1::bigint[])`,
+      [result.rows.map((row) => row.return_id)]
+    );
+    for (const item of items.rows) {
+      const key = text(item.return_id);
+      itemsByReturn.set(key, [...(itemsByReturn.get(key) || []), item]);
+    }
+  }
+  let refunds = 0;
+  for (const row of result.rows) {
+    const purchase = parseJson(row.payload, {});
+    const event = buildTikTokRefundEvent({
+      returnId: row.return_id,
+      orderId: row.order_id,
+      refundAmount: row.refund_amount,
+      returnItems: itemsByReturn.get(text(row.return_id)) || [],
+      context: parseJson(row.context),
+      user: purchase?.user || {},
+      page: purchase?.page || {},
+    });
+    if (!event) continue;
+    if (await insertOutboxEvent(client, { tenantId: row.tenant_id, orderId: row.order_id, event, refId: text(row.return_id), isTest: row.is_test })) refunds += 1;
+  }
+  return { refunds };
+};
+
+/* Counts per event and status — 'late' is the number of sales paid after the window. */
+export const tiktokOutboxStats = async ({ client = db } = {}) => {
+  const result = await client.query(
+    `SELECT event_name, status, COUNT(*)::int AS count FROM tiktok_event_outbox GROUP BY 1, 2 ORDER BY 1, 2`
+  );
+  return result.rows;
 };
 
 export const runTikTokEventsSweep = async (options = {}) => {
@@ -348,10 +524,15 @@ export const runTikTokEventsSweep = async (options = {}) => {
     [MAX_EVENT_AGE_DAYS]
   );
   const purchases = await queuePaidTikTokPurchases(options);
+  // A refund problem (an unexpected returns shape) must never hold up Purchase delivery.
+  const refunds = await queueTikTokRefunds(options).catch((error) => {
+    console.warn("[tiktok-events] refunds skipped", { message: safeError(error?.message || String(error)) });
+    return { refunds: 0 };
+  });
   const drained = await drainTikTokOutbox(options);
   // Matching data (ip, user agent, hashes) is not kept longer than it is useful.
   await client.query(`DELETE FROM tiktok_event_outbox WHERE created_at < NOW() - ($1::int * INTERVAL '1 day')`, [RETENTION_DAYS]);
-  return { ...purchases, ...drained };
+  return { ...purchases, ...refunds, ...drained };
 };
 
 export const startTikTokEventsWorker = ({ intervalMs = 60_000 } = {}) => {
@@ -359,7 +540,8 @@ export const startTikTokEventsWorker = ({ intervalMs = 60_000 } = {}) => {
   const tick = () => {
     void runTikTokEventsSweep()
       .then((result) => {
-        if (result.queued || result.sent || result.failed || result.retried) console.log("[tiktok-events] sweep", result);
+        if (result.queued || result.refunds || result.sent || result.failed || result.retried) console.log("[tiktok-events] sweep", result);
+        if (result.late) console.warn("[tiktok-events] paid after the 60-day window: recorded as late, not sent", { count: result.late });
       })
       .catch((error) => console.error("[tiktok-events] sweep error", { message: safeError(error?.message || String(error)) }));
   };

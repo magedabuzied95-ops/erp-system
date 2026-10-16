@@ -26,7 +26,9 @@ export const TIKTOK_CURRENCY = "EGP";
  * Event names, from TikTok's current "Supported events" list (Events API 2.0, v1.3).
  * Purchase is the standard "payment completed" event (it replaced CompletePayment).
  * PlaceAnOrder is no longer on that list: TikTok takes it as a custom event, good for
- * reporting and audiences but not for optimisation.
+ * reporting and audiences but not for optimisation. TikTok has no refund event and no
+ * negative values, so Refund is custom too: it reports money given back, it never
+ * lowers the Purchase value TikTok already counted.
  */
 export const TIKTOK_EVENTS = Object.freeze({
   viewContent: "ViewContent",
@@ -34,6 +36,7 @@ export const TIKTOK_EVENTS = Object.freeze({
   initiateCheckout: "InitiateCheckout",
   placeAnOrder: "PlaceAnOrder",
   purchase: "Purchase",
+  refund: "Refund",
 });
 
 export const tiktokContentId = metaCatalogContentId;
@@ -68,6 +71,9 @@ export const isTikTokOrderPlaced = (order = {}) =>
 // Same id on both senders for the same order; the event name keeps the two order events apart.
 export const tiktokOrderEventId = (eventName = "", order = {}) =>
   `m1_tt_${text(eventName).toLowerCase()}_order_${metaOrderReference(order)}`;
+
+// One order can be refunded more than once (two partial returns): each return is its own event.
+export const tiktokRefundEventId = (returnId = "") => `m1_tt_refund_return_${text(returnId)}`;
 
 export const tiktokRandomEventId = (eventName = "") =>
   `m1_tt_${text(eventName).toLowerCase()}_${Date.now()}_${Math.random().toString(36).slice(2, 12)}`;

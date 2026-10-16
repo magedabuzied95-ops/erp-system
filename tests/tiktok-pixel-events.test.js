@@ -12,9 +12,12 @@ const calls = [];
 const storage = new Map();
 const scripts = [];
 
-const installWindow = (hostname = "m1store-egy.com") => {
+const session = new Map();
+
+const installWindow = (hostname = "m1store-egy.com", search = "") => {
   calls.length = 0;
   storage.clear();
+  session.clear();
   scripts.length = 0;
   const firstScript = { parentNode: { insertBefore: (node) => scripts.push(node.src) } };
   globalThis.document = {
@@ -22,10 +25,15 @@ const installWindow = (hostname = "m1store-egy.com") => {
     getElementsByTagName: () => [firstScript],
   };
   globalThis.window = {
-    location: { hostname, pathname: "/", search: "", href: `https://${hostname}/` },
+    location: { hostname, pathname: "/", search, href: `https://${hostname}/${search}` },
     localStorage: {
       getItem: (key) => (storage.has(key) ? storage.get(key) : null),
       setItem: (key, value) => storage.set(key, String(value)),
+    },
+    sessionStorage: {
+      getItem: (key) => (session.has(key) ? session.get(key) : null),
+      setItem: (key, value) => session.set(key, String(value)),
+      removeItem: (key) => session.delete(key),
     },
   };
 };
@@ -59,6 +67,27 @@ test("an opted-out viewer never gets the pixel", () => {
   storage.set(pixel.TIKTOK_CONSENT_STORAGE_KEY, "denied");
   assert.equal(pixel.initTikTokPixel(), false);
   assert.equal(scripts.length, 0);
+  assert.deepEqual(pixel.captureTikTokIdentity(), { consent: false });
+});
+
+test("an Events API test session: the browser sends TikTok nothing and tells the checkout so", () => {
+  installWindow("m1store-egy.com", "?m1_tt_test=1");
+  assert.equal(pixel.isTikTokTestSession(), true);
+  // The flag outlives the landing page's query string, for the rest of the tab.
+  window.location.search = "";
+  assert.equal(pixel.initTikTokPixel(), false);
+  assert.equal(pixel.trackTikTokPageView("/checkout"), false);
+  pixel.trackTikTokOrder({ order: { id: 9, status: "pending", payment_status: "paid", paid_amount: 10, total_amount: 10 }, items: [{ sku: "X", price: 10, quantity: 1 }], value: 10 });
+  assert.equal(scripts.length, 0);
+  assert.equal(window.ttq, undefined);
+  const identity = pixel.captureTikTokIdentity();
+  assert.equal(identity.consent, true);
+  assert.equal(identity.test, true);
+  assert.equal("ttp" in identity || "ttclid" in identity, false);
+
+  window.location.search = "?m1_tt_test=0";
+  assert.equal(pixel.isTikTokTestSession(), false);
+  assert.equal(pixel.captureTikTokIdentity().test, undefined);
 });
 
 test("page view: once per navigation, again on a real new page", () => {

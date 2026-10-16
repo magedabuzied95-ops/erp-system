@@ -36,7 +36,30 @@ const consentAllowed = () => {
   }
 };
 
-export const canTrackTikTok = () => Boolean(TIKTOK_PIXEL_ID) && isLiveStorefrontHost() && consentAllowed();
+/*
+ * An Events API test run: the owner opens the shop with ?m1_tt_test=1 (=0 ends it). For
+ * the rest of that tab the browser sends TikTok nothing — no pixel, no events — so the
+ * test checkout cannot reach the live data from this side, and the checkout tells the
+ * server so. The server sends the order to Test Events only if the phone is on its
+ * test list too; anyone else's order stays live.
+ */
+const TEST_SESSION_KEY = "m1.tiktok.test";
+
+export const isTikTokTestSession = () => {
+  if (typeof window === "undefined") return false;
+  try {
+    const flag = new URLSearchParams(window.location.search).get("m1_tt_test");
+    if (flag === "1") window.sessionStorage?.setItem(TEST_SESSION_KEY, "1");
+    if (flag === "0") window.sessionStorage?.removeItem(TEST_SESSION_KEY);
+    return window.sessionStorage?.getItem(TEST_SESSION_KEY) === "1";
+  } catch {
+    return false;
+  }
+};
+
+const liveAndConsented = () => Boolean(TIKTOK_PIXEL_ID) && isLiveStorefrontHost() && consentAllowed();
+
+export const canTrackTikTok = () => liveAndConsented() && !isTikTokTestSession();
 
 const rememberClickId = () => {
   try {
@@ -73,7 +96,14 @@ const cookie = (name) => {
  */
 export const captureTikTokIdentity = () => {
   if (typeof window === "undefined") return { consent: false };
-  if (!canTrackTikTok()) return { consent: false };
+  if (!liveAndConsented()) return { consent: false };
+  if (isTikTokTestSession()) {
+    return {
+      consent: true,
+      test: true,
+      page_url: String(window.location.href || "").slice(0, 1000),
+    };
+  }
   return {
     consent: true,
     ttp: cookie("_ttp").slice(0, 200),
