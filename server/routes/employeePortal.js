@@ -20,6 +20,7 @@ import {
   updateEmployeeWalletTaskStatus,
 } from "../services/employeePayrollPortalService.js";
 import { setEmployeeStaffPin } from "../services/employeeStaffPinService.js";
+import { getManagerPortalInventoryCoverage } from "../services/managerPortalInventoryCoverageService.js";
 import { loadEmployeePortalProducts, loadEmployeePortalCompactProducts, loadEmployeePortalProductVariants, loadEmployeePortalFacets } from "../services/employeePortalProductsService.js";
 import { loadEmployeeDisplayAudit, markEmployeeProductDisplayed } from "../services/employeeDisplayAuditService.js";
 import {
@@ -1172,6 +1173,27 @@ router.get("/:token/inventory/catalog-snapshot", async (req, res) => {
 
 // A few bytes answering "is the catalogue my phone holds still current?", so a
 // weak line never pays for a snapshot download that would change nothing.
+// Same "which models were counted this month" view the manager portal has,
+// scoped to the employee's own branch.
+router.get("/:token/inventory/coverage", async (req, res) => {
+  try {
+    const employee = await loadVerifiedEmployee(req, res);
+    if (!employee) return;
+    if (!employee.branch_id) {
+      return res.status(400).json({ success: false, code: "employee_branch_required", message: "Employee branch is required" });
+    }
+    const coverage = await getManagerPortalInventoryCoverage({
+      manager: { tenant_id: employee.tenant_id ?? null, branch_id: employee.branch_id },
+      month: req.query?.month,
+      audience: req.query?.audience,
+    });
+    return res.json({ success: true, coverage });
+  } catch (error) {
+    console.error("[employee-payroll-portal] inventory coverage error", error);
+    return res.status(error.status || 500).json({ success: false, code: error.code, message: error.message || "Failed to load inventory coverage" });
+  }
+});
+
 router.get("/:token/inventory/catalog-version", async (req, res) => {
   try {
     const employee = await loadVerifiedEmployee(req, res);

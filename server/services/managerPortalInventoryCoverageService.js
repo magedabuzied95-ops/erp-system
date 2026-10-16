@@ -116,10 +116,12 @@ export const getManagerPortalInventoryCoverage = async ({ manager = {}, month = 
     const key = String(row.product_id);
     let entry = countedByProduct.get(key);
     if (!entry) {
-      entry = { colors: new Set(), last_counted_at: row.counted_at, counter_name: row.counter_name, statuses: new Set(), image_url: "" };
+      entry = { colors: new Set(), last_counted_at: row.counted_at, counter_name: row.counter_name, counters: new Set(), statuses: new Set(), image_url: "" };
       countedByProduct.set(key, entry);
     }
     if (row.color_key) entry.colors.add(row.color_key);
+    // Colours of one model are often split between people; name every one.
+    if (row.counter_name) entry.counters.add(String(row.counter_name).trim());
     if (new Date(row.counted_at) > new Date(entry.last_counted_at)) {
       entry.last_counted_at = row.counted_at;
       entry.counter_name = row.counter_name;
@@ -157,6 +159,7 @@ export const getManagerPortalInventoryCoverage = async ({ manager = {}, month = 
       counted_colors: counted ? counted.colors.size : 0,
       last_counted_at: counted?.last_counted_at || null,
       counted_by: counted?.counter_name || "",
+      counted_by_names: counted ? [...counted.counters] : [],
       count_status: counted ? modelStatus(counted.statuses) : null,
     });
   }

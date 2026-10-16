@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState } from "react";
-import { CheckCircle2, ChevronLeft, ChevronRight, CircleDashed, Loader2, Package } from "lucide-react";
+import { CheckCircle2, ChevronLeft, ChevronRight, CircleDashed, Loader2, Package, UserRound } from "lucide-react";
 import { managerPortalApi } from "../services/managerPortalApi";
 import { resolveProductImageUrl } from "../../../shared/lib/imageUrls";
 
@@ -24,6 +24,12 @@ const monthLabel = (month) => {
   return new Intl.DateTimeFormat("ar-EG", { month: "long", year: "numeric" }).format(new Date(y, m - 1, 1));
 };
 
+// Everyone who counted a colour of the model; an older server only sends the latest one.
+const counterNames = (model = {}) => {
+  const names = Array.isArray(model.counted_by_names) && model.counted_by_names.length ? model.counted_by_names : [model.counted_by];
+  return [...new Set(names.map((name) => String(name || "").trim()).filter(Boolean))];
+};
+
 const AUDIENCES = [
   { id: "all", label: "الكل" },
   { id: "men", label: "رجالي" },
@@ -38,7 +44,9 @@ const COUNT_STATUS = {
   rejected: { label: "مرفوض", tone: "bg-rose-500/10 text-rose-300 border-rose-400/20" },
 };
 
-export default function InventoryCoverage({ token }) {
+// `load` lets the employee portal reuse this with its own endpoint; the manager
+// portal passes nothing and gets its token-bound one.
+export default function InventoryCoverage({ token, load = managerPortalApi.inventoryCoverage, className = "manager-inventory-panel" }) {
   const [month, setMonth] = useState(cairoMonth());
   const [audience, setAudience] = useState("all");
   const [view, setView] = useState("missing");
@@ -48,7 +56,7 @@ export default function InventoryCoverage({ token }) {
     if (!token) return undefined;
     let alive = true;
     setState((prev) => ({ ...prev, loading: true, error: "" }));
-    managerPortalApi.inventoryCoverage(token, { month })
+    load(token, { month })
       .then((res) => { if (alive) setState({ loading: false, error: "", data: res?.coverage || null }); })
       .catch((error) => { if (alive) setState({ loading: false, error: error?.responseBody?.message || error?.message || "تعذر التحميل", data: null }); });
     return () => { alive = false; };
@@ -68,7 +76,7 @@ export default function InventoryCoverage({ token }) {
   const isCurrentMonth = month >= cairoMonth();
 
   return (
-    <div className="manager-inventory-panel space-y-3 rounded-[var(--radius-card)] border border-border bg-surface-soft p-3 shadow-xl sm:p-4">
+    <div className={`${className} space-y-3 rounded-[var(--radius-card)] border border-border bg-surface-soft p-3 shadow-xl sm:p-4`}>
       <div className="flex items-center justify-between gap-2">
         <button type="button" aria-label="الشهر اللي قبله" onClick={() => setMonth((m) => shiftMonth(m, -1))} className="rounded-full border border-border bg-surface p-1.5 text-text"><ChevronRight className="h-4 w-4" /></button>
         <div className="text-sm font-black text-text">{monthLabel(month)}</div>
@@ -151,9 +159,16 @@ export default function InventoryCoverage({ token }) {
                         )}
                       </div>
                       {model.counted ? (
-                        <div className="mt-0.5 truncate text-[11px] font-bold text-text-muted">
-                          {[formatDay(model.last_counted_at), model.counted_by].filter(Boolean).join(" · ")}
-                        </div>
+                        <>
+                          <div className="mt-0.5 truncate text-[11px] font-bold text-text-muted">{formatDay(model.last_counted_at)}</div>
+                          {counterNames(model).length ? (
+                            <div className="mt-0.5 flex min-w-0 items-center gap-1 text-[11px] font-black text-text">
+                              <UserRound className="h-3.5 w-3.5 shrink-0 text-text-muted" />
+                              <span className="shrink-0 text-text-muted">جرده:</span>
+                              <span dir="auto" className="truncate">{counterNames(model).join("، ")}</span>
+                            </div>
+                          ) : null}
+                        </>
                       ) : null}
                     </div>
                   </div>

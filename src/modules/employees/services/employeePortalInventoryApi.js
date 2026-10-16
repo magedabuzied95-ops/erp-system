@@ -57,3 +57,7 @@ export const getEmployeePortalInventoryCatalogVersion = (token) =>
     cache: "no-store",
     suppressErrorStatuses: [404, 422],
   });
+
+// Which models of the branch were counted in a month (same view as the manager portal).
+export const getEmployeePortalInventoryCoverage = (token, params = {}) =>
+  api.get(`/employee-portal/${encodeURIComponent(token)}/inventory/coverage`, { params });

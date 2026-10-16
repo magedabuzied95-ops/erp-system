@@ -7,6 +7,7 @@ import {
   ChevronRight,
   CloudOff,
   ClipboardList,
+  Package,
   Loader2,
   Plus,
   RefreshCw,
@@ -48,6 +49,7 @@ import {
   variantKeyOf,
 } from "../services/employeeDrafts/inventoryCountSync.js";
 import usePortalCatalog from "../hooks/usePortalCatalog";
+import InventoryCoverage from "../../managerPortal/components/InventoryCoverage";
 import CountProductSearch from "../components/CountProductSearch";
 import { countFilterDictionaries, countIndexFacets, findCountGroupByCode, getCountSearchIndex, searchCountIndex } from "../services/employeeDrafts/countSearchIndex.js";
 import { countSessionTitle, countTitleIsModelName } from "../services/employeeDrafts/countSessionTitle.js";
@@ -56,6 +58,7 @@ import "./EmployeePortalWorkspaces.m1.css";
 import {
   bulkUpsertEmployeePortalInventoryItems,
   createEmployeePortalInventorySession,
+  getEmployeePortalInventoryCoverage,
   getEmployeePortalInventorySession,
   listEmployeePortalInventorySessions,
   lookupEmployeePortalInventoryVariants,
@@ -807,6 +810,9 @@ export default function EmployeePortalInventory() {
   // Subscribes this screen to language changes; strings resolve through tt().
   const { i18n: i18nRuntime } = useTranslation();
   const { token, sessionId: routeSessionId } = useParams();
+  // "count" is the counting workspace; "coverage" is which models the branch
+  // counted this month and who counted them — the manager portal's same view.
+  const [pageView, setPageView] = useState("count");
   const [searchParams] = useSearchParams();
   usePageTitle(routeSessionId ? "Inventory Count Session" : "Employee Inventory Count");
   const navigate = useNavigate();
@@ -2029,6 +2035,27 @@ export default function EmployeePortalInventory() {
           )}
         />
 
+        <div className="grid grid-cols-2 gap-1 rounded-[var(--radius-control)] border border-border bg-surface p-1">
+          {[
+            { id: "count", label: "الجرد", icon: ClipboardList },
+            { id: "coverage", label: "الموديلات اللي اتجردت", icon: Package },
+          ].map((option) => (
+            <button
+              key={option.id}
+              type="button"
+              onClick={() => setPageView(option.id)}
+              className={`inline-flex items-center justify-center gap-2 rounded-[var(--radius-control)] whitespace-nowrap px-2 py-2.5 text-xs font-black transition sm:px-3 sm:text-sm ${pageView === option.id ? "bg-primary text-[var(--primary-contrast)]" : "text-text-muted hover:bg-surface-soft"}`}
+            >
+              <option.icon className="h-4 w-4" />
+              {option.label}
+            </button>
+          ))}
+        </div>
+
+        {pageView === "coverage" ? <InventoryCoverage token={token} load={getEmployeePortalInventoryCoverage} className="" /> : null}
+
+        {/* contents: the workspace keeps sitting in the column's flex gap. */}
+        <div className={pageView === "coverage" ? "hidden" : "contents"}>
         <section className="hidden rounded-[var(--radius-card)] border border-border bg-surface/95 p-2.5 shadow-[var(--shadow-card)] backdrop-blur sm:rounded-[2rem] sm:p-4 sm:shadow-[var(--shadow-overlay)] lg:block">
           <div className="inventory-wrap flex min-w-0 flex-col gap-3 lg:flex-row lg:items-center lg:justify-between">
             <div>
@@ -2381,6 +2408,7 @@ export default function EmployeePortalInventory() {
               </div>
             )}
           </main>
+        </div>
         </div>
       </div>
 
