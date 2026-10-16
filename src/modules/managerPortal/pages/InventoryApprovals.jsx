@@ -125,6 +125,13 @@ export default function InventoryApprovalsPage() {
   // Below xl the list and the detail can't sit side by side, so a tapped count
   // opens as a sheet over the list instead of landing far down the page.
   const [detailSheetOpen, setDetailSheetOpen] = useState(false);
+  // Counts ticked on the list for approval without opening them, keyed by id so
+  // a selection survives paging. Value = the card's difference total, for the
+  // confirm line.
+  const [checked, setChecked] = useState({});
+  const [bulkConfirm, setBulkConfirm] = useState(null);
+  const [bulkProgress, setBulkProgress] = useState(null);
+  const [loadingAllPending, setLoadingAllPending] = useState(false);
   const detailRef = useRef(null);
   const lastPortalUrl = typeof window !== "undefined" ? String(window.localStorage.getItem("manager_portal_last_url") || "").trim() : "";
 
@@ -247,8 +254,10 @@ export default function InventoryApprovalsPage() {
         setSelectedSessionId("");
         setSelectedApproval(null);
       }
+      return firstSessionId ? String(firstSessionId) : "";
     } catch (err) {
       setError(err?.responseBody?.message || err?.message || tt("managerPortal.stockCount.errors.loadApprovals"));
+      return "";
     } finally {
       setLoading(false);
     }
@@ -347,7 +356,92 @@ export default function InventoryApprovalsPage() {
   const changeStatusFilter = (status) => {
     if (status === statusFilter) return;
     setStatusFilter(status);
+    setChecked({});
     void loadApprovals("", { page: 1, status });
+  };
+
+  const pendingOnPage = sessions.filter((session) => session.status === "pending_review");
+  const checkedIds = Object.keys(checked);
+  const pageAllChecked = pendingOnPage.length > 0 && pendingOnPage.every((session) => checked[session.id] !== undefined);
+  const pendingTotal = Number(summary.pending_review_count || 0);
+
+  const toggleChecked = (session) => {
+    setChecked((current) => {
+      const next = { ...current };
+      if (next[session.id] !== undefined) delete next[session.id];
+      else next[session.id] = Number(session.difference_total || 0);
+      return next;
+    });
+  };
+
+  const togglePage = () => {
+    setChecked((current) => {
+      const next = { ...current };
+      pendingOnPage.forEach((session) => {
+        if (pageAllChecked) delete next[session.id];
+        else next[session.id] = Number(session.difference_total || 0);
+      });
+      return next;
+    });
+  };
+
+  // "All" means every count waiting for review, not just this page: walk the
+  // pending list at the server's 50-row cap.
+  const checkAllPending = async () => {
+    if (!token) return;
+    try {
+      setLoadingAllPending(true);
+      const next = {};
+      for (let page = 1, pages = 1; page <= pages && page <= 40; page += 1) {
+        const response = await managerPortalApi.inventoryApprovals(token, { page, limit: 50, status: "pending_review" });
+        const payload = response?.inventoryApprovals || {};
+        (Array.isArray(payload.sessions) ? payload.sessions : []).forEach((session) => {
+          if (session.status === "pending_review") next[session.id] = Number(session.difference_total || 0);
+        });
+        pages = Number(payload.pagination?.totalPages || 1);
+      }
+      setChecked(next);
+    } catch (err) {
+      toast.error(err?.responseBody?.message || err?.message || tt("managerPortal.stockCount.bulk.loadAllFailed"));
+    } finally {
+      setLoadingAllPending(false);
+    }
+  };
+
+  const askApprove = (entries) => {
+    if (!entries.length) return;
+    setBulkConfirm(entries);
+  };
+
+  // One count at a time, through the same approve the detail uses: each count
+  // is its own stock transaction, so one failure never takes the others with it.
+  const runBulkApprove = async () => {
+    const entries = bulkConfirm || [];
+    if (!token || !entries.length) return;
+    setBulkProgress({ done: 0, n: entries.length });
+    let ok = 0;
+    const failed = {};
+    for (const entry of entries) {
+      try {
+        await managerPortalApi.approveInventoryApproval(token, entry.id);
+        ok += 1;
+      } catch (err) {
+        failed[entry.id] = entry.diff;
+        if (entries.length === 1) toast.error(err?.responseBody?.message || err?.message || tt("managerPortal.stockCount.errors.approve"));
+      }
+      setBulkProgress({ done: ok + Object.keys(failed).length, n: entries.length });
+    }
+    const failedCount = Object.keys(failed).length;
+    if (!failedCount) toast.success(tt("managerPortal.stockCount.bulk.done", { n: formatNumber(ok) }));
+    else if (entries.length > 1) toast.error(tt("managerPortal.stockCount.bulk.partial", { ok: formatNumber(ok), failed: formatNumber(failedCount) }));
+    setChecked(failed);
+    setBulkConfirm(null);
+    setBulkProgress(null);
+    // An approved count leaves the pending list; the selection falls to the next one.
+    // Under "all" it stays put, so re-read it to show it approved.
+    const nowSelected = await loadApprovals(selectedSessionId, { page: 1 });
+    if (nowSelected && String(nowSelected) === String(selectedSessionId)
+      && entries.some((entry) => String(entry.id) === String(selectedSessionId))) await loadDetail(selectedSessionId);
   };
 
   const openRejectDialog = () => {
@@ -399,7 +493,7 @@ export default function InventoryApprovalsPage() {
   }
 
   return (
-    <main className="manager-portal-shell inventory-approvals-page min-h-[100dvh] overflow-x-hidden px-3 pt-3 pb-[calc(env(safe-area-inset-bottom,0px)+6rem)] sm:px-4 sm:pt-4 lg:pb-4">
+    <main className={`manager-portal-shell inventory-approvals-page min-h-[100dvh] overflow-x-hidden px-3 pt-3 sm:px-4 sm:pt-4 ${checkedIds.length ? "pb-[calc(env(safe-area-inset-bottom,0px)+11rem)] lg:pb-24" : "pb-[calc(env(safe-area-inset-bottom,0px)+6rem)] lg:pb-4"}`}>
       <div className="mx-auto max-w-[96rem] space-y-4">
         {/* The portal's bottom bar gets the manager back now, and the status chips
             below carry the counts, so the header is just the title and a refresh. */}
@@ -476,6 +570,31 @@ export default function InventoryApprovalsPage() {
               <span>{formatNumber(pagination.total || sessions.length || 0)}</span>
             </div>
 
+            {pendingOnPage.length ? (
+              <div className="mt-3 flex flex-wrap items-center gap-2 text-xs font-black">
+                <label className="inline-flex cursor-pointer items-center gap-2 rounded-full border border-border bg-surface px-3 py-1.5 text-text">
+                  <input type="checkbox" checked={pageAllChecked} onChange={togglePage} className="h-4 w-4 accent-[var(--primary)]" />
+                  {tt("managerPortal.stockCount.bulk.selectPage")}
+                </label>
+                {pendingTotal > pendingOnPage.length ? (
+                  <button
+                    type="button"
+                    onClick={() => void checkAllPending()}
+                    disabled={loadingAllPending}
+                    className="inline-flex items-center gap-1.5 rounded-full border border-border bg-surface px-3 py-1.5 text-text transition hover:bg-surface-hover disabled:opacity-50"
+                  >
+                    {loadingAllPending ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : null}
+                    {tt("managerPortal.stockCount.bulk.selectAllPending", { n: formatNumber(pendingTotal) })}
+                  </button>
+                ) : null}
+                {checkedIds.length ? (
+                  <button type="button" onClick={() => setChecked({})} className="rounded-full px-2 py-1.5 text-text-muted hover:text-text">
+                    {tt("managerPortal.stockCount.bulk.clear")}
+                  </button>
+                ) : null}
+              </div>
+            ) : null}
+
             <div className="mt-3 space-y-3">
               {loading ? (
                 <div className="rounded-[var(--radius-card)] border border-border bg-surface-soft p-6 text-center text-sm text-text-muted">
@@ -484,11 +603,14 @@ export default function InventoryApprovalsPage() {
                 </div>
               ) : sessions.length ? (
                 sessions.map((session) => (
-                  <button
+                  <div
                     key={session.id}
+                    className={`overflow-hidden rounded-[var(--radius-control)] border transition ${ checked[session.id] !== undefined ? "border-primary" : String(selectedSessionId) === String(session.id) ? "border-amber-300/40 bg-amber-400/10" : "border-border bg-surface-soft hover:bg-surface-hover" }`}
+                  >
+                  <button
                     type="button"
                     onClick={() => selectSession(session.id)}
-                    className={`w-full rounded-[var(--radius-control)] border p-4 text-right transition ${ String(selectedSessionId) === String(session.id) ? "border-amber-300/40 bg-amber-400/10" : "border-border bg-surface-soft hover:bg-surface-hover" }`}
+                    className="w-full p-4 pb-3 text-right"
                   >
                     <div className="flex items-start justify-between gap-3">
                       <div className="min-w-0">
@@ -522,6 +644,31 @@ export default function InventoryApprovalsPage() {
                       <span className="rounded-full bg-surface-soft px-2.5 py-1">{tt("managerPortal.labels.totalDifferences")}: {formatNumber(session.difference_total || 0)}</span>
                     </div>
                   </button>
+                  {/* Approve straight from the card: the manager who trusts the
+                      variance total doesn't have to open the count first. */}
+                  {session.status === "pending_review" ? (
+                    <div className="flex items-center justify-between gap-2 border-t border-border px-4 py-2">
+                      <label className="inline-flex cursor-pointer items-center gap-2 py-1 text-xs font-black text-text">
+                        <input
+                          type="checkbox"
+                          checked={checked[session.id] !== undefined}
+                          onChange={() => toggleChecked(session)}
+                          className="h-5 w-5 accent-[var(--primary)]"
+                        />
+                        {tt("managerPortal.stockCount.bulk.select")}
+                      </label>
+                      <button
+                        type="button"
+                        onClick={() => askApprove([{ id: session.id, diff: Number(session.difference_total || 0) }])}
+                        disabled={Boolean(bulkProgress)}
+                        className="inline-flex items-center gap-1.5 rounded-[var(--radius-control)] bg-primary px-3 py-2 text-xs font-black text-[var(--primary-contrast)] transition hover:bg-[var(--primary-hover)] disabled:opacity-50"
+                      >
+                        <CheckCircle2 className="h-4 w-4" />
+                        {tt("managerPortal.stockCount.bulk.approveOne")}
+                      </button>
+                    </div>
+                  ) : null}
+                  </div>
                 ))
               ) : (
                 <div className="rounded-[var(--radius-card)] border border-dashed border-border bg-surface-soft p-8 text-center text-sm text-text-muted">
@@ -802,6 +949,62 @@ export default function InventoryApprovalsPage() {
           </div>
         </section>
       </div>
+
+      {checkedIds.length && !detailSheetOpen && view === "sessions" ? (
+        <div className="fixed inset-x-3 z-[70] mx-auto flex max-w-xl items-center justify-between gap-3 rounded-[var(--radius-card)] border border-primary bg-surface p-2 ps-4 shadow-2xl bottom-[calc(env(safe-area-inset-bottom,0px)+5.75rem)] lg:bottom-4">
+          <span className="text-sm font-black text-text">{tt("managerPortal.stockCount.bulk.selected", { n: formatNumber(checkedIds.length) })}</span>
+          <button
+            type="button"
+            onClick={() => askApprove(checkedIds.map((id) => ({ id, diff: checked[id] })))}
+            disabled={Boolean(bulkProgress)}
+            className="inline-flex items-center gap-2 rounded-[var(--radius-control)] bg-primary px-4 py-3 text-sm font-black text-[var(--primary-contrast)] transition hover:bg-[var(--primary-hover)] disabled:opacity-50"
+          >
+            <CheckCircle2 className="h-4 w-4" />
+            {tt("managerPortal.stockCount.bulk.approveSelected", { n: formatNumber(checkedIds.length) })}
+          </button>
+        </div>
+      ) : null}
+
+      {bulkConfirm ? (
+        <div className="fixed inset-0 z-[90] flex items-end justify-center px-4 pb-[max(1rem,env(safe-area-inset-bottom))] sm:items-center" style={{ background: "rgba(0, 0, 0, 0.55)" }}>
+          <div className="w-full max-w-md rounded-[var(--radius-card)] border border-border bg-surface p-5 shadow-2xl">
+            <h3 className="m1-section-title">{tt("managerPortal.stockCount.bulk.confirmTitle")}</h3>
+            <p className="mt-2 text-sm leading-6 text-text-muted">
+              {tt("managerPortal.stockCount.bulk.confirmBody", {
+                n: formatNumber(bulkConfirm.length),
+                diff: formatNumber(bulkConfirm.reduce((sum, entry) => sum + Number(entry.diff || 0), 0)),
+              })}
+            </p>
+            {bulkProgress ? (
+              <div className="mt-3 text-xs font-bold text-text-muted">
+                {tt("managerPortal.stockCount.bulk.progress", { done: formatNumber(bulkProgress.done), n: formatNumber(bulkProgress.n) })}
+                <div className="mt-1.5 h-1.5 overflow-hidden rounded-full bg-surface-soft">
+                  <div className="h-full bg-primary transition-all" style={{ width: `${Math.round((bulkProgress.done / Math.max(bulkProgress.n, 1)) * 100)}%` }} />
+                </div>
+              </div>
+            ) : null}
+            <div className="mt-4 grid grid-cols-2 gap-2">
+              <button
+                type="button"
+                onClick={() => setBulkConfirm(null)}
+                disabled={Boolean(bulkProgress)}
+                className="rounded-[var(--radius-control)] border border-border bg-surface-soft px-4 py-3 text-sm font-black text-text disabled:opacity-50"
+              >
+                {tt("managerPortal.common.cancel")}
+              </button>
+              <button
+                type="button"
+                onClick={() => void runBulkApprove()}
+                disabled={Boolean(bulkProgress)}
+                className="inline-flex items-center justify-center gap-2 rounded-[var(--radius-control)] bg-primary px-4 py-3 text-sm font-black text-[var(--primary-contrast)] transition hover:bg-[var(--primary-hover)] disabled:opacity-50"
+              >
+                {bulkProgress ? <Loader2 className="h-4 w-4 animate-spin" /> : <CheckCircle2 className="h-4 w-4" />}
+                {tt("managerPortal.stockCount.bulk.confirm")}
+              </button>
+            </div>
+          </div>
+        </div>
+      ) : null}
 
       {rejectOpen ? (
         <div className="fixed inset-0 z-[90] flex items-center justify-center bg-surface px-4">

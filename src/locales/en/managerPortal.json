@@ -381,6 +381,22 @@
       "approved": "Stock count approved",
       "rejected": "Stock count rejected"
     },
+    "bulk": {
+      "select": "Select",
+      "approveOne": "Approve",
+      "selectPage": "Select page",
+      "selectAllPending": "Select all pending ({{n}})",
+      "clear": "Clear",
+      "selected": "{{n}} selected",
+      "approveSelected": "Approve selected ({{n}})",
+      "confirmTitle": "Approve stock counts",
+      "confirmBody": "{{n}} stock count(s) will be approved and stock adjusted for the differences ({{diff}} units). This can't be undone.",
+      "confirm": "Approve",
+      "progress": "Approving {{done}} of {{n}}",
+      "done": "{{n}} stock count(s) approved",
+      "partial": "{{ok}} approved, {{failed}} failed",
+      "loadAllFailed": "Unable to load all stock counts"
+    },
     "title": "Stock count approvals",
     "noToken": "No valid portal token. Open the Manager Portal and try again.",
     "backToPortal": "Back to the portal",
