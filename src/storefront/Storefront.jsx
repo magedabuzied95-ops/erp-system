@@ -190,6 +190,13 @@ import {
   trackGa4ViewCart,
 } from "./lib/ga4Events";
 import {
+  initTikTokPixel,
+  trackTikTokAddToCart,
+  trackTikTokInitiateCheckout,
+  trackTikTokOrder,
+  trackTikTokPageView,
+} from "./lib/tiktokPixel";
+import {
   isCustomerReviewOrderEligible,
   isValidSurveyEmail,
   renderGoogleCustomerReviewOptIn,
@@ -8313,6 +8320,7 @@ function CheckoutPage({ cart, clearCart, profile, setProfile, themeMode, reprice
   }), []);
   useEffect(() => {
     if (pricedCart.length) trackGa4BeginCheckout(pricedCart, { value: subtotal });
+    if (pricedCart.length) trackTikTokInitiateCheckout({ items: pricedCart, value: subtotal });
   }, [pricedCart, subtotal]);
 
   // One page now, so there is no "reached the payment step" moment to hang Meta's
@@ -9516,6 +9524,11 @@ function CheckoutPage({ cart, clearCart, profile, setProfile, themeMode, reprice
           checkout: successPayload.checkout,
           value: data.order?.total_amount ?? data.order?.total ?? orderTotal,
         });
+        trackTikTokOrder({
+          order: data.order,
+          items: data.items || pricedCart,
+          value: data.order?.total_amount ?? data.order?.total ?? orderTotal,
+        });
       } catch (trackingError) {
         if (import.meta.env.DEV) console.warn("[storefront-checkout] purchase tracking failed", trackingError);
       }
@@ -10270,6 +10283,7 @@ function OrderSuccess({ profile, brandName = "MONE", brandLogoUrl = "", whatsapp
       checkout: loaded?.checkout || {},
       value: total,
     });
+    trackTikTokOrder({ order, items, value: total });
   }, [customerName, isShippingAwaitingVerification, items, loaded?.checkout, loaded?.customer, order, phone, total]);
   useEffect(() => {
     if (!loaded?.customer_reviews || !isCustomerReviewOrderEligible(order)) return;
@@ -11522,6 +11536,7 @@ function Storefront() {
     trackGa4PageView({
       path: `${location.pathname || "/"}${location.search || ""}`,
     });
+    trackTikTokPageView(`${location.pathname || "/"}${location.search || ""}`);
   }, [location.pathname, location.search]);
 
   useEffect(() => {
@@ -11625,6 +11640,7 @@ function Storefront() {
 
   useEffect(() => {
     initMetaPixel(profile);
+    initTikTokPixel();
   }, [profile]);
 
   useEffect(() => {
@@ -11827,6 +11843,7 @@ function Storefront() {
     });
     trackMetaAddToCart({ product, variant, line: nextLine, quantity, customer: profile });
     trackGa4AddToCart({ product, variant, line: nextLine, quantity });
+    trackTikTokAddToCart({ product, variant, line: nextLine, quantity });
     if (openDrawer) setCartDrawerOpen(true);
     return "added";
   }, [profile]);
