@@ -3,10 +3,14 @@ import jwt from "jsonwebtoken";
 import { isPortalProductsRole, portalProductsSessionStillValid } from "./portalProductAccess.js";
 
 // A portal product session (see portalProductAccess.js) may reach exactly what
-// the ERP's Add Product page calls — its lookups, image upload, the AI writing
-// helpers, the entry-employee PIN check and POST /products — and nothing else.
-// Opening, editing or deleting an existing product, and every other ERP route,
-// answer 403 whatever the role happens to hold.
+// the ERP product pages the portal shows call — the products list, Add Product
+// and the product editor: their lookups, image upload, the AI writing helpers,
+// saving a product, its prices, its status flags and its pair. Deleting or
+// purging a product, the label print queue, marketing, and every other ERP
+// route answer 403 whatever the role happens to hold.
+
+const ID = "\\d+";
+const productPath = (rest) => new RegExp(`^/api/products/${ID}${rest}$`);
 
 const READ_ONLY_PATHS = [
   /^\/api\/auth\/me$/,
@@ -14,6 +18,9 @@ const READ_ONLY_PATHS = [
   /^\/api\/products\/entry-employees$/,
   /^\/api\/products\/with-variants$/,
   /^\/api\/products\/color-names$/,
+  /^\/api\/products\/admin-list$/,
+  productPath("/(full|color-usage|pair|lifecycle|lifecycle/events)"),
+  new RegExp(`^/api/wholesale/products/${ID}$`),
   /^\/api\/product-classifications$/,
   /^\/api\/brands$/,
   /^\/api\/manufacturers$/,
@@ -30,14 +37,22 @@ const CREATE_PATHS = [
   /^\/api\/products\/generate-ai-data$/,
   /^\/api\/products\/generate-description$/,
   /^\/api\/products\/generate-seo$/,
+  productPath("/generate-ai-thermal-artwork"),
 ];
+
+// Editing an existing product: the editor's save, the price editor, the list's
+// status / offers / POS-favourite / storefront toggles, the pair picker.
+const UPDATE_PATHS = {
+  PUT: [productPath(""), productPath("/(prices|pair)"), new RegExp(`^/api/wholesale/products/${ID}$`)],
+  PATCH: [productPath("/status")],
+};
 
 export const portalProductsPathAllowed = (method = "GET", rawPath = "") => {
   const path = String(rawPath || "").split("?")[0].replace(/\/+$/, "");
   const verb = String(method).toUpperCase();
   if (verb === "GET") return READ_ONLY_PATHS.some((pattern) => pattern.test(path));
   if (verb === "POST") return CREATE_PATHS.some((pattern) => pattern.test(path));
-  return false;
+  return (UPDATE_PATHS[verb] || []).some((pattern) => pattern.test(path));
 };
 
 const deny = (res, status, message, code) => res.status(status).json({ success: false, code, message });
@@ -55,7 +70,7 @@ export const portalProductsApiBoundary = async (req, res, next) => {
   if (!isPortalSession) return next();
 
   if (!portalProductsPathAllowed(req.method, req.originalUrl || req.url)) {
-    return deny(res, 403, "This session can only add a new product.", "PORTAL_PRODUCTS_SCOPE");
+    return deny(res, 403, "This session is limited to the product pages of the employee portal.", "PORTAL_PRODUCTS_SCOPE");
   }
   try {
     const valid = await portalProductsSessionStillValid({

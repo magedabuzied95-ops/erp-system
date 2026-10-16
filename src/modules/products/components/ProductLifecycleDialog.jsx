@@ -10,6 +10,7 @@ import {
   Loader2,
   Package2,
   PackagePlus,
+  Pencil,
   RefreshCw,
   ShoppingBag,
   SlidersHorizontal,
@@ -30,7 +31,7 @@ import { resolveProductImageUrl } from "../../../shared/lib/imageUrls";
  */
 
 const PAGE_SIZE = 40;
-const KINDS = ["created", "purchase", "sale", "count", "movement"];
+const KINDS = ["created", "purchase", "sale", "count", "movement", "edited"];
 
 const KIND_STYLE = {
   created: { tone: "var(--primary)", Icon: PackagePlus },
@@ -38,6 +39,8 @@ const KIND_STYLE = {
   sale: { tone: "var(--warning, #f59e0b)", Icon: ShoppingBag },
   count: { tone: "var(--info, #0ea5e9)", Icon: ClipboardCheck },
   movement: { tone: "var(--text-muted, #94a3b8)", Icon: SlidersHorizontal },
+  // Who changed the product and what (a save, a price change, a status flip).
+  edited: { tone: "var(--accent, #a855f7)", Icon: Pencil },
 };
 
 const toneStyle = (tone, strength = 14) => ({
@@ -341,6 +344,11 @@ export default function ProductLifecycleDialog({ product, onClose }) {
     if (event.kind === "purchase") return t("products.lifecycle.events.purchase");
     if (event.kind === "sale") return t("products.lifecycle.events.sale");
     if (event.kind === "count") return t("products.lifecycle.events.count");
+    if (event.kind === "edited") {
+      if (event.document_status === "product.prices_updated") return t("products.lifecycle.events.pricesEdited");
+      if (event.document_status === "product.status_updated") return t("products.lifecycle.events.statusEdited");
+      return t("products.lifecycle.events.edited");
+    }
     return movementLabel(event.document_status);
   };
 
@@ -390,6 +398,10 @@ export default function ProductLifecycleDialog({ product, onClose }) {
       }
       if (event.party_name) meta.push([t("products.lifecycle.fields.customer"), event.party_name]);
       if (event.channel) meta.push([t("products.lifecycle.fields.channel"), channelLabel(event.channel)]);
+    } else if (event.kind === "edited") {
+      // The question this answers: who changed the product.
+      const by = event.actor_name || t("products.lifecycle.unknownUser");
+      meta.push([t("products.lifecycle.editedBy"), extra.from_portal ? `${by} · ${t("products.lifecycle.fromPortal")}` : by]);
     } else if (event.kind === "count") {
       // The question this answers: who counted this colour, and when.
       meta.push([t("products.lifecycle.fields.countedBy"), event.actor_name || t("products.lifecycle.unknownUser")]);
@@ -472,6 +484,14 @@ export default function ProductLifecycleDialog({ product, onClose }) {
                 </span>
               ))}
             </div>
+          ) : null}
+
+          {event.kind === "edited" && Array.isArray(extra.changes) && extra.changes.length ? (
+            <ul className="mt-2 space-y-0.5 text-xs font-semibold text-text">
+              {extra.changes.map((change) => (
+                <li key={change} dir="auto">{change}</li>
+              ))}
+            </ul>
           ) : null}
 
           {meta.length ? (

@@ -1,5 +1,5 @@
 import { lazy, Suspense, useCallback, useEffect, useMemo, useRef, useState } from "react";
-import { useNavigate, useParams } from "react-router-dom";
+import { useNavigate, useParams, useSearchParams } from "react-router-dom";
 import { Loader2, PackagePlus } from "lucide-react";
 import toast from "react-hot-toast";
 
@@ -10,17 +10,23 @@ import { activateRuntimeLanguage } from "../../managerPortal/lib/portalLanguage"
 import usePageTitle from "../../../shared/hooks/usePageTitle";
 
 const CreateProduct = lazy(() => import("../../products/pages/CreateProduct"));
+const ProductsList = lazy(() => import("../../products/pages/ProductsList"));
+const ProductEdit = lazy(() => import("../../products/pages/ProductEdit"));
 
-// إضافة منتج inside استلام بضاعة: the ERP's own Add Product page, unchanged, for
-// an employee with no ERP login. The page borrows a session minted from the
-// portal link (server: modules/productEntryPortal) that can only create a
-// product; it lives in memory only (setAuthSessionOverride). The page's own
-// employee + PIN step still records who entered the product.
+// The ERP's own product pages, unchanged, inside the employee portal for an
+// employee with no ERP login: the products list (`page="list"`), Add Product
+// (`"create"`, also opened from استلام بضاعة) and the product editor (`"edit"`).
+// The page borrows a session minted from the portal link (server:
+// modules/productEntryPortal) that reaches only these pages' endpoints — no
+// deleting — and lives in memory only (setAuthSessionOverride). Everything the
+// employee adds or changes is recorded under that employee.
 //
 // Laid out at desktop width on purpose (owner's ask): the phone shows the whole
 // 1280px page and the employee pinches and pans across the wide parts.
 // maximum-scale spelled out: WebKit otherwise may keep the portal's old cap.
 const DESKTOP_VIEWPORT = "width=1280, minimum-scale=0.1, maximum-scale=5, user-scalable=yes";
+
+const PAGE_TITLES = { list: "Products", create: "Add Product", edit: "Edit Product" };
 
 const useDesktopViewport = () => {
   useEffect(() => {
@@ -38,9 +44,10 @@ const useDesktopViewport = () => {
   }, []);
 };
 
-export default function EmployeePortalProductCreate() {
-  usePageTitle("Add Product");
+export default function EmployeePortalProductCreate({ page = "create" }) {
+  usePageTitle(PAGE_TITLES[page] || PAGE_TITLES.create);
   const { token = "" } = useParams();
+  const [searchParams] = useSearchParams();
   const navigate = useNavigate();
   const [state, setState] = useState({ status: "opening", message: "" });
   const [employeeName, setEmployeeName] = useState("");
@@ -50,15 +57,19 @@ export default function EmployeePortalProductCreate() {
 
   const homePath = buildEmployeePortalHomePath({ pathname: window.location.pathname, token });
   const receiptPath = `${homePath}/stock-receipt`;
+  const listPath = `${homePath}/erp-products`;
+  // Add Product returns to whichever portal screen opened it.
+  const createReturnPath = searchParams.get("from") === "list" ? listPath : receiptPath;
+  const backPath = page === "create" ? createReturnPath : page === "edit" ? listPath : receiptPath;
 
-  // `quiet`: a re-mint while the form is open must not unmount it and lose
-  // what the employee typed.
+  // `quiet`: a re-mint while a form is open must not unmount it and lose what
+  // the employee typed.
   const openSession = useCallback(async ({ quiet = false } = {}) => {
     if (mintingRef.current) return;
     mintingRef.current = true;
     if (!quiet) setState({ status: "opening", message: "" });
     try {
-      // Arabic like the rest of the portal (the ERP page otherwise follows the
+      // Arabic like the rest of the portal (the ERP pages otherwise follow the
       // phone's / system language), switched before the page first paints.
       const [response] = await Promise.all([openEmployeePortalProductSession(token), activateRuntimeLanguage("ar")]);
       if (!response?.token) throw new Error("");
@@ -92,23 +103,33 @@ export default function EmployeePortalProductCreate() {
   }, [openSession]);
 
   const portal = useMemo(() => ({
-    backHref: receiptPath,
-    // Who the product is recorded under: the portal's own employee, so the page
-    // skips its name + PIN step (the server takes it from the session).
+    backHref: createReturnPath,
+    // The products list's way back into the portal (it has no back link of its own).
+    exitPath: receiptPath,
+    listPath,
+    addPath: `${homePath}/new-product?from=list`,
+    editPath: (id, query = "") => `${listPath}/${encodeURIComponent(id)}/edit${query}`,
+    // Who the product is recorded under: the portal's own employee, so Add
+    // Product skips its name + PIN step (the server takes it from the session).
     employeeName,
-    // Back to استلام بضاعة with a fresh catalogue, so the new model is
-    // searchable straight away.
     onCreated: () => {
+      if (createReturnPath === listPath) {
+        toast.success("المنتج اتضاف");
+        navigate(listPath, { replace: true });
+        return;
+      }
+      // Back to استلام بضاعة with a fresh catalogue, so the new model is
+      // searchable straight away.
       toast.success("المنتج اتضاف — دوّر عليه وضيف الكميات");
       navigate(receiptPath, { replace: true, state: { refreshCatalog: true } });
     },
-  }), [navigate, receiptPath, employeeName]);
+  }), [navigate, homePath, listPath, receiptPath, createReturnPath, employeeName]);
 
   if (state.status === "ready") {
     return (
       <div className="min-h-[100dvh] bg-background">
         <Suspense fallback={<OpeningScreen />}>
-          <CreateProduct portal={portal} />
+          {page === "list" ? <ProductsList portal={portal} /> : page === "edit" ? <ProductEdit portal={portal} /> : <CreateProduct portal={portal} />}
         </Suspense>
       </div>
     );
@@ -119,12 +140,12 @@ export default function EmployeePortalProductCreate() {
   return (
     <main className="min-h-[100dvh] bg-background px-3 py-3 text-text">
       <div className="mx-auto flex w-full max-w-lg flex-col gap-3">
-        <EmployeePortalNavControls onBack={() => navigate(receiptPath, { replace: true })} onHome={() => navigate(homePath)} className="px-0" />
+        <EmployeePortalNavControls onBack={() => navigate(backPath, { replace: true })} onHome={() => navigate(homePath)} className="px-0" />
         <section className="flex flex-col items-center gap-3 rounded-[var(--radius-card)] border border-border bg-surface p-6 text-center shadow-sm">
           <span className="grid h-12 w-12 place-items-center rounded-2xl bg-surface-soft text-text-muted">
             <PackagePlus className="h-6 w-6" />
           </span>
-          <h1 className="m1-section-title text-text">تعذر فتح إضافة المنتج</h1>
+          <h1 className="m1-section-title text-text">تعذر فتح صفحة المنتجات</h1>
           {state.message ? <p className="text-sm text-text-muted">{state.message}</p> : null}
           <button
             type="button"
@@ -144,7 +165,7 @@ function OpeningScreen() {
     <main className="grid min-h-[100dvh] place-items-center bg-background text-text-muted">
       <div className="flex items-center gap-2 text-sm font-bold">
         <Loader2 className="h-5 w-5 animate-spin" />
-        بيفتح إضافة المنتج…
+        بيفتح صفحة المنتجات…
       </div>
     </main>
   );

@@ -1009,10 +1009,14 @@ const buildColorGroupsFromVariants = (rows = [], defaultManufacturerId = "") => 
     }));
 };
 
-function ProductEdit() {
+// `portal` = the employee portal (EmployeePortalProductCreate, page "edit"): the same
+// editor; back and a finished save return to the portal's products list, the module
+// tabs are hidden, and the variant stock-history link (an ERP page) is left out.
+function ProductEdit({ portal = null } = {}) {
   const { t } = useTranslation();
   const { id } = useParams();
   const navigate = useNavigate();
+  const listPath = portal?.listPath || "/products";
   const categories = useMemo(() => seedCategories(), []);
   const [units, setUnits] = useState(() => seedUnits());
   const pendingColorUploadsRef = useRef(new Map());
@@ -3784,7 +3788,7 @@ function ProductEdit() {
 
       toast.success(t("products.editor.productUpdated"));
 
-      navigate("/products");
+      navigate(listPath);
     } catch (err) {
       console.log(err);
       toast.error(err?.message || "Failed to save product");
@@ -3796,9 +3800,10 @@ function ProductEdit() {
   return (
     <ProductsShell
       title={t("products.editor.editTitle", "Edit Product")}
+      hideTabs={Boolean(portal)}
       actions={
         <Link
-          to="/products"
+          to={listPath}
           onClick={confirmLeaveIfDirty}
           className={buttonClasses("secondary", "h-[var(--control-height-md)] rounded-[var(--radius-control)] px-4")}
         >
@@ -3818,7 +3823,7 @@ function ProductEdit() {
           <p className="text-lg font-black text-text">{error}</p>
           <button
             type="button"
-            onClick={() => navigate("/products")}
+            onClick={() => navigate(listPath)}
             className={buttonClasses("secondary", "mt-4 h-[var(--control-height-md)] rounded-[var(--radius-control)] px-4")}
           >
             <ArrowLeft size={16} />
@@ -4996,7 +5001,7 @@ function ProductEdit() {
                                 </div>
                                 <div className="flex items-start">
                                   <div className="flex w-full flex-row items-start gap-2">
-                                    {row.variantId ? (
+                                    {row.variantId && !portal ? (
                                       <Link
                                         to={`/inventory/variant/${row.variantId}/history?productId=${id}`}
                                         className="inline-flex h-[var(--control-height-md)] items-center justify-center gap-2 rounded-[var(--radius-card)] border border-border bg-surface px-3 text-sm font-semibold text-text transition hover:bg-surface-hover"

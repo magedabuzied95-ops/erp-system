@@ -157,15 +157,28 @@ export default function EmployeePortalStockReceipt() {
           {/* A model the shop doesn't have yet: the ERP's own Add Product page at
               desktop width, no ERP login (EmployeePortalProductCreate). A save
               comes back here with a fresh catalogue. */}
-          <button
-            type="button"
-            onClick={() => navigate(`${buildEmployeePortalHomePath({ pathname: window.location.pathname, token })}/new-product`)}
-            onPointerEnter={() => { void import("./EmployeePortalProductCreate"); }}
-            className="mt-3 inline-flex min-h-11 w-full items-center justify-center gap-2 rounded-[var(--radius-control)] border border-border bg-surface-soft px-4 text-sm font-black text-text transition hover:bg-surface"
-          >
-            <Plus className="h-4 w-4" />
-            موديل جديد؟ إضافة منتج
-          </button>
+          {/* The system's products list and editor too, same page as the ERP;
+              every edit is recorded under this employee. */}
+          <div className="mt-3 grid grid-cols-2 gap-2">
+            <button
+              type="button"
+              onClick={() => navigate(`${buildEmployeePortalHomePath({ pathname: window.location.pathname, token })}/new-product`)}
+              onPointerEnter={() => { void import("./EmployeePortalProductCreate"); }}
+              className="inline-flex min-h-11 items-center justify-center gap-2 rounded-[var(--radius-control)] border border-border bg-surface-soft px-3 text-sm font-black text-text transition hover:bg-surface"
+            >
+              <Plus className="h-4 w-4" />
+              إضافة منتج
+            </button>
+            <button
+              type="button"
+              onClick={() => navigate(`${buildEmployeePortalHomePath({ pathname: window.location.pathname, token })}/erp-products`)}
+              onPointerEnter={() => { void import("./EmployeePortalProductCreate"); }}
+              className="inline-flex min-h-11 items-center justify-center gap-2 rounded-[var(--radius-control)] border border-border bg-surface-soft px-3 text-sm font-black text-text transition hover:bg-surface"
+            >
+              <Package className="h-4 w-4" />
+              المنتجات
+            </button>
+          </div>
 
           <label className="mt-3 flex items-center gap-2 rounded-[var(--radius-control)] border border-border bg-surface-soft px-3">
             <Search className="h-4 w-4 shrink-0 text-text-muted" />

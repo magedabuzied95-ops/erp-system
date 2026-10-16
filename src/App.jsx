@@ -476,6 +476,8 @@ function App() {
             <Route path="/employee-app/:token/inventory" element={<EmployeePortalInventory />} />
             <Route path="/employee-app/:token/stock-receipt" element={<EmployeePortalStockReceipt />} />
             <Route path="/employee-app/:token/new-product" element={<EmployeePortalProductCreate />} />
+            <Route path="/employee-app/:token/erp-products" element={<EmployeePortalProductCreate page="list" />} />
+            <Route path="/employee-app/:token/erp-products/:id/edit" element={<EmployeePortalProductCreate page="edit" />} />
             <Route path="/employee-app/:token/inventory/:sessionId" element={<EmployeePortalInventory />} />
             <Route path="/employee-app/:token/online-orders" element={<EmployeePortalOnlineOrders />} />
             <Route path="/employee-app/:token/inbox" element={<EmployeePortalInbox />} />
@@ -667,6 +669,9 @@ function App() {
         element={<EmployeePortalProductCreate />}
       />
 
+      <Route path="/employee/portal/:token/erp-products" element={<EmployeePortalProductCreate page="list" />} />
+      <Route path="/employee/portal/:token/erp-products/:id/edit" element={<EmployeePortalProductCreate page="edit" />} />
+
       <Route
         path="/employee/portal/:token/inventory/:sessionId"
         element={<EmployeePortalInventory />}
@@ -704,6 +709,9 @@ function App() {
         path="/employee-portal/:token/new-product"
         element={<EmployeePortalProductCreate />}
       />
+
+      <Route path="/employee-portal/:token/erp-products" element={<EmployeePortalProductCreate page="list" />} />
+      <Route path="/employee-portal/:token/erp-products/:id/edit" element={<EmployeePortalProductCreate page="edit" />} />
 
       <Route
         path="/employee-portal/:token/inventory/:sessionId"

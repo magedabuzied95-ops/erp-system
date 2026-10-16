@@ -31,11 +31,11 @@ const PORTAL_ROUTE_PATTERN = /^\/(employee-app|employee-portal|employee\/portal|
 
 export const isPortalPath = (pathname = "") => PORTAL_ROUTE_PATTERN.test(String(pathname || ""));
 
-// The one portal screen that must zoom: إضافة منتج shows the ERP's Add Product
-// page at desktop width (EmployeePortalProductCreate sets that viewport), and
-// the employee pinches in to type. The lock must not be re-taken there — App's
-// per-route effect runs after the page's own and would win.
-const ZOOMABLE_PORTAL_PATTERN = /\/new-product\/?$/;
+// The portal screens that must zoom: the ERP's product pages (Add Product, the
+// products list, the editor) shown at desktop width (EmployeePortalProductCreate
+// sets that viewport), where the employee pinches in to type. The lock must not
+// be re-taken there — App's per-route effect runs after the page's own and would win.
+const ZOOMABLE_PORTAL_PATTERN = /\/(new-product|erp-products(\/[^/]+\/edit)?)\/?$/;
 export const isZoomablePortalPath = (pathname = "") => ZOOMABLE_PORTAL_PATTERN.test(String(pathname || ""));
 
 /**

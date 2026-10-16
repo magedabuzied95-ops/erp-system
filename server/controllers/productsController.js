@@ -468,6 +468,42 @@ const insertVariantsCreatedAuditLog = async (client, { tenantId, userId, entryEm
   }
 };
 
+// Who made a product change. From the employee portal (a portal_products
+// session) it is that employee — the session was minted from their own portal
+// link; otherwise only the ERP login is known, which the history falls back to.
+const productEditorOf = (req) => (
+  isPortalProductsRole(req.user?.role) && req.user?.portal_products_employee_id
+    ? { entry_employee_id: Number(req.user.portal_products_employee_id), entry_employee_name: String(req.user?.name || "") }
+    : {}
+);
+
+// One audit row per product save / status flip, read back by the product
+// history as an "edited" event. Never fails the change it records.
+const insertProductEditAuditLog = async (client, { tenantId, userId, productId, action, details }) => {
+  try {
+    if (!(await tableExists(client, "audit_logs"))) return;
+    const columns = await getTableColumns(client, "audit_logs");
+    const insertColumns = [];
+    const values = [];
+    const add = (column, value) => {
+      if (!columns.has(column)) return;
+      insertColumns.push(column);
+      values.push(value);
+    };
+    add("tenant_id", tenantId || null);
+    add("user_id", userId || null);
+    add("action", action);
+    add("entity_type", "product");
+    add("entity_id", productId);
+    add("details", JSON.stringify(details || {}));
+    if (!insertColumns.length) return;
+    const params = values.map((_, index) => `$${index + 1}`).join(", ");
+    await client.query(`INSERT INTO audit_logs (${insertColumns.join(", ")}) VALUES (${params})`, values);
+  } catch (error) {
+    console.warn("[products:edit-audit] audit log skipped", { productId, action, message: error.message });
+  }
+};
+
 const insertProductPriceAuditLog = async (client, { tenantId, userId, productId, details }) => {
   try {
     if (!(await tableExists(client, "audit_logs"))) return;
@@ -7171,6 +7207,14 @@ export const updateProduct = async (req, res) => {
       }).catch((error) => {
         console.warn("[products:update] manager product-edit push failed", { productId, message: error?.message || error });
       });
+      // "Who edited it" in the product history.
+      await insertProductEditAuditLog(client, {
+        tenantId,
+        userId: req.user?.id || null,
+        productId,
+        action: "product.updated",
+        details: { changes: productEditChanges, ...productEditorOf(req) },
+      });
     } catch (error) {
       console.warn("[products:update] manager product-edit summary failed", { productId, message: error?.message || error });
     }
@@ -7463,6 +7507,25 @@ export const updateProductStatus = async (req, res) => {
 
     const refreshed = updated.rows[0] ? normalizeProductRow(updated.rows[0]) : null;
 
+    if (updated.rowCount) {
+      const yesNo = (value) => (normalizeBooleanField(value, false) ? "أيوه" : "لأ");
+      const statusChanges = [
+        statusProvided && nextStatus !== currentStatus ? `الحالة: ${currentStatus === "active" ? "نشط" : "موقوف"} ← ${nextStatus === "active" ? "نشط" : "موقوف"}` : "",
+        offerStoryProvided ? `في العروض: ${yesNo(body.is_offer_story)}` : "",
+        posFavoriteProvided ? `مفضلة الكاشير: ${yesNo(body.is_pos_favorite)}` : "",
+        storefrontVisibleProvided ? `ظاهر في الموقع: ${yesNo(body.is_storefront_visible)}` : "",
+      ].filter(Boolean);
+      if (statusChanges.length) {
+        await insertProductEditAuditLog(client, {
+          tenantId,
+          userId: req.user?.id || null,
+          productId,
+          action: "product.status_updated",
+          details: { changes: statusChanges, ...productEditorOf(req) },
+        });
+      }
+    }
+
     // This route flips storefront visibility and the offer flags, so the cached
     // storefront payload is stale the moment it returns. Without this the site
     // kept showing a product for up to the cache TTL after it was hidden, which
@@ -7686,6 +7749,7 @@ export const updateProductPrices = async (req, res) => {
       details: {
         updated_by: req.user?.id || null,
         changes: auditChanges,
+        ...productEditorOf(req),
       },
     });
     console.log("[pricing-sync] calling from product price update", {

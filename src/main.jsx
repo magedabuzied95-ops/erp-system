@@ -145,6 +145,8 @@ if (isEmployeeAppRoute) {
             <Route path="/employee-app/:token/inventory/:sessionId" element={<EmployeePortalInventory />} />
             <Route path="/employee-app/:token/stock-receipt" element={<Suspense fallback={null}><EmployeePortalStockReceipt /></Suspense>} />
             <Route path="/employee-app/:token/new-product" element={<Suspense fallback={null}><EmployeePortalProductCreate /></Suspense>} />
+            <Route path="/employee-app/:token/erp-products" element={<Suspense fallback={null}><EmployeePortalProductCreate page="list" /></Suspense>} />
+            <Route path="/employee-app/:token/erp-products/:id/edit" element={<Suspense fallback={null}><EmployeePortalProductCreate page="edit" /></Suspense>} />
             <Route path="/employee-app/:token/online-orders" element={<Suspense fallback={null}><EmployeePortalOnlineOrders /></Suspense>} />
             <Route path="/employee-app/:token/inbox" element={<Suspense fallback={null}><EmployeePortalInbox /></Suspense>} />
             <Route path="/employee-app/:token/inbox/:conversationId" element={<Suspense fallback={null}><EmployeePortalInbox /></Suspense>} />

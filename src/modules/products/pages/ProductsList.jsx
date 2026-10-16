@@ -2009,7 +2009,15 @@ function EnhancedPriceEditorModal({ product, onClose, onSave, canEditPurchasePri
   );
 }
 
-function ProductsList() {
+// `portal` = the employee portal (EmployeePortalProductCreate, page "list"): the same
+// page, but its links lead to the portal's own product routes, and the actions its
+// session cannot reach (delete, labels, marketing, stock, the product view page)
+// are hidden instead of failing with a 403.
+const PORTAL_ROW_ACTIONS = new Set(["edit", "advanced-pricing", "duplicate", "toggle-pos-favorite", "toggle-status", "toggle-offer-story"]);
+
+function ProductsList({ portal = null } = {}) {
+  const editPathFor = (id, query = "") => (portal ? portal.editPath(id, query) : `/products/${id}/edit${query}`);
+  const addPath = portal?.addPath || "/products/add";
   const { t, i18n } = useTranslation();
   const canViewCostPrice = canViewCostPrices();
   const navigate = useNavigate();
@@ -2160,7 +2168,7 @@ function ProductsList() {
     const { missingColorNames } = getColorImageStatusDetails(row);
     const params = new URLSearchParams({ focus: "colors" });
     if (missingColorNames.length) params.set("missingColors", missingColorNames.join("|"));
-    navigate(`/products/${row.id}/edit?${params.toString()}`);
+    navigate(editPathFor(row.id, `?${params.toString()}`));
   };
 
   useEffect(() => {
@@ -2717,10 +2725,10 @@ function ProductsList() {
         label: t("products.actionsMenu.edit", "تعديل"),
         placement: "primary",
         visibleFrom: "lg",
-        href: `/products/${row.id}/edit`,
+        href: editPathFor(row.id),
         onClick: () => {
           console.log("[products:list] action click", { action: "edit", productId: row.id });
-          navigate(`/products/${row.id}/edit`);
+          navigate(editPathFor(row.id));
           setOpenActionId(null);
         },
       },
@@ -2892,6 +2900,11 @@ function ProductsList() {
         },
       },
     ];
+    if (portal) {
+      actions.forEach((action) => {
+        if (!PORTAL_ROW_ACTIONS.has(action.key)) action.hidden = true;
+      });
+    }
 
     const inlineActions = actions.filter((action) => action.placement === "primary" && !action.hidden);
     const visibleInlineKeys = new Set(
@@ -3213,10 +3226,20 @@ function ProductsList() {
     <ProductHistoryContext.Provider value={openProductHistory}>
     <ProductsShell
       title={t("products.title")}
+      hideTabs={Boolean(portal)}
       actions={
         <>
+          {portal?.exitPath ? (
+            <button
+              type="button"
+              onClick={() => navigate(portal.exitPath)}
+              className="m1-products-secondary-action inline-flex items-center gap-2 px-4 py-2.5 text-sm font-semibold transition sm:px-5 sm:py-3 sm:text-base"
+            >
+              رجوع للبوابة
+            </button>
+          ) : null}
           <button
-            onClick={() => navigate("/products/add")}
+            onClick={() => navigate(addPath)}
             className="m1-products-primary-action inline-flex items-center gap-2 px-4 py-2.5 text-sm font-semibold transition sm:px-5 sm:py-3 sm:text-base"
           >
             <Plus size={18} />
@@ -3421,6 +3444,8 @@ function ProductsList() {
             <span className="text-sm font-semibold text-emerald-300">
               {selectedCount} {t("products.bulk.selected")}
             </span>
+            {portal ? null : (
+            <>
             <button
               onClick={handleBulkDelete}
               className="inline-flex items-center gap-2 rounded-full border border-red-500/20 bg-red-500/10 px-4 py-2 text-sm font-semibold text-red-300"
@@ -3442,6 +3467,8 @@ function ProductsList() {
               <Printer size={16} />
               إضافة إلى قائمة الطباعة
             </button>
+            </>
+            )}
             <button
               onClick={() => handleBulkStatus(true)}
               className="inline-flex items-center gap-2 rounded-full border border-border bg-surface-soft px-4 py-2 text-sm font-semibold text-text"
@@ -3891,7 +3918,7 @@ function ProductsList() {
               <p className="mt-3 text-text-muted">{selectedProduct.description || t("products.empty.firstDescription")}</p>
             </div>
             <Link
-              to="/products/add"
+              to={addPath}
               className="inline-flex items-center gap-2 rounded-full border border-border bg-surface-soft px-5 py-3 font-semibold text-text"
             >
               <Plus size={18} />
@@ -3921,7 +3948,7 @@ function ProductsList() {
           <h3 className="m1-section-title mt-4 text-text">{t("products.empty.catalogTitle")}</h3>
           <p className="mt-2 text-text-muted">{t("products.empty.catalogDescription")}</p>
           <button
-            onClick={() => navigate("/products/add")}
+            onClick={() => navigate(addPath)}
             className="mt-6 inline-flex items-center gap-2 rounded-full bg-primary px-5 py-3 font-semibold text-[var(--primary-contrast)]"
           >
             <Plus size={18} />

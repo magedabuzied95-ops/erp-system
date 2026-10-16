@@ -1197,14 +1197,20 @@
       "purchase": "Purchase invoices",
       "sale": "Sales invoices",
       "movement": "Other movements",
-      "count": "Stock counts"
+      "count": "Stock counts",
+      "edited": "Edits"
     },
     "events": {
       "created": "Added to the system",
       "purchase": "Purchase invoice",
       "sale": "Sales invoice",
-      "count": "Stock count"
+      "count": "Stock count",
+      "edited": "Product edited",
+      "pricesEdited": "Prices edited",
+      "statusEdited": "Status changed"
     },
+    "editedBy": "Edited by",
+    "fromPortal": "from the employee portal",
     "columns": {
       "size": "Size",
       "added": "Added",

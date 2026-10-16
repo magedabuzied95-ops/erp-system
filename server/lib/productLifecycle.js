@@ -14,7 +14,7 @@
 const DOCUMENT_MIRROR_MOVEMENTS = ["PURCHASE_IN", "PURCHASE", "SALE_OUT", "SALE"];
 const INACTIVE_PURCHASE_STATUSES = ["draft", "cancelled", "canceled", "reversed"];
 const INACTIVE_ORDER_STATUSES = ["draft", "cancelled", "canceled", "deleted"];
-export const LIFECYCLE_KINDS = ["created", "purchase", "sale", "count", "movement"];
+export const LIFECYCLE_KINDS = ["created", "purchase", "sale", "count", "movement", "edited"];
 // A stock count only becomes history once it has left the counter's hands: a
 // draft still being typed on a phone is not an event anyone should read.
 const VISIBLE_COUNT_STATUSES = ["pending_review", "completed", "rejected"];
@@ -111,6 +111,54 @@ const creatorsCte = (withAudit, withEmployees = false) =>
 
 const creatorJoin = (variantAlias) => `LEFT JOIN creators creator ON creator.variant_id = ${variantAlias}.id`;
 
+// Who changed the product, and what: one event per save, price change or status
+// flip (audit_logs, written by productsController). The employee named by the
+// employee portal wins over the ERP login, exactly like the creators above.
+const EDIT_AUDIT_ACTIONS = ["product.updated", "product.prices_updated", "product.status_updated"];
+const editedEventsCte = (withAudit, withEmployees = false) =>
+  withAudit
+    ? `edited_events AS (
+         SELECT
+           'edited'::text AS kind,
+           a.created_at::timestamptz AS occurred_at,
+           'edited:' || a.id AS event_key,
+           ''::text AS color,
+           '[]'::jsonb AS lines,
+           NULL::bigint AS document_id,
+           NULL::text AS document_number,
+           a.action::text AS document_status,
+           COALESCE(
+             ${withEmployees ? "NULLIF(ee.full_name, '')," : ""}
+             NULLIF(a.details ->> 'entry_employee_name', ''),
+             NULLIF(eu.name, ''),
+             eu.email
+           ) AS actor_name,
+           NULL::text AS party_name,
+           NULL::text AS channel,
+           NULL::timestamptz AS voided_at,
+           NULL::text AS voided_by_name,
+           jsonb_build_object(
+             'action', a.action,
+             'changes', COALESCE(a.details -> 'changes', '[]'::jsonb),
+             'from_portal', (a.details ->> 'entry_employee_id') IS NOT NULL
+           ) AS extra
+         FROM audit_logs a
+         LEFT JOIN users eu ON eu.id = a.user_id
+         ${withEmployees ? "LEFT JOIN employees ee ON ee.id::text = a.details ->> 'entry_employee_id'" : ""}
+         WHERE a.entity_type = 'product'
+           AND a.entity_id = $1::bigint
+           AND a.action = ANY(ARRAY['${EDIT_AUDIT_ACTIONS.join("','")}']::text[])
+           AND ($2::bigint IS NULL OR a.tenant_id IS NULL OR a.tenant_id = $2::bigint)
+       )`
+    : `edited_events AS (
+         SELECT
+           'edited'::text AS kind, NULL::timestamptz AS occurred_at, ''::text AS event_key, ''::text AS color,
+           '[]'::jsonb AS lines, NULL::bigint AS document_id, NULL::text AS document_number, NULL::text AS document_status,
+           NULL::text AS actor_name, NULL::text AS party_name, NULL::text AS channel, NULL::timestamptz AS voided_at,
+           NULL::text AS voided_by_name, '{}'::jsonb AS extra
+         WHERE FALSE
+       )`;
+
 const variantScope = `
   SELECT v.id, v.color, v.size, v.article_code, v.stock, v.created_at, v.is_active, v.deleted_at
   FROM product_variants v
@@ -192,6 +240,7 @@ const eventsSql = (withAudit, countSupport, withEmployees = false) => `
   WITH scoped_variants AS (${variantScope}),
   ${creatorsCte(withAudit, withEmployees)},
   ${countEventsCte(countSupport)},
+  ${editedEventsCte(withAudit, withEmployees)},
   created_events AS (
     SELECT
       'created'::text AS kind,
@@ -321,6 +370,7 @@ const eventsSql = (withAudit, countSupport, withEmployees = false) => `
     UNION ALL SELECT * FROM sale_events
     UNION ALL SELECT * FROM count_events
     UNION ALL SELECT * FROM movement_events
+    UNION ALL SELECT * FROM edited_events
   )
   SELECT *, COUNT(*) OVER () AS total_count
   FROM all_events e
@@ -460,6 +510,24 @@ export const normalizeLifecycleQuery = (query = {}) => {
   };
 };
 
+// An edit event's changes as readable lines. Product saves and status flips are
+// stored as text already; a price change is stored as before/after numbers.
+const priceLine = (entry = {}) => {
+  const parts = [];
+  if (Number(entry.old_sale_price) !== Number(entry.new_sale_price)) parts.push(`السعر: ${toNumber(entry.old_sale_price)} ← ${toNumber(entry.new_sale_price)}`);
+  if ((entry.old_discount_price ?? null) !== (entry.new_discount_price ?? null)) {
+    parts.push(`سعر الخصم: ${entry.old_discount_price ?? "—"} ← ${entry.new_discount_price ?? "—"}`);
+  }
+  return parts.join("، ");
+};
+const editedExtra = (extra = {}) => {
+  const raw = Array.isArray(extra?.changes) ? extra.changes : [];
+  const changes = raw
+    .map((entry) => (typeof entry === "string" ? entry : entry && typeof entry === "object" ? priceLine(entry) : ""))
+    .filter(Boolean);
+  return { action: extra?.action || "", from_portal: extra?.from_portal === true, changes: [...new Set(changes)].slice(0, 20) };
+};
+
 export const loadProductLifecycleEvents = async (client, { productId, tenantId = null, kinds = null, color = null, size = null, limit = 40, offset = 0 }) => {
   const [withAudit, countSupport, withEmployees] = await Promise.all([hasAuditLogs(client), inventoryCountSupport(client), hasEmployees(client)]);
   const result = await client.query(eventsSql(withAudit, countSupport, withEmployees), [
@@ -489,7 +557,7 @@ export const loadProductLifecycleEvents = async (client, { productId, tenantId =
     channel: row.channel || null,
     voided_at: row.voided_at || null,
     voided_by_name: row.voided_by_name || null,
-    extra: row.extra && typeof row.extra === "object" ? row.extra : {},
+    extra: row.kind === "edited" ? editedExtra(row.extra) : row.extra && typeof row.extra === "object" ? row.extra : {},
   }));
   return { events, total, limit, offset, has_more: offset + events.length < total };
 };

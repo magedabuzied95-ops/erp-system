@@ -8,7 +8,10 @@ const productsList = readFileSync(
 );
 
 test("catalog navigation actions are real links that support opening in a new tab", () => {
-  assert.match(productsList, /key:\s*"edit"[\s\S]*?href:\s*`\/products\/\$\{row\.id\}\/edit`/);
+  // The edit link goes through editPathFor so the employee portal can point it at
+  // its own route; in the ERP it is still the plain /products/:id/edit link.
+  assert.match(productsList, /key:\s*"edit"[\s\S]*?href:\s*editPathFor\(row\.id\)/);
+  assert.match(productsList, /const editPathFor = \(id, query = ""\) => \(portal \? portal\.editPath\(id, query\) : `\/products\/\$\{id\}\/edit\$\{query\}`\)/);
   assert.match(productsList, /key:\s*"view"[\s\S]*?href:\s*`\/products\/\$\{row\.id\}`/);
   assert.match(productsList, /key:\s*"stock"[\s\S]*?href:\s*`\/inventory\/adjustments\?productId=/);
   assert.match(productsList, /key:\s*"print-barcode"[\s\S]*?href:\s*`\/products\/barcode-labels\?productId=/);

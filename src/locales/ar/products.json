@@ -1197,14 +1197,20 @@
       "purchase": "فواتير الشراء",
       "sale": "فواتير البيع",
       "movement": "حركات أخرى",
-      "count": "الجرد"
+      "count": "الجرد",
+      "edited": "التعديلات"
     },
     "events": {
       "created": "اتضاف للسيستم",
       "purchase": "فاتورة شراء",
       "sale": "فاتورة بيع",
-      "count": "جرد مخزون"
+      "count": "جرد مخزون",
+      "edited": "تعديل المنتج",
+      "pricesEdited": "تعديل الأسعار",
+      "statusEdited": "تغيير الحالة"
     },
+    "editedBy": "عدّله",
+    "fromPortal": "من بوابة الموظف",
     "columns": {
       "size": "المقاس",
       "added": "اتضاف",
