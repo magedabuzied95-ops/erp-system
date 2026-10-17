@@ -72,6 +72,7 @@ import { createPaymentIntention, isPaymobOnlineReady, paymobOnlineConfig } from 
 import { ensurePaymentTransactionsSchema } from "../services/paymobPosService.js";
 import { enqueueOrderCreatedEmails } from "../services/transactionalEmail/orderEmailService.js";
 import { sendStorefrontPurchaseEvent } from "../services/metaConversionsApiService.js";
+import { drainTikTokOutbox, recordTikTokPlaceAnOrder, tiktokEventsConfig } from "../modules/tiktok/tiktokEventsApi.js";
 import { attachMetaContentIds, ensureMetaDuplicateSkuKeys, metaContentIdFor } from "../services/metaCatalogContentIdService.js";
 
 export const DEFAULT_TENANT_ID = 1;
@@ -5871,6 +5872,7 @@ export const createWebsiteOrder = async (req, res) => {
     const checkoutRaw = parseJsonField(req.body?.checkout, req.body || {});
     const items = parseJsonField(req.body?.items, Array.isArray(req.body?.items) ? req.body.items : []);
     const metaBrowserIdentity = parseJsonField(req.body?.meta_identity, {}) || {};
+    const tiktokBrowserIdentity = parseJsonField(req.body?.tiktok_identity, { consent: false }) || { consent: false };
     const checkout = {
       ...checkoutRaw,
       full_name: toText(checkoutRaw.full_name || checkoutRaw.customer_name || checkoutRaw.name),
@@ -6466,6 +6468,31 @@ export const createWebsiteOrder = async (req, res) => {
         message: emailQueueError?.message || String(emailQueueError),
       });
     }
+    // TikTok's PlaceAnOrder is written with the order, so a crash after COMMIT cannot lose it
+    // and a rolled-back order never reports one. Its own savepoint: a TikTok problem never
+    // fails a checkout. A till-raised online order is not a website conversion.
+    let tiktokPlaceAnOrder = null;
+    if (!posOnlineOrder && tiktokEventsConfig().enabled) {
+      await client.query("SAVEPOINT storefront_tiktok_outbox");
+      try {
+        tiktokPlaceAnOrder = await recordTikTokPlaceAnOrder({
+          req,
+          tenantId,
+          order,
+          items: normalizedItems,
+          value: total,
+          checkout,
+          customer,
+          identity: tiktokBrowserIdentity,
+          client,
+          send: false,
+        });
+        await client.query("RELEASE SAVEPOINT storefront_tiktok_outbox");
+      } catch (tiktokError) {
+        await client.query("ROLLBACK TO SAVEPOINT storefront_tiktok_outbox");
+        console.warn("[tiktok-events] place-an-order skipped", { orderId: order?.id, message: tiktokError?.message || String(tiktokError) });
+      }
+    }
     await client.query("COMMIT");
     markStorefrontTenantCacheStale(tenantId);
     // The customer may have sent the money before checking out: its SMS is already waiting.
@@ -6525,6 +6552,9 @@ export const createWebsiteOrder = async (req, res) => {
         orderId: order?.id,
         message: error?.message || String(error),
       }));
+      // Same order, same event_id as the browser's PlaceAnOrder; queued before COMMIT above.
+      // Its Purchase follows from the outbox sweep once payment_status turns paid.
+      if (tiktokPlaceAnOrder?.queued) void drainTikTokOutbox({ limit: 5 }).catch(() => undefined);
     }
     sendOrderConfirmation({ ...order, items: normalizedItems }).catch((error) => {
       console.warn("[whatsapp:order-confirmation-send-skipped]", {
