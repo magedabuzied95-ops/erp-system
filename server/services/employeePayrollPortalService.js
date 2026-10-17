@@ -2981,6 +2981,10 @@ const OFFLINE_ATTENDANCE_MAX_AGE_MS = 36 * 60 * 60 * 1000;
 // future timestamp is refused outright rather than quietly clamped, because a
 // clamped time is a wrong time that nobody notices.
 const OFFLINE_ATTENDANCE_FUTURE_SKEW_MS = 5 * 60 * 1000;
+// Attendance is recorded only live, where the server checks the branch radius
+// at the moment of the request. The approval path below stays for submissions
+// already parked before this was switched off.
+const OFFLINE_ATTENDANCE_ENABLED = false;
 
 /**
  * Parks an attendance action the employee recorded while offline.
@@ -2991,6 +2995,17 @@ const OFFLINE_ATTENDANCE_FUTURE_SKEW_MS = 5 * 60 * 1000;
  * a live check-in is.
  */
 export const queueOfflineAttendanceSubmission = async ({ employee, data = {}, audit = {} }) => {
+  // Turned off by the owner (2026-10-17): employees were recording from outside
+  // the store. The portal no longer captures offline, and a phone still holding a
+  // capture from an older build is refused here with a 4xx, which makes the
+  // device drop it and show the reason instead of retrying forever.
+  if (!OFFLINE_ATTENDANCE_ENABLED) {
+    throw employeePortalError(
+      "offline_attendance_disabled",
+      "تسجيل الحضور بدون اتصال متوقف — اتصل بالنت وسجّل من جوه الفرع",
+      403
+    );
+  }
   await ensureEmployeePayrollPortalSchema(db);
 
   const action = clean(data.action_type || data.action).toLowerCase();

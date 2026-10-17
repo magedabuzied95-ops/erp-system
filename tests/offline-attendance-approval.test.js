@@ -210,6 +210,20 @@ test("a pending submission is invisible to payroll because it is not in attendan
   assert.ok(queueFn.includes("occurred_at_too_old"));
 });
 
+test("offline capture is switched off: the portal never parks one and the server refuses it", () => {
+  const portalService = readSource("server/services/employeePayrollPortalService.js");
+  const page = readSource("src/modules/employees/pages/EmployeePayrollPortal.jsx");
+
+  // Employees were recording from outside the store. Attendance happens only
+  // live, where the server checks the branch radius itself.
+  assert.match(portalService, /const OFFLINE_ATTENDANCE_ENABLED = false;/);
+  const queueFn = portalService.slice(portalService.indexOf("export const queueOfflineAttendanceSubmission"));
+  assert.match(queueFn.slice(0, 1200), /if \(!OFFLINE_ATTENDANCE_ENABLED\)[\s\S]{0,200}"offline_attendance_disabled"[\s\S]{0,120}403/);
+
+  assert.ok(!page.includes("saveOfflineAttendance"), "the portal must not capture attendance on the device");
+  assert.match(page, /if \(shouldQueueAttendanceOffline\(err\)\) \{\s*setPortalNotice\(text\.attendanceNeedsConnection\)/);
+});
+
 test("a rejected claim is kept, because a dispute is settled from the record", () => {
   const managerService = readSource("server/services/managerPortalService.js");
   const rejectFn = managerService.slice(managerService.indexOf("export const rejectManagerPortalOfflineAttendance"));

@@ -60,7 +60,6 @@ import { resolveEmployeeProfileImageUrl, resolveProductImageUrl } from "../../..
 import { logPagePerf } from "../../../shared/lib/perfDebug";
 import {
   countPendingOfflineAttendance,
-  saveOfflineAttendance,
   shouldQueueAttendanceOffline,
   syncOfflineAttendance,
 } from "../lib/offlineAttendanceQueue";
@@ -372,6 +371,7 @@ Object.assign(labels.ar, {
   attendanceSaved: "تم تسجيل الحضور",
   attendanceQueuedOffline: "تم تسجيل الحضور على الجهاز بدون اتصال — في انتظار موافقة المدير",
   checkoutSaved: "تم تسجيل الانصراف",
+  attendanceNeedsConnection: "مفيش اتصال بالإنترنت — اتصل بالنت وسجّل تاني من جوه الفرع",
   attendanceError: "تعذر تسجيل الحضور",
   outsideBranchRadius: "أنت خارج نطاق الفرع",
   locationRequired: "يجب السماح بالموقع",
@@ -435,6 +435,7 @@ Object.assign(labels.en, {
   attendanceSaved: "Attendance recorded",
   attendanceQueuedOffline: "Recorded on this device while offline — waiting for the manager to approve it",
   checkoutSaved: "Check-out recorded",
+  attendanceNeedsConnection: "No internet connection — connect and record again from inside the branch",
   attendanceError: "Unable to record attendance",
   outsideBranchRadius: "You are outside the branch radius",
   locationRequired: "Location permission is required",
@@ -3796,7 +3797,6 @@ export default function EmployeePayrollPortal() {
     setEarlyCheckoutOpen(false);
     setLocationGate(null);
     const startedAt = safeNow();
-    let capturedLocation = null;
     try {
       setAttendanceSaving(actionType);
       setPortalNotice("");
@@ -3811,10 +3811,6 @@ export default function EmployeePayrollPortal() {
         });
       }
       const location = await getBrowserLocation();
-      // Held outside the try's scope so the offline branch below can queue the
-      // coordinates that were actually captured, rather than asking the device
-      // for them a second time.
-      capturedLocation = location;
       const response = await api.post(`/employee-portal/${encodeURIComponent(token)}/attendance/actions`, {
         action: actionType,
         attendance_log_id: actionType === "check_out" ? (todayAttendance?.id || todayAttendance?.attendance_id || null) : null,
@@ -3829,30 +3825,14 @@ export default function EmployeePayrollPortal() {
       setPortalNotice(actionType === "check_out" ? text.checkoutSaved : text.attendanceSaved);
       logPagePerf("employee-wallet.attendance-action", startedAt, { action: actionType });
     } catch (err) {
-      // No connection. The employee is standing at the branch and has pressed
-      // the button, so the action is kept on the device with the time and the
-      // GPS as captured. It does NOT become attendance on sync -- the server
-      // parks it and a manager approves it, because a phone's clock must not
-      // decide payroll on its own.
-      // Only with real coordinates: an approval re-runs the branch-radius check
-      // against them, so a submission with no location could never be approved
-      // and would just leave the employee believing they were recorded.
-      const hasCapturedLocation =
-        Number.isFinite(Number(capturedLocation?.latitude)) && Number.isFinite(Number(capturedLocation?.longitude));
-      if (hasCapturedLocation && shouldQueueAttendanceOffline(err)) {
-        try {
-          await saveOfflineAttendance({
-            action: actionType,
-            location: capturedLocation,
-            timezone: browserTimeZone(),
-          });
-          setOfflineAttendanceCount(await countPendingOfflineAttendance().catch(() => 0));
-          setPortalNotice(text.attendanceQueuedOffline);
-          logPagePerf("employee-wallet.attendance-action", startedAt, { action: actionType, queued_offline: true });
-          return;
-        } catch (queueError) {
-          console.error("[employee-portal-attendance] failed to queue offline", queueError?.message || queueError);
-        }
+      // No connection: nothing is kept on the device. Attendance is recorded only
+      // while the server can check the branch radius itself -- an offline capture
+      // carried the phone's own clock and GPS, and the owner turned it off
+      // (2026-10-17). The employee connects and presses again.
+      if (shouldQueueAttendanceOffline(err)) {
+        setPortalNotice(text.attendanceNeedsConnection);
+        logPagePerf("employee-wallet.attendance-action", startedAt, { action: actionType, offline_refused: true });
+        return;
       }
       const code = err?.responseBody?.code;
       if (code === "already_checked_in" || code === "already_checked_out_today") {
