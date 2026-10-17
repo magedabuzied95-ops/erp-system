@@ -29,14 +29,14 @@ import PolicyLayout, { PolicyHelp, PolicyList, PolicyTabs } from "./policy/Polic
 
 // These pages render outside the storefront shell, so they read the shop's stored theme
 // themselves (same key and JSON encoding as Storefront.jsx; the shop defaults to dark).
-const STOREFRONT_THEME_KEY = "storefront.theme";
+const STOREFRONT_THEME_KEY = "storefront.theme.mode";
 const readStorefrontTheme = () => {
   if (typeof window === "undefined") return "dark";
   try {
     const raw = window.localStorage.getItem(STOREFRONT_THEME_KEY);
-    return raw && JSON.parse(raw) === "light" ? "light" : "dark";
+    return raw && JSON.parse(raw) === "dark" ? "dark" : "light";
   } catch {
-    return "dark";
+    return "light";
   }
 };
 

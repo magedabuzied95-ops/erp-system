@@ -29,14 +29,14 @@ import "./reviewLink.css";
 
 const text = (value = "") => String(value ?? "").trim();
 
-const STOREFRONT_THEME_KEY = "storefront.theme";
+const STOREFRONT_THEME_KEY = "storefront.theme.mode";
 const readStorefrontTheme = () => {
   if (typeof window === "undefined") return "dark";
   try {
     const raw = window.localStorage.getItem(STOREFRONT_THEME_KEY);
-    return raw && JSON.parse(raw) === "light" ? "light" : "dark";
+    return raw && JSON.parse(raw) === "dark" ? "dark" : "light";
   } catch {
-    return "dark";
+    return "light";
   }
 };
 

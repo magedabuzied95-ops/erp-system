@@ -1892,7 +1892,9 @@ const CART_KEY = "storefront.cart";
 const WISHLIST_KEY = "storefront.wishlist";
 const RECENT_KEY = "storefront.recent";
 const PROFILE_KEY = "storefront.profile";
-const STOREFRONT_THEME_KEY = "storefront.theme";
+// Light is the default. The old "storefront.theme" key auto-saved "dark" for
+// every visitor who never chose, so the choice moved to a new key.
+const STOREFRONT_THEME_KEY = "storefront.theme.mode";
 const storefrontGetCache = new Map();
 const storefrontGetInFlight = new Map();
 const storefrontProductDetailsCache = new Map();
@@ -11509,8 +11511,8 @@ function Storefront() {
   const [recent, setRecent] = useState(() => readStorefrontStorage(RECENT_KEY, []));
   const [profile, setProfile] = useState(() => normalizeStorefrontProfile(readStorefrontStorage(PROFILE_KEY, { full_name: "", primary_phone: "", phone: "", customer_id: "" })));
   const [themeMode, setThemeMode] = useState(() => {
-    const savedTheme = readStorefrontStorage(STOREFRONT_THEME_KEY, "dark");
-    return savedTheme === "light" ? "light" : "dark";
+    const savedTheme = readStorefrontStorage(STOREFRONT_THEME_KEY, "light");
+    return savedTheme === "dark" ? "dark" : "light";
   });
   const [publicStoreSettings, setPublicStoreSettings] = useState({});
   const [publicStoreSettingsLoading, setPublicStoreSettingsLoading] = useState(true);
@@ -11632,10 +11634,10 @@ function Storefront() {
     const syncTheme = (event) => {
       if (event.key !== STOREFRONT_THEME_KEY) return;
       try {
-        const nextTheme = JSON.parse(event.newValue || '"dark"');
-        setThemeMode(nextTheme === "light" ? "light" : "dark");
+        const nextTheme = JSON.parse(event.newValue || '"light"');
+        setThemeMode(nextTheme === "dark" ? "dark" : "light");
       } catch {
-        setThemeMode("dark");
+        setThemeMode("light");
       }
     };
     window.addEventListener("storage", syncTheme);
@@ -12635,7 +12637,7 @@ class StorefrontErrorBoundary extends Component {
       // The page's code never reached the device. Nothing was purged; the `online`
       // listener reloads on its own when the connection returns, the button sooner.
       return (
-        <main className="sfx-scope" data-theme={readJson(STOREFRONT_THEME_KEY, "dark") === "light" ? "light" : "dark"}>
+        <main className="sfx-scope" data-theme={readJson(STOREFRONT_THEME_KEY, "light") === "dark" ? "dark" : "light"}>
           <div className="sfx-wrap sfx-wrap--sm sfx-section">
           <div className="sfx-empty" role="alert">
             <span className="sfx-empty__icon">
@@ -12654,7 +12656,7 @@ class StorefrontErrorBoundary extends Component {
         // The boundary can render before (or without) the shell body class, so
         // it carries its own `.sfx-scope`: inside the shell that is inert and
         // Site Studio still wins; outside it the same tokens and primitives apply.
-        <main className="sfx-scope" data-theme={readJson(STOREFRONT_THEME_KEY, "dark") === "light" ? "light" : "dark"}>
+        <main className="sfx-scope" data-theme={readJson(STOREFRONT_THEME_KEY, "light") === "dark" ? "dark" : "light"}>
           <div className="sfx-wrap sfx-wrap--sm sfx-section">
           <div className="sfx-empty">
             <span className="sfx-empty__icon">
