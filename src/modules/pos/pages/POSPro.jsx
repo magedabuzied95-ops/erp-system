@@ -7157,6 +7157,17 @@ function POSPro() {
         edit_settlement_type: editSettlementType,
         edit_settlement_method: editingOrder?.id ? resolvedEditPaymentMethod : null,
         edit_refund_method: editingOrder?.id ? editRefundMethod : null,
+        // An edit that moves no money but carries a different method than the invoice was
+        // paid with is the cashier correcting it ("InstaPay, not Vodafone Cash"): the
+        // server moves the collected money to the new method instead of only the receipt.
+        change_payment_method: Boolean(
+          editActive
+          && editSettlementType === "none"
+          && ["cash", "card", "instapay", "vodafone_cash"].includes(paymentMode)
+          && paymentMode !== resolveCollectedPaymentMode({
+            payment_breakdown: editingOrder.original_payment_breakdown ?? editingOrder.originalPaymentBreakdown ?? editingOrder.payment_breakdown ?? editingOrder.paymentBreakdown ?? editingOrder.payments,
+          }, normalizePaymentMethodKey(editingOrder.payment_method || ""))
+        ),
         additional_payment_breakdown: additionalPaymentBreakdown,
         exchange_mode: Boolean(exchangeState?.active && !editingOrder?.id),
         original_order_id: !editingOrder?.id ? exchangeState?.originalOrderId || null : null,

@@ -9,7 +9,8 @@ import { ensureAttendanceSchema } from "../utils/attendanceSchema.js";
 import { ensureSingleBranchMode } from "../utils/singleBranchMode.js";
 import { parseOrderSecondaryPhone } from "../utils/orderSecondaryPhone.js";
 import { adjustVariantStock, recordInventoryMovement } from "../services/inventoryService.js";
-import { createJournalEntry, ensureAccountingSchema, getCurrentCashDrawerShift, logAccountingAudit, postSaleEntry, postReturnEntry, postWalletLiabilityEntry, recordCashDrawerEvent, recordFinancialAccountActivity, resolveFinancialAccountForPayment, reverseMoneyTransactionsForReference } from "../services/accountingService.js";
+import { createJournalEntry, ensureAccountingSchema, getCurrentCashDrawerShift, logAccountingAudit, postSaleEntry, postReturnEntry, postWalletLiabilityEntry, recordCashDrawerEvent, recordFinancialAccountActivity, resolveFinancialAccountForPayment, reverseMoneyTransactionsForReference, SALE_SETTLEMENT_ACCOUNT_CODES } from "../services/accountingService.js";
+import { editPaymentMethodChangeColumnDeltas, planEditPaymentMethodChange } from "../utils/editPaymentMethodChange.js";
 import { applyTransferPaymentConfirmation } from "../modules/walletTransfers/transferPaymentConfirmation.js";
 import { claimWalletTransferForPosOrder, emitPosTransferSettled, sumPosTransferParts } from "../modules/walletTransfers/walletTransfers.service.js";
 import { isWhatsappNumberMissingError, WHATSAPP_NUMBER_MISSING_MESSAGE } from "../utils/whatsappNotOnNumber.js";
@@ -7187,7 +7188,24 @@ export const editOrder = async (req, res) => {
       additionalPaymentBreakdown.reduce((sum, payment) => sum + Number(payment.amount || 0), 0)
     );
     const deferredEditAmount = normalizeInvoiceMoney(Math.max(0, amountDueNow - additionalPaidAmount));
-    const existingPaymentBreakdown = Array.isArray(loaded.order.payment_breakdown) ? loaded.order.payment_breakdown : [];
+    // "It was InstaPay, not Vodafone Cash": the till asks for this only when the edit moves no
+    // money, so the cashier's pick is about the money ALREADY collected. A Paymob terminal
+    // charge is a card payment by fact, not by choice, and stays one.
+    const paymobCardCharge = Boolean(loaded.order.payment_transaction_id || loaded.order.paymob_terminal_transaction_id);
+    const paymentMethodChange = req.body.change_payment_method === true
+      && additionalPaidAmount <= 0.009
+      && refundOrCreditDue <= 0.009
+      && !isEmployeeAdvanceSettledOrder
+      && !isOnlineShippingOrder(loaded.order)
+      ? planEditPaymentMethodChange({ paymentBreakdown: loaded.order.payment_breakdown, requestedMethod: req.body.payment_method })
+      : null;
+    if (paymentMethodChange && paymentMethodChange.fromMethod === "card" && paymobCardCharge) {
+      await client.query("ROLLBACK");
+      return res.status(400).json({ success: false, message: "دفع الفيزا من ماكينة Paymob مينفعش يتغير لطريقة دفع تانية." });
+    }
+    const existingPaymentBreakdown = paymentMethodChange
+      ? paymentMethodChange.paymentBreakdown
+      : Array.isArray(loaded.order.payment_breakdown) ? loaded.order.payment_breakdown : [];
     const editPaymentBreakdown = [
       ...existingPaymentBreakdown,
       ...additionalPaymentBreakdown.map((payment) => ({
@@ -7743,6 +7761,106 @@ export const editOrder = async (req, res) => {
         });
         logEditFlowStep("settlement:journal_payment:after");
       }
+    } else if (paymentMethodChange) {
+      // The money already collected moves from the old rail to the new one, everywhere the
+      // sale booked it: the drawer for cash, the mapped money account otherwise, and the
+      // settlement account in the journal.
+      const { fromMethod, toMethod, amount: changedAmount } = paymentMethodChange;
+      settlementMetadata.payment_method_change = { from: fromMethod, to: toMethod, amount: changedAmount };
+      const changeNotes = `POS invoice edit payment method ${fromMethod} → ${toMethod} for ${loaded.order.invoice_number || loaded.order.id}`;
+      const resolveChangeAccount = async (method) => {
+        if (method === "cash") return null;
+        const mapped = await resolveFinancialAccountForPayment(client, { tenantId, branchId: settlementBranchId, paymentMethod: method });
+        if (!mapped?.financialAccountId) {
+          const error = new Error(`No financial account mapping for ${method}. Configure the account in payment/accounting settings.`);
+          error.status = 400;
+          throw error;
+        }
+        return mapped.financialAccountId;
+      };
+      const fromAccountId = await resolveChangeAccount(fromMethod);
+      const toAccountId = await resolveChangeAccount(toMethod);
+      const sameMoneyAccount = fromAccountId && toAccountId && String(fromAccountId) === String(toAccountId);
+
+      if (fromMethod === "cash" || toMethod === "cash") {
+        // The invoice's own shift if it is still open, else the cashier's open one.
+        const cashEvent = await recordCashDrawerEvent(client, {
+          tenantId,
+          branchId: settlementBranchId,
+          createdBy: req.user?.id || null,
+          shiftId: loaded.order.shift_id || null,
+          eventType: fromMethod === "cash" ? "cash_out" : "cash_in",
+          sourceType: "order_edit",
+          sourceId: editAuditId,
+          amount: changedAmount,
+          requireOpenShift: true,
+        });
+        settlementMetadata.settlement_shift_id = cashEvent?.shift_id || null;
+      }
+      if (!sameMoneyAccount) {
+        if (fromAccountId) {
+          await recordFinancialAccountActivity(client, {
+            tenantId,
+            branchId: settlementBranchId,
+            financialAccountId: fromAccountId,
+            paymentMethod: fromMethod,
+            entryType: "out",
+            direction: -1,
+            sourceType: "order_edit",
+            sourceId: editAuditId,
+            amount: changedAmount,
+            notes: changeNotes,
+            createdBy: req.user?.id || null,
+          });
+        }
+        if (toAccountId) {
+          await recordFinancialAccountActivity(client, {
+            tenantId,
+            branchId: settlementBranchId,
+            financialAccountId: toAccountId,
+            paymentMethod: toMethod,
+            entryType: "in",
+            direction: 1,
+            sourceType: "order_edit",
+            sourceId: editAuditId,
+            amount: changedAmount,
+            notes: changeNotes,
+            createdBy: req.user?.id || null,
+          });
+        }
+      }
+
+      const fromAccountCode = SALE_SETTLEMENT_ACCOUNT_CODES[fromMethod];
+      const toAccountCode = SALE_SETTLEMENT_ACCOUNT_CODES[toMethod];
+      if (fromAccountCode && toAccountCode && fromAccountCode !== toAccountCode) {
+        await createJournalEntry(client, {
+          tenantId,
+          description: "POS invoice edit payment method change",
+          referenceType: "order_edit",
+          referenceId: loaded.order.id,
+          createdBy: req.user?.id || null,
+          branchId: settlementBranchId,
+          notes: changeNotes,
+          lines: [
+            { accountCode: toAccountCode, debit: changedAmount, credit: 0, notes: changeNotes },
+            { accountCode: fromAccountCode, debit: 0, credit: changedAmount, notes: changeNotes },
+          ],
+        });
+      }
+
+      const columnDeltas = editPaymentMethodChangeColumnDeltas(paymentMethodChange);
+      const columnsResult = await client.query(
+        `
+        UPDATE orders
+        SET card_amount = GREATEST(COALESCE(card_amount, 0) + $2::numeric, 0),
+            wallet_payment_amount = GREATEST(COALESCE(wallet_payment_amount, 0) + $3::numeric, 0)
+        WHERE id = $1
+        RETURNING card_amount, wallet_payment_amount
+        `,
+        [loaded.order.id, columnDeltas.card, columnDeltas.wallet]
+      );
+      Object.assign(orderResult.rows[0], columnsResult.rows[0] || {});
+      logEditFlowStep("settlement:payment_method_change", settlementMetadata.payment_method_change);
     }
 
     logEditFlowStep("settlement:after", settlementMetadata);
@@ -8002,6 +8120,8 @@ const reverseOrderCashDrawer = async (client, { tenantId, order, userId, returnI
         WHEN LOWER(e.source_type) = 'order' AND e.event_type = 'sale_cash' THEN e.amount
         WHEN LOWER(e.source_type) = 'order_edit' AND e.event_type = 'cash_in' THEN e.amount
         WHEN LOWER(e.source_type) = 'order_edit' AND e.event_type = 'refund_cash' THEN -e.amount
+        -- An edit that moved the invoice off cash (paid by InstaPay, not cash) took it back out.
+        WHEN LOWER(e.source_type) = 'order_edit' AND e.event_type = 'cash_out' THEN -e.amount
         WHEN LOWER(e.source_type) = 'return' AND e.event_type = 'refund_cash' THEN -e.amount
         ELSE 0
       END), 0)::numeric AS cash_held,
