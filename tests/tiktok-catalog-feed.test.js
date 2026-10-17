@@ -4,11 +4,14 @@ import fs from "node:fs";
 
 import { buildMetaCatalogItem } from "../server/services/metaCatalogFeedService.js";
 import { metaContentIdFor } from "../server/services/metaCatalogContentIdService.js";
+import express from "express";
 import {
   TIKTOK_CATALOG_COLUMNS,
   buildTikTokCatalogFeed,
   buildTikTokCatalogFromItems,
   clearTikTokCatalogFeedCache,
+  createTikTokCatalogFeedHandler,
+  tiktokCatalogMinItems,
   tiktokCatalogRow,
 } from "../server/modules/tiktok/tiktokCatalogFeed.js";
 import { tiktokContentId } from "../shared/tiktokPixelEvent.js";
@@ -135,17 +138,17 @@ test("6. hidden, unpublished and deleted rows never reach TikTok: the feed reads
 const metaFeedOf = (rows, generatedAt) => async () => ({ generatedAt, items: rows.map((r) => buildMetaCatalogItem(r)) });
 
 test("7. a price change reaches the TikTok feed with the next Meta build, and only then", async () => {
-  const first = await buildTikTokCatalogFeed({ loadMetaFeed: metaFeedOf([row()], 1) });
+  const first = await buildTikTokCatalogFeed({ loadMetaFeed: metaFeedOf([row()], 1), minItems: 1 });
   assert.equal(readCsv(first.csv)[0].price, "500.00 EGP");
-  const sameBuild = await buildTikTokCatalogFeed({ loadMetaFeed: metaFeedOf([row({ product_selling_price: 450 })], 1) });
+  const sameBuild = await buildTikTokCatalogFeed({ loadMetaFeed: metaFeedOf([row({ product_selling_price: 450 })], 1), minItems: 1 });
   assert.equal(sameBuild, first, "same Meta build -> the cached CSV, no rework");
-  const repriced = await buildTikTokCatalogFeed({ loadMetaFeed: metaFeedOf([row({ product_selling_price: 450 })], 2) });
+  const repriced = await buildTikTokCatalogFeed({ loadMetaFeed: metaFeedOf([row({ product_selling_price: 450 })], 2), minItems: 1 });
   assert.equal(readCsv(repriced.csv)[0].price, "450.00 EGP");
 });
 
 test("8. a new product appears with the next Meta build", async () => {
-  await buildTikTokCatalogFeed({ loadMetaFeed: metaFeedOf([row()], 1) });
-  const next = await buildTikTokCatalogFeed({ loadMetaFeed: metaFeedOf([row(), row({ product_id: 11, variant_id: 40, variant_sku: "NEW-40", product_name: "Adidas Samba", slug: "adidas-samba", brand_name: "Adidas" })], 2) });
+  await buildTikTokCatalogFeed({ loadMetaFeed: metaFeedOf([row()], 1), minItems: 1 });
+  const next = await buildTikTokCatalogFeed({ loadMetaFeed: metaFeedOf([row(), row({ product_id: 11, variant_id: 40, variant_sku: "NEW-40", product_name: "Adidas Samba", slug: "adidas-samba", brand_name: "Adidas" })], 2), minItems: 1 });
   assert.deepEqual(readCsv(next.csv).map((r) => r.sku_id), ["NKV2K-WP-39", "NEW-40"]);
 });
 
@@ -200,12 +203,12 @@ test("google_product_category is cut to the three levels TikTok reads", () => {
 });
 
 test("a failed rebuild serves the last good copy; with none yet it fails loudly", async () => {
-  const good = await buildTikTokCatalogFeed({ loadMetaFeed: metaFeedOf([row()], 1) });
+  const good = await buildTikTokCatalogFeed({ loadMetaFeed: metaFeedOf([row()], 1), minItems: 1 });
   const broken = async () => ({ generatedAt: 2, items: { map() { throw new Error("boom"); } } });
-  const served = await buildTikTokCatalogFeed({ loadMetaFeed: broken });
+  const served = await buildTikTokCatalogFeed({ loadMetaFeed: broken, minItems: 1 });
   assert.equal(served, good);
   clearTikTokCatalogFeedCache();
-  await assert.rejects(buildTikTokCatalogFeed({ loadMetaFeed: broken }));
+  await assert.rejects(buildTikTokCatalogFeed({ loadMetaFeed: broken, minItems: 1 }));
 });
 
 test("the feed is served at /feeds/tiktok.csv on the API and on the shop's own domain", () => {
@@ -216,4 +219,60 @@ test("the feed is served at /feeds/tiktok.csv on the API and on the shop's own d
   assert.equal(rewrite?.destination, "https://api.m1store-egy.com/feeds/tiktok.csv");
   const catchAll = vercel.rewrites.findIndex((r) => r.source === "/(.*)");
   if (catchAll >= 0) assert.ok(vercel.rewrites.indexOf(rewrite) < catchAll, "before the SPA catch-all");
+});
+
+/* ------------------------------------------------------------------ "Replace your feed" safety */
+
+const manyRows = (count, start = 1) =>
+  Array.from({ length: count }, (_, i) => row({ product_id: 1000 + start + i, variant_id: 5000 + start + i, variant_sku: `SKU-${start + i}`, slug: `model-${start + i}` }));
+
+test("Replace safety: an empty or tiny build is never published", async () => {
+  await assert.rejects(buildTikTokCatalogFeed({ loadMetaFeed: metaFeedOf([], 1) }), /too small/);
+  await assert.rejects(buildTikTokCatalogFeed({ loadMetaFeed: metaFeedOf(manyRows(99), 2) }), /too small/, "below the default floor of 100");
+  const ok = await buildTikTokCatalogFeed({ loadMetaFeed: metaFeedOf(manyRows(100), 3) });
+  assert.equal(ok.stats.items, 100);
+  assert.equal(tiktokCatalogMinItems({ TIKTOK_CATALOG_MIN_ITEMS: "5000" }), 5000);
+  assert.equal(tiktokCatalogMinItems({}), 100);
+});
+
+test("Replace safety: a build that loses over half the catalogue keeps serving the last good file", async () => {
+  const good = await buildTikTokCatalogFeed({ loadMetaFeed: metaFeedOf(manyRows(300), 1), minItems: 1 });
+  const afterDrop = await buildTikTokCatalogFeed({ loadMetaFeed: metaFeedOf(manyRows(140), 2), minItems: 1 });
+  assert.equal(afterDrop, good, "140 of 300 -> the 300-row file stays");
+  assert.equal(readCsv(afterDrop.csv).length, 300);
+  const normalChange = await buildTikTokCatalogFeed({ loadMetaFeed: metaFeedOf(manyRows(200), 3), minItems: 1 });
+  assert.equal(normalChange.stats.items, 200, "a third fewer (archiving, a sold-out range) is a normal change");
+});
+
+test("Replace safety: when the Meta build itself fails, the last good file is served", async () => {
+  const good = await buildTikTokCatalogFeed({ loadMetaFeed: metaFeedOf(manyRows(150), 1), minItems: 1 });
+  const served = await buildTikTokCatalogFeed({ loadMetaFeed: async () => { throw new Error("statement timeout"); }, minItems: 1 });
+  assert.equal(served, good);
+});
+
+const serve = async (handler) => {
+  const app = express();
+  app.get("/feeds/tiktok.csv", handler);
+  const server = app.listen(0);
+  const response = await fetch(`http://127.0.0.1:${server.address().port}/feeds/tiktok.csv`);
+  const body = await response.text();
+  server.close();
+  return { response, body };
+};
+
+test("over HTTP: a complete CSV with its row count, or a 503 with no CSV at all — never a partial 200", async () => {
+  const feed = buildTikTokCatalogFromItems(manyRows(120).map((r) => buildMetaCatalogItem(r)));
+  const ok = await serve(createTikTokCatalogFeedHandler({ build: async () => ({ ...feed, generatedAt: Date.now() }) }));
+  assert.equal(ok.response.status, 200);
+  assert.match(ok.response.headers.get("content-type"), /^text\/csv; charset=utf-8/);
+  assert.equal(ok.response.headers.get("x-feed-items"), "120");
+  assert.equal(Number(ok.response.headers.get("content-length")), Buffer.byteLength(ok.body), "the whole file, declared up front");
+  assert.equal(readCsv(ok.body).length, 120);
+  assert.ok(ok.body.endsWith("\n"));
+
+  const failed = await serve(createTikTokCatalogFeedHandler({ build: async () => { throw new Error("catalog too small to publish: 0 items"); } }));
+  assert.equal(failed.response.status, 503);
+  assert.equal(failed.response.headers.get("retry-after"), "900");
+  assert.equal(failed.response.headers.get("cache-control"), "no-store");
+  assert.ok(!failed.body.includes("sku_id"), "no CSV header a crawler could read as an empty catalogue");
 });

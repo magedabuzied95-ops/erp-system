@@ -143,12 +143,34 @@ export const clearTikTokCatalogFeedCache = () => {
   cache = null;
 };
 
-export const buildTikTokCatalogFeed = async ({ loadMetaFeed = buildMetaCatalogFeed } = {}) => {
-  const meta = await loadMetaFeed();
-  if (cache && cache.sourceGeneratedAt === meta.generatedAt) return cache;
+/*
+ * TikTok's "Replace your feed" deletes every product the file does not list. A short or
+ * empty file — a header and nothing else, a query that quietly lost its rows — would wipe
+ * the catalogue, so a build only counts when it is plausibly whole:
+ *   - at least `minItems` rows (TIKTOK_CATALOG_MIN_ITEMS, default 100; the shop has ~8,900);
+ *   - not under half of the last good build this process served.
+ * A build that fails either check is a failed build: the last good copy is served, or with
+ * none yet the route answers 503 — never a 200 with a partial file.
+ */
+export const TIKTOK_CATALOG_MAX_DROP_RATIO = 0.5;
+export const tiktokCatalogMinItems = (env = process.env) => Math.max(1, Math.floor(Number(env.TIKTOK_CATALOG_MIN_ITEMS) || 100));
+
+export const assertCompleteTikTokCatalog = (stats = {}, previous = null, minItems = tiktokCatalogMinItems()) => {
+  const items = Number(stats.items || 0);
+  if (items < minItems) throw new Error(`catalog too small to publish: ${items} items (minimum ${minItems})`);
+  const before = Number(previous?.stats?.items || 0);
+  if (before && items < before * TIKTOK_CATALOG_MAX_DROP_RATIO) {
+    throw new Error(`catalog shrank from ${before} to ${items} items in one build`);
+  }
+};
+
+export const buildTikTokCatalogFeed = async ({ loadMetaFeed = buildMetaCatalogFeed, minItems = tiktokCatalogMinItems() } = {}) => {
   const startedAt = Date.now();
   try {
+    const meta = await loadMetaFeed();
+    if (cache && cache.sourceGeneratedAt === meta.generatedAt) return cache;
     const built = buildTikTokCatalogFromItems(meta.items || []);
+    assertCompleteTikTokCatalog(built.stats, cache, minItems);
     cache = { ...built, sourceGeneratedAt: meta.generatedAt, generatedAt: Date.now() };
     // Counts only: a feed log must never carry product or customer data.
     console.log("[tiktok-catalog-feed] built", { ...built.stats, ms: Date.now() - startedAt });
@@ -165,18 +187,24 @@ export const buildTikTokCatalogFeed = async ({ loadMetaFeed = buildMetaCatalogFe
 
 const router = express.Router();
 
-router.get("/tiktok.csv", async (_req, res) => {
+export const createTikTokCatalogFeedHandler = ({ build = buildTikTokCatalogFeed } = {}) => async (_req, res) => {
   try {
-    const feed = await buildTikTokCatalogFeed();
+    const feed = await build();
     res.set("Content-Type", "text/csv; charset=utf-8");
     res.set("Cache-Control", "public, max-age=900");
     res.set("X-Feed-Items", String(feed.stats.items));
     res.set("X-Feed-Generated-At", new Date(feed.generatedAt).toISOString());
     return res.status(200).send(feed.csv);
   } catch (error) {
+    // 503, not a partial 200: TikTok keeps the products it has on a failed fetch, while a
+    // short file under "Replace your feed" would delete the rest.
     console.error("[tiktok-catalog-feed] failed", { message: text(error?.message).slice(0, 200) });
-    return res.status(500).type("text/plain").send("TikTok catalog feed generation failed");
+    res.set("Retry-After", "900");
+    res.set("Cache-Control", "no-store");
+    return res.status(503).type("text/plain").send("TikTok catalog feed temporarily unavailable");
   }
-});
+};
+
+router.get("/tiktok.csv", createTikTokCatalogFeedHandler());
 
 export default router;
