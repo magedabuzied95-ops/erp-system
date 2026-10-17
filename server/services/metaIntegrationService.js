@@ -18681,16 +18681,27 @@ const sendSocialCommentSalesFlowText = async ({
         color: text(fallbackContext?.color || ""),
         step: text(fallbackContext?.step || ""),
         message: error?.message || "",
+        meta_status: error?.status || null,
+        meta_code: error?.code || error?.meta?.code || "",
+        meta_subcode: error?.meta?.error_subcode || "",
       });
+      // The refused attempt already stored this exact text's outbound signature against this
+      // inbound mid, so without the bypass the fallback is read as its own duplicate and the
+      // customer gets nothing at all (Omar Ayoub, 2026-10-16: tapped a colour, no sizes ever
+      // came). The tap was claimed atomically before anything was sent, so bypassing cannot
+      // double-send. The buttons are gone, so their titles go into the text instead — otherwise
+      // "اختار المقاس المتاح:" arrives with nothing to choose from.
+      const optionTitles = quickReplies.map((reply) => text(reply?.title || "")).filter(Boolean);
       return sendAndLogMetaText({
         config,
         message,
-        text: replyText,
+        text: optionTitles.length ? `${replyText}\n${optionTitles.join(" - ")}` : replyText,
         detectedIntent,
         metadata: {
           ...metadata,
           force_reply_text_passthrough: true,
           social_comment_quick_reply_fallback: true,
+          bypass_outbound_dedupe: true,
         },
         inboundKey,
         inboundMetaMid,
