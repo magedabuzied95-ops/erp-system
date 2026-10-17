@@ -419,3 +419,76 @@ test("a table made by the first version (no ref_id, three-column key) is upgrade
     await c.query(`DROP SCHEMA ${old} CASCADE`);
   }
 });
+
+/* ------------------------------------------------------------------ TIKTOK_EVENTS_TEST_ONLY */
+
+const testOnly = { ...config, testOnly: true };
+const testSession = { consent: true, test: true };
+const placeWith = async (c, cfg, { id, phone, browser }) => {
+  await c.query(`INSERT INTO orders (id, tenant_id, status, payment_status, total_amount, total) VALUES ($1, 1, 'pending', 'unpaid', 1000, 1000)`, [id]);
+  const result = await recordTikTokPlaceAnOrder({ req, tenantId: 1, order: { id, status: "pending", total_amount: 1000 }, items, checkout: { ...checkout, primary_phone: phone }, identity: browser, client: c, config: cfg, fetchImpl: fetchOk });
+  await result.delivery;
+  return result;
+};
+
+test("TEST_ONLY is off unless explicitly turned on", () => {
+  assert.equal(tiktokEventsConfig({ TIKTOK_EVENTS_ACCESS_TOKEN: "x" }).testOnly, false);
+  assert.equal(tiktokEventsConfig({ TIKTOK_EVENTS_ACCESS_TOKEN: "x", TIKTOK_EVENTS_TEST_ONLY: "false" }).testOnly, false);
+  assert.equal(tiktokEventsConfig({ TIKTOK_EVENTS_ACCESS_TOKEN: "x", TIKTOK_EVENTS_TEST_ONLY: "true" }).testOnly, true);
+  assert.equal(tiktokEventsConfig({ TIKTOK_EVENTS_ACCESS_TOKEN: "x", TIKTOK_EVENTS_TEST_ONLY: "1" }).testOnly, true);
+});
+
+test("TEST_ONLY: a real customer's order leaves no row and sends nothing; the test order goes to Test Events", async (t) => {
+  const c = db(t);
+  if (!c) return;
+  const real = await placeWith(c, testOnly, { id: 2001, phone: "01012345678", browser: identity });
+  const flagOnly = await placeWith(c, testOnly, { id: 2002, phone: "01012345678", browser: testSession });
+  const testOrder = await placeWith(c, testOnly, { id: 2003, phone: "01099999999", browser: testSession });
+  assert.deepEqual([real.reason, flagOnly.reason], ["test_only", "test_only"]);
+  assert.equal(testOrder.queued, true);
+  assert.deepEqual((await outbox(c)).map((r) => r.event_id), ["m1_tt_placeanorder_order_2003"]);
+  assert.equal(sent.length, 1);
+  assert.equal(sent[0].body.test_event_code, "TEST123");
+  assert.equal(sent[0].body.data[0].properties.order_id, "2003");
+});
+
+test("TEST_ONLY with no open test window: nothing at all is recorded or sent", async (t) => {
+  const c = db(t);
+  if (!c) return;
+  const closed = { ...testOnly, testEventCode: "" };
+  const result = await placeWith(c, closed, { id: 2101, phone: "01099999999", browser: testSession });
+  assert.equal(result.reason, "test_only");
+  assert.deepEqual(await outbox(c), []);
+  assert.equal(sent.length, 0);
+});
+
+test("TEST_ONLY: a live row already waiting is not sent, and goes out once normal operation resumes", async (t) => {
+  const c = db(t);
+  if (!c) return;
+  // Queued during normal operation, before the test began (its first send failed).
+  await c.query(`INSERT INTO orders (id, tenant_id, status, payment_status, total_amount, total) VALUES (2201, 1, 'pending', 'unpaid', 3000, 3000)`);
+  await recordTikTokPlaceAnOrder({ req, tenantId: 1, order: { id: 2201, status: "pending", total_amount: 3000 }, items, checkout, customer: { id: 77 }, identity, client: c, config, send: false });
+  await drainTikTokOutbox({ client: c, config: testOnly, fetchImpl: fetchOk });
+  assert.equal(sent.length, 0);
+  assert.equal((await outbox(c))[0].status, "pending");
+  await drainTikTokOutbox({ client: c, config, fetchImpl: fetchOk });
+  assert.equal(sent.length, 1);
+  assert.equal("test_event_code" in sent[0].body, false);
+});
+
+test("TEST_ONLY: no Purchase and no Refund derived for a real order; both derived for the test order", async (t) => {
+  const c = db(t);
+  if (!c) return;
+  await paidAndSent(c, 2301); // a real order, paid and reported before the test window
+  await addReturn(c, { orderId: 2301, amount: 500 });
+  await placeWith(c, testOnly, { id: 2302, phone: "01099999999", browser: testSession });
+  await c.query(`UPDATE orders SET payment_status = 'paid', paid_amount = 1000 WHERE id = 2302`);
+  // A real order that turns paid during the test window:
+  await c.query(`INSERT INTO orders (id, tenant_id, status, payment_status, total_amount, total, paid_amount) VALUES (2303, 1, 'pending', 'paid', 900, 900, 900)`);
+  await recordTikTokPlaceAnOrder({ req, tenantId: 1, order: { id: 2303, status: "pending", total_amount: 900 }, items, checkout, identity, client: c, config, send: false });
+
+  assert.deepEqual(await queuePaidTikTokPurchases({ client: c, config: testOnly }), { queued: 1, late: 0 });
+  const purchases = (await c.query(`SELECT order_id, is_test FROM tiktok_event_outbox WHERE event_name = 'Purchase' ORDER BY order_id`)).rows;
+  assert.deepEqual(purchases.map((r) => [String(r.order_id), r.is_test]), [["2301", false], ["2302", true]]);
+  assert.equal((await queueTikTokRefunds({ client: c, config: testOnly })).refunds, 0, "the real order's return is not reported");
+});

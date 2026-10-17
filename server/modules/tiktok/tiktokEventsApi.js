@@ -91,6 +91,14 @@ export const activeTestEventCode = (env = process.env, now = Date.now()) => {
 const testPhones = (value = "") =>
   new Set(text(value).split(/[\s,;]+/).map((phone) => normalizeMetaEgyptPhone(phone)).filter(Boolean));
 
+const truthyFlag = (value) => ["1", "true", "yes", "on"].includes(text(value).toLowerCase());
+
+/*
+ * TIKTOK_EVENTS_TEST_ONLY: the switch for an end-to-end test on the live shop. While it is
+ * on, only test orders (isTestOrder) are recorded, derived and sent — every other order is
+ * left alone entirely, so turning the API on for a test cannot report a real sale. With it
+ * on and no open test window, nothing at all is sent. Off (the default) = normal operation.
+ */
 export const tiktokEventsConfig = (env = process.env, now = Date.now()) => {
   const accessToken = text(env.TIKTOK_EVENTS_ACCESS_TOKEN);
   return {
@@ -98,6 +106,7 @@ export const tiktokEventsConfig = (env = process.env, now = Date.now()) => {
     pixelId: text(env.TIKTOK_PIXEL_ID) || DEFAULT_PIXEL_ID,
     testEventCode: activeTestEventCode(env, now),
     testPhones: testPhones(env.TIKTOK_EVENTS_TEST_PHONES),
+    testOnly: truthyFlag(env.TIKTOK_EVENTS_TEST_ONLY),
     enabled: Boolean(accessToken) && enabledFlag(env.TIKTOK_EVENTS_API_ENABLED ?? "true"),
   };
 };
@@ -315,7 +324,8 @@ export const postTikTokEvent = async (body, { config = tiktokEventsConfig(), fet
  * does reach TikTok carries the same event_id and is dropped there.
  *
  * A test row goes out with the test code, or — once the window has closed — not at
- * all: test traffic must never land in the live data.
+ * all: test traffic must never land in the live data. In test-only mode a live row is
+ * not even claimed: it waits, untouched, for normal operation (or expires at 7 days).
  */
 export const drainTikTokOutbox = async ({ client = db, config = tiktokEventsConfig(), fetchImpl = globalThis.fetch, limit = 25 } = {}) => {
   if (!config.enabled) return { sent: 0, failed: 0, retried: 0, skipped: "disabled" };
@@ -325,10 +335,11 @@ export const drainTikTokOutbox = async ({ client = db, config = tiktokEventsConf
        SELECT id FROM tiktok_event_outbox
        WHERE status IN ('pending', 'retry', 'sending') AND next_attempt_at <= NOW()
          AND created_at > NOW() - ($2::int * INTERVAL '1 day')
+         AND (NOT $3::boolean OR is_test)
        ORDER BY id LIMIT $1 FOR UPDATE SKIP LOCKED
      )
      RETURNING id, order_id, event_name, payload, attempts, is_test`,
-    [limit, MAX_EVENT_AGE_DAYS]
+    [limit, MAX_EVENT_AGE_DAYS, Boolean(config.testOnly)]
   );
   const summary = { sent: 0, failed: 0, retried: 0 };
   for (const row of claimed.rows) {
@@ -390,6 +401,9 @@ export const recordTikTokPlaceAnOrder = async ({
   });
   if (!event) return { queued: false, reason: "missing_content_ids" };
   const isTest = isTestOrder({ identity: browser, checkout, customer, order, config });
+  // Test-only mode: a real customer's order leaves no TikTok trace at all, so nothing
+  // about it can be sent later either.
+  if (config.testOnly && !isTest) return { queued: false, reason: "test_only" };
   const id = await insertOutboxEvent(client, { tenantId, orderId: order.id, event, context: buildTikTokOrderContext(items), isTest });
   // Sent now rather than on the next sweep: TikTok asks for real time. Awaitable, never thrown.
   const delivery = id && send ? drainTikTokOutbox({ client, config, fetchImpl, limit: 5 }).catch(() => null) : null;
@@ -413,6 +427,7 @@ export const queuePaidTikTokPurchases = async ({ client = db, config = tiktokEve
      JOIN orders o ON o.id = p.order_id AND o.tenant_id = p.tenant_id
      WHERE p.event_name = $1 AND p.ref_id = ''
        AND p.created_at > NOW() - ($4::int * INTERVAL '1 day')
+       AND (NOT $6::boolean OR p.is_test)
        AND LOWER(COALESCE(o.payment_status, '')) = 'paid'
        AND COALESCE(o.paid_amount, 0) >= COALESCE(NULLIF(o.total_amount, 0), NULLIF(o.total, 0), o.total_price, 0) - 0.01
        AND NOT EXISTS (
@@ -421,7 +436,7 @@ export const queuePaidTikTokPurchases = async ({ client = db, config = tiktokEve
        )
      ORDER BY p.id
      LIMIT $5`,
-    [TIKTOK_EVENTS.placeAnOrder, TIKTOK_EVENTS.purchase, PAYMENT_WATCH_DAYS, RETENTION_DAYS, limit]
+    [TIKTOK_EVENTS.placeAnOrder, TIKTOK_EVENTS.purchase, PAYMENT_WATCH_DAYS, RETENTION_DAYS, limit, Boolean(config.testOnly)]
   );
   let queued = 0;
   let late = 0;
@@ -468,6 +483,7 @@ export const queueTikTokRefunds = async ({ client = db, config = tiktokEventsCon
        ON pu.order_id = r.order_id AND pu.event_name = $1 AND pu.ref_id = '' AND pu.status = 'sent'
       AND (r.tenant_id IS NULL OR r.tenant_id = pu.tenant_id)
      WHERE COALESCE(r.refund_amount, 0) > 0
+       AND (NOT $5::boolean OR pu.is_test)
        AND LOWER(COALESCE(r.status, '')) NOT IN ('pending', 'draft', 'rejected', 'cancelled', 'canceled')
        AND r.created_at > NOW() - ($3::int * INTERVAL '1 day')
        AND NOT EXISTS (
@@ -476,7 +492,7 @@ export const queueTikTokRefunds = async ({ client = db, config = tiktokEventsCon
        )
      ORDER BY r.id
      LIMIT $4`,
-    [TIKTOK_EVENTS.purchase, TIKTOK_EVENTS.refund, MAX_EVENT_AGE_DAYS, limit]
+    [TIKTOK_EVENTS.purchase, TIKTOK_EVENTS.refund, MAX_EVENT_AGE_DAYS, limit, Boolean(config.testOnly)]
   );
   if (!result.rows.length) return { refunds: 0 };
   const itemsByReturn = new Map();
