@@ -33,6 +33,10 @@
       "destination": "https://api.m1store-egy.com/feeds/google.xml"
     },
     {
+      "source": "/feeds/tiktok.csv",
+      "destination": "https://api.m1store-egy.com/feeds/tiktok.csv"
+    },
+    {
       "source": "/product/:identifier",
       "destination": "https://api.m1store-egy.com/api/storefront/seo/product/:identifier"
     },

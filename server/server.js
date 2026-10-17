@@ -689,6 +689,7 @@ const { default: publicProductReviewRoutes } = await import("./routes/publicProd
 const { default: publicProductsRoutes } = await import("./routes/publicProducts.js");
 const { default: publicPackingRoutes } = await import("./routes/publicPacking.js");
 const { default: metaCatalogFeedRoutes } = await import("./routes/metaCatalogFeed.js");
+const { default: tiktokCatalogFeedRoutes } = await import("./modules/tiktok/tiktokCatalogFeed.js");
 const { getPublicAvailableOgDebugSvg, getPublicAvailableOgImage, getPublicAvailableOgImagePng, getPublicAvailableSharePage, getPublicProductOgImage, getPublicProductShareMetadata, getPublicProductSharePage } = await import("./controllers/publicProductsController.js");
 const { default: storefrontRoutes } = await import("./routes/storefront.js");
 const { default: googleMerchantFeedRoutes } = await import("./routes/googleMerchantFeed.js");
@@ -1971,6 +1972,8 @@ app.use("/api/public/products", publicProductsRoutes);
 app.use("/api/public/packing", publicPackingRoutes);
 app.use("/feeds", googleMerchantFeedRoutes);
 app.use("/feeds", metaCatalogFeedRoutes);
+// TikTok catalogue: the Meta feed re-shaped as TikTok's CSV template, from the same cache.
+app.use("/feeds", tiktokCatalogFeedRoutes);
 app.use("/api/storefront", storefrontRoutes);
 app.use("/api/shipping", shippingRoutes);
 app.use("/api/wallet-transfers", walletTransfersRoutes);
