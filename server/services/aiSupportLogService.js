@@ -799,7 +799,16 @@ const persistOutboundTranscriptRow = async ({
       `,
       [safeTenantId, safeChannel, providerKey]
     );
-    if (fallbackProvider.rows[0]) return fallbackProvider.rows[0];
+    if (fallbackProvider.rows[0]) {
+      // Lost the race to a row with the same provider id that landed between the lookup above and
+      // this INSERT — in practice the channel's own echo of the message we just sent (WhatsApp's
+      // fromMe arrives within milliseconds). The writer that knows the message must still win, or
+      // a product-card send is stored as the echo's bare text and the inbox shows no card at all
+      // (2026-10-19). A writer that defers to an existing row keeps deferring.
+      if (preserveExistingOnProviderMatch) return fallbackProvider.rows[0];
+      const updated = await db.query(updateSql, [fallbackProvider.rows[0].id, ...values]);
+      return updated.rows[0] || fallbackProvider.rows[0];
+    }
   }
 
   if (safeDedupeKey) {
