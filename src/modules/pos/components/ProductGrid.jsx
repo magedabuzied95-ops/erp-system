@@ -224,7 +224,7 @@ function ProductGrid({
         estimateRowHeight={206}
         className="h-full min-h-0 overflow-auto pr-1 [-webkit-overflow-scrolling:touch]"
         gridClassName="grid grid-cols-1 gap-2 max-[380px]:grid-cols-1 min-[381px]:grid-cols-2 sm:grid-cols-[repeat(auto-fill,minmax(136px,1fr))] sm:gap-2.5 2xl:grid-cols-[repeat(auto-fill,minmax(150px,1fr))]"
-        itemKey={(product) => String(product.product_id || product.id)}
+        itemKey={(product) => String(product.pos_card_key || product.product_id || product.id)}
         renderItem={renderProduct}
       />
     );
@@ -232,7 +232,7 @@ function ProductGrid({
 
   return (
     <div className="grid grid-cols-1 gap-2 max-[380px]:grid-cols-1 min-[381px]:grid-cols-2 sm:grid-cols-[repeat(auto-fill,minmax(136px,1fr))] sm:gap-2.5 2xl:grid-cols-[repeat(auto-fill,minmax(150px,1fr))]">
-      {products.map((product, index) => renderProduct(product, index, String(product.product_id || product.id)))}
+      {products.map((product, index) => renderProduct(product, index, String(product.pos_card_key || product.product_id || product.id)))}
     </div>
   );
 }

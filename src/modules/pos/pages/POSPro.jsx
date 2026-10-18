@@ -92,6 +92,7 @@ import { buildPosOpeningCandidateFallback, readPosOpeningCandidates } from "../l
 import { canManagePosSalePrices } from "../lib/posSaleModeAccess";
 import { parseSaleModeEnabled, persistPosSaleModeEnabled, resolvePosSaleModeForLoad } from "../lib/posSaleModeSettings";
 import { countUniqueVariantColors, getVariantColorKey, mergeCatalogProducts } from "../lib/posCatalogMerge";
+import { buildPosSizeOptions, compareSizes, expandProductsToSizeColorCards } from "../lib/posSizeColorCards";
 import {
   collectProductManufacturerIds,
   matchesQuickFilterGroups,
@@ -4002,13 +4003,6 @@ function POSPro() {
     });
     return [...favorites, ...regular];
   }, [visibleProducts]);
-  // Wholesale copy: the cards show the customer's tier piece price.
-  const gridProducts = useMemo(() => (
-    wholesalePricing.enabled
-      ? orderedVisibleProducts.map((product) => withWholesalePrice(product, wholesalePricing.priceOf(product.product_id ?? product.id)))
-      : orderedVisibleProducts
-  ), [orderedVisibleProducts, wholesalePricing.enabled, wholesalePricing.priceOf]);
-
   useEffect(() => {
     if (loading || products.length === 0 || firstDataLoggedRef.current) return;
     firstDataLoggedRef.current = true;
@@ -4665,6 +4659,42 @@ function POSPro() {
     activeSmartFilters.length +
     normalizeMultiFilterValue(selectedBrandId).length +
     normalizeMultiFilterValue(selectedManufacturerId).length;
+
+  // Size view: offered once any filter or search narrows the grid. The picked
+  // sizes turn the grid into one card per colour that has them in stock.
+  const [selectedQuickSizes, setSelectedQuickSizes] = useState([]);
+  const showQuickSizePicker = activeSmartFilterCount > 0 || Boolean(resolvedSearchQuery);
+  const quickSizeOptions = useMemo(
+    () => (showQuickSizePicker ? buildPosSizeOptions(orderedVisibleProducts) : []),
+    [orderedVisibleProducts, showQuickSizePicker]
+  );
+  useEffect(() => {
+    // A size the narrowed grid no longer has (or the picker going away) would
+    // leave an empty grid with no visible chip to undo it.
+    setSelectedQuickSizes((current) => {
+      if (!current.length) return current;
+      const valid = new Set(quickSizeOptions.map((option) => option.id));
+      const next = current.filter((size) => valid.has(size));
+      return next.length === current.length ? current : next;
+    });
+  }, [quickSizeOptions]);
+  const handleToggleQuickSize = useCallback((size) => {
+    setSelectedQuickSizes((current) => {
+      const value = String(size);
+      return current.includes(value)
+        ? current.filter((item) => item !== value)
+        : [...current, value].sort(compareSizes);
+    });
+  }, []);
+  const handleClearQuickSizes = useCallback(() => setSelectedQuickSizes([]), []);
+
+  // Wholesale copy: the cards show the customer's tier piece price.
+  const gridProducts = useMemo(() => {
+    const priced = wholesalePricing.enabled
+      ? orderedVisibleProducts.map((product) => withWholesalePrice(product, wholesalePricing.priceOf(product.product_id ?? product.id)))
+      : orderedVisibleProducts;
+    return selectedQuickSizes.length ? expandProductsToSizeColorCards(priced, selectedQuickSizes) : priced;
+  }, [orderedVisibleProducts, selectedQuickSizes, wholesalePricing.enabled, wholesalePricing.priceOf]);
 
   useEffect(() => {
     const previousTotal = Number(previousTotalRef.current || 0);
@@ -5330,10 +5360,28 @@ function POSPro() {
   }, [saleModeSettings]);
 
   const handleSelectProduct = useCallback(async (product) => {
+    // A colour card from the size view: one size in stock sells straight away;
+    // several open the picker on that colour and the first picked size.
+    const sizeCard = product?.pos_size_card;
+    if (sizeCard) {
+      const source = sizeCard.source || product;
+      const matches = Array.isArray(product.variants) ? product.variants : [];
+      if (matches.length === 1 && !wholesalePricing.enabled) {
+        addVariantToCart(source, matches[0]);
+        return;
+      }
+      if (openProductVariantPicker(source)) {
+        setSelectedColor(sizeCard.colorKey);
+        setSelectedSize(sizeCard.sizes[0] || "");
+        return;
+      }
+      quickAddProduct(source);
+      return;
+    }
     const productForModal = await hydrateProductForArticleModal(product);
     if (openProductVariantPicker(productForModal)) return;
     quickAddProduct(productForModal);
-  }, [hydrateProductForArticleModal, openProductVariantPicker, quickAddProduct]);
+  }, [addVariantToCart, hydrateProductForArticleModal, openProductVariantPicker, quickAddProduct, wholesalePricing.enabled]);
 
   // The star on the card is the only place a cashier can curate the POS feed,
   // so flip it locally first and let the request confirm it in the background.
@@ -9848,6 +9896,11 @@ function POSPro() {
               selectedManufacturers={normalizeMultiFilterValue(selectedManufacturerId)}
               onToggleManufacturer={handleManufacturerFilterChange}
               onClearManufacturers={() => setSelectedManufacturerId([])}
+              showSizePicker={showQuickSizePicker && quickSizeOptions.length > 0}
+              sizeOptions={quickSizeOptions}
+              selectedSizes={selectedQuickSizes}
+              onToggleSize={handleToggleQuickSize}
+              onClearSizes={handleClearQuickSizes}
             />
             </div>
 

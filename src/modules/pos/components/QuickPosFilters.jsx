@@ -1,6 +1,6 @@
 import { createPortal } from "react-dom";
 import { memo, useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
-import { Check, ChevronDown, X } from "lucide-react";
+import { Check, ChevronDown, Ruler, X } from "lucide-react";
 
 import { useTranslation } from "react-i18next";
 
@@ -44,7 +44,7 @@ const typeColor = (id = "") => {
   return TYPE_PALETTE[hash % TYPE_PALETTE.length];
 };
 
-function QuickMultiSelect({ id, label, options, selectedValues, open, onOpenChange, onToggle, onClear }) {
+function QuickMultiSelect({ id, label, icon: Icon = null, options, selectedValues, open, onOpenChange, onToggle, onClear }) {
   const buttonRef = useRef(null);
   const popoverRef = useRef(null);
   const [position, setPosition] = useState({ top: 0, left: 0, width: 256 });
@@ -167,6 +167,7 @@ function QuickMultiSelect({ id, label, options, selectedValues, open, onOpenChan
         onClick={() => onOpenChange(open ? "" : id)}
         className={`inline-flex h-[var(--control-height-lg)] items-center gap-2 rounded-xl border px-4 text-sm font-black transition ${ open || selectedSet.size ? "border-emerald-300/40 bg-emerald-400/12 text-emerald-100" : "border-white/10 bg-black/35 text-zinc-100 hover:border-emerald-300/30 hover:bg-emerald-400/10" }`}
       >
+        {Icon ? <Icon className="h-4 w-4 shrink-0" /> : null}
         <span>{label}{selectedSet.size ? ` (${selectedSet.size})` : ""}</span>
         <ChevronDown className={`h-4 w-4 transition ${open ? "rotate-180" : ""}`} />
       </button>
@@ -190,6 +191,11 @@ function QuickPosFilters({
   selectedManufacturers,
   onToggleManufacturer,
   onClearManufacturers,
+  showSizePicker = false,
+  sizeOptions,
+  selectedSizes,
+  onToggleSize,
+  onClearSizes,
 }) {
   // memo() component: subscribe so a language change re-renders it even when props are unchanged.
   useTranslation();
@@ -282,6 +288,24 @@ function QuickPosFilters({
           onToggle={onToggleBrand}
           onClear={onClearBrands}
         />
+        {/*
+         * Size only shows once something narrows the grid: over the whole shop
+         * it would list every size of every model. Picking sizes turns the grid
+         * into one card per colour that has them in stock.
+         */}
+        {showSizePicker ? (
+          <QuickMultiSelect
+            id="size"
+            label={tt("pos.filters.size")}
+            icon={Ruler}
+            options={sizeOptions}
+            selectedValues={selectedSizes}
+            open={openMenu === "size"}
+            onOpenChange={setOpenMenu}
+            onToggle={onToggleSize}
+            onClear={onClearSizes}
+          />
+        ) : null}
       </div>
       </div>
     </div>
