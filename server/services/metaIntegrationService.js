@@ -80,6 +80,7 @@ import {
   recordMetaWebhookRequest,
   recordMetaWebhookRawEvent,
 } from "./marketingCommentAutomationService.js";
+import { getPublishingAccessToken } from "./metaTokenService.js";
 import {
   buildSocialCommentColorQuickReplies,
   buildSocialCommentOrderPreviewMessage,
@@ -12995,6 +12996,38 @@ const isMetaThreadControlConflict = (error = null) => {
   return code === 10 && /another app|currently controls|thread control|تطبيق\s*(?:ًا|ا)?\s*آخر.*يتحكم|التحكم.*(?:المحادثة|سلسلة)/i.test(message);
 };
 
+// Instagram's "not the thread owner" refusal (code 100 / subcode 2534037). The comment's private
+// reply — the colour cards — goes out through the Page's /messages on graph.facebook.com with the
+// marketing_settings Page token, and that app becomes the owner of the thread it opens. Every DM
+// after it went through graph.instagram.com with the Instagram Business Login token, a different
+// app, so the size step after a card tap was refused on every comment thread (2026-10-18).
+const isInstagramNotThreadOwnerError = (error = null) => {
+  const subcode = Number(error?.meta?.error_subcode || error?.metaResponse?.error?.error_subcode || error?.error_subcode || 0);
+  return subcode === 2534037 || isMetaThreadControlConflict(error);
+};
+
+// The token the colour cards were sent with, so the follow-up speaks as the thread's owner.
+const loadInstagramThreadOwnerPageSender = async (sendContext = {}) => {
+  const igId = text(sendContext.resolved_instagram_account_id);
+  const pageId = text(sendContext.resolved_page_id);
+  if (!igId && !pageId) return null;
+  const result = await db.query(
+    `
+    SELECT page_id, page_access_token, access_token, access_token_encrypted
+    FROM marketing_settings
+    WHERE ($1::text <> '' AND TRIM(COALESCE(instagram_account_id, '')::text) = $1)
+       OR ($2::text <> '' AND TRIM(COALESCE(page_id, '')::text) = $2)
+    ORDER BY updated_at DESC NULLS LAST
+    LIMIT 1
+    `,
+    [igId, pageId]
+  ).catch(() => ({ rows: [] }));
+  const row = result.rows?.[0];
+  const pageToken = getPublishingAccessToken(row || {});
+  const ownerPageId = text(row?.page_id);
+  return pageToken && ownerPageId ? { pageToken, pageId: ownerPageId } : null;
+};
+
 const postMetaMessageWithThreadControl = async ({ token, recipientId, body = {}, sendContext = {} }) => {
   const isInstagramBusinessLogin =
     text(sendContext.channel) === AI_AGENT_CHANNELS.INSTAGRAM && sendContext.instagram_business_login === true;
@@ -13017,6 +13050,20 @@ const postMetaMessageWithThreadControl = async ({ token, recipientId, body = {},
   try {
     return await send();
   } catch (error) {
+    if (isInstagramBusinessLogin && isInstagramNotThreadOwnerError(error)) {
+      const owner = await loadInstagramThreadOwnerPageSender(sendContext);
+      console.warn("[meta-send] instagram not thread owner, resending as the Page", {
+        recipientId: maskIdForLog(recipientId),
+        subcode: error?.meta?.error_subcode || "",
+        page_sender_found: Boolean(owner),
+      });
+      if (!owner) throw error;
+      return callMetaPost({
+        endpoint: `/${encodeURIComponent(owner.pageId)}/messages`,
+        token: owner.pageToken,
+        body,
+      });
+    }
     const isMessenger = text(sendContext.channel || AI_AGENT_CHANNELS.FACEBOOK_MESSENGER) === AI_AGENT_CHANNELS.FACEBOOK_MESSENGER;
     if (!isMessenger || !isMetaThreadControlConflict(error)) throw error;
     console.warn("[meta-send] thread control conflict, taking control", {
