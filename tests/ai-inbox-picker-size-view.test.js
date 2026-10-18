@@ -48,3 +48,11 @@ test("several sizes go out as the colour, listing only the sizes asked about", (
   assert.equal(card.size, "");
   assert.equal(card.variant_id, null, "no single variant: the customer still chooses between the sizes");
 });
+
+test("a batch of picked colours reaches the customer without the model listing above it", async () => {
+  const { readFileSync } = await import("node:fs");
+  const route = readFileSync(new URL("../server/routes/aiAgentOrders.js", import.meta.url), "utf8");
+  assert.match(route, /const customerText = pickedColorBatch \? "" : fallbackText;/);
+  assert.match(route, /reply: \{ text: customerText, product_cards: productCards \}/);
+  assert.match(route, /messageText: customerText,\s+recipientId: externalCustomerId/);
+});

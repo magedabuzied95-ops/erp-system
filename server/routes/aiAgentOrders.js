@@ -6999,6 +6999,15 @@ router.post("/conversations/:conversationId/product-card/send", protect, inboxRe
       : pickedOneColor
         ? `${pickedBaseName} 👇`
         : buildProductCardFallbackText(productCards);
+    // Colours the operator ticked one by one (the send-product size view): the cards ARE the
+    // answer. The listing above — every model with its colour, sizes, price and raw link — reached
+    // the customer as a wall of text over the carousel (owner, 2026-10-19), so it goes out empty:
+    // nothing before the cards on Messenger/Instagram, and on WhatsApp the carousel's own short
+    // lead line (Evolution refuses a carousel with no body). The transcript keeps the listing.
+    const pickedColorBatch =
+      enrichedProductCards.length >= 2 &&
+      enrichedProductCards.every((card) => ["color", "color_size"].includes(envText(card?.send_scope)));
+    const customerText = pickedColorBatch ? "" : fallbackText;
     const conversationRecipientId = recipientIdFromConversationKey({
       conversationId: conversation.session_id || conversation.external_conversation_id || conversationId,
       channel: normalizedChannel,
@@ -7079,8 +7088,8 @@ router.post("/conversations/:conversationId/product-card/send", protect, inboxRe
       } else {
         sendResult = await sendWhatsAppCloudReply({
           to: externalCustomerId,
-          reply: { text: fallbackText, product_cards: productCards },
-          messageText: fallbackText,
+          reply: { text: customerText, product_cards: productCards },
+          messageText: customerText,
           instance: envText(channelMetadata.whatsapp_instance || channelMetadata.instance),
         });
         deliveryStatus = sendResult?.delivery_status || (sendResult?.sent === true ? "sent" : "failed");
@@ -7128,7 +7137,7 @@ router.post("/conversations/:conversationId/product-card/send", protect, inboxRe
         sendResult = await sendMetaInboxOutboundMessage({
           tenantId,
           channel: normalizedChannel,
-          messageText: fallbackText,
+          messageText: customerText,
           recipientId: externalCustomerId,
           conversationId,
           facebookPageId: channelMetadata.page_id || channelMetadata.facebook_page_id || "",
