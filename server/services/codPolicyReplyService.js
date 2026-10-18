@@ -32,6 +32,8 @@ const governorateName = (value) => {
   return governorateOptions.find((option) => option.value === id)?.ar || text(value);
 };
 
+const DEFAULT_INSTAPAY_PAYMENT_URL = "https://ipn.eg/S/maged.helal/instapay/5BEvfH";
+
 export const loadTransferDetails = async () => {
   const [vodafoneA, vodafoneB, instapayUrl, instapayHandleA, instapayHandleB] = await Promise.all([
     getSetting("storefront.payment_methods.vodafone_cash_number", ""),
@@ -44,7 +46,10 @@ export const loadTransferDetails = async () => {
   const instapay = [instapayUrl, instapayHandleA, instapayHandleB].map(text).find((value) => !PLACEHOLDER_HANDLES.has(value)) || "";
   // The payment card needs the two apart: a link becomes a button that opens InstaPay, a handle
   // can only be copied.
-  const link = text(instapayUrl);
+  // No saved link ⇒ the same default the storefront checkout already opens
+  // (DEFAULT_STOREFRONT_PAYMENT_SETTINGS in Storefront.jsx), so /pay and the Messenger/Instagram
+  // card offer the InstaPay button the website offers.
+  const link = text(instapayUrl) || DEFAULT_INSTAPAY_PAYMENT_URL;
   const instapayUrlOnly = /^https?:\/\//i.test(link) ? link : "";
   const instapayHandle = [instapayHandleA, instapayHandleB].map(text).find((value) => !PLACEHOLDER_HANDLES.has(value)) || "";
   return { vodafone, instapay, instapayUrl: instapayUrlOnly, instapayHandle };

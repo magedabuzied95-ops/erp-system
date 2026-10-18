@@ -546,3 +546,24 @@
   max-height: 360px;
   object-fit: contain;
 }
+
+/* /pay: the transfer number, big, with one copy button under it. */
+.sfl .sfl-pay-number {
+  display: grid;
+  justify-items: center;
+  gap: var(--m1h-s3);
+  padding: var(--m1h-s4) var(--m1h-s3) var(--m1h-s3);
+  border: 1px solid var(--m1h-line) !important;
+  border-radius: var(--m1h-r-md);
+  background: var(--sfx-field) !important;
+  color: var(--m1h-text) !important;
+  text-align: center;
+}
+
+.sfl .sfl-pay-number__value {
+  font-size: 28px;
+  font-weight: 700;
+  letter-spacing: 0.04em;
+  line-height: 1.2;
+  user-select: all;
+}

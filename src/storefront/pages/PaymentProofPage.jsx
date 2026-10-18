@@ -125,26 +125,44 @@ export function PaymentProofPage() {
   );
 }
 
-function CopyRow({ label, value, dir = "ltr" }) {
+// The number the customer transfers to, with ONE big copy button. Messenger and Instagram have no
+// copy button of their own, so their card's "انسخ الرقم" lands here — this has to be the first
+// thing on the page and copy on a single tap (owner, 2026-10-18).
+function TransferNumber({ value, label }) {
   const [copied, setCopied] = useState(false);
+  const valueRef = useRef(null);
   useEffect(() => {
     if (!copied) return undefined;
-    const timer = window.setTimeout(() => setCopied(false), 2000);
+    const timer = window.setTimeout(() => setCopied(false), 2500);
     return () => window.clearTimeout(timer);
   }, [copied]);
+  // An in-app browser that refuses the clipboard still lets the customer copy by hand: the number
+  // is left selected, so the phone's own "Copy" bubble is one tap away.
+  const copy = async () => {
+    const ok = await copyToClipboard(value);
+    setCopied(ok);
+    if (ok || !valueRef.current) return;
+    try {
+      const range = document.createRange();
+      range.selectNodeContents(valueRef.current);
+      const selection = window.getSelection();
+      selection.removeAllRanges();
+      selection.addRange(range);
+    } catch {
+      // nothing more to offer; the number is on screen
+    }
+  };
   return (
-    <div className="sfl-static-field">
-      <span className="sfl-pay-copy">
-        <span className="sfl-text sfl-text--sm sfl-text--muted">{label}</span>
-        <span dir={dir} className="sfl-static-field__value">{value}</span>
-      </span>
+    <div className="sfl-pay-number">
+      <span className="sfl-text sfl-text--sm sfl-text--muted">{label}</span>
+      <span ref={valueRef} dir="ltr" className="sfl-pay-number__value">{value}</span>
       <button
         type="button"
-        onClick={async () => setCopied(await copyToClipboard(value))}
-        className="sfx-btn sfx-btn--ghost sfx-btn--sm"
+        onClick={copy}
+        className={`sfx-btn ${copied ? "sfx-btn--secondary" : "sfx-btn--primary"} sfx-btn--lg sfx-btn--block`}
       >
-        {copied ? <CheckCircle2 className="h-3.5 w-3.5" aria-hidden="true" /> : <Copy className="h-3.5 w-3.5" aria-hidden="true" />}
-        {copied ? sfText("storefront.paymentProof.copied") : sfText("storefront.paymentProof.copy")}
+        {copied ? <CheckCircle2 className="h-5 w-5" aria-hidden="true" /> : <Copy className="h-5 w-5" aria-hidden="true" />}
+        {copied ? sfText("storefront.paymentProof.numberCopied") : sfText("storefront.paymentProof.copyNumber")}
       </button>
     </div>
   );
@@ -278,6 +296,9 @@ function PaymentProofPageInner() {
   const methods = view?.methods || {};
   const hasInstapay = Boolean(methods.instapay_url || methods.instapay_handle);
   const hasVodafone = Boolean(methods.vodafone_cash);
+  // The shop's Vodafone Cash wallet also takes InstaPay, so ONE number serves both; the InstaPay
+  // handle stands in only when no wallet number is set.
+  const transferNumber = text(methods.vodafone_cash) || text(methods.instapay_handle);
   const firstName = text(order.customer_first_name) || sfText("storefront.paymentProof.greetingFallbackName");
   const fee = formatMoney(order.shipping_fee);
 
@@ -359,8 +380,32 @@ function PaymentProofPageInner() {
                 {sfText("storefront.paymentProof.stepPay", undefined, { amount: fee })}
               </h2>
               <div className="sfl-fields">
-                {hasInstapay || hasVodafone ? (
-                  <div className="sfl-pay-methods" role="radiogroup" aria-label={sfText("storefront.paymentProof.methodLabel")}>
+                {transferNumber ? (
+                  <TransferNumber
+                    value={transferNumber}
+                    label={hasVodafone ? sfText("storefront.paymentProof.numberLabel") : sfText("storefront.paymentProof.instapayHandle")}
+                  />
+                ) : null}
+                {methods.instapay_url ? (
+                  <a href={methods.instapay_url} target="_blank" rel="noopener noreferrer" className="sfx-btn sfx-btn--secondary sfx-btn--lg sfx-btn--block">
+                    <ExternalLink className="h-5 w-5" aria-hidden="true" />
+                    {sfText("storefront.paymentProof.openInstapay")}
+                  </a>
+                ) : null}
+                {!transferNumber && !methods.instapay_url ? (
+                  <p className="sfl-text sfl-text--sm">{sfText("storefront.paymentProof.noMethods")}</p>
+                ) : null}
+              </div>
+            </section>
+
+            <section className="sfx-surface">
+              <h2 className="sfx-h3 sfl-block-title">
+                <ImagePlus aria-hidden="true" />
+                {sfText("storefront.paymentProof.stepUpload")}
+              </h2>
+              <div className="sfl-fields">
+                {hasInstapay && hasVodafone ? (
+                  <div className="sfl-pay-methods" role="radiogroup" aria-label={sfText("storefront.paymentProof.paidWith")}>
                     {hasInstapay ? (
                       <button
                         type="button"
@@ -386,33 +431,7 @@ function PaymentProofPageInner() {
                       </button>
                     ) : null}
                   </div>
-                ) : (
-                  <p className="sfl-text sfl-text--sm">{sfText("storefront.paymentProof.noMethods")}</p>
-                )}
-
-                {method === "instapay" ? (
-                  <>
-                    {methods.instapay_url ? (
-                      <a href={methods.instapay_url} target="_blank" rel="noopener noreferrer" className="sfx-btn sfx-btn--secondary sfx-btn--lg sfx-btn--block">
-                        <ExternalLink className="h-5 w-5" aria-hidden="true" />
-                        {sfText("storefront.paymentProof.openInstapay")}
-                      </a>
-                    ) : null}
-                    {methods.instapay_handle ? <CopyRow label={sfText("storefront.paymentProof.instapayHandle")} value={methods.instapay_handle} /> : null}
-                  </>
                 ) : null}
-                {method === "vodafone_cash" ? (
-                  <CopyRow label={sfText("storefront.paymentProof.vodafoneNumber")} value={methods.vodafone_cash} />
-                ) : null}
-              </div>
-            </section>
-
-            <section className="sfx-surface">
-              <h2 className="sfx-h3 sfl-block-title">
-                <ImagePlus aria-hidden="true" />
-                {sfText("storefront.paymentProof.stepUpload")}
-              </h2>
-              <div className="sfl-fields">
                 <input
                   ref={fileInputRef}
                   type="file"
