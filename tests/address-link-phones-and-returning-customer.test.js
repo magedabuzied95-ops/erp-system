@@ -49,3 +49,8 @@ test("the page checks WhatsApp, sends the second number and fills only empty fie
   assert.match(page, /setStreetAddress\(\(current\) => text\(current\) \|\| text\(payload\.street_address\)\)/);
   assert.match(page, /if \(whatsappState === "missing"\) \{/);
 });
+
+test("a WhatsApp link (number already known, shown masked) is filled in on open", () => {
+  assert.match(service, /const local = localEgyptMobile\(phone\) \|\| localEgyptMobile\(row\.customer_phone\);/);
+  assert.match(page, /const lookupKey = typedPhone \|\| \(request\?\.has_phone && !editingPhone \? "stored" : ""\);/);
+});

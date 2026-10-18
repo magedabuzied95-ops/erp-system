@@ -477,7 +477,9 @@ const sameMobile = (a = "", b = "") => {
 export const lookupReturningCustomerAddress = async ({ code = "", phone = "" } = {}) => {
   const row = await loadRowByCode(code);
   if (row.status !== "pending" || rowIsExpired(row)) return { found: false };
-  const local = localEgyptMobile(phone);
+  // No number typed: the one the conversation already holds (a WhatsApp link carries it, and the
+  // page only ever shows it masked), so a returning WhatsApp customer is filled in on open.
+  const local = localEgyptMobile(phone) || localEgyptMobile(row.customer_phone);
   if (!local) return { found: false };
 
   let source = null;

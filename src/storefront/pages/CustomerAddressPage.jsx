@@ -215,11 +215,14 @@ function CustomerAddressPageInner() {
     };
   }, [typedPhone, linkState]);
 
+  // The number to look up: the one typed, or — on a link that already carries the customer's number
+  // (WhatsApp), shown masked and never typed — the stored one, which the server reads itself.
+  const lookupKey = typedPhone || (request?.has_phone && !editingPhone ? "stored" : "");
   useEffect(() => {
-    if (!typedPhone || linkState !== "ready" || lookedUpPhoneRef.current === typedPhone) return undefined;
+    if (!lookupKey || linkState !== "ready" || lookedUpPhoneRef.current === lookupKey) return undefined;
     let active = true;
     const timer = window.setTimeout(() => {
-      lookedUpPhoneRef.current = typedPhone;
+      lookedUpPhoneRef.current = lookupKey;
       api.get(`/public/address-request/${encodeURIComponent(resolvedCode)}/returning?phone=${encodeURIComponent(typedPhone)}`)
         .then((payload) => {
           if (!active || !payload?.found) return;
@@ -243,7 +246,7 @@ function CustomerAddressPageInner() {
       active = false;
       window.clearTimeout(timer);
     };
-  }, [typedPhone, linkState, resolvedCode]);
+  }, [lookupKey, typedPhone, linkState, resolvedCode]);
 
   useEffect(() => {
     let active = true;
