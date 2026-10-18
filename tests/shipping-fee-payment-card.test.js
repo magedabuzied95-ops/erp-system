@@ -140,7 +140,9 @@ test("confirming the money anywhere tells the customer, and the message carries 
   const module = read("../server/modules/shipping/paymentProofLink.js");
   assert.match(module, /idempotencySuffix: `paid:\$\{Math\.round\(money\(order\.paid_amount\) \* 100\)\}`/);
   // The link is built here, not by the caller: every approval path gets it for free.
-  assert.match(module, /buildPaymentProofApprovedMessage\(order, \{ trackingUrl: buildOrderTrackingUrl\(orderRef\(order\), phone\) \}\)/);
+  // The invoice link travels with it too (2026-10-18), and a phoneless Instagram order still gets
+  // the message there, so the tracking link is built only when there is a phone.
+  assert.match(module, /buildPaymentProofApprovedMessage\(order, \{\s*trackingUrl: phone \? buildOrderTrackingUrl\(orderRef\(order\), phone\) : "",\s*invoiceUrl,\s*\}\)/);
   // The receipt waits five minutes: the wallet matcher approves a website order a second after
   // checkout, and two automated messages back to back on one number is the burst WhatsApp bans.
   assert.equal(PAYMENT_APPROVED_DELAY_MS, 5 * 60 * 1000);

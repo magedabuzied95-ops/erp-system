@@ -2,7 +2,7 @@ import { createHmac } from "node:crypto";
 
 import db from "../../database/db.js";
 import { generateOrderLinkCode, orderLinkSecret } from "../../utils/orderLinkSecret.js";
-import { buildOrderTrackingUrl, resolvePublicAppUrl } from "../../utils/whatsapp.js";
+import { buildOrderTrackingUrl, buildPublicInvoiceUrl, resolvePublicAppUrl } from "../../utils/whatsapp.js";
 import { emitToRooms } from "../../utils/socket.js";
 import { describeShippingFeeAdvance, DEPOSIT_REQUEST_TIMELINE_ACTION } from "./shippingFeeAdvance.js";
 
@@ -426,7 +426,7 @@ export const buildPaymentProofReceivedMessage = (order = {}) => {
  * A parcel that is already booked is never described as "بيتجهز للشحن": the fee can be recorded
  * after the shipment exists, and the same lie was the INV-1616 bug in buildOrderConfirmedMessage.
  */
-export const buildPaymentProofApprovedMessage = (order = {}, { trackingUrl = "" } = {}) => {
+export const buildPaymentProofApprovedMessage = (order = {}, { trackingUrl = "", invoiceUrl = "" } = {}) => {
   const ref = orderRef(order);
   const name = firstName(order.customer_name);
   const total = orderTotal(order);
@@ -447,6 +447,9 @@ export const buildPaymentProofApprovedMessage = (order = {}, { trackingUrl = "" 
     collectText
       ? (tracking ? `💰 المندوب هيحصّل ${collectText} عند الاستلام.` : "")
       : "💰 طلبك مدفوع بالكامل، مفيش مبلغ هيتحصّل عند الاستلام.",
+    // The invoice used to arrive with "تم تأكيد طلبك"; on Messenger/Instagram that message is no
+    // longer sent before the money (owner, 2026-10-18), so the receipt carries it.
+    invoiceUrl && `🧾 فاتورتك:\n${invoiceUrl}`,
     trackingUrl && `📍 تابع طلبك من هنا:\n${trackingUrl}`,
     "شكراً لاختيارك M1 Store ❤️",
   ].filter(Boolean).join("\n\n");
@@ -474,19 +477,107 @@ export const PAYMENT_APPROVED_DELAY_MS = Math.max(0, Number(process.env.PAYMENT_
  * message while a later, larger payment (رسوم الشحن ثم الأوردر كامل) still gets its own.
  * Never throws; call it after the approving transaction has committed.
  */
+// The Messenger/Instagram thread an order was taken in ("instagram:<id>" on
+// orders.ai_agent_conversation_id). Callers hand over rows of every shape, so a row without the
+// column is read back once.
+const META_THREAD = /^(instagram|facebook_messenger):(.+)$/;
+const orderMetaThread = async (order = {}) => {
+  let conversationId = text(order.ai_agent_conversation_id);
+  if (!conversationId && order.id && !("ai_agent_conversation_id" in order)) {
+    const result = await db.query(
+      "SELECT ai_agent_conversation_id FROM orders WHERE id = $1 LIMIT 1",
+      [order.id]
+    ).catch(() => ({ rows: [] }));
+    conversationId = text(result.rows?.[0]?.ai_agent_conversation_id);
+  }
+  const match = conversationId.match(META_THREAD);
+  return match ? { conversationId, channel: match[1], recipientId: match[2] } : null;
+};
+
+const PAYMENT_APPROVED_META_INTENT = "payment_proof_approved";
+
+/**
+ * The same receipt in the Instagram/Messenger thread the order came from (owner, 2026-10-18: it
+ * reached WhatsApp only). Sent at once — the five-minute wait exists for WhatsApp's burst limits —
+ * and once: a second approval of the same text for the same thread inside a day is skipped, the
+ * way the WhatsApp queue's idempotency key does it. Never throws.
+ */
+const notifyPaymentApprovedOnMeta = async (order = {}, message = "") => {
+  try {
+    const thread = await orderMetaThread(order);
+    if (!thread || !text(message)) return { sent: false, reason: "no_meta_thread" };
+    const tenantId = tenantOf(order);
+    const already = await db.query(
+      `SELECT 1 FROM ai_support_messages
+        WHERE session_id = $1 AND detected_intent = $2 AND (ai_answer = $3 OR message_text = $3)
+          AND created_at > NOW() - INTERVAL '1 day'
+        LIMIT 1`,
+      [thread.conversationId, PAYMENT_APPROVED_META_INTENT, message]
+    ).catch(() => ({ rows: [] }));
+    if (already.rows?.length) return { sent: false, reason: "already_sent" };
+    const { sendMetaInboxOutboundMessage } = await import("../../services/metaIntegrationService.js");
+    const result = await sendMetaInboxOutboundMessage({
+      tenantId,
+      channel: thread.channel,
+      recipientId: thread.recipientId,
+      messageText: message,
+      conversationId: thread.conversationId,
+      bypassOutboundDedupe: true,
+      replySource: PAYMENT_APPROVED_META_INTENT,
+      replyOwner: PAYMENT_APPROVED_META_INTENT,
+    });
+    const messageId = text(result?.message_id || result?.results?.find?.((item) => item?.message_id)?.message_id);
+    const { appendChannelOutboundSupportReply } = await import("../../services/aiSupportLogService.js");
+    const saved = await appendChannelOutboundSupportReply({
+      tenantId,
+      sessionId: thread.conversationId,
+      message,
+      channel: thread.channel,
+      senderType: "system",
+      source: PAYMENT_APPROVED_META_INTENT,
+      sourcePath: PAYMENT_APPROVED_META_INTENT,
+      insertSource: PAYMENT_APPROVED_META_INTENT,
+      deliveryStatus: messageId ? "sent" : "not_sent",
+      externalMessageId: messageId,
+      providerMessageId: messageId,
+      detectedIntent: PAYMENT_APPROVED_META_INTENT,
+    }).catch(() => null);
+    if (saved) {
+      emitToRooms([`tenant:${tenantId}`], "ai_inbox:message", { tenant_id: tenantId, session_id: thread.conversationId, message: saved, at: new Date().toISOString() });
+    }
+    console.log("[payment-proof] approved receipt on meta", { orderId: order.id, channel: thread.channel, message_id: messageId });
+    return { sent: Boolean(messageId), channel: thread.channel };
+  } catch (error) {
+    console.warn("[payment-proof] approved receipt on meta failed", { orderId: order?.id, message: error?.message || String(error) });
+    return { sent: false, reason: "meta_send_failed" };
+  }
+};
+
 export const notifyPaymentProofApproved = async (order = null) => {
   if (!order?.id) return { sent: false, reason: "missing_order" };
   if (NOT_WORTH_ANNOUNCING.has(text(order.status).toLowerCase())) return { sent: false, reason: "order_closed" };
   const phone = await orderPhone(order);
-  if (!phone) return { sent: false, reason: "missing_phone" };
-  return sendOrderPaymentText({
+  const invoiceUrl = buildPublicInvoiceUrl(text(order.public_token) || text(order.invoice_number));
+  const message = buildPaymentProofApprovedMessage(order, {
+    trackingUrl: phone ? buildOrderTrackingUrl(orderRef(order), phone) : "",
+    invoiceUrl,
+  });
+  // An order taken on Instagram/Messenger hears it there too, whatever WhatsApp does.
+  const meta = await notifyPaymentApprovedOnMeta(order, message);
+  if (!phone) {
+    return meta.reason === "no_meta_thread"
+      ? { sent: false, reason: "missing_phone" }
+      : { sent: meta.sent, reason: "missing_phone", meta };
+  }
+  const whatsapp = await sendOrderPaymentText({
     order,
     automationType: "payment_proof_approved",
     idempotencySuffix: `paid:${Math.round(money(order.paid_amount) * 100)}`,
-    message: buildPaymentProofApprovedMessage(order, { trackingUrl: buildOrderTrackingUrl(orderRef(order), phone) }),
+    message,
     source: "whatsapp_payment_proof_approved",
     delayMs: PAYMENT_APPROVED_DELAY_MS,
   });
+  return { ...whatsapp, meta };
 };
 
 /* ---------------------------------------------------------- public page */

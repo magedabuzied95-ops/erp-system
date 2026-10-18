@@ -62,3 +62,16 @@ test("/pay opens the InstaPay app through its own ipn: scheme, never the QR web 
   assert.match(page, /<a href=\{instapayHref\}/);
   assert.match(page, /get\("open"\) !== "instapay"/);
 });
+
+test("the payment receipt carries the invoice link and also reaches the order's Instagram/Messenger thread", async () => {
+  const { buildPaymentProofApprovedMessage } = await import("../server/modules/shipping/paymentProofLink.js");
+  const message = buildPaymentProofApprovedMessage(
+    { invoice_number: "INV-1", customer_name: "ماجد", total_amount: 1000, paid_amount: 100, shipping_fee: 100 },
+    { invoiceUrl: "https://m1store-egy.com/invoice/tok", trackingUrl: "https://m1store-egy.com/track?x" }
+  );
+  assert.match(message, /🧾 فاتورتك:\nhttps:\/\/m1store-egy\.com\/invoice\/tok/);
+  const source = fs.readFileSync(new URL("../server/modules/shipping/paymentProofLink.js", import.meta.url), "utf8");
+  // Instagram/Messenger first, and whatever WhatsApp does (no phone, no number) does not stop it.
+  assert.match(source, /const META_THREAD = \/\^\(instagram\|facebook_messenger\):\(\.\+\)\$\/;/);
+  assert.match(source, /const meta = await notifyPaymentApprovedOnMeta\(order, message\);\s*if \(!phone\)/);
+});
