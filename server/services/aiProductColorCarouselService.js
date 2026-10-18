@@ -94,6 +94,16 @@ export const expandProductCardsByColor = async ({ tenantId, cards = [], leadColo
         const rawImage = String(flatCard.image_url || flatCard.image || "").trim();
         const squared = rawImage ? await ensureSquareCardImageUrl(rawImage).catch(() => "") : "";
         const pickedSize = scope === "color_size" ? text(card.size || card.selected_size) : "";
+        // The picker's size view sends one card per colour carrying the sizes the customer asked
+        // about. The card lists those that are still in stock in THIS colour — not every size it
+        // has — and falls back to the colour's own list if none of them survived.
+        const askedSizes = scope === "color" && Array.isArray(card.picked_sizes)
+          ? card.picked_sizes.map(text).filter(Boolean)
+          : [];
+        const colorSizes = Array.isArray(flatCard.available_sizes) ? flatCard.available_sizes : [];
+        const askedInStock = askedSizes.length
+          ? colorSizes.filter((size) => askedSizes.some((asked) => asked.toLowerCase() === text(size).toLowerCase()))
+          : [];
         expanded.push({
           ...flatCard,
           image_url: squared || flatCard.image_url,
@@ -102,6 +112,7 @@ export const expandProductCardsByColor = async ({ tenantId, cards = [], leadColo
           product_url: card.product_url || card.storefront_url || scopedColorCard.product_url || "",
           send_scope: scope,
           ...(pickedSize ? { size: pickedSize, selected_size: pickedSize, available_sizes: [pickedSize], sizes: [pickedSize] } : {}),
+          ...(askedInStock.length ? { available_sizes: askedInStock, sizes: askedInStock } : {}),
         });
         console.info("[ai-inbox][product-card-send] one colour, as picked", { product_id: productId, color: card.color, size: pickedSize });
       } else if (scope !== "all_colors") {

@@ -359,6 +359,54 @@ html[data-theme="light"] .ai-pwa-order-composer {
   opacity: 1 !important;
 }
 
+/* Size view: the trigger and chips read like the filter trigger and audience chips beside them,
+   the colour cards like the colour options in the detail view. */
+.ai-pwa-product-sheet__size-trigger,
+.ai-pwa-product-sheet__size-chip {
+  background: var(--surface-soft) !important;
+  border-color: var(--border) !important;
+  color: var(--text-secondary) !important;
+}
+
+.ai-pwa-product-sheet__size-trigger.is-active {
+  background: var(--primary-soft) !important;
+  border-color: color-mix(in srgb, var(--primary) 62%, var(--border)) !important;
+  color: var(--primary) !important;
+}
+
+.ai-pwa-product-sheet__size-chip.is-active {
+  background: var(--primary) !important;
+  border-color: var(--primary-active) !important;
+  color: var(--primary-contrast) !important;
+}
+
+.ai-pwa-product-sheet__size-panel {
+  background: var(--surface-soft) !important;
+  border-color: var(--border) !important;
+  color: var(--muted) !important;
+}
+
+.ai-pwa-product-sheet__size-card {
+  background: var(--surface-raised) !important;
+  border-color: var(--border) !important;
+  color: var(--text) !important;
+}
+
+.ai-pwa-product-sheet__size-card :where(.text-slate-900) {
+  color: var(--text) !important;
+}
+
+.ai-pwa-product-sheet__size-card.is-active {
+  border-color: var(--primary) !important;
+  --tw-ring-color: var(--primary) !important;
+}
+
+.ai-pwa-product-sheet__size-card.is-active > span {
+  background: var(--primary) !important;
+  border-color: var(--primary) !important;
+  color: var(--primary-contrast) !important;
+}
+
 .ai-pwa-product-sheet__product-row:hover {
   background: var(--surface-raised) !important;
   border-color: var(--border-strong) !important;

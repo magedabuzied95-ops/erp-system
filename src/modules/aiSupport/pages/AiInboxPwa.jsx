@@ -73,6 +73,7 @@ import AIInboxAnalysisPanel from "../components/AIInboxAnalysisPanel.jsx";
 import AvatarZoom from "../components/AvatarZoom.jsx";
 import CustomerAvatar from "../components/CustomerAvatar.jsx";
 import { resolveMetaCustomerIdentity } from "../lib/customerIdentity.js";
+import { buildSizeColorCards, compareSizes, pickerSizeOptions, withPickedSizes } from "../lib/sizeColorCards.js";
 import { useAIInboxAnalysis } from "../integration/useAIInboxAnalysis";
 import TranscriptMessage, { INSTAGRAM_MESSAGE_REACTIONS, MESSENGER_MESSAGE_REACTIONS, PinnedMessagesBar } from "../components/TranscriptMessage";
 import { platformCanvas, resolveMessagePlatform } from "../components/messagePlatform.js";
@@ -2770,9 +2771,17 @@ function ProductSheet({
   // Which row the seller actually tapped. `sending` is one flag for the whole sheet, so
   // without this every send button spun at once and the list looked like it was sending all of them.
   const [quickSendingSheetId, setQuickSendingSheetId] = useState("");
+  // Size view (lib/sizeColorCards.js): the sizes the customer asked about, and the colour
+  // cards ticked for sending.
+  const [quickSizes, setQuickSizes] = useState([]);
+  const [sizePanelOpen, setSizePanelOpen] = useState(false);
+  const [pickedSizeCardKeys, setPickedSizeCardKeys] = useState([]);
 
   useEffect(() => {
     if (!open) return;
+    setQuickSizes([]);
+    setSizePanelOpen(false);
+    setPickedSizeCardKeys([]);
     setSelectedProductId("");
     setSelectedColor("");
     setSelectedSize("");
@@ -2891,6 +2900,54 @@ function ProductSheet({
     () => normalizeMultiFilterValue(productFilters.audience).length + normalizeMultiFilterValue(productFilters.brand).length + normalizeMultiFilterValue(productFilters.manufacturer).length + [productFilters.productType, productFilters.grade].filter((value) => value !== "all").length,
     [productFilters]
   );
+
+  // Offered once a search or a filter narrows the list: over the whole catalogue the size list
+  // is every size of every model, which is the separate "المتاح بالمقاس" tool.
+  const showSizeView = Boolean(activeProductFilterCount || clean(query));
+  const sizeViewOptions = useMemo(
+    () => (showSizeView ? pickerSizeOptions(filteredProductEntries.map(({ product }) => product)) : []),
+    [filteredProductEntries, showSizeView]
+  );
+  const sizeColorCards = useMemo(
+    () => buildSizeColorCards(filteredProductEntries.map(({ product }) => product), quickSizes),
+    [filteredProductEntries, quickSizes]
+  );
+  useEffect(() => {
+    // A size the narrowed list no longer has would leave an empty view with no chip to undo it.
+    setQuickSizes((current) => {
+      if (!current.length) return current;
+      const next = current.filter((size) => sizeViewOptions.includes(size));
+      return next.length === current.length ? current : next;
+    });
+  }, [sizeViewOptions]);
+  useEffect(() => {
+    const visible = new Set(sizeColorCards.map((card) => card.key));
+    setPickedSizeCardKeys((current) => {
+      const next = current.filter((cardKey) => visible.has(cardKey));
+      return next.length === current.length ? current : next;
+    });
+  }, [sizeColorCards]);
+  const toggleQuickSize = useCallback((size) => {
+    setQuickSizes((current) => (current.includes(size) ? current.filter((item) => item !== size) : [...current, size].sort(compareSizes)));
+  }, []);
+  const togglePickedSizeCard = useCallback((cardKey) => {
+    setPickedSizeCardKeys((current) => (current.includes(cardKey) ? current.filter((item) => item !== cardKey) : [...current, cardKey]));
+  }, []);
+  const sizeViewOn = view === "list" && quickSizes.length > 0;
+  const sendPickedSizeCards = () => {
+    if (!selectedConversation?.session_id || sending) return;
+    const picked = new Set(pickedSizeCardKeys);
+    const cards = sizeColorCards
+      .filter((card) => picked.has(card.key))
+      .map((card) => {
+        const single = card.sizes.length === 1 ? card.sizes[0] : "";
+        const payload = buildProductCardPayload(card.product, card.variant, card.color, single, card.sizes);
+        return withPickedSizes({ ...payload, image_url: card.image || payload.image_url }, card.sizes);
+      });
+    if (!cards.length) return;
+    onSend(cards);
+    setPickedSizeCardKeys([]);
+  };
 
   const openPosFilters = useCallback(() => {
     setDraftPosFilters({
@@ -3129,6 +3186,97 @@ function ProductSheet({
                     ))}
                   </div>
 
+                  {showSizeView && sizeViewOptions.length ? (
+                    <div className="ai-pwa-product-sheet__size-view space-y-2">
+                      <div className="flex items-center gap-2">
+                        <button
+                          type="button"
+                          onClick={() => setSizePanelOpen((current) => !current)}
+                          aria-expanded={sizePanelOpen}
+                          className={`ai-pwa-product-sheet__size-trigger inline-flex h-10 items-center gap-2 rounded-xl border px-3 text-sm font-semibold transition ${sizePanelOpen || quickSizes.length ? "is-active border-amber-400 bg-amber-50 text-amber-800" : "border-slate-200 bg-white text-slate-700"}`}
+                        >
+                          <Ruler className="h-4 w-4" />
+                          {t("aiSupport.inbox.picker.sizeView")}
+                          {quickSizes.length ? <span dir="ltr">{quickSizes.join(" / ")}</span> : null}
+                        </button>
+                        {quickSizes.length ? (
+                          <button
+                            type="button"
+                            onClick={() => setQuickSizes([])}
+                            className="ai-pwa-product-sheet__subtle-action inline-flex h-10 items-center gap-1 rounded-xl border border-slate-200 bg-white px-3 text-xs font-medium text-slate-600"
+                          >
+                            <X className="h-3.5 w-3.5" />
+                            {t("aiSupport.inbox.picker.sizeViewClear")}
+                          </button>
+                        ) : null}
+                      </div>
+                      {sizePanelOpen ? (
+                        <div className="ai-pwa-product-sheet__size-panel rounded-2xl border border-slate-200 bg-slate-50 p-2.5">
+                          <p className="mb-2 text-xs text-slate-500">{t("aiSupport.inbox.picker.sizeViewHint")}</p>
+                          <div className="flex flex-wrap gap-1.5">
+                            {sizeViewOptions.map((size) => {
+                              const active = quickSizes.includes(size);
+                              return (
+                                <button
+                                  key={size}
+                                  type="button"
+                                  dir="ltr"
+                                  onClick={() => toggleQuickSize(size)}
+                                  className={`ai-pwa-product-sheet__size-chip h-9 min-w-11 rounded-xl border px-3 text-sm font-semibold transition ${active ? "is-active border-slate-900 bg-slate-900 text-white" : "border-slate-200 bg-white text-slate-700"}`}
+                                >
+                                  {size}
+                                </button>
+                              );
+                            })}
+                          </div>
+                        </div>
+                      ) : null}
+                    </div>
+                  ) : null}
+
+              {quickSizes.length ? (
+                <div className="space-y-2 pb-4">
+                  <div className="text-xs font-medium text-slate-500">{t("aiSupport.inbox.picker.sizeViewColors", { count: sizeColorCards.length })}</div>
+                  {sizeColorCards.length ? (
+                    <div className="grid grid-cols-2 gap-2 sm:grid-cols-3">
+                      {sizeColorCards.map((card) => {
+                        const active = pickedSizeCardKeys.includes(card.key);
+                        return (
+                          <button
+                            key={card.key}
+                            type="button"
+                            onClick={() => togglePickedSizeCard(card.key)}
+                            aria-pressed={active}
+                            className={`ai-pwa-product-sheet__size-card relative overflow-hidden rounded-2xl border text-start transition ${active ? "is-active border-slate-900 ring-2 ring-slate-900" : "border-slate-200 bg-white"}`}
+                          >
+                            {card.image ? (
+                              <img src={card.image} alt={`${card.product.name || ""} ${card.color}`} className="h-28 w-full bg-slate-50 object-contain p-1" loading="lazy" />
+                            ) : (
+                              <div className="grid h-28 w-full place-items-center bg-slate-50">
+                                <ShoppingBag className="h-5 w-5 text-slate-400" />
+                              </div>
+                            )}
+                            <span className={`absolute end-2 top-2 grid h-6 w-6 place-items-center rounded-full border ${active ? "border-slate-900 bg-slate-900 text-white" : "border-slate-300 bg-white/90 text-transparent"}`}>
+                              <CheckCheck className="h-3.5 w-3.5" />
+                            </span>
+                            <div className="space-y-1 p-2">
+                              <div className="truncate text-xs font-semibold text-slate-900">{card.product.name || card.product.product_name}</div>
+                              <div className="flex flex-wrap items-center gap-1">
+                                {card.color ? <PwaChip>{card.color}</PwaChip> : null}
+                                <PwaChip tone="emerald"><span dir="ltr">{card.sizes.join(" / ")}</span></PwaChip>
+                              </div>
+                            </div>
+                          </button>
+                        );
+                      })}
+                    </div>
+                  ) : (
+                    <div className="ai-pwa-product-sheet__state rounded-2xl border border-dashed border-slate-200 bg-slate-50 p-6 text-center text-sm text-slate-500">
+                      {t("aiSupport.inbox.picker.sizeViewEmpty")}
+                    </div>
+                  )}
+                </div>
+              ) : (
               <div className="space-y-2 pb-4">
                 {loading ? (
                   <div className="ai-pwa-product-sheet__state grid min-h-32 place-items-center rounded-2xl border border-slate-200 bg-slate-50 text-sm text-slate-500">
@@ -3189,6 +3337,7 @@ function ProductSheet({
                   </div>
                 )}
               </div>
+              )}
                 </>
               ) : (
                 <div className="space-y-3 pb-4">
@@ -3331,6 +3480,18 @@ function ProductSheet({
           </div>
 
           <div className={mobileFullscreenMode ? "ai-pwa-product-sheet__footer sticky bottom-0 z-20 shrink-0 border-t border-slate-200 bg-white px-4 pb-2 pt-3" : "ai-pwa-product-sheet__footer sticky bottom-0 z-10 shrink-0 border-t border-slate-200 bg-white/95 px-4 pb-[max(0.85rem,env(safe-area-inset-bottom))] pt-3 backdrop-blur"}>
+            {sizeViewOn ? (
+              // In the size view the one send button sends the ticked colour cards.
+              <button
+                type="button"
+                onClick={sendPickedSizeCards}
+                disabled={sending || !selectedConversation?.session_id || !pickedSizeCardKeys.length}
+                className="ai-pwa-product-sheet__send inline-flex h-12 w-full items-center justify-center gap-2 rounded-2xl bg-slate-900 text-sm font-semibold text-white disabled:opacity-50"
+              >
+                {sending ? <Loader2 className="h-4 w-4 animate-spin" /> : <Send className="h-4 w-4" />}
+                {t("aiSupport.inbox.picker.sizeViewSend", { count: pickedSizeCardKeys.length })}
+              </button>
+            ) : (
             <button
               type="button"
               onClick={handleSendProduct}
@@ -3341,7 +3502,8 @@ function ProductSheet({
               {sending && !quickSendingSheetId ? <Loader2 className="h-4 w-4 animate-spin" /> : <Send className="h-4 w-4" />}
               {t("aiSupport.inbox.picker.sendProduct")}
             </button>
-            {!selectedConversation ? (
+            )}
+            {sizeViewOn ? null : !selectedConversation ? (
               <div className="mt-2 text-xs text-slate-500">{t("aiSupport.inbox.pwa.openConversationFirst")}</div>
             ) : (needsColorSelection && !clean(selectedColor)) || (!needsColorSelection && needsSizeSelection && !clean(selectedSize)) ? (
               <div className="mt-2 text-xs text-slate-500">

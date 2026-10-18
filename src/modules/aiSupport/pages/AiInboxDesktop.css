@@ -141,6 +141,23 @@
   background: color-mix(in srgb, var(--picker-accent) 20%, var(--picker-surface)) !important;
 }
 
+/* The size view adds a row under the search/filters row and a send bar under the list; without
+   these the two-row grid dropped them into the product cell and stretched them. */
+.ai-inbox-product-picker-desktop__catalog:has(> .ai-picker-size-view) {
+  grid-template-rows: 46px auto minmax(0, 1fr) auto;
+}
+
+.ai-inbox-product-picker-desktop__catalog > .ai-picker-size-view,
+.ai-inbox-product-picker-desktop__catalog > .ai-picker-size-footer {
+  grid-column: 1 / -1;
+}
+
+.ai-inbox-product-picker-desktop__catalog > .ai-picker-size-footer {
+  background: transparent !important;
+  border-top: 0;
+  padding-top: 0;
+}
+
 .ai-inbox-product-picker-desktop__products {
   grid-column: 1 / -1;
   padding-inline-end: 0.375rem;

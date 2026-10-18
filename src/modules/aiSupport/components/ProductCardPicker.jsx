@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { createPortal } from "react-dom";
 import { useTranslation } from "react-i18next";
-import { CheckCircle2, Eye, EyeOff, Loader2, Search, ShoppingBag, SlidersHorizontal, Square, X } from "lucide-react";
+import { CheckCircle2, Eye, EyeOff, Loader2, Ruler, Search, Send, ShoppingBag, SlidersHorizontal, Square, X } from "lucide-react";
 
 import { buildAvailableProductsMessage, buildAvailableProductsUrl } from "../utils/availableProductsLink";
 import { formatCurrency } from "../../../shared/lib/currency";
@@ -13,6 +13,7 @@ import SmartPosFilters from "../../pos/components/SmartPosFilters";
 import { PosProductCard } from "../../pos/components/ProductGrid";
 import { MAX_BATCH_PRODUCTS } from "../lib/productSelection.js";
 import { resolveCardSendScope, resolveSelectedCards, resolveSubmitBatch } from "../lib/pickerSelection.js";
+import { buildSizeColorCards, compareSizes, pickerSizeOptions, withPickedSizes } from "../lib/sizeColorCards.js";
 import { useProductClassifications } from "../../products/hooks/useProductClassifications";
 import { classificationGroupsToFieldOptions, normalizeCanonicalProductType } from "../../products/lib/productClassifications";
 import { collectProductManufacturerIds, matchesQuickFilterGroups, moveWinterCollectionToEnd, normalizeMultiFilterValue, toggleMultiFilterValue } from "../../pos/lib/posQuickFilterLogic";
@@ -928,6 +929,73 @@ export default function ProductCardPicker({ open, onClose, onSubmit, onSubmitLin
     [products, sizeServer.brands]
   );
   const activeFilterCount = brand.length + gender.length + manufacturer.length + [productType, grade].filter((value) => value !== "all").length;
+
+  // Size view (lib/sizeColorCards.js), for the plain "send product" picker only: order, restock,
+  // exchange and the size-first tool each have their own flow. Offered once a search or a filter
+  // narrows the list; picking the customer's size(s) turns the list into one card per colour.
+  const [quickSizes, setQuickSizes] = useState([]);
+  const [sizePanelOpen, setSizePanelOpen] = useState(false);
+  const [pickedSizeCardKeys, setPickedSizeCardKeys] = useState([]);
+  // orderMode also covers exchange (the host passes it for both).
+  const sizeViewEnabled = !sizeMode && !orderMode && !restockMode && mode !== "pos";
+  const showSizeView = sizeViewEnabled && Boolean(activeFilterCount || clean(search));
+  const sizeViewOptions = useMemo(() => (showSizeView ? pickerSizeOptions(filteredProducts) : []), [filteredProducts, showSizeView]);
+  const sizeColorCards = useMemo(() => buildSizeColorCards(filteredProducts, quickSizes), [filteredProducts, quickSizes]);
+  const sizeViewActive = sizeViewEnabled && quickSizes.length > 0;
+  useEffect(() => {
+    if (!open) return;
+    setQuickSizes([]);
+    setSizePanelOpen(false);
+    setPickedSizeCardKeys([]);
+  }, [open]);
+  useEffect(() => {
+    // A size the narrowed list no longer has would leave an empty view with no chip to undo it.
+    setQuickSizes((current) => {
+      if (!current.length) return current;
+      const next = current.filter((size) => sizeViewOptions.includes(size));
+      return next.length === current.length ? current : next;
+    });
+  }, [sizeViewOptions]);
+  useEffect(() => {
+    const visible = new Set(sizeColorCards.map((card) => card.key));
+    setPickedSizeCardKeys((current) => {
+      const next = current.filter((cardKey) => visible.has(cardKey));
+      return next.length === current.length ? current : next;
+    });
+  }, [sizeColorCards]);
+  const toggleQuickSize = useCallback((size) => {
+    setQuickSizes((current) => (current.includes(size) ? current.filter((item) => item !== size) : [...current, size].sort(compareSizes)));
+  }, []);
+  const togglePickedSizeCard = useCallback((cardKey) => {
+    setPickedSizeCardKeys((current) => (current.includes(cardKey) ? current.filter((item) => item !== cardKey) : [...current, cardKey]));
+  }, []);
+  const submitSizeColorCards = useCallback(async () => {
+    if (submitting) return;
+    const picked = new Set(pickedSizeCardKeys);
+    const batch = sizeColorCards
+      .filter((card) => picked.has(card.key))
+      .map((card) => {
+        const single = card.sizes.length === 1;
+        const payload = buildProductCardPayload(card.product, card.variant);
+        // Several sizes: the link opens the colour, not one of its sizes.
+        const url = single ? payload.storefront_url : resolveStorefrontUrl(card.product, null, card.color, "");
+        return withPickedSizes(
+          { ...payload, color: card.color, image_url: card.image || payload.image_url, image: card.image || payload.image, storefront_url: url, product_url: url, url },
+          card.sizes
+        );
+      });
+    if (!batch.length) return;
+    setSubmitting(true);
+    setError("");
+    try {
+      await onSubmit?.(batch);
+      setPickedSizeCardKeys([]);
+    } catch (err) {
+      setError(err?.message || t("aiSupport.inbox.picker.productSendFailed"));
+    } finally {
+      setSubmitting(false);
+    }
+  }, [onSubmit, pickedSizeCardKeys, sizeColorCards, submitting, t]);
   const openPosFilters = useCallback(() => {
     setDraftPosFilters({ gender: [...gender], productType, grade, brands: [...brand], manufacturers: [...manufacturer] });
     setFiltersOpen(true);
@@ -1621,7 +1689,7 @@ export default function ProductCardPicker({ open, onClose, onSubmit, onSubmitLin
   // opened by the tap and closed by its own X, and the catalog keeps a footer bar so the
   // batch can still be sent once the sheet is closed.
   const variantSheetMode = inlineFullscreenMode && !(sizeMode && selectedSize);
-  const variantSheetOpen = variantSheetMode && Boolean(selectedProduct);
+  const variantSheetOpen = variantSheetMode && Boolean(selectedProduct) && !sizeViewActive;
   const submitDisabled = submitting || (!allowMultiple ? !activeCard : !(selectedProducts.length || activeCard));
   const submitLabel = restockMode
     ? (allowMultiple && selectedProducts.length ? t("aiSupport.inbox.picker.restockConfirmCount", { count: selectedProducts.length }) : t("aiSupport.inbox.picker.restockConfirm"))
@@ -1715,6 +1783,51 @@ export default function ProductCardPicker({ open, onClose, onSubmit, onSubmitLin
               {activeFilterCount ? <span className="rounded-full bg-emerald-400 px-2 py-0.5 text-[10px] text-emerald-950">{activeFilterCount}</span> : null}
             </button>
 
+            {showSizeView && sizeViewOptions.length ? (
+              <div className="ai-picker-size-view grid gap-2">
+                <div className="flex items-center gap-2">
+                  <button
+                    type="button"
+                    onClick={() => setSizePanelOpen((current) => !current)}
+                    aria-expanded={sizePanelOpen}
+                    className={`ai-picker-size-trigger inline-flex min-h-10 flex-1 items-center justify-center gap-2 rounded-2xl border px-4 text-sm font-black transition ${sizePanelOpen || quickSizes.length ? "is-active" : ""}`}
+                  >
+                    <Ruler className="h-4 w-4" />
+                    {t("aiSupport.inbox.picker.sizeView")}
+                    {quickSizes.length ? <span dir="ltr">{quickSizes.join(" / ")}</span> : null}
+                  </button>
+                  {quickSizes.length ? (
+                    <button
+                      type="button"
+                      onClick={() => setQuickSizes([])}
+                      className="ai-picker-size-clear inline-flex min-h-10 shrink-0 items-center gap-1 rounded-2xl border px-3 text-xs font-black transition"
+                    >
+                      <X className="h-3.5 w-3.5" />
+                      {t("aiSupport.inbox.picker.sizeViewClear")}
+                    </button>
+                  ) : null}
+                </div>
+                {sizePanelOpen ? (
+                  <div className="ai-picker-size-panel rounded-2xl border p-2.5">
+                    <p className="mb-2 text-[11px] font-bold">{t("aiSupport.inbox.picker.sizeViewHint")}</p>
+                    <div className="flex flex-wrap gap-1.5">
+                      {sizeViewOptions.map((size) => (
+                        <button
+                          key={size}
+                          type="button"
+                          dir="ltr"
+                          onClick={() => toggleQuickSize(size)}
+                          className={`ai-picker-size-chip h-9 min-w-11 rounded-xl border px-3 text-sm font-black transition ${quickSizes.includes(size) ? "is-active" : ""}`}
+                        >
+                          {size}
+                        </button>
+                      ))}
+                    </div>
+                  </div>
+                ) : null}
+              </div>
+            ) : null}
+
             {catalogPartial && !loading ? (
               <div className={`inline-flex items-center justify-center gap-2 text-[11px] font-bold ${inlineFullscreenMode ? "text-slate-500" : "text-slate-400"}`} role="status">
                 <Loader2 className="h-3.5 w-3.5 animate-spin" />
@@ -1730,6 +1843,54 @@ export default function ProductCardPicker({ open, onClose, onSubmit, onSubmitLin
                 </div>
               ) : error ? (
                 <div className="rounded-2xl border border-rose-300/20 bg-rose-400/10 p-4 text-sm font-bold text-rose-100">{error}</div>
+              ) : sizeViewActive ? (
+                <div className="grid gap-2">
+                  <div className={`text-[11px] font-bold ${inlineFullscreenMode ? "text-slate-500" : "text-slate-400"}`}>{t("aiSupport.inbox.picker.sizeViewColors", { count: sizeColorCards.length })}</div>
+                  {sizeColorCards.length ? (
+                    <div className={`ai-picker-size-cards ${desktopInboxMode ? "ai-inbox-product-picker-desktop__product-grid" : ""} grid grid-cols-2 gap-2 sm:grid-cols-3`}>
+                      {sizeColorCards.map((card) => {
+                        const isSelected = pickedSizeCardKeys.includes(card.key);
+                        return (
+                          <button
+                            key={card.key}
+                            type="button"
+                            onClick={() => togglePickedSizeCard(card.key)}
+                            aria-pressed={isSelected}
+                            className={`ai-picker-tile ai-picker-size-card relative overflow-hidden rounded-2xl border text-start transition ${isSelected ? "is-active" : ""} ${
+                              isSelected
+                                ? (inlineFullscreenMode ? "border-cyan-500/60 bg-cyan-500/10" : "border-cyan-300/40 bg-cyan-300/10")
+                                : inlineFullscreenMode
+                                  ? "border-slate-200 bg-white hover:border-slate-300"
+                                  : "border-white/10 bg-slate-950/60 hover:border-white/20"
+                            }`}
+                          >
+                            <span className={`absolute end-2 top-2 z-10 inline-flex h-5 w-5 items-center justify-center rounded-full border ${isSelected ? "border-cyan-300 bg-cyan-300 text-slate-950" : inlineFullscreenMode ? "border-slate-200 bg-white text-slate-400" : "border-white/20 bg-black/40 text-white/60"}`}>
+                              {isSelected ? <CheckCircle2 className="h-3.5 w-3.5" /> : <Square className="h-3.5 w-3.5" />}
+                            </span>
+                            {card.image ? (
+                              <img src={resolveProductImageUrl(card.image)} alt={`${card.product.name || ""} ${card.color}`} className="h-28 w-full bg-white object-contain p-1" loading="lazy" />
+                            ) : (
+                              <span className={inlineFullscreenMode ? "grid h-28 w-full place-items-center bg-slate-100 text-slate-400" : "grid h-28 w-full place-items-center bg-white/[0.05] text-slate-500"}>
+                                <ShoppingBag className="h-5 w-5" />
+                              </span>
+                            )}
+                            <div className="space-y-1 p-2">
+                              <div className={`truncate text-xs font-black ${inlineFullscreenMode ? "text-slate-900" : "text-white"}`}>{card.product.name || card.product.product_name || t("aiSupport.inbox.picker.product")}</div>
+                              <div className={`flex flex-wrap items-center gap-1.5 text-[11px] font-bold ${inlineFullscreenMode ? "text-slate-600" : "text-slate-400"}`}>
+                                {card.color ? <span>{card.color}</span> : null}
+                                <span dir="ltr" className="ai-picker-size-card__sizes font-black">{card.sizes.join(" / ")}</span>
+                              </div>
+                            </div>
+                          </button>
+                        );
+                      })}
+                    </div>
+                  ) : (
+                    <div className={inlineFullscreenMode ? "grid min-h-48 place-items-center rounded-2xl border border-dashed border-slate-200 bg-white text-sm font-bold text-slate-500" : "grid min-h-48 place-items-center rounded-2xl border border-dashed border-white/10 bg-white/[0.03] text-sm font-bold text-slate-500"}>
+                      {t("aiSupport.inbox.picker.sizeViewEmpty")}
+                    </div>
+                  )}
+                </div>
               ) : sizeMode && selectedSize ? (
                 visibleSizeCards.length ? (
                   <div className="grid gap-2">
@@ -1876,6 +2037,20 @@ export default function ProductCardPicker({ open, onClose, onSubmit, onSubmitLin
               )}
             </div>
 
+            {sizeViewActive && pickedSizeCardKeys.length ? (
+              <div className={`ai-picker-size-footer sticky bottom-0 mt-auto flex items-center gap-2 border-t pt-2.5 ${inlineFullscreenMode ? "-mx-4 border-slate-200 bg-white px-4 pb-[max(0.6rem,env(safe-area-inset-bottom))]" : "border-white/10 pb-1"}`}>
+                <button
+                  type="button"
+                  onClick={() => void submitSizeColorCards()}
+                  disabled={submitting}
+                  className="inline-flex min-h-11 flex-1 items-center justify-center gap-2 rounded-2xl bg-emerald-300 px-4 text-sm font-black text-slate-950 transition hover:bg-emerald-200 disabled:cursor-not-allowed disabled:opacity-50"
+                >
+                  {submitting ? <Loader2 className="h-4 w-4 animate-spin" /> : <Send className="h-4 w-4" />}
+                  {t("aiSupport.inbox.picker.sizeViewSend", { count: pickedSizeCardKeys.length })}
+                </button>
+              </div>
+            ) : null}
+
             {/* With the chooser closed there is no send button on screen, so the catalog keeps
                 the batch's own footer: count, clear, and the one action that submits it. */}
             {variantSheetMode && allowMultiple && selectedProducts.length > 0 ? (
@@ -1922,7 +2097,15 @@ export default function ProductCardPicker({ open, onClose, onSubmit, onSubmitLin
             role={variantSheetOpen ? "dialog" : undefined}
             aria-modal={variantSheetOpen ? "true" : undefined}
           >
-            {sizeMode && selectedSize ? (
+            {sizeViewActive ? (
+              <div className="ai-picker-size-summary grid min-h-48 place-items-center rounded-2xl border border-dashed p-4 text-center text-sm font-bold">
+                <div className="space-y-2">
+                  <Ruler className="mx-auto h-6 w-6" />
+                  <div dir="ltr" className="text-lg font-black">{quickSizes.join(" / ")}</div>
+                  <div>{t("aiSupport.inbox.picker.sizeViewColors", { count: sizeColorCards.length })}</div>
+                </div>
+              </div>
+            ) : sizeMode && selectedSize ? (
               <div className="space-y-3">
                 <div className="rounded-2xl border border-white/10 bg-slate-950/70 p-4">
                   <div className={inlineFullscreenMode ? "text-[10px] font-black uppercase tracking-[0.22em] text-slate-500" : "text-[10px] font-black uppercase tracking-[0.22em] text-cyan-200"}>{t("aiSupport.inbox.picker.sizeMode")}</div>

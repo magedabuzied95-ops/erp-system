@@ -1845,7 +1845,13 @@
       "productSendFailed": "تعذر إرسال المنتج",
       "linkSendFailed": "تعذر إرسال الرابط",
       "addToSelection": "إضافة للاختيار",
-      "removeFromSelection": "إزالة من الاختيار"
+      "removeFromSelection": "إزالة من الاختيار",
+      "sizeView": "المقاس",
+      "sizeViewHint": "اختار المقاس اللي العميل سأل عنه، وهيظهر كل لون متاح فيه",
+      "sizeViewClear": "إلغاء المقاس",
+      "sizeViewColors": "{{count}} لون متاح",
+      "sizeViewEmpty": "مفيش لون متاح في المقاس ده من المنتجات دي",
+      "sizeViewSend": "إرسال الألوان المحددة ({{count}})"
     },
     "message": {
       "pinnedMessages": "الرسائل المثبتة",

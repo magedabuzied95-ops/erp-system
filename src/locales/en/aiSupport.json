@@ -1837,7 +1837,13 @@
       "productSendFailed": "Unable to send the product",
       "linkSendFailed": "Unable to send the link",
       "addToSelection": "Add to selection",
-      "removeFromSelection": "Remove from selection"
+      "removeFromSelection": "Remove from selection",
+      "sizeView": "Size",
+      "sizeViewHint": "Pick the size the customer asked about to see every colour that has it",
+      "sizeViewClear": "Clear size",
+      "sizeViewColors": "{{count}} colours available",
+      "sizeViewEmpty": "None of these products has a colour in this size",
+      "sizeViewSend": "Send selected colours ({{count}})"
     },
     "message": {
       "pinnedMessages": "Pinned messages",

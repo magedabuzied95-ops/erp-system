@@ -380,3 +380,51 @@
 .ai-pwa-product-picker--dark .ai-picker-variant-sheet .bg-white {
   background-color: var(--surface-raised) !important;
 }
+
+/* Size view in the "send product" picker: the size trigger and chips read like the smart
+   filters button above them, in both themes and on both the desktop and phone layouts. */
+.ai-picker-size-trigger,
+.ai-picker-size-chip,
+.ai-picker-size-clear {
+  border-color: var(--border) !important;
+  background: var(--surface-soft) !important;
+  color: var(--text) !important;
+}
+
+.ai-picker-size-trigger:hover,
+.ai-picker-size-chip:hover,
+.ai-picker-size-clear:hover {
+  border-color: color-mix(in srgb, var(--primary) 55%, var(--border)) !important;
+  background: var(--surface-raised) !important;
+}
+
+.ai-picker-size-trigger.is-active {
+  border-color: color-mix(in srgb, var(--primary) 62%, var(--border)) !important;
+  background: var(--primary-soft) !important;
+  color: var(--primary) !important;
+}
+
+.ai-picker-size-chip.is-active {
+  border-color: var(--primary-active) !important;
+  background: var(--primary) !important;
+  color: var(--primary-contrast) !important;
+}
+
+.ai-picker-size-panel,
+.ai-picker-size-summary {
+  border-color: var(--border) !important;
+  background: var(--surface-soft) !important;
+  color: var(--muted) !important;
+}
+
+.ai-picker-size-summary :where(.text-lg) {
+  color: var(--text) !important;
+}
+
+.ai-picker-size-footer {
+  background: var(--surface) !important;
+}
+
+.ai-picker-size-card__sizes {
+  color: var(--primary) !important;
+}

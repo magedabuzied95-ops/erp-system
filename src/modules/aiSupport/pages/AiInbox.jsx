@@ -8552,6 +8552,12 @@ export default function AiInbox({ reviewerMode = false }) {
         product_url: clean(card.storefront_url || card.product_url || card.url || card.share_url || card.shareUrl || ""),
         url: clean(card.storefront_url || card.product_url || card.url || card.share_url || card.shareUrl || ""),
         share_url: clean(card.share_url || card.shareUrl || ""),
+        // What the operator picked (lib/pickerSelection.js, lib/sizeColorCards.js). Dropping it
+        // here made the server read "no scope" and fan the card out into every colour.
+        ...(clean(card.send_scope) ? { send_scope: clean(card.send_scope), selected_size: clean(card.selected_size || "") } : {}),
+        ...(Array.isArray(card.picked_sizes) && card.picked_sizes.length
+          ? { picked_sizes: card.picked_sizes, available_sizes: card.picked_sizes, sizes: card.picked_sizes }
+          : {}),
       }))
       .filter((card) => card.product_name || card.product_id || card.storefront_url);
     const conversationId = clean(selectedConversation?.session_id || selectedConversation?.conversation_key || selectedConversation?.conversation_id || "");
