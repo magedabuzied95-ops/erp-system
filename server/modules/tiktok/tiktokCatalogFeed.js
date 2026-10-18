@@ -39,7 +39,19 @@ export const TIKTOK_CATALOG_COLUMNS = Object.freeze([
   "gender",
   "age_group",
   "google_product_category",
+  // "no_photo" when the size has no photo of its own and ships the shop's logo instead —
+  // a Product Set filter keeps it out of ads without removing its id from the catalogue.
+  "custom_label_0",
 ]);
+
+/*
+ * The Meta feed falls back to the shop's logo when a colourway has no photo at any level
+ * (colour, size or product). The fallback path is Meta's choice; a test builds a photo-less
+ * row through the real Meta builder so a change there fails here instead of going unnoticed.
+ */
+export const NO_PHOTO_LABEL = "no_photo";
+const LOGO_FALLBACK_PATH = "/branding/m-one-logo-dark-fixed.png";
+export const isLogoFallbackImage = (url = "") => text(url).split("?")[0].endsWith(LOGO_FALLBACK_PATH);
 
 const REQUIRED = TIKTOK_CATALOG_COLUMNS.slice(0, 9);
 const MAX_ADDITIONAL_IMAGES = 10;
@@ -92,6 +104,7 @@ export const tiktokCatalogRow = (item = {}) => {
     gender: ["male", "female", "unisex"].includes(text(item.gender)) ? text(item.gender) : "",
     age_group: ["newborn", "infant", "toddler", "kids", "adult"].includes(text(item.age_group)) ? text(item.age_group) : "",
     google_product_category: threeLevels(item.google_product_category),
+    custom_label_0: isLogoFallbackImage(item.image_link) ? NO_PHOTO_LABEL : "",
   };
   const missing = REQUIRED.find((column) => !row[column]);
   if (missing) return { row: null, reason: `missing_${missing}` };
@@ -132,6 +145,7 @@ export const buildTikTokCatalogFromItems = (items = []) => {
       in_stock: inStock,
       out_of_stock: rows.length - inStock,
       groups: new Set(rows.map((row) => row.item_group_id)).size,
+      no_photo: rows.filter((row) => row.custom_label_0 === NO_PHOTO_LABEL).length,
       skipped,
     },
   };
