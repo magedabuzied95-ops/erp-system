@@ -2,6 +2,7 @@ import { AI_AGENT_CHANNELS, normalizeChannel } from "./aiChannelAdapterService.j
 import { generateAiBrainV2Decision } from "./aiBrainV2Service.js";
 import { generateUnifiedAiReply } from "./aiConversationOrchestrator.js";
 import { normalizeProductCards } from "./aiProductCards.js";
+import { customerSizeLabel } from "./footwearSizeResolver.js";
 import { resolveCustomerDisplayPrice } from "../utils/customerDisplayPrice.js";
 import { normalizeArabicForIntent, normalizeArabicIntentPayload, normalizeArabicMessage } from "../utils/arabicTextNormalizer.js";
 import { resolveProductAlias } from "../utils/productAliasResolver.js";
@@ -288,7 +289,7 @@ const buildDirectColorSelectionDecision = ({ message = "", memory = {} } = {}) =
   const selectedColor = text(selectedCard?.color || selectedCard?.matched_variant_color || selectedCard?.name || selectedCard?.title || "");
   const topProductId = text(selectedCard?.product_id || selectedCard?.id || activeProductId || "");
   const topVariantId = text(selectedCard?.variant_id || selectedCard?.selected_variant_id || selectedCard?.variant?.id || "");
-  const sizeLabel = requestedSize;
+  const sizeLabel = customerSizeLabel(requestedSize);
   const replyText = [
     "تمام",
     "",

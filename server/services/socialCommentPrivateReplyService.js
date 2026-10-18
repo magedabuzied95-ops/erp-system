@@ -6,6 +6,7 @@ import {
 } from "../utils/customerDisplayPrice.js";
 import { getPublicAppUrl, getPublicBackendUrl } from "../utils/publicUrl.js";
 import { tidyGreetingText } from "../utils/greetingText.js";
+import { customerSizeLabel, customerSizeLabels } from "./footwearSizeResolver.js";
 
 const text = (value = "") => String(value ?? "").trim();
 const asArray = (value) => (Array.isArray(value) ? value : value == null ? [] : [value]);
@@ -549,7 +550,7 @@ export const normalizeSocialCommentProductContext = async ({ tenantId = null, pr
     productId,
     productName,
     availableSizes,
-    availableSizesLabel: availableSizes.length ? availableSizes.join(" | ") : DEFAULT_SIZE_FALLBACK,
+    availableSizesLabel: availableSizes.length ? customerSizeLabels(availableSizes).join(" | ") : DEFAULT_SIZE_FALLBACK,
     availableColors,
     availableVariantsCount: availableVariantRows.length,
     availableVariantRows,
@@ -726,7 +727,7 @@ export const narrowSocialCommentContextToRequest = ({ normalizedContext = {}, re
       ...context,
       availableColors: [settledColor],
       availableSizes: narrowedSizes,
-      availableSizesLabel: narrowedSizes.length ? narrowedSizes.join(" | ") : context.availableSizesLabel,
+      availableSizesLabel: narrowedSizes.length ? customerSizeLabels(narrowedSizes).join(" | ") : context.availableSizesLabel,
       colorCards: card ? [card] : cards,
       // One card is not a carousel. The single-card path takes over, and it draws THIS colour
       // because the product image and link are swapped for the card's own.
@@ -861,7 +862,7 @@ export const buildPolishedSocialCommentProductReply = ({
         productName: text(productContext?.product_name || "") || "المنتج",
         priceUsed: normalizePriceText(productContext?.selling_price || productContext?.sale_price || productContext?.price || ""),
         availableSizes: sortSocialCommentAvailableSizes(productContext?.available_sizes || []),
-        availableSizesLabel: sortSocialCommentAvailableSizes(productContext?.available_sizes || []).join(" | ") || DEFAULT_SIZE_FALLBACK,
+        availableSizesLabel: customerSizeLabels(sortSocialCommentAvailableSizes(productContext?.available_sizes || [])).join(" | ") || DEFAULT_SIZE_FALLBACK,
         productLink: ensureAbsoluteSocialProductLink(productContext?.product_link || productContext?.product_url || productContext?.storefront_url || ""),
         availableColors: asArray(productContext?.available_colors).map(text).filter(Boolean),
         carouselEligible: Boolean(productContext?.carousel_eligible),
@@ -877,7 +878,7 @@ const sanitizeRenderedPrivateReplyMessage = ({
   const cleanedLines = [];
   const hasPrice = hasUsablePriceValue(normalizedContext.priceUsed);
   const hasSizes = Array.isArray(normalizedContext.availableSizes) && normalizedContext.availableSizes.length > 0;
-  const sizesInlineValue = hasSizes ? normalizedContext.availableSizes.join(" | ") : DEFAULT_SIZE_FALLBACK;
+  const sizesInlineValue = hasSizes ? customerSizeLabels(normalizedContext.availableSizes).join(" | ") : DEFAULT_SIZE_FALLBACK;
 
   for (const rawLine of rawLines) {
     const line = text(rawLine);
@@ -941,9 +942,17 @@ export const buildSocialCommentSizeQuickReplies = ({
   const safeProductId = Number(productContext?.product_id || productContext?.primary_product?.product_id || productContext?.primary_product?.id || 0) || null;
   const sizes = sortSocialCommentAvailableSizes(productContext?.available_sizes || productContext?.sizes || []).slice(0, 11);
   if (!safeProductId || !sizes.length) return [];
-  return sizes.map((size) => ({
+  // The button reads what the site prints (a Crocs M6/W8 reads 38/39); the payload keeps the stock
+  // marking. Two markings printing the same pair get one button — the first marking answers for it.
+  const seenLabels = new Set();
+  return sizes.filter((size) => {
+    const label = customerSizeLabel(size);
+    if (seenLabels.has(label)) return false;
+    seenLabels.add(label);
+    return true;
+  }).map((size) => ({
     content_type: "text",
-    title: size.slice(0, 20),
+    title: customerSizeLabel(size).slice(0, 20),
     payload: `${SOCIAL_COMMENT_SIZE_QUICK_REPLY_PREFIX}${JSON.stringify({
       size,
       color: text(selectedColor),
@@ -1161,7 +1170,7 @@ export const buildSocialCommentOrderSummaryMessage = ({
     "️ ملخص اختيارك",
     "",
     text(productName) || "المنتج",
-    `المقاس: ${text(selectedSize) || "-"}`,
+    `المقاس: ${customerSizeLabel(selectedSize) || "-"}`,
     `اللون: ${normalizeSocialCommentColorDisplay(selectedColor) || DEFAULT_COLOR_LABEL}`,
   ];
   if (hasUsablePriceValue(priceUsed)) {
@@ -1233,7 +1242,7 @@ export const buildSocialCommentOrderSummaryMessageV2 = ({
     "✨ تفاصيل طلبك",
     "",
     `👟 ${text(productName) || "المنتج"}`,
-    `📏 المقاس: ${text(selectedSize) || "-"}`,
+    `📏 المقاس: ${customerSizeLabel(selectedSize) || "-"}`,
     `🎨 اللون: ${normalizeSocialCommentColorDisplay(selectedColor) || DEFAULT_COLOR_LABEL}`,
   ];
   if (hasUsablePriceValue(priceUsed)) {
@@ -1274,7 +1283,7 @@ export const buildSocialCommentOrderPreviewMessage = ({
     text(productName) || "المنتج",
     "",
     "المقاس",
-    text(selectedSize) || "-",
+    customerSizeLabel(selectedSize) || "-",
     "",
     "اللون",
     normalizeSocialCommentColorDisplay(selectedColor) || DEFAULT_COLOR_LABEL,
@@ -1317,7 +1326,7 @@ export const buildSocialCommentOrderReviewMessage = ({
     text(productName) || "المنتج",
     "",
     "المقاس",
-    text(selectedSize) || "-",
+    customerSizeLabel(selectedSize) || "-",
     "",
     "اللون",
     normalizeSocialCommentColorDisplay(selectedColor) || DEFAULT_COLOR_LABEL,
@@ -1464,7 +1473,7 @@ export const sanitizeUnifiedSocialCommentPrivateReplyMessage = ({
       ""
     ),
     availableSizes: sortSocialCommentAvailableSizes(productContext?.available_sizes || productContext?.sizes || []),
-    availableSizesLabel: sortSocialCommentAvailableSizes(productContext?.available_sizes || productContext?.sizes || []).join(" | ") || DEFAULT_SIZE_FALLBACK,
+    availableSizesLabel: customerSizeLabels(sortSocialCommentAvailableSizes(productContext?.available_sizes || productContext?.sizes || [])).join(" | ") || DEFAULT_SIZE_FALLBACK,
     productLink: ensureAbsoluteSocialProductLink(
       productContext?.product_link ||
       productContext?.product_url ||

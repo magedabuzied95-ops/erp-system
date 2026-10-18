@@ -11,6 +11,7 @@ import { createAddressRequest } from "./conversationAddressRequestService.js";
 import { agentActionAllowed } from "./aiAgentActionPolicy.js";
 import { resolveSocialProductDisplayPrice } from "../utils/customerDisplayPrice.js";
 import { absolutePublicUploadUrl } from "../utils/publicUrl.js";
+import { customerSizeLabel, customerSizeLabels, matchOfferedSize } from "./footwearSizeResolver.js";
 import { sendChoiceListMessage, sendCtaUrlMessage, sendImageMessage, sendReplyButtonsMessage, sendTextMessage } from "./whatsappGatewayService.js";
 
 /* ======================================================
@@ -185,19 +186,22 @@ const presentSizes = async ({ tenantId, phone, conversationId, productId, color,
   // A list, not buttons: WhatsApp reply buttons cap at three and a shoe has five to eight sizes.
   // The sizes are already narrowed to this colour, so ten rows covers essentially everything; the
   // text still names every size, so nothing is hidden even when the list is truncated or fails.
-  const listed = sizes.slice(0, 10);
-  const overflow = sizes.length > listed.length ? sizes.slice(listed.length) : [];
-  const bodyText = `${lead}\n\nالمقاسات المتاحة في اللون ده:\n${sizes.join(" · ")}`;
+  // Customers read the size the site prints (a Crocs M6/W8 reads 38/39); the row id keeps the stock
+  // marking. Two markings printing the same pair get one row — the first marking answers for it.
+  const rowSizes = sizes.filter((size, index) => sizes.findIndex((other) => customerSizeLabel(other) === customerSizeLabel(size)) === index);
+  const listed = rowSizes.slice(0, 10);
+  const overflow = rowSizes.length > listed.length ? rowSizes.slice(listed.length) : [];
+  const bodyText = `${lead}\n\nالمقاسات المتاحة في اللون ده:\n${customerSizeLabels(sizes).join(" · ")}`;
   await sendChoiceListMessage({
     phone,
     title: text(product?.name || "اختار المقاس"),
     description: `${bodyText}\n\nاضغط «اختار المقاس» وحدد مقاسك 👟`,
     buttonText: "اختار المقاس",
     sectionTitle: `مقاسات ${colorLabel}`.slice(0, 24),
-    footer: overflow.length ? `ومقاسات كمان: ${overflow.join(" · ")}` : "M1 Store",
+    footer: overflow.length ? `ومقاسات كمان: ${customerSizeLabels(overflow).join(" · ")}` : "M1 Store",
     rows: listed.map((size) => ({
-      title: size,
-      description: `${colorLabel} — مقاس ${size}`,
+      title: customerSizeLabel(size),
+      description: `${colorLabel} — مقاس ${customerSizeLabel(size)}`,
       rowId: buildSizeRowId({ productId, color, size }),
     })),
     // Whatever happens to the list, the sizes still arrive and a typed reply still works.
@@ -259,7 +263,7 @@ const sendSummary = async ({ tenantId, phone, conversationId, productId, color, 
   const caption = [
     `👟 ${text(product?.name || "المنتج")}`,
     `🎨 اللون: ${colorLabel}`,
-    `📏 المقاس: ${size}`,
+    `📏 المقاس: ${customerSizeLabel(size)}`,
     priceUsed ? `💵 السعر: ${priceUsed} جنيه` : "",
   ].filter(Boolean).join("\n");
 
@@ -433,7 +437,7 @@ export const handleWhatsappSalesFlow = async ({
     if (!product) return { handled: false, reason: "product_not_found" };
     const available = await loadVariants({ tenantId, productId: sizeRow.product_id, color: sizeRow.color, size: sizeRow.size });
     if (!available.length) {
-      await send({ phone, message: `المقاس ${sizeRow.size} خلص من اللون ${normalizeSocialCommentColorDisplay(sizeRow.color) || sizeRow.color}. اختار مقاس تاني 👟` });
+      await send({ phone, message: `المقاس ${customerSizeLabel(sizeRow.size)} خلص من اللون ${normalizeSocialCommentColorDisplay(sizeRow.color) || sizeRow.color}. اختار مقاس تاني 👟` });
       return presentSizes({ tenantId, phone, conversationId, productId: sizeRow.product_id, color: sizeRow.color, product });
     }
     console.log("WHATSAPP_SALES_FLOW_SIZE_SELECTED", { conversation_id: conversationId, ...sizeRow, source: "list_row" });
@@ -449,7 +453,8 @@ export const handleWhatsappSalesFlow = async ({
     const requested = body.replace(/[^\p{L}\p{N}.\s]/gu, " ").trim();
     const available = await loadVariants({ tenantId, productId, color });
     const sizes = sortSocialCommentAvailableSizes(available.map((row) => text(row.size)).filter(Boolean));
-    const matched = sizes.find((size) => requested === size)
+    const matched = matchOfferedSize(body, sizes)
+      || sizes.find((size) => requested === size)
       || sizes.find((size) => new RegExp(`(^|\\s)${size.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")}(\\s|$)`).test(requested));
     if (!matched) {
       // Not a size — could be a question. Only answer when the message looks like a size attempt,
@@ -457,7 +462,7 @@ export const handleWhatsappSalesFlow = async ({
       if (!/\d/.test(requested)) return { handled: false, reason: "not_a_size" };
       await send({
         phone,
-        message: `المقاس ده مش متاح في اللون ${normalizeSocialCommentColorDisplay(color) || color}.\n\nالمتاح: ${sizes.join(" · ")}`,
+        message: `المقاس ده مش متاح في اللون ${normalizeSocialCommentColorDisplay(color) || color}.\n\nالمتاح: ${customerSizeLabels(sizes).join(" · ")}`,
       });
       return { handled: true, reason: "whatsapp_size_unavailable" };
     }

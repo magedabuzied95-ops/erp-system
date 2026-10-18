@@ -113,6 +113,7 @@ import {
   resolvePublicProductImageUrl,
 } from "./aiProductCards.js";
 import { understandProductImageForSearch } from "./openaiSupportService.js";
+import { customerSizeLabel, customerSizeLabels, matchOfferedSize } from "./footwearSizeResolver.js";
 import {
   confirmAiOrder,
   createAiOrderDraft,
@@ -988,7 +989,7 @@ const formatSalesDesignerSizes = (sizes = []) => {
   const continuous = numeric.length >= 3 && numeric.every((size) => size !== null) &&
     numeric.every((size, index) => index === 0 || size === numeric[index - 1] + 1);
   if (continuous) return `${numeric[0]} \u0625\u0644\u0649 ${numeric.at(-1)}`;
-  return sorted.join("\u060c ");
+  return customerSizeLabels(sorted).join("\u060c ");
 };
 
 const PRODUCT_CONFIRMATION_CONFIDENCE_THRESHOLD = Number(process.env.AI_PRODUCT_CONFIRMATION_CONFIDENCE_THRESHOLD || 0.9);
@@ -13258,17 +13259,17 @@ const postMetaImageMessage = async ({ token, recipientId, imageUrl, mediaType = 
 const buildMessengerGenericTemplatePayload = ({ recipientId = "", product = {} } = {}) => {
   const title = text(product.name || product.title || product.product_name || "");
   const imageUrl = absolutePublicUploadUrl(text(product.image_url || product.image || product.main_image || ""));
-  const availableSizes = [...new Set([
+  const availableSizes = customerSizeLabels([
     ...asArray(product.available_sizes),
     ...asArray(product.sizes),
     ...asArray(product.size_options),
-  ].map(text).filter(Boolean))].sort((left, right) =>
+  ].map(text).filter(Boolean)).sort((left, right) =>
     left.localeCompare(right, undefined, { numeric: true, sensitivity: "base" })
   );
   const selectedSize = text(product.size || product.selected_size || "");
   const subtitleParts = [
     text(product.color || ""),
-    selectedSize ? `Size: ${selectedSize}` : availableSizes.length ? `Available sizes: ${availableSizes.join(", ")}` : "",
+    selectedSize ? `Size: ${customerSizeLabel(selectedSize)}` : availableSizes.length ? `Available sizes: ${availableSizes.join(", ")}` : "",
     text(product.price ? `EGP ${Number(product.price).toFixed(2)}` : ""),
   ].filter(Boolean);
   const productUrl = text(product.product_url || product.url || product.storefront_url || product.share_url || "");
@@ -17518,7 +17519,7 @@ const typedSalesFlowSize = ({ memory = {}, messageText = "" } = {}) => {
   const typed = text(messageText)
     .replace(/[٠-٩]/g, (digit) => String(digit.charCodeAt(0) - 0x0660))
     .replace(/[۰-۹]/g, (digit) => String(digit.charCodeAt(0) - 0x06F0));
-  return offered.find((option) => option && option === typed) || "";
+  return offered.find((option) => option && option === typed) || matchOfferedSize(typed, offered);
 };
 
 const isSocialCommentSalesFlowTapPayload = (value = "") => {
@@ -17556,7 +17557,7 @@ const buildSocialCommentAddressCardPayload = ({
   const title = [text(productName) || "طلبك", priceText].filter(Boolean).join(" — ").slice(0, 80);
   const subtitle = [
     colorLabel ? `اللون: ${colorLabel}` : "",
-    text(selectedSize) ? `المقاس: ${text(selectedSize)}` : "",
+    text(selectedSize) ? `المقاس: ${customerSizeLabel(selectedSize)}` : "",
   ].filter(Boolean).join(" · ").slice(0, 80);
   return {
     recipient: { id: recipientId },
@@ -17806,7 +17807,7 @@ const buildSocialCommentOrderSummaryCardPayload = ({
   const title = [text(productName) || "طلبك", priceText].filter(Boolean).join(" — ").slice(0, 80);
   const subtitle = [
     colorLabel ? `اللون: ${colorLabel}` : "",
-    text(selectedSize) ? `المقاس: ${text(selectedSize)}` : "",
+    text(selectedSize) ? `المقاس: ${customerSizeLabel(selectedSize)}` : "",
   ].filter(Boolean).join(" · ").slice(0, 80);
   return {
     recipient: { id: recipientId },
@@ -19379,7 +19380,7 @@ const handleSocialCommentMessengerQuickReplySelection = async ({
         config,
         message,
         text: text(selectedSize)
-          ? `✅ ممتاز\nالمقاس ${text(selectedSize)} متوفر.\n\nاختار اللون المناسب:`
+          ? `✅ ممتاز\nالمقاس ${customerSizeLabel(selectedSize)} متوفر.\n\nاختار اللون المناسب:`
           : `${text(productData?.productName || "") ? `${text(productData.productName)}\n\n` : ""}اختار اللون الأول 👇`,
         detectedIntent: "social_comment_color_options",
         metadata: {
@@ -19619,8 +19620,8 @@ const handleSocialCommentMessengerQuickReplySelection = async ({
         config,
         message,
         text: sizeSelectedColor
-          ? `المقاس ${selectedSize} مش متوفر في اللون ${colorLabel}. اختار مقاس تاني من الأزرار بالأسفل.`
-          : `المقاس ${selectedSize} غير متوفر حالياً. لو تحب اختار مقاس تاني من الأزرار أو ابعتلنا المقاس المطلوب ونراجع التوفر فوراً.`,
+          ? `المقاس ${customerSizeLabel(selectedSize)} مش متوفر في اللون ${colorLabel}. اختار مقاس تاني من الأزرار بالأسفل.`
+          : `المقاس ${customerSizeLabel(selectedSize)} غير متوفر حالياً. لو تحب اختار مقاس تاني من الأزرار أو ابعتلنا المقاس المطلوب ونراجع التوفر فوراً.`,
         detectedIntent: "social_comment_size_unavailable",
         metadata: {
           selected_size: selectedSize,
@@ -19735,7 +19736,7 @@ const handleSocialCommentMessengerQuickReplySelection = async ({
         config,
         message,
         text: selectedSize
-          ? `اللون ${selectedColor} غير متوفر حالياً للمقاس ${selectedSize}. اختار لون تاني من الأزرار بالأسفل.`
+          ? `اللون ${selectedColor} غير متوفر حالياً للمقاس ${customerSizeLabel(selectedSize)}. اختار لون تاني من الأزرار بالأسفل.`
           : `اللون ${rawColorInput} مش متوفر حالياً. اختار لون من الأزرار بالأسفل 👇`,
         detectedIntent: "social_comment_color_unavailable",
         metadata: {
@@ -20474,7 +20475,7 @@ const handleSocialCommentMessengerQuickReplySelection = async ({
       await sendSocialCommentSalesFlowText({
         config,
         message,
-        text: `اختار اللون المناسب للمقاس ${selectedSize}:`,
+        text: `اختار اللون المناسب للمقاس ${customerSizeLabel(selectedSize)}:`,
         detectedIntent: "social_comment_sales_flow_change_color",
         metadata: {
           selected_size: selectedSize,
@@ -23355,8 +23356,8 @@ const handleContextualSizeCheckIfMatched = async ({ config, message } = {}) => {
   let replyText = hasSize
     ? [
       customerFirstName ? `تمام يا ${customerFirstName}.` : "",
-      usedPreferredSize ? `هشوفهولك على مقاسك ${requestedSize}.` : "",
-      `أيوه ${requestedSize} متوفر في ${colorPhrase} ✅`,
+      usedPreferredSize ? `هشوفهولك على مقاسك ${customerSizeLabel(requestedSize)}.` : "",
+      `أيوه ${customerSizeLabel(requestedSize)} متوفر في ${colorPhrase} ✅`,
       priceText ? `السعر ${priceText}.` : "",
       lowStockLine,
       "",
@@ -23368,7 +23369,7 @@ const handleContextualSizeCheckIfMatched = async ({ config, message } = {}) => {
       "• المنطقة",
     ].filter((line) => line !== "").join("\n")
     : sizes.length
-      ? `\u0644\u0644\u0623\u0633\u0641 ${requestedSize} \u0645\u0634 \u0645\u062a\u0648\u0641\u0631 \u0641\u064a ${colorPhrase}\u060c \u0627\u0644\u0645\u062a\u0627\u062d: ${formatSalesDesignerSizes(sizes)}`
+      ? `\u0644\u0644\u0623\u0633\u0641 ${customerSizeLabel(requestedSize)} \u0645\u0634 \u0645\u062a\u0648\u0641\u0631 \u0641\u064a ${colorPhrase}\u060c \u0627\u0644\u0645\u062a\u0627\u062d: ${formatSalesDesignerSizes(sizes)}`
       : "\u0627\u0644\u0645\u0642\u0627\u0633\u0627\u062a \u0645\u0634 \u0648\u0627\u0636\u062d\u0629 \u0639\u0646\u062f\u064a \u0644\u0644\u0648\u0646 \u062f\u0647\u060c \u0623\u0631\u0627\u062c\u0639\u0647\u0627\u0644\u0643\u061f";
   const selectedColorLabel = selectionColorDisplay(canonicalColor(selectedVariantForSize?.color || baseCard.color || colorLabel || ""));
   const orchestrated = buildOrchestratedReply({
@@ -23942,7 +23943,7 @@ const buildSalesOrderSummary = ({ productName = "", size = "", price = "", addre
     "تمام",
     "",
     `المنتج: ${productName || "الموديل المختار"}`,
-    size ? `المقاس: ${size}` : "",
+    size ? `المقاس: ${customerSizeLabel(size)}` : "",
     price ? `السعر: ${price}` : "",
     "",
     `الشحن إلى: ${address || "العنوان اللي بعتّه"}`,
@@ -24899,7 +24900,7 @@ const buildSalesCloserV2OrderSummary = ({ productName = "", size = "", price = "
     "\u062a\u0645\u0627\u0645",
     "",
     `\u0627\u0644\u0645\u0646\u062a\u062c: ${productName || "\u0627\u0644\u0645\u0648\u062f\u064a\u0644 \u0627\u0644\u0645\u062e\u062a\u0627\u0631"}`,
-    size ? `\u0627\u0644\u0645\u0642\u0627\u0633: ${size}` : "",
+    size ? `\u0627\u0644\u0645\u0642\u0627\u0633: ${customerSizeLabel(size)}` : "",
     price ? `\u0627\u0644\u0633\u0639\u0631: ${price}` : "",
     `\u0627\u0644\u0639\u0646\u0648\u0627\u0646: ${address || "\u0627\u0644\u0639\u0646\u0648\u0627\u0646 \u0627\u0644\u0644\u064a \u0628\u0639\u062a\u0647"}`,
     "",
@@ -25922,7 +25923,7 @@ const handleOrderDraftIfMatched = async ({ config, message } = {}) => {
     await sendAndLogMetaText({
       config,
       message,
-    text: effectiveSize ? `مقاس ${effectiveSize} مش ظاهر متاح عندي دلوقتي. تحب أطلعلك أقرب مقاس؟` : "المقاس ده مش ظاهر متاح عندي دلوقتي.",
+    text: effectiveSize ? `مقاس ${customerSizeLabel(effectiveSize)} مش ظاهر متاح عندي دلوقتي. تحب أطلعلك أقرب مقاس؟` : "المقاس ده مش ظاهر متاح عندي دلوقتي.",
       detectedIntent: "selected_size_unavailable",
       metadata: { requested_size: effectiveSize, checkout_stage: "buying_intent" },
     });
@@ -26044,7 +26045,7 @@ const handleOrderDraftIfMatched = async ({ config, message } = {}) => {
     config,
     message,
     text: [
-      selectedSize ? `\u062a\u0645\u0627\u0645\u060c \u0645\u0642\u0627\u0633 ${selectedSize} \u0645\u062a\u0627\u062d \u2705` : "",
+      selectedSize ? `\u062a\u0645\u0627\u0645\u060c \u0645\u0642\u0627\u0633 ${customerSizeLabel(selectedSize)} \u0645\u062a\u0627\u062d \u2705` : "",
       closerLine,
       CHECKOUT_INFO_COLLECTION_REPLY,
     ].filter(Boolean).join("\n"),

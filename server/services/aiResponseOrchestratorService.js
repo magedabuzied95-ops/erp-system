@@ -1,4 +1,5 @@
 import { buildAiPriceGuard } from "../utils/aiProductReplyGuards.js";
+import { customerSizeLabel, customerSizeLabels } from "./footwearSizeResolver.js";
 const text = (value = "") => String(value ?? "").trim();
 const normalizeArabic = (value = "") =>
   text(value)
@@ -396,12 +397,12 @@ export const orchestrateAiResponse = ({
   replyCategory = stageDecision.replyCategory;
   const nextConversationStage = stageDecision.nextConversationStage;
   const { template, antiRepetitionApplied } = chooseWeightedTemplate(replyCategory, recentReplyTemplateIds);
-  const sizeList = joinSizes(availableSizes, "هراجعهولك");
+  const sizeList = joinSizes(customerSizeLabels(availableSizes), "هراجعهولك");
   const colorList = joinList(availableColors, "المتاح هبعتهولك");
   const rawReplyText = interpolate(template.text, {
     product: selectedProduct?.name || selectedProduct?.title || productContext.productName || "",
     color: selectedColor,
-    size: selectedSize,
+    size: customerSizeLabel(selectedSize),
     sizes: sizeList,
     colors: colorList,
     price: text(price).replace(/\s*جنيه\s*$/i, ""),

@@ -72,7 +72,7 @@ test("the picture and the price are the chosen COLOUR's, not the product's roll-
     "and the variant's price wins over the product's"
   );
   assert.match(builder, /اللون: \$\{colorLabel\}/, "the subtitle names the colour");
-  assert.match(builder, /المقاس: \$\{text\(selectedSize\)\}/, "and the size");
+  assert.match(builder, /المقاس: \$\{customerSizeLabel\(selectedSize\)\}/, "and the size");
 });
 
 test("a card that cannot be built or sent still leaves the customer a way to confirm", () => {

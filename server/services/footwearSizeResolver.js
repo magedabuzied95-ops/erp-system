@@ -13,6 +13,7 @@ import {
   resolveCrocsEuSize,
   isKnownCrocsSize,
   CROCS_CANONICAL_SIZE_MAP,
+  getCrocsCanonicalSize,
 } from "../../src/shared/lib/crocsSizes.js";
 
 export const SIZE_MATCH = Object.freeze({
@@ -83,3 +84,33 @@ export const resolveFootwearSize = ({ productType = "", requestedSize = "", avai
 // Convert a stored variant size (marking) to the customer-facing display (EU) for hints/round-trip.
 export const toDisplaySize = (variantSize, productType = "crocs") =>
   isCrocsProduct({ product_type: productType }) ? resolveCrocsEuSize(variantSize) : String(variantSize || "");
+
+// The size a CUSTOMER reads in a chat sales flow. Crocs are stocked under the factory marking (M6/W8)
+// while the site prints the EU pair (38/39). The flows carry the variant's size but not the product's
+// type, so the rule is read off the value itself: a known Crocs marking prints as its EU pair, anything
+// else prints as stored ("42" stays "42"). Display only — payloads, stored state and the order keep the
+// marking.
+export const customerSizeLabel = (size = "") => {
+  const value = String(size ?? "").trim();
+  return value && getCrocsCanonicalSize(value) ? resolveCrocsEuSize(value) : value;
+};
+
+// Two markings can print the same EU pair (J3 and M3/W5 are both 34/35) — list it once.
+export const customerSizeLabels = (sizes = []) =>
+  uniq((Array.isArray(sizes) ? sizes : []).map((size) => customerSizeLabel(size)));
+
+// What a customer TYPED, matched back to one of the sizes the flow offered. An exact match wins; for
+// Crocs the customer may type what they were shown ("38/39") or one EU number ("39"), which maps back
+// to the stock marking only when it names exactly one EU pair among the offered sizes. "" otherwise.
+export const matchOfferedSize = (typed = "", offered = []) => {
+  const value = String(typed ?? "").trim();
+  const sizes = uniq((Array.isArray(offered) ? offered : []).map((size) => String(size ?? "").trim()));
+  if (!value || !sizes.length) return "";
+  const exact = sizes.find((size) => size === value);
+  if (exact) return exact;
+  if (!sizes.some((size) => getCrocsCanonicalSize(size))) return "";
+  const resolved = resolveFootwearSize({ productType: "crocs", requestedSize: value, availableVariantSizes: sizes });
+  return [SIZE_MATCH.EXACT_ALIAS, SIZE_MATCH.UNIQUE_CONVERSION].includes(resolved.matchType)
+    ? resolved.canonicalMatches[0] || ""
+    : "";
+};

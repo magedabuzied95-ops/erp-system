@@ -39,5 +39,5 @@ test("color-only cards carry all in-stock sizes without inventing a selected var
 
 test("Messenger generic cards display the selected color's available sizes", () => {
   assert.match(metaSource, /`Available sizes: \$\{availableSizes\.join\(", "\)\}`/);
-  assert.match(metaSource, /selectedSize \? `Size: \$\{selectedSize\}`/);
+  assert.match(metaSource, /selectedSize \? `Size: \$\{customerSizeLabel\(selectedSize\)\}`/);
 });
