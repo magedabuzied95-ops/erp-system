@@ -495,6 +495,7 @@ const orderMetaThread = async (order = {}) => {
 };
 
 const PAYMENT_APPROVED_META_INTENT = "payment_proof_approved";
+const PAYMENT_RECEIVED_META_INTENT = "payment_proof_received";
 
 /**
  * The same receipt in the Instagram/Messenger thread the order came from (owner, 2026-10-18: it
@@ -502,7 +503,7 @@ const PAYMENT_APPROVED_META_INTENT = "payment_proof_approved";
  * and once: a second approval of the same text for the same thread inside a day is skipped, the
  * way the WhatsApp queue's idempotency key does it. Never throws.
  */
-const notifyPaymentApprovedOnMeta = async (order = {}, message = "") => {
+const notifyPaymentOnMeta = async (order = {}, message = "", { intent = PAYMENT_APPROVED_META_INTENT, once = true } = {}) => {
   try {
     const thread = await orderMetaThread(order);
     if (!thread || !text(message)) return { sent: false, reason: "no_meta_thread" };
@@ -512,9 +513,9 @@ const notifyPaymentApprovedOnMeta = async (order = {}, message = "") => {
         WHERE session_id = $1 AND detected_intent = $2 AND (ai_answer = $3 OR message_text = $3)
           AND created_at > NOW() - INTERVAL '1 day'
         LIMIT 1`,
-      [thread.conversationId, PAYMENT_APPROVED_META_INTENT, message]
+      [thread.conversationId, intent, message]
     ).catch(() => ({ rows: [] }));
-    if (already.rows?.length) return { sent: false, reason: "already_sent" };
+    if (once && already.rows?.length) return { sent: false, reason: "already_sent" };
     const { sendMetaInboxOutboundMessage } = await import("../../services/metaIntegrationService.js");
     const result = await sendMetaInboxOutboundMessage({
       tenantId,
@@ -523,8 +524,8 @@ const notifyPaymentApprovedOnMeta = async (order = {}, message = "") => {
       messageText: message,
       conversationId: thread.conversationId,
       bypassOutboundDedupe: true,
-      replySource: PAYMENT_APPROVED_META_INTENT,
-      replyOwner: PAYMENT_APPROVED_META_INTENT,
+      replySource: intent,
+      replyOwner: intent,
     });
     const messageId = text(result?.message_id || result?.results?.find?.((item) => item?.message_id)?.message_id);
     const { appendChannelOutboundSupportReply } = await import("../../services/aiSupportLogService.js");
@@ -534,21 +535,21 @@ const notifyPaymentApprovedOnMeta = async (order = {}, message = "") => {
       message,
       channel: thread.channel,
       senderType: "system",
-      source: PAYMENT_APPROVED_META_INTENT,
-      sourcePath: PAYMENT_APPROVED_META_INTENT,
-      insertSource: PAYMENT_APPROVED_META_INTENT,
+      source: intent,
+      sourcePath: intent,
+      insertSource: intent,
       deliveryStatus: messageId ? "sent" : "not_sent",
       externalMessageId: messageId,
       providerMessageId: messageId,
-      detectedIntent: PAYMENT_APPROVED_META_INTENT,
+      detectedIntent: intent,
     }).catch(() => null);
     if (saved) {
       emitToRooms([`tenant:${tenantId}`], "ai_inbox:message", { tenant_id: tenantId, session_id: thread.conversationId, message: saved, at: new Date().toISOString() });
     }
-    console.log("[payment-proof] approved receipt on meta", { orderId: order.id, channel: thread.channel, message_id: messageId });
+    console.log("[payment-proof] receipt on meta", { orderId: order.id, intent, channel: thread.channel, message_id: messageId });
     return { sent: Boolean(messageId), channel: thread.channel };
   } catch (error) {
-    console.warn("[payment-proof] approved receipt on meta failed", { orderId: order?.id, message: error?.message || String(error) });
+    console.warn("[payment-proof] receipt on meta failed", { orderId: order?.id, message: error?.message || String(error) });
     return { sent: false, reason: "meta_send_failed" };
   }
 };
@@ -563,7 +564,7 @@ export const notifyPaymentProofApproved = async (order = null) => {
     invoiceUrl,
   });
   // An order taken on Instagram/Messenger hears it there too, whatever WhatsApp does.
-  const meta = await notifyPaymentApprovedOnMeta(order, message);
+  const meta = await notifyPaymentOnMeta(order, message);
   if (!phone) {
     return meta.reason === "no_meta_thread"
       ? { sent: false, reason: "missing_phone" }
@@ -729,6 +730,9 @@ export const submitPaymentProof = async ({ code = "", method = "", proofPath = "
       metadata: { order_id: updated.id, invoice_number: updated.invoice_number, public_order_number: updated.public_order_number, proof: updated.shipping_payment_screenshot, source: PAYMENT_PROOF_SOURCE },
     }))
     .catch((error) => console.warn("[payment-proof] notification skipped", { orderId: updated.id, message: error?.message || String(error) }));
+  // An order taken on Instagram/Messenger hears it there too (owner, 2026-10-18); a rejected
+  // transfer uploaded again is a new event, so this one is not deduplicated.
+  await notifyPaymentOnMeta(updated, buildPaymentProofReceivedMessage(updated), { intent: PAYMENT_RECEIVED_META_INTENT, once: false });
   await sendOrderPaymentText({
     order: updated,
     automationType: "payment_proof_received",

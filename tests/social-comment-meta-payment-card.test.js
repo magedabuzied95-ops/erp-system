@@ -73,5 +73,7 @@ test("the payment receipt carries the invoice link and also reaches the order's 
   const source = fs.readFileSync(new URL("../server/modules/shipping/paymentProofLink.js", import.meta.url), "utf8");
   // Instagram/Messenger first, and whatever WhatsApp does (no phone, no number) does not stop it.
   assert.match(source, /const META_THREAD = \/\^\(instagram\|facebook_messenger\):\(\.\+\)\$\/;/);
-  assert.match(source, /const meta = await notifyPaymentApprovedOnMeta\(order, message\);\s*if \(!phone\)/);
+  assert.match(source, /const meta = await notifyPaymentOnMeta\(order, message\);\s*if \(!phone\)/);
+  // The "استلمنا صورة التحويل" reply after an upload reaches the thread too.
+  assert.match(source, /await notifyPaymentOnMeta\(updated, buildPaymentProofReceivedMessage\(updated\), \{ intent: PAYMENT_RECEIVED_META_INTENT, once: false \}\);/);
 });
