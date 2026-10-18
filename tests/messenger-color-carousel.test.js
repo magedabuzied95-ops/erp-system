@@ -79,17 +79,26 @@ test("a colour element carries a variant postback, a plain one keeps عرض ال
   assert.match(el, /type: "web_url", url: productUrl, title: "عرض المنتج"/);
 });
 
-test("the carousel frames a square image so the whole product shows", () => {
-  // a square frame + a padded square photo = the whole shoe, not a tall centre-crop
+test("Messenger's frame follows the card photo, so the whole product shows", async () => {
+  // The card photos are 1.91:1 now: a square frame would cut their sides, so the frame follows
+  // the photo — wide for our card photos, square for a raw product photo.
   const branch = meta.slice(meta.indexOf("let metaCarouselDone = false"), meta.indexOf("if (cards.length && !metaCarouselDone)"));
-  assert.match(branch, /image_aspect_ratio: "square"/, "the generic template requests a square frame");
+  assert.match(branch, /image_aspect_ratio: messengerCardAspectRatio\(elements\.slice\(i, i \+ 10\)\)/);
+  const { messengerCardAspectRatio } = await import("../server/services/metaIntegrationService.js");
+  assert.equal(messengerCardAspectRatio([{ image_url: "https://api.x.com/uploads/products/variants/a-card1200.jpg" }]), "horizontal");
+  assert.equal(messengerCardAspectRatio([{ image_url: "https://api.x.com/uploads/products/a.jpg" }]), "square");
+  assert.equal(
+    messengerCardAspectRatio([{ image_url: "https://api.x.com/uploads/products/variants/a-card1200.jpg" }, { image_url: "https://api.x.com/uploads/products/b.jpg" }]),
+    "square",
+    "one raw photo in the strip keeps the safe square frame",
+  );
   // The expansion moved into aiProductColorCarouselService so the AI auto-reply paths could answer
   // a customer's product photo with the same colour carousel this route sends by hand.
   const expand = fs.readFileSync(
     new URL("../server/services/aiProductColorCarouselService.js", import.meta.url), "utf8"
   );
-  assert.match(expand, /ensureSquareCardImageUrl\(rawImage\)/, "the colour photos are padded to a square canvas");
-  assert.match(expand, /image_url: squared \|\| flatCard\.image_url/, "a failed square keeps the original photo");
+  assert.match(expand, /ensureCarouselCardImageUrl\(rawImage\)/, "the colour photos are put on the wide card canvas");
+  assert.match(expand, /image_url: squared \|\| flatCard\.image_url/, "a failed canvas keeps the original photo");
 });
 
 test("the colour carousel is not capped at 6 — the route hands the real card count", () => {

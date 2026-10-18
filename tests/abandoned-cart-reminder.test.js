@@ -102,7 +102,7 @@ test("the setting's category is one the registry actually accepts", async () => 
 test("card photos are swapped for the padded square variant before building", () => {
   const svc = fs.readFileSync(new URL("../server/services/abandonedCartReminderService.js", import.meta.url), "utf8");
   const tick = svc.slice(svc.indexOf("export const runAbandonedCartReminderTick"));
-  const swapIndex = tick.indexOf("ensureSquareCardImageUrl");
+  const swapIndex = tick.indexOf("ensureCarouselCardImageUrl");
   const buildIndex = tick.indexOf("buildAbandonedCartCarousel(items");
   assert.ok(swapIndex > -1, "the tick squares the images");
   assert.ok(buildIndex > -1 && swapIndex < buildIndex, "squaring happens before the cards are built");
@@ -197,10 +197,50 @@ test("the inbox cards are capped the same way the carousel is", () => {
   assert.equal(buildAbandonedCartInboxCards(many).length, ABANDONED_CART_DEFAULTS.max_cards);
 });
 
-test("the square variant pads instead of cropping, so no client crop can eat the product", () => {
-  const variants = fs.readFileSync(new URL("../server/services/productImageVariantService.js", import.meta.url), "utf8");
-  const fn = variants.slice(variants.indexOf("export const ensureSquareCardImageUrl"));
-  assert.match(fn, /fit: "contain"/, "the product is contained, never cover-cropped");
-  assert.match(fn, /\.extend\(\{ top: margin/, "the margin is real canvas, not a resize artifact");
-  assert.match(fn, /\.jpeg\(/, "output is JPEG - Meta has rejected WebP elsewhere");
+// Behaviour, not source text: a wide shoe photo with a big studio border comes out as a 1.91:1
+// JPEG whose product sits inside the centre box, so a frame cropped down to 1.3:1 or to the
+// ~1.7:1 WhatsApp shows still keeps all of it (the old padded square lost the sole, 2026-10-19).
+test("the card photo is a wide canvas with the whole product inside the crop-safe centre", async () => {
+  const os = await import("node:os");
+  const path = await import("node:path");
+  const sharp = (await import("sharp")).default;
+  const dir = fs.mkdtempSync(path.join(os.tmpdir(), "card-img-"));
+  fs.mkdirSync(path.join(dir, "uploads", "products"), { recursive: true });
+  // 1000x1000 white photo; the "shoe" is a 700x380 dark block, off-centre.
+  await sharp({ create: { width: 1000, height: 1000, channels: 3, background: "#ffffff" } })
+    .composite([{ input: { create: { width: 700, height: 380, channels: 3, background: "#202020" } }, left: 120, top: 400 }])
+    .jpeg()
+    .toFile(path.join(dir, "uploads", "products", "shoe.jpg"));
+  const cwd = process.cwd();
+  process.chdir(dir);
+  try {
+    const { ensureCarouselCardImageUrl, CARD_IMAGE_WIDTH, CARD_IMAGE_HEIGHT } = await import(
+      `../server/services/productImageVariantService.js?card-test=${Date.now()}`
+    );
+    const url = await ensureCarouselCardImageUrl("https://api.example.com/uploads/products/shoe.jpg");
+    assert.match(url, /\/uploads\/products\/variants\/shoe-card1200\.jpg$/);
+    const out = path.join(dir, "uploads", "products", "variants", "shoe-card1200.jpg");
+    const meta = await sharp(out).metadata();
+    assert.equal(meta.format, "jpeg", "JPEG - Meta has rejected WebP elsewhere");
+    assert.equal(meta.width, CARD_IMAGE_WIDTH);
+    assert.equal(meta.height, CARD_IMAGE_HEIGHT);
+    // Find the dark product's bounding box.
+    const { data, info } = await sharp(out).raw().toBuffer({ resolveWithObject: true });
+    let minX = info.width, maxX = -1, minY = info.height, maxY = -1;
+    for (let y = 0; y < info.height; y++) for (let x = 0; x < info.width; x++) {
+      if (data[(y * info.width + x) * info.channels] < 128) {
+        minX = Math.min(minX, x); maxX = Math.max(maxX, x); minY = Math.min(minY, y); maxY = Math.max(maxY, y);
+      }
+    }
+    assert.ok(maxX > 0, "the product is on the canvas");
+    // The border was trimmed: the product now fills most of the height.
+    assert.ok(maxY - minY > info.height * 0.5, "the product is enlarged, not left small inside its old border");
+    // Crop-safe: a centre crop to 1.3:1 (816 px wide) keeps every product pixel; so does the top/bottom.
+    const safeHalf = Math.round((info.height * 1.3) / 2);
+    assert.ok(minX >= info.width / 2 - safeHalf && maxX <= info.width / 2 + safeHalf, "nothing outside a 1.3:1 centre crop");
+    assert.ok(minY > 0 && maxY < info.height - 1, "never touches the top or bottom edge");
+  } finally {
+    process.chdir(cwd);
+    fs.rmSync(dir, { recursive: true, force: true });
+  }
 });

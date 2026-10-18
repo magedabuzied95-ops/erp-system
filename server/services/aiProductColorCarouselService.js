@@ -1,6 +1,6 @@
 import db from "../database/db.js";
 import { normalizeProductCards } from "./aiProductCards.js";
-import { ensureSquareCardImageUrl } from "./productImageVariantService.js";
+import { ensureCarouselCardImageUrl } from "./productImageVariantService.js";
 
 const text = (value = "") => String(value ?? "").trim();
 const normalizeColorKey = (value = "") => text(value).toLowerCase().replace(/\s+/g, " ");
@@ -92,7 +92,7 @@ export const expandProductCardsByColor = async ({ tenantId, cards = [], leadColo
         // price and the sizes that are in stock for THIS colour, which the picker never sends.
         const { variants, variant, product: _product, matched_variant, selected_variant, ...flatCard } = scopedColorCard;
         const rawImage = String(flatCard.image_url || flatCard.image || "").trim();
-        const squared = rawImage ? await ensureSquareCardImageUrl(rawImage).catch(() => "") : "";
+        const squared = rawImage ? await ensureCarouselCardImageUrl(rawImage).catch(() => "") : "";
         const pickedSize = scope === "color_size" ? text(card.size || card.selected_size) : "";
         // The picker's size view sends one card per colour carrying the sizes the customer asked
         // about. The card lists those that are still in stock in THIS colour — not every size it
@@ -139,7 +139,7 @@ export const expandProductCardsByColor = async ({ tenantId, cards = [], leadColo
           // Messenger both crop to the frame) shows the whole product instead of a tall centre-crop.
           // A non-local or already-squared image passes through unchanged.
           const rawImage = String(flatCard.image_url || flatCard.image || "").trim();
-          const squared = rawImage ? await ensureSquareCardImageUrl(rawImage).catch(() => "") : "";
+          const squared = rawImage ? await ensureCarouselCardImageUrl(rawImage).catch(() => "") : "";
           expanded.push({
             ...flatCard,
             image_url: squared || flatCard.image_url,

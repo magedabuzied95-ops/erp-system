@@ -195,18 +195,25 @@ export const ensureLocalProductImageVariants = async (sourcePath = "", widths = 
 };
 
 /*
- * A square (1:1) card image for WhatsApp carousels. The card's frame and zoom are whatever the
- * customer's WhatsApp decides — even a perfectly square source gets edge-cropped by some
- * clients. So the only lever that works is padding: the product sits on a white square canvas
- * with a margin around it, and whatever slice the client trims comes out of the margin, never
- * out of the product. JPEG on purpose: Meta's media pipeline has rejected WebP elsewhere, and a
- * card photo that sometimes does not render is worse than a slightly larger file.
+ * The photo on a chat product card (WhatsApp carousel, Messenger and Instagram generic template).
+ *
+ * The frame is LANDSCAPE: WhatsApp on iOS shows a carousel photo at about 1.7:1, and Meta's
+ * horizontal template frame is 1.91:1. The old padded SQUARE was centre-cropped into that frame,
+ * which cut the top and bottom off the product — the sole of a shoe photographed from above went
+ * missing (owner, 2026-10-19). So the canvas is 1.91:1 itself, the studio border is trimmed off so
+ * the product is as big as it can be, and the product sits in a centre box narrow enough that even
+ * a client that crops the sides down to 1.3:1 still shows all of it.
+ *
+ * JPEG on purpose: Meta's media pipeline has rejected WebP elsewhere, and a card photo that
+ * sometimes does not render is worse than a slightly larger file.
  */
-export const WHATSAPP_CARD_IMAGE_SIZE = 800;
-// The product occupies this share of the canvas; the rest is the crop-safety margin.
-const WHATSAPP_CARD_PRODUCT_SHARE = 0.8;
+export const CARD_IMAGE_WIDTH = 1200;
+export const CARD_IMAGE_HEIGHT = 628;
+// The product's bounding box fits inside this centre box; the rest is the crop-safety margin.
+const CARD_IMAGE_PRODUCT_WIDTH_SHARE = 0.66;
+const CARD_IMAGE_PRODUCT_HEIGHT_SHARE = 0.86;
 
-export const ensureSquareCardImageUrl = async (value = "") => {
+export const ensureCarouselCardImageUrl = async (value = "") => {
   const reference = parseLocalProductUploadReference(value);
   const sourcePath = resolveLocalProductImageSourcePath(value);
   if (!reference || !sourcePath || !(await ensureFileExists(sourcePath))) return "";
@@ -215,18 +222,36 @@ export const ensureSquareCardImageUrl = async (value = "") => {
   const root = knownUploadRoots.find((candidate) => isPathInside(sourcePath, candidate));
   if (!root) return "";
   const stem = sanitizeFileStem(path.parse(sourcePath).name);
-  const fileName = `${stem}-sq${WHATSAPP_CARD_IMAGE_SIZE}.jpg`;
+  const fileName = `${stem}-card${CARD_IMAGE_WIDTH}.jpg`;
   const outputPath = path.join(root, PRODUCT_IMAGE_VARIANT_DIR, fileName);
   if (!(await ensureFileExists(outputPath))) {
     await mkdir(path.dirname(outputPath), { recursive: true });
-    const inner = Math.round(WHATSAPP_CARD_IMAGE_SIZE * WHATSAPP_CARD_PRODUCT_SHARE);
-    const margin = Math.round((WHATSAPP_CARD_IMAGE_SIZE - inner) / 2);
-    await sharp(sourcePath, { animated: false })
-      .rotate()
-      .flatten({ background: "#ffffff" })
-      .resize({ width: inner, height: inner, fit: "contain", background: "#ffffff" })
-      .extend({ top: margin, bottom: margin, left: margin, right: margin, background: "#ffffff" })
-      .jpeg({ quality: 85 })
+    const opaque = await sharp(sourcePath, { animated: false }).rotate().flatten({ background: "#ffffff" }).toBuffer();
+    // Same rule as the storefront card-fit: trim only a uniform studio border, and pad with that
+    // border's own colour so a cream backdrop does not sit in a white box.
+    const sampled = await sampleBorderColour(opaque);
+    const backdrop = sampled.uniform ? { r: sampled.r, g: sampled.g, b: sampled.b } : { r: 255, g: 255, b: 255 };
+    let subject = opaque;
+    if (sampled.uniform) {
+      try {
+        const meta = await sharp(opaque).metadata();
+        const trimmed = await sharp(opaque).trim({ background: backdrop, threshold: CARD_FIT_TRIM_THRESHOLD }).toBuffer({ resolveWithObject: true });
+        const kept = (trimmed.info.width * trimmed.info.height) / Math.max(1, meta.width * meta.height);
+        if (kept >= CARD_FIT_MIN_TRIM_RATIO) subject = trimmed.data;
+      } catch {
+        // No border to cut: the whole photo goes in the box.
+      }
+    }
+    const boxWidth = Math.round(CARD_IMAGE_WIDTH * CARD_IMAGE_PRODUCT_WIDTH_SHARE);
+    const boxHeight = Math.round(CARD_IMAGE_HEIGHT * CARD_IMAGE_PRODUCT_HEIGHT_SHARE);
+    const fitted = await sharp(subject)
+      .resize({ width: boxWidth, height: boxHeight, fit: "inside" })
+      .toBuffer({ resolveWithObject: true });
+    const left = Math.floor((CARD_IMAGE_WIDTH - fitted.info.width) / 2);
+    const top = Math.floor((CARD_IMAGE_HEIGHT - fitted.info.height) / 2);
+    await sharp({ create: { width: CARD_IMAGE_WIDTH, height: CARD_IMAGE_HEIGHT, channels: 3, background: backdrop } })
+      .composite([{ input: fitted.data, left, top }])
+      .jpeg({ quality: 88 })
       .toFile(outputPath);
   }
   const publicRelative = `/uploads/products/${PRODUCT_IMAGE_VARIANT_DIR}/${fileName}`;

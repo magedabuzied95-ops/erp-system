@@ -13341,16 +13341,27 @@ ${availableSizes.join(" · ")}`
   return { title: headline, image_url: imageUrl || undefined, subtitle, buttons: buttons.length ? buttons : undefined };
 };
 
-const buildMessengerCarouselPayload = ({ recipientId = "", products = [] } = {}) => ({
-  recipient: { id: recipientId },
-  messaging_type: "RESPONSE",
-  message: {
-    attachment: {
-      type: "template",
-      payload: { template_type: "generic", image_aspect_ratio: "square", elements: products.map(buildMetaCarouselElement).filter((el) => el.image_url && el.buttons) },
+// Messenger's frame for a generic template. Card photos baked by ensureCarouselCardImageUrl
+// ("-card1200.jpg") are 1.91:1 with the product inside a centre box, so they need the horizontal
+// frame — a square one would cut their sides. Anything else (a raw product photo) keeps square.
+export const messengerCardAspectRatio = (elements = []) =>
+  elements.length && elements.every((el) => /-card\d+\.jpg(?:[?#]|$)/i.test(text(el?.image_url)))
+    ? "horizontal"
+    : "square";
+
+const buildMessengerCarouselPayload = ({ recipientId = "", products = [] } = {}) => {
+  const elements = products.map(buildMetaCarouselElement).filter((el) => el.image_url && el.buttons);
+  return {
+    recipient: { id: recipientId },
+    messaging_type: "RESPONSE",
+    message: {
+      attachment: {
+        type: "template",
+        payload: { template_type: "generic", image_aspect_ratio: messengerCardAspectRatio(elements), elements },
+      },
     },
-  },
-});
+  };
+};
 
 const imageAttachmentUrls = (attachments = []) =>
   (Array.isArray(attachments) ? attachments : [])
@@ -27080,7 +27091,8 @@ export const sendMetaInboxOutboundMessage = async ({
         // an Instagram Business Login account must be addressed on graph.instagram.com/<IG_ID>/messages,
         // and only that helper knows which endpoint the resolved config belongs to. image_aspect_ratio
         // is a Messenger field — Instagram's template reference does not carry it, so it is omitted
-        // there; the photos are already padded onto a square canvas during colour expansion.
+        // there (Instagram's frame is 1.91:1, the shape of our card photos). On Messenger the
+        // frame follows the photos: wide for the 1.91:1 card photos made during colour expansion.
         // Left BEFORE the call: the echo can come back while Graph is still answering us, and
         // the echo handler needs to know these cards are ours (classifyMetaCarouselEcho).
         noteMetaTemplateSend({ recipientId: safeRecipientId, elements });
@@ -27097,7 +27109,7 @@ export const sendMetaInboxOutboundMessage = async ({
                   type: "template",
                   payload: {
                     template_type: "generic",
-                    ...(normalizedChannel === AI_AGENT_CHANNELS.FACEBOOK_MESSENGER ? { image_aspect_ratio: "square" } : {}),
+                    ...(normalizedChannel === AI_AGENT_CHANNELS.FACEBOOK_MESSENGER ? { image_aspect_ratio: messengerCardAspectRatio(elements.slice(i, i + 10)) } : {}),
                     elements: elements.slice(i, i + 10),
                   },
                 },

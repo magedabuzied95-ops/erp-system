@@ -14,7 +14,7 @@ import {
 import { generateWhatsappAiAutoReply, logWhatsappAiOutbound } from "./aiInboxService.js";
 import { handleInboundMarketingStopWord } from "./marketingConsentService.js";
 import { debugAiImagesLog, normalizeProductCards } from "./aiProductCards.js";
-import { ensureSquareCardImageUrl } from "./productImageVariantService.js";
+import { ensureCarouselCardImageUrl } from "./productImageVariantService.js";
 import { appendAiGeneratedSupportReply, appendChannelOutboundSupportReply, appendInboundAiSupportMessage, appendWhatsappOutboundSupportReply, updateAiSupportMessageDeliveryStatus, upsertAiSupportMessageReaction } from "./aiSupportLogService.js";
 import { logAIPersistentEvent } from "./aiPersistentEventLogService.js";
 import { addTraceStep, failTrace, finishTrace, setTraceInboundMessage, startTrace } from "./aiReplyTraceService.js";
@@ -2502,7 +2502,7 @@ export const sendCartCarouselMessage = async ({ phone, body = "", cards = [], fa
     // Every photo rides the padded square canvas here, in the sender, so no consumer can forget it;
     // an already-squared or non-local URL passes through unchanged.
     const rawImage = text(card?.imageUrl || card?.image || "");
-    const squared = rawImage ? await ensureSquareCardImageUrl(rawImage).catch(() => "") : "";
+    const squared = rawImage ? await ensureCarouselCardImageUrl(rawImage).catch(() => "") : "";
     // A reply button (buttonId) carries a structured choice back through the webhook —
     // proven live with choose_color ids; a url button opens a page. One per card.
     const buttonId = text(card?.buttonId);

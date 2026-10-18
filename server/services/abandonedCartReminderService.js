@@ -11,7 +11,7 @@ import {
   WHATSAPP_AUTOMATION_SETTING_KEY,
   whatsappAutomationEnabled,
 } from "../../shared/whatsappAutomationDefaults.js";
-import { ensureSquareCardImageUrl } from "./productImageVariantService.js";
+import { ensureCarouselCardImageUrl } from "./productImageVariantService.js";
 import { queueWhatsappAutomation } from "./whatsappQueue/index.js";
 
 /*
@@ -218,7 +218,7 @@ export const runAbandonedCartReminderTick = async () => {
     const items = await Promise.all((Array.isArray(row.cart) ? row.cart : []).map(async (item) => {
       const original = String(item?.image_url || item?.image || item?.product_image || "").trim();
       if (!original) return item;
-      const squared = await ensureSquareCardImageUrl(original).catch(() => "");
+      const squared = await ensureCarouselCardImageUrl(original).catch(() => "");
       return squared ? { ...item, image_url: squared } : item;
     }));
     const { body, cards, fallbackText, cartUrl } = buildAbandonedCartCarousel(items, config);

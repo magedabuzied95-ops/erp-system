@@ -22,7 +22,7 @@ test("the carousel sender accepts reply buttons that carry a structured id", () 
   assert.match(fn, /type: "reply", displayText: text\(card\?\.buttonText\) \|\| "اختار ده ✅", id: buttonId/);
   assert.match(fn, /card\.buttons\[0\]\.url \|\| card\.buttons\[0\]\.id/, "a card is kept for either button kind");
   // squaring now lives in the sender so no consumer can forget it
-  assert.match(fn, /ensureSquareCardImageUrl\(rawImage\)/);
+  assert.match(fn, /ensureCarouselCardImageUrl\(rawImage\)/);
 });
 
 test("product cards on Evolution go as one carousel, not N images", () => {

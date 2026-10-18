@@ -436,7 +436,7 @@ test("every channel expands colours through the same service", () => {
   // The hard-won rules live in one place: raw price columns for the canonical resolver, the
   // flattening that stops a colour card re-expanding, and the square-canvas photo.
   assert.match(carouselService, /purchase_selling_price/);
-  assert.match(carouselService, /ensureSquareCardImageUrl/);
+  assert.match(carouselService, /ensureCarouselCardImageUrl/);
   assert.match(carouselService, /\.\.\.flatCard/);
 });
 
