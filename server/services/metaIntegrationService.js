@@ -13013,7 +13013,7 @@ const loadInstagramThreadOwnerPageSender = async (sendContext = {}) => {
   if (!igId && !pageId) return null;
   const result = await db.query(
     `
-    SELECT page_id, page_access_token, access_token, access_token_encrypted
+    SELECT *
     FROM marketing_settings
     WHERE ($1::text <> '' AND TRIM(COALESCE(instagram_account_id, '')::text) = $1)
        OR ($2::text <> '' AND TRIM(COALESCE(page_id, '')::text) = $2)
@@ -13021,7 +13021,10 @@ const loadInstagramThreadOwnerPageSender = async (sendContext = {}) => {
     LIMIT 1
     `,
     [igId, pageId]
-  ).catch(() => ({ rows: [] }));
+  ).catch((error) => {
+    console.warn("[meta-send] thread owner page sender lookup failed", { message: error?.message || "" });
+    return { rows: [] };
+  });
   const row = result.rows?.[0];
   const pageToken = getPublishingAccessToken(row || {});
   const ownerPageId = text(row?.page_id);

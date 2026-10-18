@@ -34,6 +34,9 @@ test("the Page sender is the marketing_settings token the cards were sent with",
     meta.indexOf("const postMetaMessageWithThreadControl = async ({")
   );
   assert.match(loader, /FROM marketing_settings/);
+  // marketing_settings has no access_token column: naming it made the lookup throw, the catch
+  // turned that into "no Page sender", and the resend never happened (first live tap, 2026-10-18).
+  assert.match(loader, /SELECT \*\s+FROM marketing_settings/);
   assert.match(loader, /getPublishingAccessToken\(row \|\| \{\}\)/);
   assert.match(meta, /import \{ getPublishingAccessToken \} from "\.\/metaTokenService\.js";/);
 });
