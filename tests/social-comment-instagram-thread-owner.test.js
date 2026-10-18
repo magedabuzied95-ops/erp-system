@@ -41,12 +41,21 @@ test("the Page sender is the marketing_settings token the cards were sent with",
   assert.match(meta, /import \{ getPublishingAccessToken \} from "\.\/metaTokenService\.js";/);
 });
 
-test("the address card retries once on a network blip before falling back to the bare link", () => {
-  const sender = meta.slice(
-    meta.indexOf("const sendSocialCommentAddressCard = async ({"),
-    meta.indexOf("const buildSocialCommentOrderSummaryCardPayload = ({")
+test("every Meta send retries a network blip once before anything falls back", () => {
+  // In the shared sender, so cards, size buttons and receipts all get it (2026-10-18: the
+  // Messenger size buttons went out as text after one "fetch failed").
+  assert.match(wrapper, /const sendWithNetworkRetry = async \(\) => \{/);
+  assert.match(wrapper, /if \(error\?\.status \|\| !\/fetch failed\/i\.test\(text\(error\?\.message \|\| ""\)\)\) throw error;[\s\S]{0,400}return send\(\);/);
+  assert.match(wrapper, /return await sendWithNetworkRetry\(\);/);
+});
+
+test("a size typed in answer to the size step is the size button, past the reply switches", () => {
+  const helper = meta.slice(
+    meta.indexOf("const typedSalesFlowSize = ({"),
+    meta.indexOf("const isSocialCommentSalesFlowTapPayload = ")
   );
-  assert.ok(sender.length > 0, "sendSocialCommentAddressCard not found");
-  assert.match(sender, /const isNetworkFailure = \(error\) => !error\?\.status && \/fetch failed\/i/);
-  assert.match(sender, /if \(!isNetworkFailure\(error\)\) throw error;[\s\S]*return sendCard\(\);/);
+  assert.match(helper, /!== "awaiting_size"\) return "";/);
+  assert.match(helper, /offered\.find\(\(option\) => option && option === typed\)/);
+  assert.match(meta, /\|\| Boolean\(!socialCommentTapPayload && typedSalesFlowSize\(\{/);
+  assert.match(meta, /const sizePayload = parseSocialCommentSizeQuickReplyPayload\(rawPayload\) \|\| typedSizePayload;/);
 });

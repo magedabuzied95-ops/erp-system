@@ -13050,8 +13050,24 @@ const postMetaMessageWithThreadControl = async ({ token, recipientId, body = {},
     }
     return callMetaPost({ endpoint: "/me/messages", token, body });
   };
+  // "fetch failed" = no HTTP answer at all (a dropped keep-alive socket, a DNS blip). It hit three
+  // sends on 2026-10-18 — the size buttons on Messenger among them, which then went out as text —
+  // while the very next request went through. One retry before anything falls back.
+  const sendWithNetworkRetry = async () => {
+    try {
+      return await send();
+    } catch (error) {
+      if (error?.status || !/fetch failed/i.test(text(error?.message || ""))) throw error;
+      console.warn("[meta-send] network failure, retrying once", {
+        channel: text(sendContext.channel || ""),
+        cause: text(error?.cause?.code || error?.cause?.message || ""),
+      });
+      await new Promise((resolve) => setTimeout(resolve, 400));
+      return send();
+    }
+  };
   try {
-    return await send();
+    return await sendWithNetworkRetry();
   } catch (error) {
     if (isInstagramBusinessLogin && isInstagramNotThreadOwnerError(error)) {
       const owner = await loadInstagramThreadOwnerPageSender(sendContext);
@@ -17479,6 +17495,18 @@ const isSocialCommentQuickReplyPayload = (value = "") => {
 // A TAP, as opposed to anything a customer can type: a payload we ourselves put on a button.
 // The colour/size quick replies and the order actions carry a SOCIAL_*/ORDER_*/CHANGE_* prefix;
 // a colour card's own "اطلب اللون ده ✅" comes back as the postback choose_color:<variant_id>.
+// The size a customer TYPED, when the flow is waiting for a size and the text is exactly one of the
+// sizes it offered ("41", or "٤١" in Arabic-Indic digits). Anything else is "" — ordinary text.
+const typedSalesFlowSize = ({ memory = {}, messageText = "" } = {}) => {
+  if (socialCommentSalesFlowStepFromMemory(memory) !== "awaiting_size") return "";
+  const salesFlow = memory.sales_flow && typeof memory.sales_flow === "object" ? memory.sales_flow : {};
+  const offered = (Array.isArray(salesFlow.available_sizes) ? salesFlow.available_sizes : []).map((size) => text(size));
+  const typed = text(messageText)
+    .replace(/[٠-٩]/g, (digit) => String(digit.charCodeAt(0) - 0x0660))
+    .replace(/[۰-۹]/g, (digit) => String(digit.charCodeAt(0) - 0x06F0));
+  return offered.find((option) => option && option === typed) || "";
+};
+
 const isSocialCommentSalesFlowTapPayload = (value = "") => {
   const payload = text(value);
   if (!payload) return false;
@@ -17608,11 +17636,6 @@ const sendSocialCommentPaymentCard = async ({ config, message, metaCard = null }
       },
     });
     const result = await sendCard()
-      .catch(async (error) => {
-        if (error?.status || !/fetch failed/i.test(text(error?.message || ""))) throw error;
-        await new Promise((resolve) => setTimeout(resolve, 600));
-        return sendCard();
-      })
       .catch((error) => {
         console.warn("SOCIAL_COMMENT_PAYMENT_CARD_FAILED", {
           tenant_id: config?.tenant_id || null,
@@ -17692,20 +17715,8 @@ const sendSocialCommentAddressCard = async ({ config, message, addressUrl = "", 
         ),
       },
     });
-    // A network-level failure ("fetch failed": no HTTP answer at all) is a blip, not a refusal.
-    // Without one retry the customer gets the bare link in text, with Instagram's preview under it
-    // (2026-10-18: the Page resend died this way while the text right after it went through).
-    const isNetworkFailure = (error) => !error?.status && /fetch failed/i.test(text(error?.message || ""));
+    // A network blip ("fetch failed") is retried once inside postMetaMessageWithThreadControl.
     const result = await sendCard()
-      .catch(async (error) => {
-        if (!isNetworkFailure(error)) throw error;
-        console.warn("SOCIAL_COMMENT_ADDRESS_CARD_NETWORK_RETRY", {
-          conversation_id: text(message?.external_conversation_id || ""),
-          cause: text(error?.cause?.code || error?.cause?.message || ""),
-        });
-        await new Promise((resolve) => setTimeout(resolve, 600));
-        return sendCard();
-      })
       .catch((error) => {
         console.warn("SOCIAL_COMMENT_ADDRESS_CARD_FAILED", {
           tenant_id: config?.tenant_id || null,
@@ -18948,7 +18959,31 @@ const handleSocialCommentMessengerQuickReplySelection = async ({
       });
     }
   }
-  const sizePayload = parseSocialCommentSizeQuickReplyPayload(rawPayload);
+  // A size TYPED while the flow waits for one is the same choice as the button (2026-10-18: the
+  // size buttons were lost to a network error, the fallback listed "41 - 42 - 45" as text, the
+  // customer typed 41 and, with replies on suggest_only, nobody answered). Only an exact match
+  // against the sizes this flow offered counts — anything else stays ordinary text. Arabic-Indic
+  // digits are read as the same number.
+  const typedSizePayload = (() => {
+    if (rawPayload) return null;
+    const size = typedSalesFlowSize({ memory, messageText });
+    const productId = Number(salesFlow.product_id || 0) || null;
+    if (!productId || !size) return null;
+    console.log("SOCIAL_COMMENT_TYPED_SIZE_AS_TAP", {
+      tenant_id: config?.tenant_id || null,
+      conversation_id: text(message?.external_conversation_id || ""),
+      size,
+    });
+    return {
+      size,
+      color: text(salesFlow.selected_color || ""),
+      product_id: productId,
+      post_id: text(salesFlow.post_id || ""),
+      comment_id: text(salesFlow.comment_id || ""),
+      conversation_id: text(message?.external_conversation_id || ""),
+    };
+  })();
+  const sizePayload = parseSocialCommentSizeQuickReplyPayload(rawPayload) || typedSizePayload;
   const productPayload = parseSocialCommentProductQuickReplyPayload(rawPayload);
   // A tap on a carousel card's own "اطلب اللون ده ✅" button arrives as choose_color:<variant_id>.
   // It used to be rewritten into a sentence for the AI brain only, which left the deterministic
@@ -28038,7 +28073,14 @@ export const processMetaWebhook = async ({ req } = {}) => {
      * switch, so a colleague handling a conversation by hand is never talked over.
      */
     const socialCommentTapPayload = socialCommentQuickReplyPayloadFromMessage(message);
-    const isSocialCommentTap = isSocialCommentSalesFlowTapPayload(socialCommentTapPayload);
+    // A size typed in answer to the size step counts as its button (2026-10-18: Messenger on global
+    // pause swallowed "41" — the buttons had been lost to a network error, so typing was the only
+    // way on). Only an exact offered size while the flow waits for one; other text keeps the doors.
+    const isSocialCommentTap = isSocialCommentSalesFlowTapPayload(socialCommentTapPayload)
+      || Boolean(!socialCommentTapPayload && typedSalesFlowSize({
+        memory: getConversationMemory(message.external_conversation_id) || {},
+        messageText: message.message_text || "",
+      }));
     const routeSocialCommentTapPastClosedDoor = async (door = "") => {
       if (!isSocialCommentTap) return false;
       console.log("[meta-inbox] sales_flow_tap_while_replies_paused", {

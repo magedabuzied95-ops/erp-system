@@ -168,8 +168,11 @@ assert.match(
 );
 assert.match(
   metaSource,
-  /const isSocialCommentTap = isSocialCommentSalesFlowTapPayload\(socialCommentTapPayload\);/,
-  "only a real payload counts as a tap"
+  // A real payload, or (2026-10-18) a size typed in answer to the size step that exactly matches
+  // an offered size — typedSalesFlowSize returns "" for any other text, so ordinary typing still
+  // respects every reply switch.
+  /const isSocialCommentTap = isSocialCommentSalesFlowTapPayload\(socialCommentTapPayload\)\s*\|\| Boolean\(!socialCommentTapPayload && typedSalesFlowSize\(\{/,
+  "only a real payload, or an exact offered size typed at the size step, counts as a tap"
 );
 for (const door of ["channel_disabled", "auto_reply_disabled", "conversation_ai_disabled", "status", "global_pause"]) {
   assert.match(
@@ -199,7 +202,15 @@ for (const [gate, reason] of [
 const tapGateStart = metaSource.indexOf("const socialCommentTapPayload = socialCommentQuickReplyPayloadFromMessage(message);");
 assert.ok(tapGateStart > 0, "the tap gate is gone");
 const tapGateBody = metaSource.slice(tapGateStart, metaSource.indexOf("const settings = await getChannelSettings", tapGateStart));
-assert.doesNotMatch(tapGateBody, /message_text|messageText/, "the tap gate must not act on typed text");
+// The one exception (2026-10-18): an exact offered size typed at the size step, read only through
+// typedSalesFlowSize — which returns "" for anything else. Outside that call, no typed text.
+const tapGateOutsideTypedSize = tapGateBody.replace(/typedSalesFlowSize\(\{[\s\S]*?\}\)\)/, "");
+assert.doesNotMatch(tapGateOutsideTypedSize, /message_text|messageText/, "the tap gate must not act on typed text");
+assert.match(
+  metaSource,
+  /const typedSalesFlowSize = \(\{ memory = \{\}, messageText = "" \} = \{\}\) => \{\s*if \(socialCommentSalesFlowStepFromMemory\(memory\) !== "awaiting_size"\) return "";/,
+  "a typed size counts only while the flow is waiting for a size"
+);
 assert.match(
   tapGateBody,
   /__social_comment_quick_reply_routed = true/,
