@@ -17597,44 +17597,58 @@ const sendSocialCommentPaymentCard = async ({ config, message, metaCard = null }
     });
     const token = text(sendConfig?.token || "");
     if (!token) return false;
-    const payload = {
+    const templateButtons = metaCard.buttons.slice(0, 3).map((button) => ({
+      type: "web_url",
+      url: button.url,
+      title: button.title,
+      // Messenger opens /pay as a sheet INSIDE the conversation, like the address card's form;
+      // Instagram has no such field and rejects the payload if sent.
+      ...(channel === AI_AGENT_CHANNELS.FACEBOOK_MESSENGER ? { webview_height_ratio: "tall" } : {}),
+    }));
+    const withTemplate = (templatePayload) => ({
       recipient: { id: recipientId },
       messaging_type: "RESPONSE",
-      message: {
-        attachment: {
-          type: "template",
-          payload: {
-            template_type: "generic",
-            elements: [
-              {
-                title: metaCard.title,
-                ...(text(metaCard.subtitle) ? { subtitle: metaCard.subtitle } : {}),
-                buttons: metaCard.buttons.slice(0, 3).map((button) => ({
-                  type: "web_url",
-                  url: button.url,
-                  title: button.title,
-                  // Messenger opens /pay as a sheet INSIDE the conversation, like the address
-                  // card's form; Instagram has no such field and rejects the payload if sent.
-                  ...(channel === AI_AGENT_CHANNELS.FACEBOOK_MESSENGER ? { webview_height_ratio: "tall" } : {}),
-                })),
-              },
-            ],
-          },
-        },
-      },
-    };
-    const sendCard = () => postMetaMessageWithThreadControl({
-      token,
-      recipientId,
-      body: payload,
-      sendContext: {
-        channel,
-        instagram_business_login: sendConfig?.instagramBusinessLogin === true,
-        resolved_instagram_account_id: text(
-          sendConfig?.config?.instagram_business_account_id || config?.instagram_business_account_id || ""
-        ),
-      },
+      message: { attachment: { type: "template", payload: templatePayload } },
     });
+    // First the BUTTON template: the full text, line breaks and all, with the button under it.
+    // The generic card clamped its subtitle and cut the number off (2026-10-18). A channel that
+    // refuses the button template still gets the generic card.
+    const buttonTemplate = text(metaCard.buttonText)
+      ? withTemplate({ template_type: "button", text: metaCard.buttonText, buttons: templateButtons })
+      : null;
+    const genericCard = withTemplate({
+      template_type: "generic",
+      elements: [
+        {
+          title: metaCard.title,
+          ...(text(metaCard.subtitle) ? { subtitle: metaCard.subtitle } : {}),
+          buttons: templateButtons,
+        },
+      ],
+    });
+    const sendContext = {
+      channel,
+      instagram_business_login: sendConfig?.instagramBusinessLogin === true,
+      resolved_instagram_account_id: text(
+        sendConfig?.config?.instagram_business_account_id || config?.instagram_business_account_id || ""
+      ),
+    };
+    const sendCard = async () => {
+      if (buttonTemplate) {
+        try {
+          return await postMetaMessageWithThreadControl({ token, recipientId, body: buttonTemplate, sendContext });
+        } catch (error) {
+          // Only a refusal of the payload falls back to the card; no answer at all is not a refusal.
+          if (!error?.status) throw error;
+          console.warn("SOCIAL_COMMENT_PAYMENT_BUTTON_TEMPLATE_REFUSED", {
+            channel,
+            status: error.status,
+            message: error?.message || "",
+          });
+        }
+      }
+      return postMetaMessageWithThreadControl({ token, recipientId, body: genericCard, sendContext });
+    };
     const result = await sendCard()
       .catch((error) => {
         console.warn("SOCIAL_COMMENT_PAYMENT_CARD_FAILED", {

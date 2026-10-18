@@ -89,3 +89,17 @@ test("Messenger gets the same flow, with /pay opening inside the conversation", 
   const pay = fs.readFileSync(new URL("../server/modules/shipping/paymentProofLink.js", import.meta.url), "utf8");
   assert.match(pay, /\(instagram\|facebook_messenger\)/);
 });
+
+test("the payment step goes out as a BUTTON template first, so Messenger does not cut the number off", () => {
+  const card = buildShippingFeeMetaCard({ order, amount: 100, transfer, payUrl });
+  assert.match(card.buttonText, /01024960585\n\(فودافون كاش أو انستا باي\)/);
+  assert.ok(card.buttonText.length <= 640);
+  const meta = fs.readFileSync(new URL("../server/services/metaIntegrationService.js", import.meta.url), "utf8");
+  const sender = meta.slice(
+    meta.indexOf("const sendSocialCommentPaymentCard = async ({"),
+    meta.indexOf("const sendSocialCommentAddressCard = async ({")
+  );
+  assert.match(sender, /template_type: "button", text: metaCard\.buttonText, buttons: templateButtons/);
+  // A refused button template still leaves the generic card; a network failure is not a refusal.
+  assert.match(sender, /if \(!error\?\.status\) throw error;[\s\S]{0,400}body: genericCard/);
+});

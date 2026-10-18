@@ -202,7 +202,15 @@ export const buildShippingFeeMetaCard = ({ order = {}, amount = 0, transfer = {}
     number ? `📱 حوّل على: ${number}\n(فودافون كاش أو انستا باي)` : "",
     "📸 وابعت صورة التحويل هنا",
   ].filter(Boolean).join("\n\n");
-  return { title: title.slice(0, 80), subtitle, buttons, fallbackText };
+  // The whole step as one text for a BUTTON template: Messenger clamps a generic card's subtitle to a
+  // couple of lines, so the number was cut to "01024960585 · فود..." (owner, 2026-10-18). A button
+  // template carries up to 640 characters with its own line breaks and the same button under it.
+  const buttonText = [
+    title,
+    "✨ المبلغ بيتخصم من إجمالي الأوردر",
+    number ? `📱 ${number}\n(فودافون كاش أو انستا باي)` : "",
+  ].filter(Boolean).join("\n\n").slice(0, 640);
+  return { title: title.slice(0, 80), subtitle, buttons, fallbackText, buttonText };
 };
 
 /**
