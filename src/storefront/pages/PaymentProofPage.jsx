@@ -45,6 +45,27 @@ const formatMoney = (value) => {
 // The server takes PNG/JPG/WEBP up to 10MB; a phone photo is redrawn to fit (shared helper).
 const prepareUpload = (file) => prepareImageUpload(file, { fileName: "transfer.jpg" });
 
+// An ipn.eg payment link opens the InstaPay app only from a real browser (universal/app links).
+// Instagram's and Messenger's in-app browsers load it as a web page that shows a QR code instead
+// (owner, 2026-10-18). ipn.eg's own page opens the app through the `ipn:` scheme with the same path
+// ("ipn:/" + pathname), so we do the same: `ipn://S/...` on iPhone, and on Android an intent that
+// names the InstaPay package and falls back to the web link when the app is not installed.
+const INSTAPAY_ANDROID_PACKAGE = "com.egyptianbanks.instapay";
+const instapayAppLink = (paymentUrl = "", userAgent = "") => {
+  let parsed;
+  try {
+    parsed = new URL(text(paymentUrl));
+  } catch {
+    return text(paymentUrl);
+  }
+  if (!/(^|\.)ipn\.eg$/i.test(parsed.hostname)) return parsed.href;
+  const path = `${parsed.pathname.replace(/^\/+/, "")}${parsed.search}`;
+  if (/android/i.test(userAgent)) {
+    return `intent://${path}#Intent;scheme=ipn;package=${INSTAPAY_ANDROID_PACKAGE};S.browser_fallback_url=${encodeURIComponent(parsed.href)};end`;
+  }
+  return `ipn://${path}`;
+};
+
 const copyToClipboard = async (value) => {
   try {
     await navigator.clipboard.writeText(value);
@@ -299,6 +320,20 @@ function PaymentProofPageInner() {
   // The shop's Vodafone Cash wallet also takes InstaPay, so ONE number serves both; the InstaPay
   // handle stands in only when no wallet number is set.
   const transferNumber = text(methods.vodafone_cash) || text(methods.instapay_handle);
+  const instapayHref = methods.instapay_url
+    ? instapayAppLink(methods.instapay_url, typeof navigator === "undefined" ? "" : navigator.userAgent)
+    : "";
+
+  // The Messenger/Instagram card's "حوّل بانستا باي" lands here with ?open=instapay: hand the
+  // customer straight to the app, once. If the in-app browser refuses a scheme it was not tapped
+  // into, the button above does the same on a real tap.
+  const autoOpenedRef = useRef(false);
+  useEffect(() => {
+    if (autoOpenedRef.current || linkState !== "ready" || !instapayHref) return;
+    if (new URLSearchParams(window.location.search).get("open") !== "instapay") return;
+    autoOpenedRef.current = true;
+    window.location.href = instapayHref;
+  }, [linkState, instapayHref]);
   const firstName = text(order.customer_first_name) || sfText("storefront.paymentProof.greetingFallbackName");
   const fee = formatMoney(order.shipping_fee);
 
@@ -387,7 +422,7 @@ function PaymentProofPageInner() {
                   />
                 ) : null}
                 {methods.instapay_url ? (
-                  <a href={methods.instapay_url} target="_blank" rel="noopener noreferrer" className="sfx-btn sfx-btn--secondary sfx-btn--lg sfx-btn--block">
+                  <a href={instapayHref} className="sfx-btn sfx-btn--secondary sfx-btn--lg sfx-btn--block">
                     <ExternalLink className="h-5 w-5" aria-hidden="true" />
                     {sfText("storefront.paymentProof.openInstapay")}
                   </a>

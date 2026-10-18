@@ -195,7 +195,9 @@ export const buildShippingFeeMetaCard = ({ order = {}, amount = 0, transfer = {}
     number ? `📱 ${number} · فودافون كاش أو انستا باي` : "",
   ].filter(Boolean).join("\n").slice(0, 80);
   const buttons = [
-    instapayUrl ? { title: "🏦 حوّل بانستا باي", url: instapayUrl } : null,
+    // Through /pay, not the ipn.eg link itself: inside Instagram/Messenger that link renders a QR
+    // page instead of opening the app; /pay?open=instapay hands over with the app's own scheme.
+    instapayUrl ? { title: "🏦 حوّل بانستا باي", url: payUrl ? `${payUrl}?open=instapay` : instapayUrl } : null,
     payUrl ? { title: "📋 انسخ الرقم", url: payUrl } : null,
     !instapayUrl && payUrl ? { title: "📸 ارفع صورة التحويل", url: payUrl } : null,
   ].filter(Boolean);

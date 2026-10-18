@@ -31,7 +31,8 @@ test("without an InstaPay link: copy the number + upload, both through /pay", ()
 test("with an InstaPay link: open InstaPay + copy the number", () => {
   const card = buildShippingFeeMetaCard({ order, amount: 100, transfer: { ...transfer, instapayUrl: "https://ipn.eg/S/x" }, payUrl });
   assert.deepEqual(card.buttons.map((button) => button.title), ["🏦 حوّل بانستا باي", "📋 انسخ الرقم"]);
-  assert.equal(card.buttons[0].url, "https://ipn.eg/S/x");
+  // Through /pay: the ipn.eg link opens a QR page inside Instagram instead of the app.
+  assert.equal(card.buttons[0].url, `${payUrl}?open=instapay`);
 });
 
 test("free shipping: the advance is the confirmation fee, not 'قيمة الشحن'", () => {
@@ -45,4 +46,12 @@ test("Messenger/Instagram send the card and keep the message before it short", (
   assert.match(meta, /const metaPaymentCard = !isWhatsapp \? shippingFeeCard\?\.metaCard \|\| null : null;/);
   assert.match(meta, /sendSocialCommentPaymentCard\(\{ config, message, metaCard: metaPaymentCard \}\)/);
   assert.match(meta, /text: metaPaymentCard\.fallbackText/);
+});
+
+test("/pay opens the InstaPay app through its own ipn: scheme, never the QR web page", () => {
+  const page = fs.readFileSync(new URL("../src/storefront/pages/PaymentProofPage.jsx", import.meta.url), "utf8");
+  assert.match(page, /return `ipn:\/\/\$\{path\}`;/);
+  assert.match(page, /intent:\/\/\$\{path\}#Intent;scheme=ipn;package=\$\{INSTAPAY_ANDROID_PACKAGE\};S\.browser_fallback_url=/);
+  assert.match(page, /<a href=\{instapayHref\}/);
+  assert.match(page, /get\("open"\) !== "instapay"/);
 });
