@@ -108,7 +108,6 @@ export const buildCodOrderConfirmationMessage = ({
   confirmationLink = "",
   order = null,
   items = [],
-  invoiceUrl = "",
   withActions = false,
   // The restricted closing system: { notice, amount } when the shipping fee is prepaid.
   shippingAdvance = null,
@@ -130,18 +129,19 @@ export const buildCodOrderConfirmationMessage = ({
   const products = productLines(items.length ? items : source.items || []);
   const address = addressLine(source);
 
+  // Short on purpose (owner, 2026-10-19 — "كلام كتير", the same trim Instagram got the day
+  // before): who, which order, what is in it, where it goes, what is collected. No invoice link —
+  // its preview filled the bubble; the payment receipt carries it.
+  const productBlock = products ? `🛍️ ${products.includes("\n") ? `\n${products}` : products.replace(/^• /, "")}` : "";
   const details = [
-    orderRef && `🔢 رقم الطلب: ${orderRef}`,
-    collect && `💰 مبلغ التحصيل: ${collect} جنيه`,
-    products && `🛍️ المنتجات:\n${products}`,
-    address && `📍 عنوان التوصيل: ${address}`,
+    productBlock,
+    address && `📍 ${address}`,
+    collect && `💰 هتدفع عند الاستلام: ${collect} جنيه`,
   ].filter(Boolean).join("\n");
 
   const blocks = [
-    `أهلاً يا ${name} 👋`,
-    "⏳ تم تسجيل طلبك بنجاح من M1 Store، وحالياً بإنتظار تأكيدك.",
-    details && `📦 تفاصيل طلبك\n\n${details}`,
-    invoiceUrl && `🧾 فاتورتك:\n${invoiceUrl}`,
+    `أهلاً يا ${name} 👋\n${orderRef ? `طلبك رقم ${orderRef}` : "طلبك"} اتسجّل ⏳ ومستني تأكيدك`,
+    details,
     shippingAdvance?.notice || "",
     // The buttons carry the actions, so the interactive body names none of them. Only the text
     // fallback spells them out - without buttons AND without this the customer has nothing to

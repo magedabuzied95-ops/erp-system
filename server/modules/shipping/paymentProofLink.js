@@ -138,29 +138,30 @@ export const buildShippingFeePaymentCard = ({ order = {}, amount = 0, transfer =
     uploadUrl ? { type: "url", displayText: "ارفع صورة التحويل", url: uploadUrl } : null,
   ].filter(Boolean);
 
-  const label = advanceLabel(order);
-  const title = `💳 دفع ${label}`;
-  const opening = `${label} لطلبك${ref ? ` رقم ${ref}` : ""}: ${fee} جنيه${rest > 0 ? `، والباقي ${formatMoney(rest)} جنيه تدفعه عند الاستلام` : ""}.`;
-  const closing = "وأول ما نراجع التحويل هنأكد طلبك ونشحنه على طول ✅";
-  const payStep = number
-    ? `1️⃣ حوّل ${fee} جنيه على الرقم ده:\n📱 ${number}\nينفع تحوّل عليه بانستا باي أو فودافون كاش 👌`
-    : instapayUrl ? `1️⃣ حوّل ${fee} جنيه بانستا باي` : `1️⃣ حوّل ${fee} جنيه`;
+  // The Instagram card's wording (buildShippingFeeMetaCard), on WhatsApp too (owner, 2026-10-19 —
+  // "كلام كتير"): what to transfer, that it comes off the total, the number, then the buttons.
+  const isShippingFee = advanceLabel(order) === "رسوم الشحن";
+  const title = isShippingFee ? "💳 دفع الشحن" : "💳 الدفع المقدّم";
+  const headline = isShippingFee
+    ? `💳 لتأكيد ${ref ? `الأوردر ${ref}` : "الأوردر"} حوّل قيمة الشحن ${fee} جنيه`
+    : `💳 لتأكيد ${ref ? `الأوردر ${ref}` : "الأوردر"} حوّل ${fee} جنيه مقدّم`;
+  const offTotal = rest > 0 ? `✨ المبلغ بيتخصم من الإجمالي، والباقي ${formatMoney(rest)} جنيه عند الاستلام` : "✨ المبلغ بيتخصم من إجمالي الأوردر";
+  const payStep = number ? `📱 ${number}\n(فودافون كاش أو انستا باي)` : instapayUrl ? "🏦 بانستا باي" : "";
 
   const body = [
-    opening,
+    headline,
+    offTotal,
     payStep,
-    uploadUrl ? "2️⃣ اضغط «ارفع صورة التحويل» وابعت الصورة" : "2️⃣ ابعت صورة التحويل هنا",
-    closing,
-  ].join("\n\n");
+    uploadUrl ? "📸 بعد التحويل اضغط «ارفع صورة التحويل»" : "📸 وابعت صورة التحويل هنا",
+  ].filter(Boolean).join("\n\n");
 
   // What the customer gets when the buttons do not render: every value spelled out.
   const fallbackText = [
-    title,
-    opening,
-    [payStep, !number && instapayUrl ? `🏦 ${instapayUrl}` : ""].filter(Boolean).join("\n"),
-    uploadUrl ? `2️⃣ ارفع صورة التحويل من هنا:\n${uploadUrl}` : "2️⃣ ابعت صورة التحويل هنا",
-    closing,
-  ].join("\n\n");
+    headline,
+    offTotal,
+    [payStep, !number && instapayUrl ? instapayUrl : ""].filter(Boolean).join("\n"),
+    uploadUrl ? `📸 ارفع صورة التحويل من هنا:\n${uploadUrl}` : "📸 وابعت صورة التحويل هنا",
+  ].filter(Boolean).join("\n\n");
 
   const transcriptButtons = [
     { type: "whatsapp_footer", title: FOOTER },
@@ -444,23 +445,21 @@ export const buildPaymentProofApprovedMessage = (order = {}, { trackingUrl = "",
   const courier = text(order.shipping_provider || order.shipping_provider_id).toLowerCase() === "bosta" ? "بوسطة" : "شركة الشحن";
   // "رسوم الشحن" on an order the customer paid in full would read as if something is still owed.
   const paidInFull = total > 0 && collect <= 0;
+  // Short (owner, 2026-10-19): one line each — paid, where the parcel is, what is collected, links.
   return [
     paidInFull
-      ? `✅ تم تأكيد دفع طلبك${ref ? ` رقم ${ref}` : ""} بالكامل${name ? ` يا ${name}` : ""}`
-      : `✅ تم تأكيد دفع ${advanceLabel(order)} لطلبك${ref ? ` رقم ${ref}` : ""}${name ? ` يا ${name}` : ""}`,
+      ? `✅ وصلنا دفع طلبك${ref ? ` ${ref}` : ""} بالكامل${name ? ` يا ${name}` : ""}`
+      : `✅ وصلنا دفع ${advanceLabel(order)}${ref ? ` للطلب ${ref}` : ""}${name ? ` يا ${name}` : ""}`,
     tracking
-      ? `🚚 طلبك اتسلّم لـ${courier}، ورقم الشحنة ${tracking}.`
-      : `🚚 طلبك بيتجهز للشحن دلوقتي${collectText ? `، والمندوب هيحصّل ${collectText} عند الاستلام` : ""}.`,
+      ? `🚚 اتسلّم لـ${courier} · رقم الشحنة ${tracking}`
+      : `🚚 طلبك بيتجهز للشحن دلوقتي`,
     // Nothing left to collect is worth saying out loud — it is the whole point of paying up front.
-    collectText
-      ? (tracking ? `💰 المندوب هيحصّل ${collectText} عند الاستلام.` : "")
-      : "💰 طلبك مدفوع بالكامل، مفيش مبلغ هيتحصّل عند الاستلام.",
+    collectText ? `💰 المندوب هيحصّل ${collectText} عند الاستلام` : "💰 مدفوع بالكامل، مفيش تحصيل عند الاستلام",
     // The invoice used to arrive with "تم تأكيد طلبك"; on Messenger/Instagram that message is no
     // longer sent before the money (owner, 2026-10-18), so the receipt carries it.
-    invoiceUrl && `🧾 فاتورتك:\n${invoiceUrl}`,
-    trackingUrl && `📍 تابع طلبك من هنا:\n${trackingUrl}`,
-    "شكراً لاختيارك M1 Store ❤️",
-  ].filter(Boolean).join("\n\n");
+    invoiceUrl && `🧾 فاتورتك: ${invoiceUrl}`,
+    trackingUrl && `📍 تابع طلبك: ${trackingUrl}`,
+  ].filter(Boolean).join("\n");
 };
 
 // Nothing to announce on an order that is already over: a cancelled or delivered row can still

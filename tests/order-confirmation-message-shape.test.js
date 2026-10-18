@@ -23,12 +23,14 @@ const INVOICE = "https://m1store-egy.com/invoice/INV-660";
 
 test("the buttons version carries the order, not a way to act", () => {
   const msg = buildCodOrderConfirmationMessage({ customerName: "ماجد", order: ORDER, items: ITEMS, invoiceUrl: INVOICE });
-  assert.match(msg, /رقم الطلب: INV-660/);
-  assert.match(msg, /مبلغ التحصيل: 3,340 جنيه/);
+  assert.match(msg, /طلبك رقم INV-660 اتسجّل/);
+  assert.match(msg, /هتدفع عند الاستلام: 3,340 جنيه/);
   assert.match(msg, /New balance 530 — White & Navy · 43/);
   assert.match(msg, /SKECHERS SLIP INS — Grey · 42 ×2/);
-  assert.match(msg, /عنوان التوصيل: الاسكندريه - 300 الطريق الصحراوي - 5, Building 3, Floor 2/);
-  assert.match(msg, /m1store-egy\.com\/invoice\/INV-660/);
+  assert.match(msg, /📍 الاسكندريه - 300 الطريق الصحراوي - 5, Building 3, Floor 2/);
+  // Owner, 2026-10-19: no invoice link in the request — its preview filled the bubble; the receipt has it.
+  assert.ok(!msg.includes("/invoice/"), "no invoice link in the confirmation request");
+  assert.ok(msg.length < 400, `request is ${msg.length} chars; it must stay short`);
   // the buttons are the way to act, so the body must not duplicate them
   assert.ok(!msg.includes("✏️ تعديل الطلب"), "no typed action list when buttons carry the actions");
   assert.ok(!msg.includes("/c/"), "no confirmation link when buttons carry the actions");
@@ -72,10 +74,10 @@ test("a long order does not push the closing instruction out of the body", () =>
 
 test("missing pieces are skipped, never rendered empty", () => {
   const msg = buildCodOrderConfirmationMessage({ customerName: "ماجد", order: { invoice_number: "INV-1" } });
-  assert.match(msg, /رقم الطلب: INV-1/);
-  assert.ok(!msg.includes("مبلغ التحصيل"), "no amount line when there is no amount");
-  assert.ok(!msg.includes("عنوان التوصيل"), "no address line when there is no address");
-  assert.ok(!msg.includes("المنتجات"), "no products line when there are no items");
+  assert.match(msg, /طلبك رقم INV-1 اتسجّل/);
+  assert.ok(!msg.includes("هتدفع عند الاستلام"), "no amount line when there is no amount");
+  assert.ok(!msg.includes("📍"), "no address line when there is no address");
+  assert.ok(!msg.includes("🛍️"), "no products line when there are no items");
   assert.ok(!/\n\n\n/.test(msg), "no empty gaps left behind");
 });
 

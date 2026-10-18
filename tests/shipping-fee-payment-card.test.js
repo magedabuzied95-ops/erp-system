@@ -37,7 +37,10 @@ test("the card has at most two CTA buttons: copy the number, and the upload link
   ]);
   // WhatsApp truncates a CTA label past 20 characters.
   for (const button of card.buttons) assert.ok([...button.displayText].length <= 20, button.displayText);
-  assert.match(card.body, /رسوم الشحن لطلبك رقم INV-1700: 90 جنيه، والباقي 1,850 جنيه تدفعه عند الاستلام\./);
+  // The Instagram card's short wording (owner, 2026-10-19).
+  assert.match(card.body, /^💳 لتأكيد الأوردر INV-1700 حوّل قيمة الشحن 90 جنيه$/m);
+  assert.match(card.body, /✨ المبلغ بيتخصم من الإجمالي، والباقي 1,850 جنيه عند الاستلام/);
+  assert.ok(card.body.length < 300, `card body is ${card.body.length} chars; it must stay short`);
   assert.doesNotMatch(card.body, /\/pay\//);
   assert.match(read("../server/services/whatsappGatewayService.js"), /\.slice\(0, 2\);\s*if \(!safeButtons\.length\) throw gatewayError\("A CTA message needs/);
 });
@@ -45,7 +48,7 @@ test("the card has at most two CTA buttons: copy the number, and the upload link
 test("one number, and the customer is told it takes InstaPay and Vodafone Cash alike", () => {
   // Owner: the InstaPay number IS the Vodafone Cash number; no separate handle to choose between.
   const card = buildShippingFeePaymentCard({ order, amount: 90, transfer: { instapayHandle: "maged.helal@instapay", vodafone: "01024960585" }, uploadUrl });
-  assert.match(card.body, /1️⃣ حوّل 90 جنيه على الرقم ده:\n📱 01024960585\nينفع تحوّل عليه بانستا باي أو فودافون كاش/);
+  assert.match(card.body, /📱 01024960585\n\(فودافون كاش أو انستا باي\)/);
   assert.doesNotMatch(card.body, /maged\.helal@instapay/);
   assert.doesNotMatch(card.fallbackText, /maged\.helal@instapay/);
   // No wallet number set: the InstaPay handle is the number to copy.
@@ -55,7 +58,7 @@ test("one number, and the customer is told it takes InstaPay and Vodafone Cash a
 
 test("the text fallback spells out every value, so a card that will not render still says how to pay", () => {
   const card = buildShippingFeePaymentCard({ order, amount: 90, transfer, uploadUrl });
-  for (const value of ["01012345678", uploadUrl, "90 جنيه", "بانستا باي أو فودافون كاش"]) {
+  for (const value of ["01012345678", uploadUrl, "90 جنيه", "فودافون كاش أو انستا باي"]) {
     assert.ok(card.fallbackText.includes(value), value);
   }
   assert.deepEqual(card.transcriptButtons.map((button) => button.type), ["whatsapp_footer", "whatsapp_copy_button", "whatsapp_url_button"]);
@@ -64,9 +67,9 @@ test("the text fallback spells out every value, so a card that will not render s
 test("the confirmation request stops listing wallet details when the card follows it", () => {
   const policy = { mode: "restricted", governorates: ["damietta"] };
   const withCard = buildShippingFeeAdvanceNotice({ policy, governorate: "القاهرة", shippingFee: 90, orderTotal: 1940, transfer: { vodafone: "01012345678", instapay: "m1@instapay" }, paymentCardFollows: true });
-  assert.match(withCard, /لازم تحوّل رسوم الشحن 90 جنيه الأول/);
-  assert.match(withCard, /الرسالة اللي جاية/);
-  assert.doesNotMatch(withCard, /01012345678|ابعت صورة التحويل هنا/);
+  // One line, no governorate rule — the card under it carries the rest (owner, 2026-10-19).
+  assert.equal(withCard, "💳 لتأكيد الأوردر حوّل قيمة الشحن 90 جنيه 👇");
+  assert.doesNotMatch(withCard, /01012345678|ابعت صورة التحويل هنا|الدفع عند الاستلام متاح/);
   const withoutCard = buildShippingFeeAdvanceNotice({ policy, governorate: "القاهرة", shippingFee: 90, orderTotal: 1940, transfer: { vodafone: "01012345678", instapay: "m1@instapay" } });
   assert.match(withoutCard, /01012345678/);
 });
@@ -116,24 +119,26 @@ test("confirming the money anywhere tells the customer, and the message carries 
     { ...order, customer_name: "Mo3taz Ali", paid_amount: 90 },
     { trackingUrl: "https://m1store-egy.com/track?order=INV-1700&phone=201558934989" }
   );
-  assert.match(message, /^✅ تم تأكيد دفع رسوم الشحن لطلبك رقم INV-1700 يا Mo3taz$/m);
-  assert.match(message, /^🚚 طلبك بيتجهز للشحن دلوقتي، والمندوب هيحصّل 1,850 جنيه عند الاستلام\.$/m);
+  // Short, one line each (owner, 2026-10-19).
+  assert.match(message, /^✅ وصلنا دفع رسوم الشحن للطلب INV-1700 يا Mo3taz$/m);
+  assert.match(message, /^🚚 طلبك بيتجهز للشحن دلوقتي$/m);
+  assert.match(message, /^💰 المندوب هيحصّل 1,850 جنيه عند الاستلام$/m);
   // One 🚚 line, never two: "فريقنا بدأ تجهيز طلبك للشحن" only said the line above it again (owner).
-  assert.equal(message.split("\n\n").filter((block) => block.startsWith("🚚")).length, 1);
+  assert.equal(message.split("\n").filter((line) => line.startsWith("🚚")).length, 1);
   assert.doesNotMatch(message, /بدأ تجهيز/);
-  assert.match(message, /📍 تابع طلبك من هنا:\nhttps:\/\/m1store-egy\.com\/track\?order=INV-1700&phone=201558934989/);
-  assert.match(message, /شكراً لاختيارك M1 Store ❤️$/);
+  assert.match(message, /📍 تابع طلبك: https:\/\/m1store-egy\.com\/track\?order=INV-1700&phone=201558934989/);
+  assert.ok(message.length < 300, `receipt is ${message.length} chars; it must stay short`);
 
   // Paid in full: naming the shipping fee would read as if something is still owed.
   const full = buildPaymentProofApprovedMessage({ ...order, paid_amount: 1940 });
-  assert.match(full, /^✅ تم تأكيد دفع طلبك رقم INV-1700 بالكامل يا Mona$/m);
-  assert.match(full, /^💰 طلبك مدفوع بالكامل، مفيش مبلغ هيتحصّل عند الاستلام\.$/m);
+  assert.match(full, /^✅ وصلنا دفع طلبك INV-1700 بالكامل يا Mona$/m);
+  assert.match(full, /^💰 مدفوع بالكامل، مفيش تحصيل عند الاستلام$/m);
   assert.doesNotMatch(full, /رسوم الشحن|هيحصّل \d/);
 
   // A parcel that is already booked is never described as "بيتجهز للشحن" (the INV-1616 lie).
   const shipped = buildPaymentProofApprovedMessage({ ...order, paid_amount: 90, shipping_tracking_number: "7654321", shipping_provider: "bosta" });
-  assert.match(shipped, /🚚 طلبك اتسلّم لـبوسطة، ورقم الشحنة 7654321\./);
-  assert.match(shipped, /💰 المندوب هيحصّل 1,850 جنيه عند الاستلام\./);
+  assert.match(shipped, /🚚 اتسلّم لـبوسطة · رقم الشحنة 7654321/);
+  assert.match(shipped, /💰 المندوب هيحصّل 1,850 جنيه عند الاستلام/);
   assert.doesNotMatch(shipped, /بيتجهز للشحن دلوقتي|بدأ تجهيز/);
 
   // Two taps on the same amount are one message; a later, larger payment gets its own.
@@ -228,8 +233,9 @@ test("wiring: queue types, Evolution copy buttons, the public route, the webhook
 test("a free-shipping order's card and messages call the money the order confirmation fee", () => {
   const order = { id: 1740, invoice_number: "INV-1740", total_amount: 10700, shipping_fee: 0, paid_amount: 400 };
   const card = buildShippingFeePaymentCard({ order, amount: 400, transfer: { vodafone: "01012345678" }, uploadUrl: "https://m1store-egy.com/pay/abc" });
-  assert.equal(card.title, "💳 دفع رسوم تأكيد الأوردر");
-  assert.match(card.body, /رسوم تأكيد الأوردر لطلبك رقم INV-1740: 400 جنيه، والباقي 10,300 جنيه تدفعه عند الاستلام\./);
+  assert.equal(card.title, "💳 الدفع المقدّم");
+  assert.match(card.body, /^💳 لتأكيد الأوردر INV-1740 حوّل 400 جنيه مقدّم$/m);
+  assert.match(card.body, /والباقي 10,300 جنيه عند الاستلام/);
   assert.match(buildPaymentProofReceivedMessage(order), /صورة تحويل رسوم تأكيد الأوردر/);
-  assert.match(buildPaymentProofApprovedMessage(order), /تم تأكيد دفع رسوم تأكيد الأوردر[\s\S]*10,300 جنيه عند الاستلام/);
+  assert.match(buildPaymentProofApprovedMessage(order), /وصلنا دفع رسوم تأكيد الأوردر[\s\S]*10,300 جنيه عند الاستلام/);
 });

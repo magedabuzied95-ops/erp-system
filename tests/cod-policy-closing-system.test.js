@@ -174,9 +174,9 @@ test("the customer is told the fee, the rest and where to transfer — and nothi
 test("the WhatsApp confirmation request carries the notice and collects only the rest", () => {
   const order = { id: 1, invoice_number: "INV-9", total_amount: 1940, cod_amount: 1940, governorate: "القاهرة" };
   const message = buildCodOrderConfirmationMessage({ order, shippingAdvance: { notice: "NOTICE-LINE", amount: 90 } });
-  assert.match(message, /مبلغ التحصيل: 1,850 جنيه/);
+  assert.match(message, /هتدفع عند الاستلام: 1,850 جنيه/);
   assert.match(message, /NOTICE-LINE/);
-  assert.match(buildCodOrderConfirmationMessage({ order }), /مبلغ التحصيل: 1,940 جنيه/);
+  assert.match(buildCodOrderConfirmationMessage({ order }), /هتدفع عند الاستلام: 1,940 جنيه/);
 });
 
 test("the board offers تم دفع الشحن instead of the Bosta button while the fee is unpaid", () => {
@@ -317,7 +317,7 @@ test("a stale cod_amount never makes the courier or the customer message ask for
   const edited = { payment_method: "credit_sale", total_amount: 1290, paid_amount: 90, cod_amount: 2400, invoice_number: "INV-1616" };
   assert.equal(orderCodAmount(edited), 1200);
   assert.equal(collectOnDeliveryAmount(edited), 1200);
-  assert.match(buildCodOrderConfirmationMessage({ order: edited }), /مبلغ التحصيل: 1,200 جنيه/);
+  assert.match(buildCodOrderConfirmationMessage({ order: edited }), /هتدفع عند الاستلام: 1,200 جنيه/);
 });
 
 test("the invoice edit re-prices a stored collection amount with the new total", async () => {

@@ -83,8 +83,13 @@ export const buildShippingFeeAdvanceNotice = ({ policy, governorate = "", govern
     : `رسوم الشحن ${fee} جنيه الأول`;
   const headline = `💳 الدفع عند الاستلام متاح ${codList ? `لمحافظة ${codList} بس` : "لمحافظات معيّنة بس"}. عشان نشحن طلبك${where ? ` ${toPlace(where)}` : ""} لازم تحوّل ${owed}${rest > 0 ? `، والباقي ${formatMoney(rest)} جنيه تدفعه عند الاستلام` : ""}.`;
   // The WhatsApp confirmation request is followed by its own payment card (pay buttons + the
-  // screenshot upload link), so the request itself only says what is owed and points at it.
-  if (paymentCardFollows) return `${headline}\n👇 طرق الدفع ورفع صورة التحويل في الرسالة اللي جاية.`;
+  // screenshot upload link), so the request only names the amount — no governorate rule, the
+  // same one line Instagram got (owner, 2026-10-19).
+  if (paymentCardFollows) {
+    return confirmation
+      ? `💳 لتأكيد الأوردر حوّل ${fee} جنيه مقدّم (بيتخصم من الإجمالي) 👇`
+      : `💳 لتأكيد الأوردر حوّل قيمة الشحن ${fee} جنيه 👇`;
+  }
   return [
     headline,
     ...transferDetailLines(transfer),
