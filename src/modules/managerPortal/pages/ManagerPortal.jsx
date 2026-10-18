@@ -1932,7 +1932,11 @@ export default function ManagerPortal() {
   }, [token]);
   const runOnlineOrderAction = useCallback((orderId, action, input) => managerPortalApi.onlineOrderAction(token, orderId, action, input), [token]);
   const printOnlineOrderLabels = useCallback((orderIds) => managerPortalApi.onlineOrdersPrintLabels(token, orderIds), [token]);
-  const editOnlineOrder = useCallback((orderId, fields) => managerPortalApi.onlineOrderEdit(token, orderId, fields), [token]);
+  const editOnlineOrder = useCallback((orderId, payload) => managerPortalApi.onlineOrderEdit(token, orderId, payload), [token]);
+  const searchOnlineOrderProducts = useCallback(async (input) => {
+    const response = await managerPortalApi.onlineOrderProducts(token, input);
+    return Array.isArray(response?.products) ? response.products : [];
+  }, [token]);
   const deleteOnlineOrder = useCallback((orderId, reason) => managerPortalApi.onlineOrderDelete(token, orderId, reason), [token]);
   const onlineOrderPickups = useMemo(() => ({
     load: () => managerPortalApi.bostaPickups(token),
@@ -4834,6 +4838,7 @@ export default function ManagerPortal() {
                     runAction={runOnlineOrderAction}
                     printLabels={printOnlineOrderLabels}
                     editOrder={editOnlineOrder}
+                    searchOrderProducts={searchOnlineOrderProducts}
                     deleteOrder={deleteOnlineOrder}
                     pickups={onlineOrderPickups}
                     bulkBarOffset={isMobilePortal ? "calc(env(safe-area-inset-bottom) + 5.75rem)" : "1rem"}

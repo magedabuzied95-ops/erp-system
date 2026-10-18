@@ -1,6 +1,7 @@
 import { recordEmployeePortalAudit } from "../../services/employeePayrollPortalService.js";
 import db from "../../database/db.js";
 import { getPortalOnlineOrder } from "./shipping.portal.service.js";
+import { loadOrderMoneyRow, planPortalOrderItems, searchPortalOrderProducts } from "./shipping.portal.items.js";
 
 // Edit and delete an online order from the manager portal's ⋮ menu (owner request
 // 2026-09-10). Both go through the ERP's own handlers — editOrder's field-only "safe
@@ -105,6 +106,13 @@ const defaultDeps = {
     );
   },
   audit: recordEmployeePortalAudit,
+  loadMoneyRow: (orderId) => loadOrderMoneyRow({ orderId }),
+  loadVariants: async (input) => (await import("../../services/aiAgentOrderService.js")).loadOrderLineVariants(input),
+  priceOf: async () => (await import("../../services/aiAgentOrderService.js")).priceOrderLineVariant,
+  saleModeEnabled: async (tenantId) => {
+    const settings = await (await import("../../services/liveActivityService.js")).getWebsiteSettings({ tenantId }).catch(() => ({}));
+    return Boolean(settings?.sale_mode_enabled);
+  },
 };
 
 const assertManageable = (order) => {
@@ -121,7 +129,12 @@ const sideEffects = (deps, entry) =>
     .then(() => deps.audit(entry))
     .catch((error) => console.warn("[portal-order-manage] audit failed", { message: error?.message }));
 
-export const editPortalOnlineOrder = async ({ actor = {}, surface = "manager_portal", orderId, fields = {}, deps: injected = {} } = {}) => {
+// `items` (optional) is the whole new list of lines — [{ order_item_id?, variant_id,
+// quantity, unit_price? }] — and `money` the order's own discount and shipping fee.
+// The lines go through editOrder's line path (what the POS edit runs: stock back and
+// out, coupon re-priced, cod_amount following the total); the fields through its safe
+// patch, AFTER the lines so the patch reads the new cod_amount instead of the old one.
+export const editPortalOnlineOrder = async ({ actor = {}, surface = "manager_portal", orderId, fields = {}, items, money = {}, deps: injected = {} } = {}) => {
   const deps = { ...defaultDeps, ...injected };
   const tenantId = actor.tenant_id ?? null;
   const order = await deps.loadOrder({ tenantId, orderId });
@@ -132,20 +145,72 @@ export const editPortalOnlineOrder = async ({ actor = {}, surface = "manager_por
     if (!Object.prototype.hasOwnProperty.call(fields || {}, key)) continue;
     body[key] = text(fields[key]).slice(0, FIELD_MAX_LENGTH);
   }
-  if (!Object.keys(body).length) throw manageError(400, "NOTHING_TO_SAVE", "Nothing to save");
   if ("customer_name" in body && !body.customer_name) throw manageError(400, "CUSTOMER_NAME_REQUIRED", "Customer name is required");
   if ("customer_phone" in body && body.customer_phone.replace(/\D/g, "").length < 8) throw manageError(400, "CUSTOMER_PHONE_INVALID", "Customer phone is required");
-  const actorName = text(actor.full_name) || `employee:${actor.id || ""}`;
-  body.reason = `بوابة المدير — ${actorName}`;
 
-  const { statusCode, payload } = await deps.editHandler(portalRequest({ actor, orderId: order.id, body }));
-  if (statusCode >= 400) throw manageError(statusCode === 404 ? 404 : 409, "EDIT_REFUSED", payload?.message || "The order could not be edited");
+  let plan = null;
+  const wantsMoneyEdit = Array.isArray(items) || money?.discount_amount !== undefined || money?.shipping_fee !== undefined;
+  if (wantsMoneyEdit) {
+    const lines = Array.isArray(items)
+      ? items
+      : (order.items || []).map((item) => ({ order_item_id: item.id, variant_id: item.variant_id, quantity: item.quantity, unit_price: item.unit_price }));
+    const { raw, lineDiscountByItemId } = await deps.loadMoneyRow(order.id);
+    const variantIds = [...new Set(lines.map((line) => Number(line?.variant_id)).filter((id) => Number.isInteger(id) && id > 0))];
+    const [variantsById, priceOf, saleModeEnabled] = await Promise.all([
+      deps.loadVariants({ tenantId, variantIds }),
+      deps.priceOf(),
+      deps.saleModeEnabled(tenantId),
+    ]);
+    plan = planPortalOrderItems({
+      order,
+      raw,
+      lines,
+      variantsById,
+      priceOf: (row) => priceOf(row, { saleModeEnabled }),
+      lineDiscountByItemId,
+      discountAmount: money?.discount_amount,
+      shippingFee: money?.shipping_fee,
+    });
+    if (!plan.changed) plan = null;
+  }
+  if (plan?.shipping_fee_changed) body.shipping_cost = plan.shipping_fee;
+  const fieldKeys = Object.keys(body);
+  if (!fieldKeys.length && !plan) throw manageError(400, "NOTHING_TO_SAVE", "Nothing to save");
+  const actorName = text(actor.full_name) || `employee:${actor.id || ""}`;
+  const reason = `بوابة المدير — ${actorName}`;
+
+  if (plan) {
+    const { statusCode, payload } = await deps.editHandler(portalRequest({ actor, orderId: order.id, body: { ...plan.body, reason } }));
+    if (statusCode >= 400) throw manageError(statusCode === 404 ? 404 : 409, payload?.code || "EDIT_REFUSED", payload?.message || "The order could not be edited");
+  }
+  if (fieldKeys.length) {
+    const { statusCode, payload } = await deps.editHandler(portalRequest({ actor, orderId: order.id, body: { ...body, reason } }));
+    if (statusCode >= 400) throw manageError(statusCode === 404 ? 404 : 409, payload?.code || "EDIT_REFUSED", payload?.message || "The order could not be edited");
+  }
 
   await Promise.resolve()
-    .then(() => deps.appendTimeline({ orderId: order.id, action: "portal_edited", actor: actorName, source: surface, label: "تعديل بيانات الأوردر" }))
+    .then(() => deps.appendTimeline({ orderId: order.id, action: "portal_edited", actor: actorName, source: surface, label: plan ? "تعديل منتجات الأوردر" : "تعديل بيانات الأوردر" }))
     .catch((error) => console.warn("[portal-order-manage] timeline append failed", { message: error?.message }));
-  sideEffects(deps, { employee: actor, action: "online_order_edit", metadata: { order_id: order.id, fields: Object.keys(body).filter((key) => key !== "reason"), surface } });
+  sideEffects(deps, {
+    employee: actor,
+    action: "online_order_edit",
+    metadata: {
+      order_id: order.id,
+      fields: fieldKeys,
+      surface,
+      ...(plan ? { items: plan.body.items.map((item) => ({ variant_id: item.variant_id, quantity: item.quantity, price: item.price })), old_total: order.money?.total ?? null, new_total: plan.estimated_total } : {}),
+    },
+  });
   return { order: await deps.loadOrder({ tenantId, orderId: order.id }) };
+};
+
+// The ⋮ edit's "add a product" search, same price authority as the order lines.
+export const searchPortalOrderItems = async ({ actor = {}, query = "", productId = null, deps: injected = {} } = {}) => {
+  const deps = { ...defaultDeps, ...injected };
+  const tenantId = actor.tenant_id ?? null;
+  const [priceOf, saleModeEnabled] = await Promise.all([deps.priceOf(), deps.saleModeEnabled(tenantId)]);
+  const products = await searchPortalOrderProducts({ tenantId, query, productId, loadVariants: deps.loadVariants, priceOf, saleModeEnabled });
+  return { products };
 };
 
 export const deletePortalOnlineOrder = async ({ actor = {}, surface = "manager_portal", orderId, reason = "", deps: injected = {} } = {}) => {

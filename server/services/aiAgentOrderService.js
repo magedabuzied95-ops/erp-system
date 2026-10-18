@@ -1023,7 +1023,7 @@ export const createAiOrderDraft = async (payload = {}) => {
    the variants are read straight from the DB and no confidence matching runs at
    all. One order, N order_items — which is what confirmAiOrder already iterates.
 ====================================================== */
-const loadOrderLineVariants = async ({ tenantId, variantIds = [] }) => {
+export const loadOrderLineVariants = async ({ tenantId, variantIds = [] }) => {
   if (!variantIds.length) return new Map();
   const result = await db.query(
     `
@@ -1061,6 +1061,36 @@ const loadOrderLineVariants = async ({ tenantId, variantIds = [] }) => {
     [variantIds, tenantId || null]
   );
   return new Map(result.rows.map((row) => [Number(row.variant_id), row]));
+};
+
+// Same authority as POS: resolveCustomerDisplayPrice with the tenant sale-mode
+// gate. Never price an order line off an already-serialized API object. `row` is
+// one loadOrderLineVariants row.
+export const priceOrderLineVariant = (row = {}, { saleModeEnabled = false } = {}) => {
+  const priced = resolveCustomerDisplayPrice({
+    sale_mode_enabled: Boolean(saleModeEnabled),
+    product: {
+      id: row.product_id,
+      name: row.product_name,
+      price: row.product_price,
+      sale_price: row.product_sale_price,
+      sale_price_enabled: row.product_sale_price_enabled,
+      sale_start_at: row.sale_start_at,
+      sale_end_at: row.sale_end_at,
+      purchase_selling_price: row.product_purchase_selling_price,
+      selling_price: row.product_selling_price,
+      regular_price: row.product_regular_price,
+      is_offer_story: row.product_is_offer_story,
+    },
+    variant: {
+      id: row.variant_id,
+      price: row.variant_price,
+      sale_price: row.variant_sale_price,
+      purchase_selling_price: row.variant_purchase_selling_price,
+      selling_price: row.variant_selling_price,
+    },
+  });
+  return numeric(priced.display_price, 0) || numeric(row.variant_price || row.product_price, 0);
 };
 
 /* ======================================================
@@ -1326,32 +1356,7 @@ export const createAiOrderDraftLines = async (payload = {}) => {
       });
       continue;
     }
-    // Same authority as POS: resolveCustomerDisplayPrice with the tenant sale-mode
-    // gate. Never price an order line off an already-serialized API object.
-    const priced = resolveCustomerDisplayPrice({
-      sale_mode_enabled: saleModeEnabled,
-      product: {
-        id: row.product_id,
-        name: row.product_name,
-        price: row.product_price,
-        sale_price: row.product_sale_price,
-        sale_price_enabled: row.product_sale_price_enabled,
-        sale_start_at: row.sale_start_at,
-        sale_end_at: row.sale_end_at,
-        purchase_selling_price: row.product_purchase_selling_price,
-        selling_price: row.product_selling_price,
-        regular_price: row.product_regular_price,
-        is_offer_story: row.product_is_offer_story,
-      },
-      variant: {
-        id: row.variant_id,
-        price: row.variant_price,
-        sale_price: row.variant_sale_price,
-        purchase_selling_price: row.variant_purchase_selling_price,
-        selling_price: row.variant_selling_price,
-      },
-    });
-    const unitPrice = numeric(priced.display_price, 0) || numeric(row.variant_price || row.product_price, 0);
+    const unitPrice = priceOrderLineVariant(row, { saleModeEnabled });
     const lineTotal = unitPrice * line.quantity;
     subtotal += lineTotal;
     items.push({

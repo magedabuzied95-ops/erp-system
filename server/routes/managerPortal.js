@@ -68,7 +68,7 @@ import { getManagerPortalInventoryCoverage } from "../services/managerPortalInve
 import { getLinkPreview } from "../services/linkPreviewService.js";
 import { getPortalOnlineOrder, listPortalOnlineOrders } from "../modules/shipping/shipping.portal.service.js";
 import { runPortalBulkPrint, runPortalOrderAction } from "../modules/shipping/shipping.portal.actions.js";
-import { deletePortalOnlineOrder, editPortalOnlineOrder } from "../modules/shipping/shipping.portal.manage.js";
+import { deletePortalOnlineOrder, editPortalOnlineOrder, searchPortalOrderItems } from "../modules/shipping/shipping.portal.manage.js";
 import { mountPortalPickupRoutes } from "../modules/shipping/shipping.portal.pickups.js";
 import {
   getManagerPortalPushPublicKey,
@@ -380,6 +380,21 @@ router.post("/:token/online-orders/:orderId/actions/:action", async (req, res) =
   }
 });
 
+// The edit sheet's "add a product" search (name, article code, SKU, barcode). Its own
+// path, so it never reads as an order id under /online-orders/:orderId.
+router.get("/:token/online-order-products", async (req, res) => {
+  try {
+    res.set("Cache-Control", "no-store, private");
+    const manager = await loadVerifiedManager(req, res);
+    if (!manager) return;
+    const result = await searchPortalOrderItems({ actor: manager, query: req.query?.q || "", productId: req.query?.product_id || null });
+    return res.json({ success: true, ...result });
+  } catch (error) {
+    console.error("[manager-portal] online order product search error", error);
+    return res.status(error.status || 500).json({ success: false, code: error.code, message: error.message || "Search failed" });
+  }
+});
+
 // ⋮ on a shipping card: edit the customer / address / notes, or delete (cancel + stock
 // back) — manager portal only, and only before a Bosta parcel exists.
 router.post("/:token/online-orders/:orderId/edit", async (req, res) => {
@@ -387,7 +402,14 @@ router.post("/:token/online-orders/:orderId/edit", async (req, res) => {
     res.set("Cache-Control", "no-store, private");
     const manager = await loadVerifiedManager(req, res);
     if (!manager) return;
-    const result = await editPortalOnlineOrder({ actor: manager, surface: "manager_portal", orderId: req.params.orderId, fields: req.body?.fields || {} });
+    const result = await editPortalOnlineOrder({
+      actor: manager,
+      surface: "manager_portal",
+      orderId: req.params.orderId,
+      fields: req.body?.fields || {},
+      items: Array.isArray(req.body?.items) ? req.body.items : undefined,
+      money: req.body?.money && typeof req.body.money === "object" ? req.body.money : {},
+    });
     return res.json({ success: true, ...result });
   } catch (error) {
     if (!error.status || error.status >= 500) console.error("[manager-portal] online order edit error", error);

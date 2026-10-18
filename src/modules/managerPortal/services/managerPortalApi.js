@@ -34,7 +34,11 @@ export const managerPortalApi = {
   operations: (token, params = {}, options = {}) => api.get(`${tokenPath(token)}/operations`, { ...options, params }),
   onlineOrders: (token, params = {}, options = {}) => api.get(`${tokenPath(token)}/online-orders`, { cache: "no-store", ...options, params }),
   onlineOrder: (token, orderId) => api.get(`${tokenPath(token)}/online-orders/${encodeURIComponent(orderId)}`, { cache: "no-store" }),
-  onlineOrderEdit: (token, orderId, fields = {}) => api.post(`${tokenPath(token)}/online-orders/${encodeURIComponent(orderId)}/edit`, { fields }, { suppressErrorStatuses: [400, 404, 409] }),
+  // { fields, items?, money? } — items is the whole new list of lines (see shipping.portal.manage.js).
+  onlineOrderEdit: (token, orderId, { fields = {}, items, money } = {}) =>
+    api.post(`${tokenPath(token)}/online-orders/${encodeURIComponent(orderId)}/edit`, { fields, ...(items ? { items } : {}), ...(money ? { money } : {}) }, { suppressErrorStatuses: [400, 403, 404, 409] }),
+  onlineOrderProducts: (token, { q = "", productId = null } = {}) =>
+    api.get(`${tokenPath(token)}/online-order-products`, { cache: "no-store", params: productId ? { product_id: productId } : { q } }),
   onlineOrderDelete: (token, orderId, reason = "") => api.post(`${tokenPath(token)}/online-orders/${encodeURIComponent(orderId)}/delete`, { reason }, { suppressErrorStatuses: [400, 404, 409] }),
   onlineOrdersPrintLabels: (token, orderIds = []) => api.post(`${tokenPath(token)}/online-orders/print-labels`, { order_ids: orderIds }, { suppressErrorStatuses: [400, 403, 404, 409, 422, 502] }),
   bostaPickups: (token) => api.get(`${tokenPath(token)}/bosta-pickups`, { cache: "no-store", suppressErrorStatuses: [400, 404, 422, 502] }),

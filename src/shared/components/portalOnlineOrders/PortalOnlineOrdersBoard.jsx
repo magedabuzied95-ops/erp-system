@@ -1004,6 +1004,8 @@ export default function PortalOnlineOrdersBoard({
   printLabels = null,
   // Manager portal only: the card ⋮ (edit the customer / address, or delete the order).
   editOrder = null,
+  // Manager portal only: the edit sheet's product search ({ q } or { productId }) → products.
+  searchOrderProducts = null,
   deleteOrder = null,
   // Employee portal only: open this order's customer thread in الرسائل. The server says
   // whether this employee has messages access (permissions.can_open_inbox); without it,
@@ -1261,8 +1263,8 @@ export default function PortalOnlineOrdersBoard({
     ? { edit: (order) => setManageTarget({ mode: "edit", order }), remove: (order) => setManageTarget({ mode: "delete", order }) }
     : null), [editOrder, deleteOrder]);
 
-  const saveEdit = async (orderId, fields) => {
-    const response = await editOrderRef.current(orderId, fields);
+  const saveEdit = async (orderId, payload) => {
+    const response = await editOrderRef.current(orderId, payload);
     const nextOrder = response?.order || null;
     if (nextOrder) {
       setBoard((existing) => ({ ...existing, orders: existing.orders.map((row) => (String(row.id) === String(orderId) ? { ...row, ...nextOrder } : row)) }));
@@ -1554,7 +1556,7 @@ export default function PortalOnlineOrdersBoard({
       {pickupOpen && canPickup ? <PortalPickupSheet api={pickups} ui={ui} onClose={() => setPickupOpen(false)} /> : null}
 
       {manageTarget?.mode === "edit" ? (
-        <OrderEditSheet order={manageTarget.order} ui={ui} onClose={() => setManageTarget(null)} onSave={saveEdit} errorText={actionErrorText} />
+        <OrderEditSheet order={manageTarget.order} ui={ui} onClose={() => setManageTarget(null)} onSave={saveEdit} errorText={actionErrorText} searchProducts={searchOrderProducts} />
       ) : null}
       {manageTarget?.mode === "delete" ? (
         <OrderDeleteSheet order={manageTarget.order} ui={ui} onClose={() => setManageTarget(null)} onDelete={runDelete} errorText={actionErrorText} />

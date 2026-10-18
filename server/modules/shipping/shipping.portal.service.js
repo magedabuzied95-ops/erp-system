@@ -375,6 +375,11 @@ const shapeOrder = (order = {}, items = [], codPolicy = undefined) => {
     money: {
       subtotal,
       discount: number(order.discount_amount),
+      // The two halves of `discount`, for the manager's line editor: the seller's own
+      // invoice discount (editable) and the coupon (re-priced by the edit, not typed).
+      invoice_discount: number(order.invoice_discount_amount),
+      coupon_discount: number(order.coupon_discount_amount),
+      tax: number(order.tax_amount),
       coupon_code: text(order.coupon_code),
       shipping_fee: shippingFee,
       total,

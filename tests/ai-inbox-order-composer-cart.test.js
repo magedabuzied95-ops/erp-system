@@ -26,10 +26,13 @@ test("duplicate picks of one variant merge into a single quantity", () => {
 
 test("order lines are priced by the canonical customer-price rule", () => {
   const fn = service.slice(service.indexOf("export const createAiOrderDraftLines"), service.indexOf("export const confirmAiOrder"));
-  assert.match(fn, /resolveCustomerDisplayPrice/);
+  // One helper prices a line for the composer and the manager portal's line editor.
+  assert.match(fn, /priceOrderLineVariant\(row, \{ saleModeEnabled \}\)/);
+  const helper = service.slice(service.indexOf("export const priceOrderLineVariant"), service.indexOf("SAVED CUSTOMER ADDRESSES"));
+  assert.match(helper, /resolveCustomerDisplayPrice/);
   // Without the tenant sale-mode gate the resolver fails safe to "sale off" and
   // would under-quote while a sale is running.
-  assert.match(fn, /sale_mode_enabled: saleModeEnabled/);
+  assert.match(helper, /sale_mode_enabled: Boolean\(saleModeEnabled\)/);
 });
 
 test("a short line blocks the whole order instead of silently shipping less", () => {

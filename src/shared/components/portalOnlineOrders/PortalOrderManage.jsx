@@ -3,8 +3,11 @@ import { AlertTriangle, Loader2, MoreVertical, Pencil, Trash2, X } from "lucide-
 import { api } from "../../api/api";
 import ThemedSelect from "../../ui/ThemedSelect";
 import { bostaCityPatch, bostaDistrictPatch, bostaZonePatch, buildBostaPickerOptions } from "../../lib/shippingCheckout";
+import { OrderItemsEditor, linesChanged, linesFromOrder, linesPayload, moneyFromOrder } from "./PortalOrderItemsEditor";
 
-// The manager portal's ⋮ on a shipping card: edit the customer / address / notes, or
+// The manager portal's ⋮ on a shipping card: edit what is inside the order (products,
+// sizes, quantities, prices, discount, shipping fee — PortalOrderItemsEditor), the
+// customer / address / notes, or
 // delete the order (cancel + stock back). Only offered before a Bosta parcel exists —
 // the server refuses after that too (shipping.portal.manage.js).
 
@@ -131,8 +134,10 @@ const formFromOrder = (order = {}) => ({
 
 const EDIT_KEYS = Object.keys(formFromOrder());
 
-export function OrderEditSheet({ order, ui, onClose, onSave, errorText }) {
+export function OrderEditSheet({ order, ui, onClose, onSave, errorText, searchProducts = null }) {
   const [form, setForm] = useState(() => formFromOrder(order));
+  const [lines, setLines] = useState(() => linesFromOrder(order));
+  const [moneyState, setMoneyState] = useState(() => moneyFromOrder(order));
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState("");
   const [bosta, setBosta] = useState({ cities: [], zones: [], districts: [] });
@@ -174,12 +179,21 @@ export function OrderEditSheet({ order, ui, onClose, onSave, errorText }) {
     const original = formFromOrder(order);
     // Only what changed: an untouched field is never rewritten.
     const fields = Object.fromEntries(EDIT_KEYS.filter((key) => form[key] !== original[key]).map((key) => [key, form[key]]));
-    if (!Object.keys(fields).length) {
+    const itemsTouched = linesChanged(order, lines, moneyState);
+    if (itemsTouched && !lines.length) {
+      setError(ui.tb("manage.itemsEmpty"));
+      setSaving(false);
+      return;
+    }
+    if (!Object.keys(fields).length && !itemsTouched) {
       onClose();
       return;
     }
     try {
-      await onSave(order.id, fields);
+      await onSave(order.id, {
+        fields,
+        ...(itemsTouched ? { items: linesPayload(lines), money: { discount_amount: Number(moneyState.discount) || 0, shipping_fee: Number(moneyState.shipping) || 0 } } : {}),
+      });
     } catch (saveError) {
       setError(errorText(saveError));
       setSaving(false);
@@ -212,6 +226,7 @@ export function OrderEditSheet({ order, ui, onClose, onSave, errorText }) {
       )}
     >
       <div className="space-y-3">
+        <OrderItemsEditor order={order} ui={ui} lines={lines} setLines={setLines} moneyState={moneyState} setMoneyState={setMoneyState} searchProducts={searchProducts} />
         <div className="grid grid-cols-2 gap-2">
           <Input label={ui.tb("detail.name")} value={form.customer_name} onChange={set("customer_name")} required />
           <Input label={ui.tb("detail.phone")} value={form.customer_phone} onChange={set("customer_phone")} type="tel" dir="ltr" required />
@@ -263,7 +278,6 @@ export function OrderEditSheet({ order, ui, onClose, onSave, errorText }) {
         <Input label={ui.tb("detail.fullAddress")} value={form.customer_address} onChange={set("customer_address")} multiline />
         <Input label={ui.tb("detail.deliveryNotes")} value={form.delivery_notes} onChange={set("delivery_notes")} multiline />
         <Input label={ui.tb("detail.orderNotes")} value={form.order_notes} onChange={set("order_notes")} multiline />
-        <p className="text-[11px] font-bold leading-4 text-text-muted">{ui.tb("manage.itemsHint")}</p>
       </div>
     </Sheet>
   );
