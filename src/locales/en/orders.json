@@ -845,7 +845,17 @@
         "fixFields": "Complete the marked fields: products, name, phone and governorate.",
         "phoneInvalid": "Invalid phone — 11 digits starting with 01",
         "outOfStock": "Not enough stock right now: {{items}}",
-        "created": "Order {{number}} saved and stock deducted"
+        "created": "Order {{number}} saved and stock deducted",
+        "paidSwitch": "Deposit / shipping already paid",
+        "paidHint": "Recorded with the save; the customer gets a WhatsApp receipt",
+        "paidMethod": "Paid with",
+        "confirmSwitch": "Send the customer the WhatsApp confirmation",
+        "confirmHint": "The orders page message — with the deposit request when the governorate pays shipping first",
+        "paidDone": "Payment recorded",
+        "paidFailed": "Payment not recorded — record it from the order card",
+        "confirmSent": "Confirmation sent",
+        "confirmNoWhatsapp": "This number has no WhatsApp — nothing was sent",
+        "confirmFailed": "Confirmation not sent — send it from the orders page"
       },
     "title": "Shipping orders",
     "subtitle": "Every website, inbox and courier order with all its details",

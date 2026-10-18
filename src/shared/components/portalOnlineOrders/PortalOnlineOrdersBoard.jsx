@@ -1301,9 +1301,17 @@ export default function PortalOnlineOrdersBoard({
   // says this person may. Either missing and the button stays wa.me.
   const onOpenChat = openConversation && canOpenInbox ? openConversation : null;
   const showCreate = canCreate && Boolean(createOrder);
-  const onOrderCreated = (order) => {
+  const onOrderCreated = (order, followups = {}) => {
     setCreateOpen(false);
-    setFlash(ui.tb("newOrder.created", { number: order?.invoice_number || order?.public_order_number || "" }));
+    // What the two switches did, after the order itself; a refusal says to finish it from the card.
+    const notes = [ui.tb("newOrder.created", { number: order?.invoice_number || order?.public_order_number || "" })];
+    if (followups.payment) notes.push(ui.tb(followups.payment.ok ? "newOrder.paidDone" : "newOrder.paidFailed"));
+    if (followups.confirmation) {
+      notes.push(ui.tb(followups.confirmation.ok
+        ? "newOrder.confirmSent"
+        : followups.confirmation.code === "CUSTOMER_NOT_ON_WHATSAPP" ? "newOrder.confirmNoWhatsapp" : "newOrder.confirmFailed"));
+    }
+    setFlash(notes.join(" · "));
     if (group !== "all") setGroup("all");
     else void fetchPage({ page: 1, silent: true });
   };

@@ -43,7 +43,35 @@ const EMPTY_FORM = {
   discount_value: "",
   shipping_cost: "",
   notes: "",
+  // The two switches: WhatsApp the customer the confirmation (with the shipping-fee card where
+  // the governorate pays first), and record money already received.
+  send_confirmation: true,
+  payment_received: "",
+  payment_received_method: "instapay",
 };
+const FEE_SCOPES = [["shipping_fee", "actions.feeScopeShipping"], ["order_total", "actions.feeScopeOrder"]];
+const FEE_METHODS = ["vodafone_cash", "instapay", "cash"];
+
+function SwitchRow({ label, hint = "", checked, onChange }) {
+  return (
+    <button
+      type="button"
+      role="switch"
+      aria-label={label}
+      aria-checked={checked}
+      onClick={() => onChange(!checked)}
+      className="flex w-full items-center gap-3 rounded-[var(--radius-control)] border border-border bg-surface px-3 py-2.5 text-start"
+    >
+      <span className="min-w-0 flex-1">
+        <span className="block text-sm font-black text-text">{label}</span>
+        {hint ? <span className="mt-0.5 block text-[11px] font-bold leading-4 text-text-muted">{hint}</span> : null}
+      </span>
+      <span className={`relative h-6 w-11 shrink-0 rounded-full transition-colors ${checked ? "bg-primary" : "bg-border"}`}>
+        <span className={`absolute top-0.5 h-5 w-5 rounded-full bg-surface shadow transition-all ${checked ? "start-[1.375rem]" : "start-0.5"}`} />
+      </span>
+    </button>
+  );
+}
 
 function Field({ label, value, onChange, type = "text", dir = "auto", multiline = false, required = false, placeholder = "", inputMode, error = false }) {
   const className = `mt-1 w-full rounded-[var(--radius-control)] border ${error ? "border-danger" : "border-border"} bg-surface px-3 py-2 text-sm font-bold text-text placeholder:text-text-muted`;
@@ -290,7 +318,7 @@ export default function NewOnlineOrderSheet({ api, ui, onClose, onCreated, error
         lines: lines.map((line) => ({ variant_id: line.variant_id, quantity: line.quantity })),
         idempotency_key: idempotencyKey.current,
       });
-      onCreated(response?.order || null);
+      onCreated(response?.order || null, response?.followups || {});
     } catch (createError) {
       const body = createError?.responseBody || {};
       if (text(body.code) === "OUT_OF_STOCK" && Array.isArray(body.out_of_stock) && body.out_of_stock.length) {
@@ -538,6 +566,51 @@ export default function NewOnlineOrderSheet({ api, ui, onClose, onCreated, error
             />
           </div>
           <p className="text-[11px] font-bold leading-4 text-text-muted">{ui.tb("newOrder.shippingHint")}</p>
+          <SwitchRow
+            label={ui.tb("newOrder.paidSwitch")}
+            hint={ui.tb("newOrder.paidHint")}
+            checked={Boolean(form.payment_received)}
+            onChange={(on) => set("payment_received")(on ? "shipping_fee" : "")}
+          />
+          {form.payment_received ? (
+            <div className="space-y-2 rounded-[var(--radius-control)] bg-surface-soft p-2">
+              <div className="grid grid-cols-2 gap-1 rounded-[var(--radius-control)] bg-surface p-1" role="radiogroup">
+                {FEE_SCOPES.map(([scope, label]) => (
+                  <button
+                    key={scope}
+                    type="button"
+                    role="radio"
+                    aria-checked={form.payment_received === scope}
+                    onClick={() => set("payment_received")(scope)}
+                    className={`flex min-h-10 flex-col items-center justify-center rounded-[var(--radius-control)] px-2 text-xs font-black ${form.payment_received === scope ? "bg-primary text-primary-foreground" : "text-text"}`}
+                  >
+                    <span>{ui.tb(label)}</span>
+                    <span className="text-[11px] font-bold opacity-80">{ui.money(scope === "order_total" ? total : shipping)}</span>
+                  </button>
+                ))}
+              </div>
+              <div className="grid grid-cols-3 gap-1.5" role="radiogroup" aria-label={ui.tb("newOrder.paidMethod")}>
+                {FEE_METHODS.map((method) => (
+                  <button
+                    key={method}
+                    type="button"
+                    role="radio"
+                    aria-checked={form.payment_received_method === method}
+                    onClick={() => set("payment_received_method")(method)}
+                    className={`min-h-9 rounded-[var(--radius-control)] px-1 text-xs font-black ${form.payment_received_method === method ? "bg-primary text-primary-foreground" : "border border-border bg-surface text-text"}`}
+                  >
+                    {ui.tb(`payment.${method}`)}
+                  </button>
+                ))}
+              </div>
+            </div>
+          ) : null}
+          <SwitchRow
+            label={ui.tb("newOrder.confirmSwitch")}
+            hint={ui.tb("newOrder.confirmHint")}
+            checked={form.send_confirmation}
+            onChange={set("send_confirmation")}
+          />
           <Field label={ui.tb("detail.orderNotes")} value={form.notes} onChange={set("notes")} multiline />
         </section>
       </div>

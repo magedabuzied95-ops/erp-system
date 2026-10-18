@@ -173,6 +173,52 @@ export const previewPortalOrder = async ({ tenantId, body = {} } = {}) => {
   };
 };
 
+const PAYMENT_SCOPES = new Set(["shipping_fee", "order_total"]);
+const FEE_METHODS = new Set(["vodafone_cash", "instapay", "cash"]);
+
+// 1) "الديبوزت مدفوع": the same step as the card's "تم دفع الشحن" (runPortalOrderAction, so the
+//    timeline, the audit and the delayed WhatsApp receipt all match). 2) "ابعت رسالة التأكيد":
+//    the order page's manual send, which carries the shipping-fee card when the governorate
+//    pays in advance. Payment goes first, so the message never asks for money already in.
+export const runCreateFollowups = async ({ actor, surface, orderId, body = {}, deps = {} } = {}) => {
+  const runAction = deps.runAction || (async (args) => (await import("./shipping.portal.actions.js")).runPortalOrderAction(args));
+  const sendConfirmation = deps.sendConfirmation
+    || (async (id) => (await import("../../services/whatsappOrderConfirmationService.js")).sendOrderConfirmation({ id }, { force: true }));
+  const actionSurface = surface.replace(/-/g, "_");
+  const failure = (error) => ({ ok: false, code: text(error?.code) || "FAILED", message: text(error?.message) });
+  const result = {};
+
+  const scope = text(body.payment_received);
+  if (PAYMENT_SCOPES.has(scope)) {
+    const method = FEE_METHODS.has(text(body.payment_received_method)) ? text(body.payment_received_method) : "instapay";
+    try {
+      await runAction({
+        actor,
+        surface: actionSurface,
+        orderId,
+        action: "shipping_fee_paid",
+        input: scope === "order_total" ? { method, scope } : { method },
+      });
+      result.payment = { ok: true, scope };
+    } catch (error) {
+      result.payment = failure(error);
+    }
+  }
+
+  if (body.send_confirmation === true) {
+    try {
+      const sent = await sendConfirmation(orderId);
+      result.confirmation = sent?.sent || sent?.queued
+        ? { ok: true, queued: Boolean(sent.queued) }
+        : { ok: false, code: text(sent?.reason) || "CONFIRMATION_NOT_SENT" };
+    } catch (error) {
+      const { isWhatsappNumberMissingError } = await import("../../utils/whatsappNotOnNumber.js");
+      result.confirmation = isWhatsappNumberMissingError(error) ? { ok: false, code: "CUSTOMER_NOT_ON_WHATSAPP" } : failure(error);
+    }
+  }
+  return result;
+};
+
 export const createPortalOnlineOrder = async ({ actor, surface, body = {} } = {}) => {
   const { createAiOrderDraftLines, confirmAiOrder, saveCustomerAddress } = await orderService();
   const tenantId = Number(actor?.tenant_id) || 0;
@@ -238,14 +284,22 @@ export const createPortalOnlineOrder = async ({ actor, surface, body = {} } = {}
     address: { shipping_provider: "bosta", ...address },
   }).catch((error) => console.warn(`[${surface}] saving the address failed`, { message: error?.message }));
 
+  // The two switches at the bottom of the sheet. The order already exists, so a refusal here is
+  // reported back next to it, never thrown — the seller then finishes it from the card.
+  const followups = draft.duplicate || !order?.id
+    ? {}
+    : await runCreateFollowups({ actor, surface, orderId: order.id, body });
+
   console.log(`[${surface}] portal online order created`, {
     tenant_id: tenantId,
     actor_id: actor?.id || null,
     order_id: order?.id || null,
     line_count: lines.length,
     duplicate: Boolean(draft.duplicate),
+    followups,
   });
   return {
+    followups,
     order: {
       id: order?.id || null,
       invoice_number: text(order?.invoice_number),
