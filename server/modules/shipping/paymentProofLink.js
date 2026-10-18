@@ -175,6 +175,40 @@ export const buildShippingFeePaymentCard = ({ order = {}, amount = 0, transfer =
 };
 
 /**
+ * The same payment step for Messenger and Instagram, as a generic-template card. Neither has a
+ * copy button, so "انسخ الرقم" opens /pay, where the number sits beside a real copy button and the
+ * screenshot upload. InstaPay gets its own button only when a payment link is saved; otherwise the
+ * second slot is the upload. Meta caps a button title at 20 characters and title/subtitle at 80.
+ * The owner asked for this short form (2026-10-18): what to transfer, that it comes off the total,
+ * the number, two buttons — no governorate rule, no wall of text.
+ */
+export const buildShippingFeeMetaCard = ({ order = {}, amount = 0, transfer = {}, payUrl = "" } = {}) => {
+  const fee = formatMoney(amount);
+  const number = text(transfer.vodafone) || text(transfer.instapayHandle);
+  const instapayUrl = text(transfer.instapayUrl);
+  const isShippingFee = advanceLabel(order) === "رسوم الشحن";
+  const title = isShippingFee
+    ? `💳 لتأكيد الأوردر حوّل قيمة الشحن ${fee} جنيه`
+    : `💳 لتأكيد الأوردر حوّل ${fee} جنيه مقدّم`;
+  const subtitle = [
+    "✨ المبلغ بيتخصم من إجمالي الأوردر",
+    number ? `📱 ${number} · فودافون كاش أو انستا باي` : "",
+  ].filter(Boolean).join("\n").slice(0, 80);
+  const buttons = [
+    instapayUrl ? { title: "🏦 حوّل بانستا باي", url: instapayUrl } : null,
+    payUrl ? { title: "📋 انسخ الرقم", url: payUrl } : null,
+    !instapayUrl && payUrl ? { title: "📸 ارفع صورة التحويل", url: payUrl } : null,
+  ].filter(Boolean);
+  const fallbackText = [
+    title,
+    "✨ المبلغ بيتخصم من إجمالي الأوردر",
+    number ? `📱 حوّل على: ${number}\n(فودافون كاش أو انستا باي)` : "",
+    "📸 وابعت صورة التحويل هنا",
+  ].filter(Boolean).join("\n\n");
+  return { title: title.slice(0, 80), subtitle, buttons, fallbackText };
+};
+
+/**
  * Everything the confirmation request needs to know before it is worded: whether a card will
  * follow it. Returns null when it will not (nothing owed, or the link could not be issued), and the
  * request then keeps the payment details in its own body as before.
@@ -185,7 +219,8 @@ export const prepareShippingFeePaymentCard = async ({ order = {}, amount = 0 } =
     const { loadTransferDetails } = await import("../../services/codPolicyReplyService.js");
     const [transfer, link] = await Promise.all([loadTransferDetails(), issuePaymentProofLink({ order })]);
     const card = buildShippingFeePaymentCard({ order, amount, transfer, uploadUrl: link.url });
-    return card.buttons.length ? { ...card, uploadUrl: link.url } : null;
+    const metaCard = buildShippingFeeMetaCard({ order, amount, transfer, payUrl: link.url });
+    return card.buttons.length ? { ...card, uploadUrl: link.url, metaCard } : null;
   } catch (error) {
     console.warn("[payment-proof] card not prepared", { orderId: order?.id, message: error?.message || String(error) });
     return null;

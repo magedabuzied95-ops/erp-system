@@ -17551,6 +17551,104 @@ const buildSocialCommentAddressCardPayload = ({
   };
 };
 
+// The shipping-fee step after the order is confirmed on Messenger/Instagram: one card with the
+// amount, the number and two link buttons (buildShippingFeeMetaCard). Returns false when it could
+// not go out, and the caller then sends the card's own text instead.
+const sendSocialCommentPaymentCard = async ({ config, message, metaCard = null } = {}) => {
+  const channel = text(message?.channel || "");
+  if (![AI_AGENT_CHANNELS.FACEBOOK_MESSENGER, AI_AGENT_CHANNELS.INSTAGRAM].includes(channel)) return false;
+  const recipientId = text(message?.external_customer_id || "");
+  if (!recipientId || !metaCard?.buttons?.length) return false;
+  try {
+    const sendConfig = await resolveMetaSendConfig({
+      tenantId: Number(config?.tenant_id || 0) || null,
+      channel,
+      facebookPageId: text(config?.facebook_page_id || ""),
+      instagramBusinessAccountId: text(config?.instagram_business_account_id || ""),
+      preferredConfigId: config?.id || null,
+    });
+    const token = text(sendConfig?.token || "");
+    if (!token) return false;
+    const payload = {
+      recipient: { id: recipientId },
+      messaging_type: "RESPONSE",
+      message: {
+        attachment: {
+          type: "template",
+          payload: {
+            template_type: "generic",
+            elements: [
+              {
+                title: metaCard.title,
+                ...(text(metaCard.subtitle) ? { subtitle: metaCard.subtitle } : {}),
+                buttons: metaCard.buttons.slice(0, 3).map((button) => ({
+                  type: "web_url",
+                  url: button.url,
+                  title: button.title,
+                })),
+              },
+            ],
+          },
+        },
+      },
+    };
+    const sendCard = () => postMetaMessageWithThreadControl({
+      token,
+      recipientId,
+      body: payload,
+      sendContext: {
+        channel,
+        instagram_business_login: sendConfig?.instagramBusinessLogin === true,
+        resolved_instagram_account_id: text(
+          sendConfig?.config?.instagram_business_account_id || config?.instagram_business_account_id || ""
+        ),
+      },
+    });
+    const result = await sendCard()
+      .catch(async (error) => {
+        if (error?.status || !/fetch failed/i.test(text(error?.message || ""))) throw error;
+        await new Promise((resolve) => setTimeout(resolve, 600));
+        return sendCard();
+      })
+      .catch((error) => {
+        console.warn("SOCIAL_COMMENT_PAYMENT_CARD_FAILED", {
+          tenant_id: config?.tenant_id || null,
+          channel,
+          conversation_id: text(message?.external_conversation_id || ""),
+          status: error?.status || "",
+          error: error?.message || String(error),
+          cause: text(error?.cause?.code || error?.cause?.message || ""),
+        });
+        return null;
+      });
+    if (!result) return false;
+    console.log("SOCIAL_COMMENT_PAYMENT_CARD_SENT", {
+      tenant_id: config?.tenant_id || null,
+      conversation_id: text(message?.external_conversation_id || ""),
+      message_id: result?.message_id || "",
+      buttons: metaCard.buttons.map((button) => button.title),
+    });
+    // So the inbox shows what the customer was asked to pay, as it shows every other step.
+    await appendAiGeneratedSupportReply({
+      tenantId: config?.tenant_id,
+      sessionId: message.external_conversation_id,
+      answer: metaCard.fallbackText,
+      detectedIntent: "social_comment_shipping_fee_payment_card",
+      channel,
+      deliveryStatus: "sent",
+      externalMessageId: result?.message_id || "",
+    }).catch(() => null);
+    return true;
+  } catch (error) {
+    console.warn("SOCIAL_COMMENT_PAYMENT_CARD_FAILED", {
+      tenant_id: config?.tenant_id || null,
+      conversation_id: text(message?.external_conversation_id || ""),
+      message: error?.message || String(error),
+    });
+    return false;
+  }
+};
+
 const sendSocialCommentAddressCard = async ({ config, message, addressUrl = "", productData = null, selectedColor = "", selectedSize = "" } = {}) => {
   const channel = text(message?.channel || "");
   if (![AI_AGENT_CHANNELS.FACEBOOK_MESSENGER, AI_AGENT_CHANNELS.INSTAGRAM].includes(channel)) return false;
@@ -20567,16 +20665,22 @@ export const completeSocialCommentOrderFromAddressRequest = async ({
   if (goodsText) successLines.push(`👟 المنتج: ${goodsText} جنيه`);
   if (shippingText) successLines.push(`🚚 الشحن: ${shippingText} جنيه`);
   if (totalText) successLines.push(`💵 الإجمالي: ${totalText} جنيه`);
-  if (invoiceUrl) successLines.push("", "تقدر تشوف فاتورتك من هنا 👇", invoiceUrl);
-  // Restricted closing system: outside the COD governorates the parcel waits for the fee. On
-  // WhatsApp the fee is paid from its own card (pay buttons + the screenshot upload link) sent
-  // right after this message; Messenger and Instagram have no copy button, so they keep the text.
+  // Restricted closing system: outside the COD governorates the parcel waits for the fee, paid
+  // from its own card sent right after this message. WhatsApp's card has copy/url CTAs; Messenger
+  // and Instagram get a template card whose buttons open InstaPay and /pay (owner, 2026-10-18).
   const advanceOrder = { ...orderRow, governorate: orderRow.governorate || mergedInfo.governorate };
-  const { notice: shippingAdvanceNotice, card: shippingFeeCard } = isWhatsapp
-    ? await shippingFeeNoticeWithPaymentCard(advanceOrder)
-    : { notice: await shippingFeeAdvanceNoticeForOrder(advanceOrder), card: null };
-  if (shippingAdvanceNotice) successLines.push("", shippingAdvanceNotice);
-  successLines.push("", "هيتواصل معاك فريق خدمة العملاء لتأكيد التفاصيل والشحن في أقرب وقت ❤️", "", "شكراً لاختيارك M1 Store");
+  const { notice: shippingAdvanceNotice, card: shippingFeeCard } = await shippingFeeNoticeWithPaymentCard(advanceOrder);
+  const metaPaymentCard = !isWhatsapp ? shippingFeeCard?.metaCard || null : null;
+  if (metaPaymentCard) {
+    // The card says everything about the money, so the message before it stays short: no
+    // governorate rule, no "team will contact you" paragraph, and no invoice link, whose preview
+    // was the big blank box under the old text.
+    successLines.push("", "شكراً لاختيارك M1 Store ❤️");
+  } else {
+    if (invoiceUrl) successLines.push("", "تقدر تشوف فاتورتك من هنا 👇", invoiceUrl);
+    if (shippingAdvanceNotice) successLines.push("", shippingAdvanceNotice);
+    successLines.push("", "هيتواصل معاك فريق خدمة العملاء لتأكيد التفاصيل والشحن في أقرب وقت ❤️", "", "شكراً لاختيارك M1 Store");
+  }
   const successText = successLines.join("\n").replace(/\n{3,}/g, "\n\n").trim();
   if (isWhatsapp) {
     await sendConfirmation(successText);
@@ -20610,6 +20714,18 @@ export const completeSocialCommentOrderFromAddressRequest = async ({
     },
     fallbackContext: { productId, size: selectedSize, color: selectedColor, step: "completed_pending_staff_review" },
   }).catch(() => null);
+  if (metaPaymentCard) {
+    const cardSent = await sendSocialCommentPaymentCard({ config, message, metaCard: metaPaymentCard });
+    if (!cardSent) {
+      await sendSocialCommentSalesFlowText({
+        config,
+        message,
+        text: metaPaymentCard.fallbackText,
+        detectedIntent: "social_comment_shipping_fee_payment_text",
+        metadata: { order_id: draftOrderResult.order?.id || null, bypass_outbound_dedupe: true },
+      }).catch(() => null);
+    }
+  }
   await persistSocialCommentSalesFlowState({
     config,
     message,

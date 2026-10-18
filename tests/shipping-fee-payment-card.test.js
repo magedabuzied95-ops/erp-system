@@ -184,8 +184,9 @@ test("the WhatsApp sales flow's order confirmation is followed by the card too",
   const meta = read("../server/services/metaIntegrationService.js");
   const at = meta.indexOf("const successLines = [\"✅ تم تأكيد طلبك بنجاح\"");
   assert.ok(at > 0);
-  const block = meta.slice(at, at + 2500);
-  assert.match(block, /isWhatsapp\s*\? await shippingFeeNoticeWithPaymentCard\(advanceOrder\)/);
+  const block = meta.slice(at, at + 4000);
+  // Every channel prepares the card now; Messenger/Instagram send its template form (2026-10-18).
+  assert.match(block, /= await shippingFeeNoticeWithPaymentCard\(advanceOrder\);/);
   assert.match(block, /await sendConfirmation\(successText\);\s*if \(shippingFeeCard\) \{/);
   assert.match(block, /queueShippingFeePaymentCard\(\{/);
   // Nothing owed: no notice and no card.
