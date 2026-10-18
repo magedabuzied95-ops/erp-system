@@ -70,6 +70,7 @@ import { getPortalOnlineOrder, listPortalOnlineOrders } from "../modules/shippin
 import { runPortalBulkPrint, runPortalOrderAction } from "../modules/shipping/shipping.portal.actions.js";
 import { deletePortalOnlineOrder, editPortalOnlineOrder, searchPortalOrderItems } from "../modules/shipping/shipping.portal.manage.js";
 import { mountPortalPickupRoutes } from "../modules/shipping/shipping.portal.pickups.js";
+import { mountPortalCreateOrderRoutes } from "../modules/shipping/shipping.portal.create.js";
 import {
   getManagerPortalPushPublicKey,
   getManagerPortalPushSubscriptionDebug,
@@ -347,7 +348,7 @@ router.get("/:token/online-orders", async (req, res) => {
     if (!manager) return;
     const payload = await listPortalOnlineOrders({ tenantId: manager.tenant_id, query: req.query || {} });
     // Every manager-portal holder may act (owner decision 2026-09-10).
-    return res.json({ success: true, ...payload, permissions: { can_act: true, can_ship: true } });
+    return res.json({ success: true, ...payload, permissions: { can_act: true, can_ship: true, can_create: true } });
   } catch (error) {
     console.error("[manager-portal] online orders error", error);
     return res.status(error.status || 500).json({ success: false, code: error.code, message: error.message || "Failed to load online orders" });
@@ -445,6 +446,9 @@ router.post("/:token/online-orders/print-labels", async (req, res) => {
 
 // طلب بيك أب — the same Bosta pickup calls the desktop shipping center makes.
 mountPortalPickupRoutes(router, { loadActor: loadVerifiedManager, surface: "manager-portal" });
+
+// "+" on أوردرات الشحن: write a whole order from the portal — every manager-portal holder.
+mountPortalCreateOrderRoutes(router, { loadActor: loadVerifiedManager, surface: "manager-portal" });
 
 router.get("/:token/staff", async (req, res) => {
   try {

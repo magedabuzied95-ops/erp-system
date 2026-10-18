@@ -49,7 +49,6 @@ import {
   TrendingDown,
   TrendingUp,
   Trophy,
-  Truck,
   Users,
   Volume2,
   Wallet,
@@ -1938,6 +1937,11 @@ export default function ManagerPortal() {
     return Array.isArray(response?.products) ? response.products : [];
   }, [token]);
   const deleteOnlineOrder = useCallback((orderId, reason) => managerPortalApi.onlineOrderDelete(token, orderId, reason), [token]);
+  const newOnlineOrder = useMemo(() => ({
+    catalog: (query) => managerPortalApi.newOnlineOrderCatalog(token, query),
+    preview: (body) => managerPortalApi.newOnlineOrderPreview(token, body),
+    create: (body) => managerPortalApi.newOnlineOrderCreate(token, body),
+  }), [token]);
   const onlineOrderPickups = useMemo(() => ({
     load: () => managerPortalApi.bostaPickups(token),
     create: (body) => managerPortalApi.bostaPickupCreate(token, body),
@@ -4822,15 +4826,6 @@ export default function ManagerPortal() {
                   element inside .manager-portal-card in dark mode, which would wash out the
                   board's gold pills. The board is theme-token-only and needs no shell rules. */}
               <section className="rounded-[var(--radius-card)] border border-border bg-surface p-3 shadow-sm sm:p-4">
-                <header className="mb-3 flex items-center gap-3">
-                  <span className="grid h-11 w-11 shrink-0 place-items-center rounded-2xl bg-primary text-primary-foreground">
-                    <Truck className="h-5 w-5" />
-                  </span>
-                  <div className="min-w-0">
-                    <h2 className="m1-section-title text-text">{tt("orders.portalBoard.title")}</h2>
-                    <p className="mt-0.5 text-xs font-bold text-text-muted">{tt("orders.portalBoard.subtitle")}</p>
-                  </div>
-                </header>
                 <Suspense fallback={<div className="flex min-h-40 items-center justify-center"><Loader2 className="h-6 w-6 animate-spin" /></div>}>
                   <PortalOnlineOrdersBoard
                     loadList={loadOnlineOrders}
@@ -4841,6 +4836,9 @@ export default function ManagerPortal() {
                     searchOrderProducts={searchOnlineOrderProducts}
                     deleteOrder={deleteOnlineOrder}
                     pickups={onlineOrderPickups}
+                    createOrder={newOnlineOrder}
+                    title={tt("orders.portalBoard.title")}
+                    subtitle={tt("orders.portalBoard.subtitle")}
                     bulkBarOffset={isMobilePortal ? "calc(env(safe-area-inset-bottom) + 5.75rem)" : "1rem"}
                   />
                 </Suspense>

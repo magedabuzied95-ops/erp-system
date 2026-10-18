@@ -41,6 +41,10 @@ export const managerPortalApi = {
     api.get(`${tokenPath(token)}/online-order-products`, { cache: "no-store", params: productId ? { product_id: productId } : { q } }),
   onlineOrderDelete: (token, orderId, reason = "") => api.post(`${tokenPath(token)}/online-orders/${encodeURIComponent(orderId)}/delete`, { reason }, { suppressErrorStatuses: [400, 404, 409] }),
   onlineOrdersPrintLabels: (token, orderIds = []) => api.post(`${tokenPath(token)}/online-orders/print-labels`, { order_ids: orderIds }, { suppressErrorStatuses: [400, 403, 404, 409, 422, 502] }),
+  // "+" on أوردرات الشحن: search the catalogue, price the draft, write the order.
+  newOnlineOrderCatalog: (token, query = "") => api.get(`${tokenPath(token)}/new-online-order/catalog`, { cache: "no-store", params: { q: query }, suppressErrorStatuses: [403, 404] }),
+  newOnlineOrderPreview: (token, body) => api.post(`${tokenPath(token)}/new-online-order/preview`, body, { suppressErrorStatuses: [400, 403, 404] }),
+  newOnlineOrderCreate: (token, body) => api.post(`${tokenPath(token)}/new-online-order`, body, { suppressErrorStatuses: [400, 403, 404, 409] }),
   bostaPickups: (token) => api.get(`${tokenPath(token)}/bosta-pickups`, { cache: "no-store", suppressErrorStatuses: [400, 404, 422, 502] }),
   bostaPickupCreate: (token, body) => api.post(`${tokenPath(token)}/bosta-pickups`, body, { suppressErrorStatuses: [400, 404, 422, 502] }),
   bostaPickupCancel: (token, pickupId) => api.delete(`${tokenPath(token)}/bosta-pickups/${encodeURIComponent(pickupId)}`, { suppressErrorStatuses: [400, 404, 422, 502] }),

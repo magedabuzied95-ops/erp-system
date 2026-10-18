@@ -25,6 +25,13 @@ export const getEmployeePortalOnlineOrder = (token, orderId) =>
     suppressErrorStatuses: [404, 422],
   });
 
+// "+" on أوردرات الشحن: search the catalogue, price the draft, write the order.
+export const employeePortalNewOrderApi = (token) => ({
+  catalog: (query = "") => api.get(`${tokenPath(token)}/new-online-order/catalog`, { cache: "no-store", params: { q: query }, suppressErrorStatuses: [403, 404] }),
+  preview: (body) => api.post(`${tokenPath(token)}/new-online-order/preview`, body, { suppressErrorStatuses: [400, 403, 404] }),
+  create: (body) => api.post(`${tokenPath(token)}/new-online-order`, body, { suppressErrorStatuses: [400, 403, 404, 409] }),
+});
+
 // طلب بيك أب — book / cancel a Bosta courier to the shop.
 export const employeePortalPickupsApi = (token) => ({
   load: () => api.get(`${tokenPath(token)}/bosta-pickups`, { cache: "no-store", suppressErrorStatuses: [400, 404, 422, 502] }),

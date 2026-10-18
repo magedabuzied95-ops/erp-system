@@ -1,10 +1,9 @@
 import { useCallback, useMemo } from "react";
 import { useNavigate, useParams } from "react-router-dom";
 import { useEmployeePortalArabic } from "../lib/employeePortalLanguage";
-import { Truck } from "lucide-react";
 import EmployeePortalNavControls, { buildEmployeePortalHomePath, canNavigateEmployeePortalBack } from "../components/EmployeePortalNavControls";
 import PortalOnlineOrdersBoard from "../../../shared/components/portalOnlineOrders/PortalOnlineOrdersBoard";
-import { employeePortalPickupsApi, getEmployeePortalOnlineOrder, getEmployeePortalOnlineOrders, printEmployeePortalOnlineOrderLabels, runEmployeePortalOnlineOrderAction } from "../services/employeePortalOnlineOrdersApi";
+import { employeePortalNewOrderApi, employeePortalPickupsApi, getEmployeePortalOnlineOrder, getEmployeePortalOnlineOrders, printEmployeePortalOnlineOrderLabels, runEmployeePortalOnlineOrderAction } from "../services/employeePortalOnlineOrdersApi";
 import usePageTitle from "../../../shared/hooks/usePageTitle";
 
 // أوردرات الشحن in the employee portal. Every employee sees it (owner decision,
@@ -21,6 +20,7 @@ export default function EmployeePortalOnlineOrders() {
   const runAction = useCallback((orderId, action, input) => runEmployeePortalOnlineOrderAction(token, orderId, action, input), [token]);
   const printLabels = useCallback((orderIds) => printEmployeePortalOnlineOrderLabels(token, orderIds), [token]);
   const pickups = useMemo(() => employeePortalPickupsApi(token), [token]);
+  const createOrder = useMemo(() => employeePortalNewOrderApi(token), [token]);
   const loadDetail = useCallback(async (orderId) => {
     const response = await getEmployeePortalOnlineOrder(token, orderId);
     return response?.order || null;
@@ -54,16 +54,17 @@ export default function EmployeePortalOnlineOrders() {
           className="px-0"
         />
 
-        <header className="flex items-center gap-3 rounded-[var(--radius-card)] border border-border bg-surface p-3 shadow-sm">
-          <span className="grid h-11 w-11 shrink-0 place-items-center rounded-2xl bg-primary text-primary-foreground">
-            <Truck className="h-5 w-5" />
-          </span>
-          <div className="min-w-0">
-            <h1 className="m1-page-title text-text">{t("orders.portalBoard.title")}</h1>
-          </div>
-        </header>
-
-        <PortalOnlineOrdersBoard loadList={loadList} loadDetail={loadDetail} runAction={runAction} printLabels={printLabels} openConversation={openConversation} pickups={pickups} />
+        <PortalOnlineOrdersBoard
+          loadList={loadList}
+          loadDetail={loadDetail}
+          runAction={runAction}
+          printLabels={printLabels}
+          openConversation={openConversation}
+          pickups={pickups}
+          createOrder={createOrder}
+          title={t("orders.portalBoard.title")}
+          headerClassName="rounded-[var(--radius-card)] border border-border bg-surface p-3 shadow-sm"
+        />
       </div>
     </main>
   );

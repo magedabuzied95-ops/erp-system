@@ -14,6 +14,7 @@ import {
   MessageCircle,
   Package,
   PackagePlus,
+  Plus,
   Phone,
   Printer,
   Receipt,
@@ -36,6 +37,7 @@ import { PORTAL_ACTION_ERROR_CODES, pdfUrlFromBase64, portalOrderActionsFor, shi
 import { currentBuildId } from "../../lib/portalBuildUpdate";
 import { OrderDeleteSheet, OrderEditSheet, OrderManageMenu } from "./PortalOrderManage";
 import PortalPickupSheet from "./PortalPickupSheet";
+import NewOnlineOrderSheet from "./NewOnlineOrderSheet";
 
 // أوردرات الشحن — one board, mounted by both the employee portal (its own page) and
 // the manager portal (a tab). The host only supplies how to fetch; everything the
@@ -1014,6 +1016,13 @@ export default function PortalOnlineOrdersBoard({
   // طلب بيك أب: { load, create, cancel } bound to the portal token. Shown to whoever may
   // book parcels (permissions.can_ship), like the desktop shipping center's button.
   pickups = null,
+  // "+" new order: { catalog, preview, create } bound to the portal token. Shown to whoever
+  // the server says may write orders (permissions.can_create).
+  createOrder = null,
+  // The board's own header row (title, subtitle and the "+"), so the button sits at the top.
+  title = "",
+  subtitle = "",
+  headerClassName = "",
   // Where the multi-select bar floats: above the manager portal's bottom nav, or at the
   // screen edge on the employee page, which has none.
   bulkBarOffset = "calc(env(safe-area-inset-bottom) + 0.75rem)",
@@ -1023,6 +1032,8 @@ export default function PortalOnlineOrdersBoard({
   const [canAct, setCanAct] = useState(false);
   const [canShip, setCanShip] = useState(false);
   const [canOpenInbox, setCanOpenInbox] = useState(false);
+  const [canCreate, setCanCreate] = useState(false);
+  const [createOpen, setCreateOpen] = useState(false);
   const runActionRef = useRef(runAction);
   runActionRef.current = runAction;
   const [group, setGroup] = useState("all");
@@ -1059,6 +1070,7 @@ export default function PortalOnlineOrdersBoard({
       setCanAct(Boolean(runActionRef.current) && payload?.permissions?.can_act === true);
       setCanShip(Boolean(runActionRef.current) && (payload?.permissions?.can_ship === true || payload?.permissions?.can_act === true));
       setCanOpenInbox(payload?.permissions?.can_open_inbox === true);
+      setCanCreate(payload?.permissions?.can_create === true);
       setBoard((current) => ({
         orders: page > 1 ? appendById(current.orders, orders) : orders,
         counts: payload?.counts || {},
@@ -1288,9 +1300,38 @@ export default function PortalOnlineOrdersBoard({
   // Both halves must be true: a host that knows how to open الرسائل, and a server that
   // says this person may. Either missing and the button stays wa.me.
   const onOpenChat = openConversation && canOpenInbox ? openConversation : null;
+  const showCreate = canCreate && Boolean(createOrder);
+  const onOrderCreated = (order) => {
+    setCreateOpen(false);
+    setFlash(ui.tb("newOrder.created", { number: order?.invoice_number || order?.public_order_number || "" }));
+    if (group !== "all") setGroup("all");
+    else void fetchPage({ page: 1, silent: true });
+  };
 
   return (
     <div className={`portal-online-orders space-y-3 ${className}`} dir={ui.dir}>
+      {title ? (
+        <header className={`flex items-center gap-3 ${headerClassName}`}>
+          <span className="grid h-11 w-11 shrink-0 place-items-center rounded-2xl bg-primary text-primary-foreground">
+            <Truck className="h-5 w-5" />
+          </span>
+          <div className="min-w-0 flex-1">
+            <h2 className="m1-section-title text-text">{title}</h2>
+            {subtitle ? <p className="mt-0.5 text-xs font-bold text-text-muted">{subtitle}</p> : null}
+          </div>
+          {showCreate ? (
+            <button
+              type="button"
+              onClick={() => setCreateOpen(true)}
+              aria-label={ui.tb("newOrder.open")}
+              title={ui.tb("newOrder.open")}
+              className="grid h-11 w-11 shrink-0 place-items-center rounded-2xl border border-border bg-surface text-text shadow-sm"
+            >
+              <Plus className="h-6 w-6" strokeWidth={2.5} />
+            </button>
+          ) : null}
+        </header>
+      ) : null}
       <div className="flex items-center gap-2">
         <label className="relative flex min-w-0 flex-1 items-center">
           <Search className="pointer-events-none absolute start-2.5 h-4 w-4 text-text-muted" />
@@ -1554,6 +1595,9 @@ export default function PortalOnlineOrdersBoard({
       ) : null}
 
       {pickupOpen && canPickup ? <PortalPickupSheet api={pickups} ui={ui} onClose={() => setPickupOpen(false)} /> : null}
+      {createOpen && showCreate ? (
+        <NewOnlineOrderSheet api={createOrder} ui={ui} onClose={() => setCreateOpen(false)} onCreated={onOrderCreated} errorText={actionErrorText} />
+      ) : null}
 
       {manageTarget?.mode === "edit" ? (
         <OrderEditSheet order={manageTarget.order} ui={ui} onClose={() => setManageTarget(null)} onSave={saveEdit} errorText={actionErrorText} searchProducts={searchOrderProducts} />

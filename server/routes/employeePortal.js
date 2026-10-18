@@ -68,6 +68,7 @@ import { getPortalOnlineOrder, listPortalOnlineOrders } from "../modules/shippin
 import { PORTAL_SHIP_ACTIONS, runPortalBulkPrint, runPortalOrderAction } from "../modules/shipping/shipping.portal.actions.js";
 import { employeeCanActOnOnlineOrders } from "../modules/shipping/shipping.portal.access.js";
 import { mountPortalPickupRoutes } from "../modules/shipping/shipping.portal.pickups.js";
+import { mountPortalCreateOrderRoutes } from "../modules/shipping/shipping.portal.create.js";
 import { employeePortalInboxEnabled, mintPortalInboxSession } from "../modules/aiInboxPortal/portalInboxAccess.js";
 import { protect } from "../middleware/authMiddleware.js";
 import permit from "../middleware/permissionMiddleware.js";
@@ -736,7 +737,7 @@ router.get("/:token/online-orders", async (req, res) => {
     ]);
     // can_ship: every employee may book the Bosta parcel, print the AWB and multi-select.
     // can_act: confirming stays with the employees the admin switched on.
-    return res.json({ success: true, ...payload, permissions: { can_act: canAct, can_ship: true, can_open_inbox: Boolean(inboxEnabled) } });
+    return res.json({ success: true, ...payload, permissions: { can_act: canAct, can_ship: true, can_create: true, can_open_inbox: Boolean(inboxEnabled) } });
   } catch (error) {
     console.error("[employee-portal] online orders load error", error);
     return res.status(error.status || 500).json({ success: false, code: error.code, message: error.message || "Failed to load online orders" });
@@ -793,6 +794,10 @@ router.post("/:token/online-orders/print-labels", async (req, res) => {
 // طلب بيك أب: book / cancel a Bosta courier to the shop — every employee, like the
 // parcel itself.
 mountPortalPickupRoutes(router, { loadActor: loadVerifiedEmployee, surface: "employee-portal" });
+
+// "+" on أوردرات الشحن: write a whole order (products, sizes, customer, Bosta address).
+// Every employee may (owner decision 2026-10-19), like booking the parcel itself.
+mountPortalCreateOrderRoutes(router, { loadActor: loadVerifiedEmployee, surface: "employee-portal" });
 
 // Compact product cards (no variant arrays / no images blobs / no price) — the
 // fast Warehouse Request list + size-filter path. POS endpoint untouched.
