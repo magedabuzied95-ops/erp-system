@@ -89,6 +89,7 @@ import { keyboardLayoutAlternates, latinLayoutToArabic } from "../lib/keyboardLa
 import { getCompleteEgyptianMobilePhone, normalizePhone } from "../lib/phoneSearch";
 import { getPosEffectivePrice, shouldForceSalePriceForPos } from "../lib/posPricing";
 import { buildPosOpeningCandidateFallback, readPosOpeningCandidates } from "../lib/posOpeningCandidates";
+import { buildTerminalConfirmedPayment } from "../lib/posTerminalConfirmedPayment";
 import { canManagePosSalePrices } from "../lib/posSaleModeAccess";
 import { parseSaleModeEnabled, persistPosSaleModeEnabled, resolvePosSaleModeForLoad } from "../lib/posSaleModeSettings";
 import { countUniqueVariantColors, getVariantColorKey, mergeCatalogProducts } from "../lib/posCatalogMerge";
@@ -7027,6 +7028,14 @@ function POSPro() {
       const terminalManualVodafoneCashAmount = paymentMode === "split" ? Number(vodafoneCashAmount || 0) : 0;
       const terminalManualCustomerWalletAmount = paymentMode === "split" ? Number(customerWalletAmount || 0) : 0;
       const terminalManualPaidAmount = Math.max(0, terminalManualCashAmount + terminalManualWalletAmount + terminalManualVodafoneCashAmount + terminalManualCustomerWalletAmount);
+      const terminalConfirmedPayment = buildTerminalConfirmedPayment({
+        paymentMode,
+        terminalAmount: terminalConfirmedAmount,
+        cashAmount,
+        walletAmount,
+        vodafoneCashAmount,
+        customerWalletAmount,
+      });
       const checkoutPaymentSummary = creditSaleCheckout
         ? {
             paidAmount: 0,
@@ -7036,7 +7045,7 @@ function POSPro() {
           }
         : paymobTerminalConfirmed
         ? {
-            paidAmount: terminalConfirmedAmount,
+            paidAmount: terminalConfirmedPayment.paidAmount,
             changeAmount: 0,
             dueAmount: 0,
             paymentStatus: "Paid",
@@ -7058,7 +7067,7 @@ function POSPro() {
         : paymentSummary;
       const personalPaymentAmount = isPersonalTransaction ? Number(amountDueNow || cartTotals.total || 0) : 0;
       const payloadCashAmount = paymobTerminalConfirmed
-        ? 0
+        ? terminalConfirmedPayment.cash
         : creditSaleCheckout
           ? 0
         : paymobTerminalCheckout
@@ -7069,7 +7078,7 @@ function POSPro() {
             ? Number(cashAmount || 0)
             : 0;
       const payloadCardAmount = paymobTerminalConfirmed
-        ? terminalConfirmedAmount
+        ? terminalConfirmedPayment.card
         : creditSaleCheckout
           ? 0
         : paymobTerminalCheckout
@@ -7080,7 +7089,7 @@ function POSPro() {
             ? Number(cardAmount || 0)
             : 0;
       const payloadWalletAmount = paymobTerminalConfirmed
-        ? 0
+        ? terminalConfirmedPayment.wallet
         : creditSaleCheckout
           ? 0
         : paymobTerminalCheckout
@@ -7091,7 +7100,7 @@ function POSPro() {
             ? Number(walletAmount || 0)
             : 0;
       const payloadVodafoneCashAmount = paymobTerminalConfirmed
-        ? 0
+        ? terminalConfirmedPayment.vodafoneCash
         : creditSaleCheckout
           ? 0
         : paymobTerminalCheckout
@@ -7102,7 +7111,7 @@ function POSPro() {
             ? Number(vodafoneCashAmount || 0)
             : 0;
       const payloadCustomerWalletAmount = paymobTerminalConfirmed
-        ? 0
+        ? terminalConfirmedPayment.customerWallet
         : creditSaleCheckout
           ? 0
         : paymobTerminalCheckout
@@ -7158,7 +7167,7 @@ function POSPro() {
         customer_name: invoiceCustomer.name,
         customer_id: serverCustomerId,
         customer_phone: invoiceCustomer.phone || invoiceCustomer.customer_phone || "",
-        payment_method: isPersonalTransaction ? "personal" : ((creditSaleCheckout || partialCreditCheckout) ? "credit_sale" : (paymobTerminalConfirmed ? "card" : paymentMode)),
+        payment_method: isPersonalTransaction ? "personal" : ((creditSaleCheckout || partialCreditCheckout) ? "credit_sale" : (paymobTerminalConfirmed ? terminalConfirmedPayment.paymentMethod : paymentMode)),
         payment_transaction_id: paymobTerminalConfirmed ? options?.paymobTerminalTransactionId || null : null,
         paymob_terminal_transaction_id: paymobTerminalConfirmed ? options?.paymobTerminalTransactionId || null : null,
         subtotal: cartTotals.subtotal,
