@@ -17579,7 +17579,7 @@ const sendSocialCommentAddressCard = async ({ config, message, addressUrl = "", 
     });
     // Instagram Business Login sends through graph.instagram.com against the IG account id, not
     // /me/messages on the page — the shared helper is the only thing that knows which.
-    const result = await postMetaMessageWithThreadControl({
+    const sendCard = () => postMetaMessageWithThreadControl({
       token,
       recipientId,
       body: payload,
@@ -17590,16 +17590,32 @@ const sendSocialCommentAddressCard = async ({ config, message, addressUrl = "", 
           sendConfig?.config?.instagram_business_account_id || config?.instagram_business_account_id || ""
         ),
       },
-    }).catch((error) => {
-      console.warn("SOCIAL_COMMENT_ADDRESS_CARD_FAILED", {
-        tenant_id: config?.tenant_id || null,
-        channel,
-        conversation_id: text(message?.external_conversation_id || ""),
-        status: error?.status || "",
-        error: error?.message || String(error),
-      });
-      return null;
     });
+    // A network-level failure ("fetch failed": no HTTP answer at all) is a blip, not a refusal.
+    // Without one retry the customer gets the bare link in text, with Instagram's preview under it
+    // (2026-10-18: the Page resend died this way while the text right after it went through).
+    const isNetworkFailure = (error) => !error?.status && /fetch failed/i.test(text(error?.message || ""));
+    const result = await sendCard()
+      .catch(async (error) => {
+        if (!isNetworkFailure(error)) throw error;
+        console.warn("SOCIAL_COMMENT_ADDRESS_CARD_NETWORK_RETRY", {
+          conversation_id: text(message?.external_conversation_id || ""),
+          cause: text(error?.cause?.code || error?.cause?.message || ""),
+        });
+        await new Promise((resolve) => setTimeout(resolve, 600));
+        return sendCard();
+      })
+      .catch((error) => {
+        console.warn("SOCIAL_COMMENT_ADDRESS_CARD_FAILED", {
+          tenant_id: config?.tenant_id || null,
+          channel,
+          conversation_id: text(message?.external_conversation_id || ""),
+          status: error?.status || "",
+          error: error?.message || String(error),
+          cause: text(error?.cause?.code || error?.cause?.message || ""),
+        });
+        return null;
+      });
     if (!result) return false;
     console.log("SOCIAL_COMMENT_ADDRESS_CARD_SENT", {
       tenant_id: config?.tenant_id || null,

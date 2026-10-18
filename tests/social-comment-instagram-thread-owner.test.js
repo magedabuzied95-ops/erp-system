@@ -40,3 +40,13 @@ test("the Page sender is the marketing_settings token the cards were sent with",
   assert.match(loader, /getPublishingAccessToken\(row \|\| \{\}\)/);
   assert.match(meta, /import \{ getPublishingAccessToken \} from "\.\/metaTokenService\.js";/);
 });
+
+test("the address card retries once on a network blip before falling back to the bare link", () => {
+  const sender = meta.slice(
+    meta.indexOf("const sendSocialCommentAddressCard = async ({"),
+    meta.indexOf("const buildSocialCommentOrderSummaryCardPayload = ({")
+  );
+  assert.ok(sender.length > 0, "sendSocialCommentAddressCard not found");
+  assert.match(sender, /const isNetworkFailure = \(error\) => !error\?\.status && \/fetch failed\/i/);
+  assert.match(sender, /if \(!isNetworkFailure\(error\)\) throw error;[\s\S]*return sendCard\(\);/);
+});
