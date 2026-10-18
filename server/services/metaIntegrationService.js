@@ -17585,6 +17585,9 @@ const sendSocialCommentPaymentCard = async ({ config, message, metaCard = null }
                   type: "web_url",
                   url: button.url,
                   title: button.title,
+                  // Messenger opens /pay as a sheet INSIDE the conversation, like the address
+                  // card's form; Instagram has no such field and rejects the payload if sent.
+                  ...(channel === AI_AGENT_CHANNELS.FACEBOOK_MESSENGER ? { webview_height_ratio: "tall" } : {}),
                 })),
               },
             ],

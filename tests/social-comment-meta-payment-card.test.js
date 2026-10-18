@@ -77,3 +77,15 @@ test("the payment receipt carries the invoice link and also reaches the order's 
   // The "استلمنا صورة التحويل" reply after an upload reaches the thread too.
   assert.match(source, /await notifyPaymentOnMeta\(updated, buildPaymentProofReceivedMessage\(updated\), \{ intent: PAYMENT_RECEIVED_META_INTENT, once: false \}\);/);
 });
+
+test("Messenger gets the same flow, with /pay opening inside the conversation", () => {
+  const meta = fs.readFileSync(new URL("../server/services/metaIntegrationService.js", import.meta.url), "utf8");
+  const sender = meta.slice(
+    meta.indexOf("const sendSocialCommentPaymentCard = async ({"),
+    meta.indexOf("const sendSocialCommentAddressCard = async ({")
+  );
+  assert.match(sender, /\[AI_AGENT_CHANNELS\.FACEBOOK_MESSENGER, AI_AGENT_CHANNELS\.INSTAGRAM\]\.includes\(channel\)/);
+  assert.match(sender, /channel === AI_AGENT_CHANNELS\.FACEBOOK_MESSENGER \? \{ webview_height_ratio: "tall" \} : \{\}/);
+  const pay = fs.readFileSync(new URL("../server/modules/shipping/paymentProofLink.js", import.meta.url), "utf8");
+  assert.match(pay, /\(instagram\|facebook_messenger\)/);
+});
