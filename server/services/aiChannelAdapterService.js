@@ -2013,23 +2013,31 @@ export const sendWhatsAppCloudReply = async ({ to, reply = {}, messageText = "",
   if (selectedTransport === "evolution" && productCards.length >= 1) {
     try {
       const gateway = await import("./whatsappGatewayService.js");
-      // ONE card travels ALONE — no line above it (owner, 2026-09-21). The card already shows the
-      // photo, the colour, the price, the size and the button that orders it; the name, the raw
-      // link and the question were noise stacked on top of it. A batch still gets its lead line:
-      // that one introduces a choice between colours.
+      // ONE card carries ONE short line above it: the product's name and nothing else — no raw
+      // link, no question (owner, 2026-09-21). It cannot be empty: Evolution answers a body-less
+      // carousel with 400 "body does not meet minimum length of 1", and the send fell back to a
+      // photo with the long caption (2026-10-19). A batch still gets its lead line: that one
+      // introduces a choice between colours.
       const singleCard = productCards.length === 1;
+      // A colour card's name already reads "Nike Air Force 1 - White"; the card itself shows the
+      // colour, so the line above keeps the model alone.
+      const loneCardProductName = () => {
+        const name = toText(productCards[0].base_name) || toText(productCards[0].name);
+        const color = toText(productCards[0].color);
+        const suffix = color ? ` - ${color}` : "";
+        return suffix && name.toLowerCase().endsWith(suffix.toLowerCase()) ? name.slice(0, -suffix.length).trim() : name;
+      };
       const carouselBody = singleCard
-        ? ""
+        ? (loneCardProductName() || "M1 Store").slice(0, 1024)
         : (text || "اختار اللون اللي يعجبك 👇").slice(0, 1024);
       const carouselCards = productCards.map((product) => {
         // One picked size is a size, not a list of what is in stock — the same rule the caption
         // follows, so the card and the caption cannot disagree.
         const pickedSize = productCardPickedSize(product);
         const cardLines = [
-          // In a batch the cards differ by COLOUR and the lead line above names the product. A
-          // card travelling alone has no line above it, so it has to name the product itself —
-          // the card's own name already reads "Dior - White".
-          (singleCard ? toText(product.name) || toText(product.color) : toText(product.color) || toText(product.name)),
+          // The line above always names the product (the lead line in a batch, the product's name
+          // over a lone card), so every card leads with its COLOUR.
+          toText(product.color) || toText(product.name),
           toText(product.price_text),
           pickedSize
             ? `المقاس: ${pickedSize}`

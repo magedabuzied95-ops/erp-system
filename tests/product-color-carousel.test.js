@@ -44,22 +44,24 @@ test("a single picked colour still goes as a card, not a photo with a caption", 
   assert.doesNotMatch(branch, /length >= 2/, "no threshold is left that would drop a single card");
 });
 
-// One card travels alone: no name, no raw link, no question stacked above it (owner decree).
-// A batch keeps its lead line, because that one introduces a choice between colours.
-test("a single card goes out with no words above it", () => {
+// One card carries only the product's name above it \u2014 no raw link, no question (owner decree).
+// It is never empty: Evolution answers an empty body with 400 "body does not meet minimum length
+// of 1", and the card fell back to a photo with the long caption (2026-10-19, live).
+test("a single card goes out under the product's name, never an empty body", () => {
   const branch = adapter.slice(adapter.indexOf("let carouselHandled = false"), adapter.indexOf("if (!carouselHandled)"));
   const bodyBlock = branch.slice(branch.indexOf("const singleCard ="), branch.indexOf("const carouselCards"));
   assert.ok(bodyBlock.length > 0, "the body is decided per card count");
-  assert.match(bodyBlock, /singleCard\s*$\s*\?\s*""/m, "one card means an empty body");
+  assert.doesNotMatch(bodyBlock, /singleCard\s*$\s*\?\s*""/m, "one card must not mean an empty body");
+  assert.match(bodyBlock, /singleCard\s*$\s*\?\s*\(loneCardProductName\(\) \|\| "M1 Store"\)/m, "one card is introduced by its product's name");
   assert.match(bodyBlock, /\u0627\u062e\u062a\u0627\u0631 \u0627\u0644\u0644\u0648\u0646/, "a batch still gets its lead line");
 });
 
-// The gateway used to refuse a body-less carousel, which would have sent every single card
-// straight back to the photo-with-a-caption path.
-test("the gateway lets a card stand on its own", () => {
+// Whatever a caller passes, the gateway never posts an empty body to Evolution.
+test("the gateway never sends a carousel with an empty body", () => {
   const guard = gateway.slice(gateway.indexOf("export const sendCartCarouselMessage"), gateway.indexOf("const CAROUSEL_NETWORK_RETRY_DELAY_MS"));
   assert.match(guard, /if \(!normalizedCards\.length\) throw gatewayError/);
-  assert.doesNotMatch(guard, /!normalizedCards\.length \|\| !text\(body\)/, "a missing body is no longer a refusal");
+  assert.match(guard, /const safeBody = text\(body\) \|\| text\(normalizedCards\[0\]\.body\.split\("\\n"\)\[0\]\)/);
+  assert.match(guard, /body: safeBody, cards: normalizedCards/);
 });
 
 // The card line and the caption must agree: one picked size reads as a size.
@@ -225,12 +227,10 @@ test("the colour expansion reads the canonical price columns, never a hand-rolle
   }
 });
 
-// Nothing above the card means the card is the only place the product can be named. In a batch
-// the cards differ by colour and the lead line carries the product, so there the colour leads.
-test("a lone card names the product; a batch's cards lead with the colour", () => {
+// The line above always carries the product, so every card — lone or in a batch — leads with its
+// colour, and the lone card's line drops the " - <colour>" the card name ends with.
+test("every card leads with the colour; the line above names the model", () => {
   const branch = adapter.slice(adapter.indexOf("let carouselHandled = false"), adapter.indexOf("if (!carouselHandled)"));
-  assert.match(
-    branch,
-    /singleCard \? toText\(product\.name\) \|\| toText\(product\.color\) : toText\(product\.color\) \|\| toText\(product\.name\)/,
-  );
+  assert.match(branch, /^\s*toText\(product\.color\) \|\| toText\(product\.name\),$/m);
+  assert.match(branch, /name\.toLowerCase\(\)\.endsWith\(suffix\.toLowerCase\(\)\)/);
 });

@@ -2520,9 +2520,12 @@ export const sendCartCarouselMessage = async ({ phone, body = "", cards = [], fa
   // A single card says everything itself, so the body above it may be empty — what a carousel
   // cannot be without is a card.
   if (!normalizedCards.length) throw gatewayError("A carousel needs at least one card", "WHATSAPP_CAROUSEL_EMPTY", 400);
+  // Evolution refuses an empty body (400 "body does not meet minimum length of 1"), so a caller
+  // that leaves it blank borrows the first card's first line instead of losing the carousel.
+  const safeBody = text(body) || text(normalizedCards[0].body.split("\n")[0]);
   const current = requireEvolutionConfig();
   const endpoint = `/message/sendCarousel/${encodeURIComponent(current.instanceName)}`;
-  const requestBody = JSON.stringify({ number: normalizedPhone, body: text(body), cards: normalizedCards });
+  const requestBody = JSON.stringify({ number: normalizedPhone, body: safeBody, cards: normalizedCards });
   const logBase = { order_id: null, phoneSuffix: normalizedPhone.slice(-4), buttonIds: ["carousel"] };
   const send = () => sendEvolutionButtonsMessage({
     current,
