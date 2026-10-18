@@ -567,3 +567,77 @@
   line-height: 1.2;
   user-select: all;
 }
+
+/* The two marks the checkout shows: above the number, on the InstaPay button, on the method choice. */
+.sfl .sfl-pay-number__logos {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: var(--m1h-s3);
+}
+
+.sfl .sfl-pay-logo {
+  display: inline-flex;
+  flex: none;
+}
+
+/* The marks are square artwork with padding of their own: show them big, on a white tile, so
+   they read on the dark theme too. */
+.sfl .sfl-pay-logo img {
+  display: block;
+  width: 60px;
+  height: 60px;
+  object-fit: contain;
+  border-radius: 14px;
+  background: #fff;
+  box-shadow: 0 0 0 1px var(--m1h-line);
+}
+
+.sfl .sfl-pay-logo--sm img {
+  width: 34px;
+  height: 34px;
+  border-radius: 8px;
+}
+
+/* The screenshot upload: a large dashed area that reads as "tap here", not one more grey button. */
+.sfl .sfl-pay-drop {
+  display: grid;
+  justify-items: center;
+  gap: var(--m1h-s2);
+  width: 100%;
+  padding: var(--m1h-s5) var(--m1h-s3);
+  border: 2px dashed var(--m1h-accent) !important;
+  border-radius: var(--m1h-r-md);
+  background: var(--m1h-accent-soft) !important;
+  color: var(--m1h-text) !important;
+  -webkit-text-fill-color: currentColor;
+  font: inherit;
+  text-align: center;
+  cursor: pointer;
+}
+
+.sfl .sfl-pay-drop:focus-visible {
+  outline: 2px solid var(--m1h-accent);
+  outline-offset: 2px;
+}
+
+.sfl .sfl-pay-drop:disabled {
+  opacity: 0.6;
+  cursor: progress;
+}
+
+.sfl .sfl-pay-drop__icon {
+  width: 36px;
+  height: 36px;
+  color: var(--m1h-accent);
+}
+
+.sfl .sfl-pay-drop__title {
+  font-size: 17px;
+  font-weight: 700;
+}
+
+.sfl .sfl-pay-drop__hint {
+  font-size: 13px;
+  color: var(--m1h-text-2);
+}

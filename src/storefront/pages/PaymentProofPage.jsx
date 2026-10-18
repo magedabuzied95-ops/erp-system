@@ -5,16 +5,18 @@ import {
   CheckCircle2,
   Clock3,
   Copy,
-  ExternalLink,
   ImagePlus,
   Loader2,
   MessageCircleWarning,
   Send,
-  Smartphone,
   Wallet,
 } from "lucide-react";
 
 import { api } from "../../shared/api/api";
+import instaPayLogoWebp from "../../assets/payments/instapay.webp";
+import instaPayLogo from "../../assets/payments/instapay.png";
+import vodafoneCashLogoWebp from "../../assets/payments/vodafone-cash.webp";
+import vodafoneCashLogo from "../../assets/payments/vodafone-cash.png";
 import { sfText } from "../lib/sfText";
 import { releaseBootLoader } from "../lib/bootLoader";
 import { prepareImageUpload } from "../lib/prepareImageUpload";
@@ -36,6 +38,19 @@ import "./customerLinks.css";
 */
 
 const text = (value = "") => String(value ?? "").trim();
+
+// The same two marks the checkout shows, so the customer recognises where to send the money.
+function PayLogo({ kind, className = "sfl-pay-logo" }) {
+  const sources = kind === "instapay"
+    ? { webp: instaPayLogoWebp, png: instaPayLogo, alt: "InstaPay" }
+    : { webp: vodafoneCashLogoWebp, png: vodafoneCashLogo, alt: "Vodafone Cash" };
+  return (
+    <picture className={className}>
+      <source srcSet={sources.webp} type="image/webp" />
+      <img src={sources.png} alt={sources.alt} loading="lazy" decoding="async" />
+    </picture>
+  );
+}
 const formatMoney = (value) => {
   const amount = Number(value) || 0;
   const hasPiastres = Math.round(amount * 100) % 100 !== 0;
@@ -175,6 +190,10 @@ function TransferNumber({ value, label }) {
   };
   return (
     <div className="sfl-pay-number">
+      <span className="sfl-pay-number__logos" aria-hidden="true">
+        <PayLogo kind="vodafone_cash" />
+        <PayLogo kind="instapay" />
+      </span>
       <span className="sfl-text sfl-text--sm sfl-text--muted">{label}</span>
       <span ref={valueRef} dir="ltr" className="sfl-pay-number__value">{value}</span>
       <button
@@ -422,8 +441,8 @@ function PaymentProofPageInner() {
                   />
                 ) : null}
                 {methods.instapay_url ? (
-                  <a href={instapayHref} className="sfx-btn sfx-btn--secondary sfx-btn--lg sfx-btn--block">
-                    <ExternalLink className="h-5 w-5" aria-hidden="true" />
+                  <a href={instapayHref} className="sfx-btn sfx-btn--secondary sfx-btn--lg sfx-btn--block sfl-pay-instapay">
+                    <PayLogo kind="instapay" className="sfl-pay-logo sfl-pay-logo--sm" />
                     {sfText("storefront.paymentProof.openInstapay")}
                   </a>
                 ) : null}
@@ -449,7 +468,7 @@ function PaymentProofPageInner() {
                         onClick={() => setMethod("instapay")}
                         className={`sfl-pay-method${method === "instapay" ? " is-selected" : ""}`}
                       >
-                        <Wallet aria-hidden="true" />
+                        <PayLogo kind="instapay" className="sfl-pay-logo sfl-pay-logo--sm" />
                         {sfText("storefront.paymentProof.instapay")}
                       </button>
                     ) : null}
@@ -461,7 +480,7 @@ function PaymentProofPageInner() {
                         onClick={() => setMethod("vodafone_cash")}
                         className={`sfl-pay-method${method === "vodafone_cash" ? " is-selected" : ""}`}
                       >
-                        <Smartphone aria-hidden="true" />
+                        <PayLogo kind="vodafone_cash" className="sfl-pay-logo sfl-pay-logo--sm" />
                         {sfText("storefront.paymentProof.vodafoneCash")}
                       </button>
                     ) : null}
@@ -482,11 +501,16 @@ function PaymentProofPageInner() {
                 <button
                   type="button"
                   onClick={() => fileInputRef.current?.click()}
-                  className={`sfx-btn ${preview ? "sfx-btn--ghost" : "sfx-btn--secondary"} sfx-btn--lg sfx-btn--block`}
+                  className={preview ? "sfx-btn sfx-btn--ghost sfx-btn--lg sfx-btn--block" : "sfl-pay-drop"}
                   disabled={preparing}
                 >
-                  {preparing ? <Loader2 className="h-5 w-5 animate-spin" aria-hidden="true" /> : <ImagePlus className="h-5 w-5" aria-hidden="true" />}
-                  {preview ? sfText("storefront.paymentProof.changeImage") : sfText("storefront.paymentProof.chooseImageButton")}
+                  {preparing ? <Loader2 className="h-6 w-6 animate-spin" aria-hidden="true" /> : <ImagePlus className={preview ? "h-5 w-5" : "sfl-pay-drop__icon"} aria-hidden="true" />}
+                  {preview ? sfText("storefront.paymentProof.changeImage") : (
+                    <>
+                      <span className="sfl-pay-drop__title">{sfText("storefront.paymentProof.chooseImageButton")}</span>
+                      <span className="sfl-pay-drop__hint">{sfText("storefront.paymentProof.chooseImageHint")}</span>
+                    </>
+                  )}
                 </button>
               </div>
             </section>

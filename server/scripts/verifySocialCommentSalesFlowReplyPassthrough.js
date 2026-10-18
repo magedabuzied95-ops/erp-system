@@ -25,7 +25,10 @@ const source = readFileSync(
 );
 
 // Walk back from each scripted intent to the call that carries it.
-const SENDER_OPEN = /await (sendAndLogMetaText|sendSocialCommentSalesFlowText)\(\{/g;
+// appendAiGeneratedSupportReply only RECORDS a row for the inbox (a card that went out as a
+// template, which no text sender carries); it sends nothing, so an intent on it is not a reply
+// that the orchestrator could rewrite.
+const SENDER_OPEN = /await (sendAndLogMetaText|sendSocialCommentSalesFlowText|appendAiGeneratedSupportReply)\(\{/g;
 
 const senderForOffset = (offset) => {
   SENDER_OPEN.lastIndex = 0;
@@ -45,7 +48,7 @@ let hit = null;
 while ((hit = intentPattern.exec(source)) !== null) {
   seen += 1;
   const sender = senderForOffset(hit.index);
-  if (sender !== "sendSocialCommentSalesFlowText") {
+  if (sender !== "sendSocialCommentSalesFlowText" && sender !== "appendAiGeneratedSupportReply") {
     const line = source.slice(0, hit.index).split("\n").length;
     offenders.push(`${hit[1]} (line ${line}) is sent through ${sender || "an unknown sender"}`);
   }

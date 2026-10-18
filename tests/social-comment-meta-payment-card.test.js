@@ -24,15 +24,22 @@ test("the card names the fee and says it comes off the total, within Meta's limi
 
 test("without an InstaPay link: copy the number + upload, both through /pay", () => {
   const card = buildShippingFeeMetaCard({ order, amount: 100, transfer, payUrl });
-  assert.deepEqual(card.buttons.map((button) => button.title), ["📋 انسخ الرقم", "📸 ارفع صورة التحويل"]);
+  assert.deepEqual(card.buttons.map((button) => button.title), ["📋 انسخ وارفع التحويل"]);
   assert.ok(card.buttons.every((button) => button.url === payUrl));
 });
 
-test("with an InstaPay link: open InstaPay + copy the number", () => {
+test("even with an InstaPay link the card has ONE button, to /pay (owner, 2026-10-18)", () => {
   const card = buildShippingFeeMetaCard({ order, amount: 100, transfer: { ...transfer, instapayUrl: "https://ipn.eg/S/x" }, payUrl });
-  assert.deepEqual(card.buttons.map((button) => button.title), ["🏦 حوّل بانستا باي", "📋 انسخ الرقم"]);
-  // Through /pay: the ipn.eg link opens a QR page inside Instagram instead of the app.
-  assert.equal(card.buttons[0].url, `${payUrl}?open=instapay`);
+  assert.deepEqual(card.buttons, [{ title: "📋 انسخ وارفع التحويل", url: payUrl }]);
+});
+
+test("no card text before or beside the cards: the address card and the payment card stand alone", () => {
+  const meta = fs.readFileSync(new URL("../server/services/metaIntegrationService.js", import.meta.url), "utf8");
+  // The "☑ ممتاز / فاضل بس بيانات الشحن / اضغط «إملا بيانات الشحن»" text went out under the card.
+  assert.doesNotMatch(meta, /اضغط «إملا بيانات الشحن» وكمل بياناتك/);
+  assert.match(meta, /if \(addressCardSent\) \{[\s\S]{0,400}appendAiGeneratedSupportReply\([\s\S]{0,400}\} else await sendSocialCommentSalesFlowText\(/);
+  // "✅ تم تأكيد طلبك بنجاح" is not sent on Messenger/Instagram when the payment card follows.
+  assert.match(meta, /else if \(!metaPaymentCard\) await sendSocialCommentSalesFlowText\(\{/);
 });
 
 test("free shipping: the advance is the confirmation fee, not 'قيمة الشحن'", () => {

@@ -176,16 +176,14 @@ export const buildShippingFeePaymentCard = ({ order = {}, amount = 0, transfer =
 
 /**
  * The same payment step for Messenger and Instagram, as a generic-template card. Neither has a
- * copy button, so "انسخ الرقم" opens /pay, where the number sits beside a real copy button and the
- * screenshot upload. InstaPay gets its own button only when a payment link is saved; otherwise the
- * second slot is the upload. Meta caps a button title at 20 characters and title/subtitle at 80.
- * The owner asked for this short form (2026-10-18): what to transfer, that it comes off the total,
- * the number, two buttons — no governorate rule, no wall of text.
+ * copy button, so the card's one button opens /pay: the number beside a real copy button, the
+ * InstaPay button and the screenshot upload. Meta caps a button title at 20 characters and
+ * title/subtitle at 80. The owner asked for this short form (2026-10-18): what to transfer, that it
+ * comes off the total, the number, one button — no governorate rule, no wall of text.
  */
 export const buildShippingFeeMetaCard = ({ order = {}, amount = 0, transfer = {}, payUrl = "" } = {}) => {
   const fee = formatMoney(amount);
   const number = text(transfer.vodafone) || text(transfer.instapayHandle);
-  const instapayUrl = text(transfer.instapayUrl);
   const isShippingFee = advanceLabel(order) === "رسوم الشحن";
   const title = isShippingFee
     ? `💳 لتأكيد الأوردر حوّل قيمة الشحن ${fee} جنيه`
@@ -194,13 +192,10 @@ export const buildShippingFeeMetaCard = ({ order = {}, amount = 0, transfer = {}
     "✨ المبلغ بيتخصم من إجمالي الأوردر",
     number ? `📱 ${number} · فودافون كاش أو انستا باي` : "",
   ].filter(Boolean).join("\n").slice(0, 80);
-  const buttons = [
-    // Through /pay, not the ipn.eg link itself: inside Instagram/Messenger that link renders a QR
-    // page instead of opening the app; /pay?open=instapay hands over with the app's own scheme.
-    instapayUrl ? { title: "🏦 حوّل بانستا باي", url: payUrl ? `${payUrl}?open=instapay` : instapayUrl } : null,
-    payUrl ? { title: "📋 انسخ الرقم", url: payUrl } : null,
-    !instapayUrl && payUrl ? { title: "📸 ارفع صورة التحويل", url: payUrl } : null,
-  ].filter(Boolean);
+  // ONE button (owner, 2026-10-18): /pay has the number with its copy button, the InstaPay button
+  // (opened through the app's own scheme there) and the screenshot upload — a second button only
+  // led to the same page. "انسخ الرقم وارفع التحويل" is 23 characters; Meta allows 20.
+  const buttons = payUrl ? [{ title: "📋 انسخ وارفع التحويل", url: payUrl }] : [];
   const fallbackText = [
     title,
     "✨ المبلغ بيتخصم من إجمالي الأوردر",

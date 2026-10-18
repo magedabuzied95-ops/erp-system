@@ -1394,6 +1394,7 @@
     "copyNumber": "Copy the number",
     "numberCopied": "Copied ✅ now transfer from your app",
     "paidWith": "How did you transfer?",
+    "chooseImageHint": "After transferring, tap here and pick the transfer screenshot 📸",
     "stepUpload": "2. Upload the transfer screenshot",
     "chooseImageButton": "Choose the screenshot",
     "changeImage": "Change image",

@@ -20134,16 +20134,24 @@ const handleSocialCommentMessengerQuickReplySelection = async ({
             selectedSize,
           })
         : false;
-      await sendSocialCommentSalesFlowText({
+      // The card IS the step (owner, 2026-10-18): its button says "إملا بيانات الشحن", so a text
+      // repeating "فاضل بس بيانات الشحن… اضغط الزرار" under it is dropped. The inbox still gets a
+      // line, so staff see what the customer was sent.
+      if (addressCardSent) {
+        await appendAiGeneratedSupportReply({
+          tenantId: config.tenant_id,
+          sessionId: message.external_conversation_id,
+          answer: `📦 كارت «إملا بيانات الشحن»\n${addressLink}`,
+          detectedIntent: "social_comment_sales_flow_confirm",
+          channel: message.channel,
+          deliveryStatus: "sent",
+        }).catch(() => null);
+      } else await sendSocialCommentSalesFlowText({
         config,
         message,
         text: addressLink
-          ? (addressCardSent
-              // The card is right above this message, so the copy points at its button rather
-              // than repeating what the form itself already asks for.
-              ? "☑ ممتاز\nفاضل بس بيانات الشحن 📦\nاضغط «إملا بيانات الشحن» وكمل بياناتك، وبعدها أكد الطلب ❤️"
-              // No card, so the link has to be IN the text — there is no button to point at.
-              : `☑ ممتاز\nفاضل بس بيانات الشحن 📦\nافتح اللينك ده وكمل بياناتك، وبعدها أكد الطلب ❤️\n\n${addressLink}`)
+          // No card, so the link has to be IN the text — there is no button to point at.
+          ? `☑ ممتاز\nفاضل بس بيانات الشحن 📦\nافتح اللينك ده وكمل بياناتك، وبعدها أكد الطلب ❤️\n\n${addressLink}`
           // Only when no public URL is configured: the old text path is the fallback, never the plan.
           : "ممتاز ✅\n\nلإتمام الطلب برجاء إرسال بيانات الشحن:\n\nالاسم\n\nرقم الهاتف\n\nالمحافظة\n\nالعنوان بالتفصيل",
         detectedIntent: "social_comment_sales_flow_confirm",
@@ -20697,7 +20705,10 @@ export const completeSocialCommentOrderFromAddressRequest = async ({
   // ONE text for every channel. This branch kept its own inline copy, so the invoice added to
   // successText reached WhatsApp and nothing else — INV-1246 confirmed on Instagram with the old
   // wording while the WhatsApp order beside it carried its invoice and total.
-  else await sendSocialCommentSalesFlowText({
+  // With a payment card to follow, the card is the only message (owner, 2026-10-18): "تم تأكيد
+  // طلبك" before the money is in said the order was settled when it was not — the customer hears
+  // that from the payment receipt (notifyPaymentProofApproved).
+  else if (!metaPaymentCard) await sendSocialCommentSalesFlowText({
     config,
     message,
     text: successText,
