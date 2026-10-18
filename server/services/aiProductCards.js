@@ -4,6 +4,7 @@ import { resolveCustomerDisplayPrice } from "../utils/customerDisplayPrice.js";
 import { resolveCurrentSellingPrice } from "../../src/shared/lib/currentSellingPrice.js";
 import { getPublicBackendUrl } from "../utils/publicUrl.js";
 import db from "../database/db.js";
+import { isCrocsProduct, resolveCrocsEuSize } from "../../src/shared/lib/crocsSizes.js";
 
 export { storefrontBaseUrl } from "./storefrontProductUrlService.js";
 
@@ -819,6 +820,9 @@ const buildBaseCard = (product = {}, overrides = {}) => {
     card_reply_mode: product?.card_reply_mode || product?.reply_mode || product?.replyMode || "",
     send_scope: text(overrides.send_scope || product?.send_scope || ""),
     selected_size: text(overrides.selected_size || product?.selected_size || ""),
+    // How a size is PRINTED for the customer (productCardSizeLabel). Carried on the card because
+    // the channel adapters re-normalise flat cards that no longer have the product's type.
+    size_display: text(overrides.size_display || product?.size_display || (isCrocsProduct(product) ? "crocs_eu" : "")),
   };
 };
 
@@ -982,13 +986,24 @@ export const productCardPickedSize = (product = {}) =>
     ? text(product?.selected_size || product?.size)
     : "");
 
+// The size the CUSTOMER reads. Crocs are stocked under the factory marking (M6/W8) while the
+// site prints the EU pair (38/39) \u2014 the same rule as the product page
+// (isCrocsProduct ? resolveCrocsEuSize : size) \u2014 so a card must print what the site prints.
+// Display only: the variant and the order still carry the stock marking.
+export const productCardSizeLabel = (product = {}, size = "") =>
+  (text(product?.size_display) === "crocs_eu" || isCrocsProduct(product) ? resolveCrocsEuSize(size) : text(size));
+
+// Two markings can print the same EU pair (J3 and M3/W5 are both 34/35) \u2014 list it once.
+export const productCardSizeLabels = (product = {}, sizes = []) =>
+  [...new Set((Array.isArray(sizes) ? sizes : []).map((size) => productCardSizeLabel(product, size)).filter(Boolean))];
+
 const formatPickedSizeLine = (product = {}) => {
   const picked = productCardPickedSize(product);
-  return picked ? `\u0627\u0644\u0645\u0642\u0627\u0633: ${picked}` : "";
+  return picked ? `\u0627\u0644\u0645\u0642\u0627\u0633: ${productCardSizeLabel(product, picked)}` : "";
 };
 
-const formatAvailableSizesLine = (sizes = []) => {
-  const normalizedSizes = sortSizes(sizes);
+const formatAvailableSizesLine = (sizes = [], product = {}) => {
+  const normalizedSizes = productCardSizeLabels(product, sortSizes(sizes));
   return normalizedSizes.length ? `\u0627\u0644\u0645\u0642\u0627\u0633\u0627\u062a \u0627\u0644\u0645\u062a\u0627\u062d\u0629: ${normalizedSizes.join("\u060c ")}` : "";
 };
 
@@ -999,7 +1014,7 @@ export const productCardReplyText = (product = {}) => {
     return [
       productCardName(product) ? `المنتج: ${productCardName(product)}` : "",
       product.color ? `\u0627\u0644\u0644\u0648\u0646: ${product.color}` : "",
-      formatPickedSizeLine(product) || formatAvailableSizesLine(product.available_sizes || product.sizes),
+      formatPickedSizeLine(product) || formatAvailableSizesLine(product.available_sizes || product.sizes, product),
       formatCloserPrice(product.price) ? `\u0627\u0644\u0633\u0639\u0631: ${formatCloserPrice(product.price)}` : "",
       productCardUrl(product) || "",
     ].filter(Boolean).join("\n");
@@ -1008,14 +1023,14 @@ export const productCardReplyText = (product = {}) => {
     return [
       productCardName(product),
       product.color ? `\u0627\u0644\u0644\u0648\u0646: ${product.color}` : "",
-      formatPickedSizeLine(product) || formatAvailableSizesLine(product.available_sizes || product.sizes),
+      formatPickedSizeLine(product) || formatAvailableSizesLine(product.available_sizes || product.sizes, product),
       formatCloserPrice(product.price) ? `\u0627\u0644\u0633\u0639\u0631: ${formatCloserPrice(product.price)}` : "",
       productCardUrl(product) ? `\u0627\u0644\u0644\u064a\u0646\u0643: ${productCardUrl(product)}` : "",
       "",
       "\u0641\u064a\u0647 \u0644\u0648\u0646 \u0639\u062c\u0628\u0643\u061f",
     ].filter(Boolean).join("\n");
   }
-  const sizes = sortSizes(product.available_sizes || product.sizes);
+  const sizes = productCardSizeLabels(product, sortSizes(product.available_sizes || product.sizes));
   return [
     productCardName(product),
     product.color ? `\u0627\u0644\u0644\u0648\u0646: ${product.color}` : "",
@@ -1047,7 +1062,7 @@ export const instagramProductShareText = (product = {}) => {
 
 export const productImageCaption = (product = {}) => {
   const priceText = formatCloserPrice(product.price);
-  const sizesLine = formatPickedSizeLine(product) || formatAvailableSizesLine(product.available_sizes || product.sizes);
+  const sizesLine = formatPickedSizeLine(product) || formatAvailableSizesLine(product.available_sizes || product.sizes, product);
   return [
     productCardName(product),
     product.color ? `\u0627\u0644\u0644\u0648\u0646: ${product.color}` : "",

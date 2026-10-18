@@ -8,6 +8,8 @@ import { resolveAIStatus } from "./aiStatusResolver.js";
 import {
   normalizeProductCards as normalizeStructuredProductCards,
   productCardPickedSize,
+  productCardSizeLabel,
+  productCardSizeLabels,
   productCardReplyText,
 } from "./aiProductCards.js";
 
@@ -2039,10 +2041,11 @@ export const sendWhatsAppCloudReply = async ({ to, reply = {}, messageText = "",
           // over a lone card), so every card leads with its COLOUR.
           toText(product.color) || toText(product.name),
           toText(product.price_text),
+          // Printed the way the site prints it (Crocs: 38/39, not M6/W8).
           pickedSize
-            ? `المقاس: ${pickedSize}`
+            ? `المقاس: ${productCardSizeLabel(product, pickedSize)}`
             : Array.isArray(product.sizes) && product.sizes.length
-              ? `المقاسات: ${product.sizes.slice(0, 6).join(" / ")}`
+              ? `المقاسات: ${productCardSizeLabels(product, product.sizes).slice(0, 6).join(" / ")}`
               : "",
         ].filter(Boolean);
         const variantId = toText(product.variant_id || product.price_variant_id || "");

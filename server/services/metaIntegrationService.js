@@ -107,6 +107,8 @@ import { agentActionAllowed } from "./aiAgentActionPolicy.js";
 import {
   normalizeProductCards,
   productCardReplyText,
+  productCardSizeLabel,
+  productCardSizeLabels,
   instagramProductShareText,
   resolvePublicProductImageUrl,
 } from "./aiProductCards.js";
@@ -13326,11 +13328,12 @@ const buildMetaCarouselElement = (product = {}) => {
   // sizes go under a label on their OWN line in the subtitle (newline honoured). The 80-char
   // subtitle cap is why the size list uses "·" rather than ", " padding.
   const headline = [text(title), priceText].filter(Boolean).join(" — ").slice(0, 80) || "Product";
+  // Printed the way the site prints it (Crocs: 38/39, not M6/W8).
   const sizeLine = selectedSize
-    ? `المقاس: ${selectedSize}`
+    ? `المقاس: ${productCardSizeLabel(product, selectedSize)}`
     : availableSizes.length
       ? `المقاسات المتاحة:
-${availableSizes.join(" · ")}`
+${productCardSizeLabels(product, availableSizes).join(" · ")}`
       : "";
   const subtitle = sizeLine.slice(0, 80) || undefined;
   const variantId = text(product.variant_id || product.price_variant_id || "");
