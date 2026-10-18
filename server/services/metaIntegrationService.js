@@ -18327,6 +18327,9 @@ const createSocialCommentDraftOrder = async ({
       floor_number: text(structuredAddress?.floor_number || ""),
       apartment_number: text(structuredAddress?.apartment_number || ""),
       landmark: text(structuredAddress?.landmark || ""),
+      // The address page's optional second number → orders.customer_secondary_phone → Bosta's
+      // receiver.secondPhone, as on the website checkout.
+      customer_secondary_phone: text(structuredAddress?.secondary_phone || ""),
       allow_missing_phone: true,
       allow_out_of_stock_draft: true,
       product: draftData.product,

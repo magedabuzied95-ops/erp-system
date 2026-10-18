@@ -110,6 +110,37 @@ export const maskPhone = (phone = "") => {
   return `${digits.slice(0, 4)}${"•".repeat(Math.max(3, digits.length - 7))}${digits.slice(-3)}`;
 };
 
+// An Egyptian mobile as the customer typed it ("+20 10…", "0020…", Arabic-Indic digits) → "01xxxxxxxxx",
+// or "" when it is not one.
+export const localEgyptMobile = (value = "") => {
+  let digits = text(value)
+    .replace(/[٠-٩]/g, (digit) => String(digit.charCodeAt(0) - 0x0660))
+    .replace(/[۰-۹]/g, (digit) => String(digit.charCodeAt(0) - 0x06F0))
+    .replace(/\D/g, "");
+  if (digits.startsWith("0020")) digits = digits.slice(4);
+  else if (digits.startsWith("20") && digits.length === 12) digits = digits.slice(2);
+  if (digits.length === 10 && digits.startsWith("1")) digits = `0${digits}`;
+  return /^01[0125][0-9]{8}$/.test(digits) ? digits : "";
+};
+
+// The same rule as the website checkout: the order confirmation and every update after it are
+// WhatsApp messages, so a main number with no WhatsApp means a customer we can never reach. Only a
+// definite "no" blocks; an unreachable gateway lets the order through.
+// STOREFRONT_CHECKOUT_WHATSAPP_CHECK=false turns it off here too.
+const mainPhoneHasWhatsapp = async (phone = "") => {
+  if (String(process.env.STOREFRONT_CHECKOUT_WHATSAPP_CHECK || "").trim().toLowerCase() === "false") return null;
+  const local = localEgyptMobile(phone);
+  if (!local) return null;
+  try {
+    const { whatsappNumberIsReachable } = await import("./whatsappCapabilitiesService.js");
+    const result = await whatsappNumberIsReachable({ phone: local });
+    return result?.known ? result.reachable === true : null;
+  } catch (error) {
+    console.warn("[address-request] whatsapp check skipped", { message: error?.message || String(error) });
+    return null;
+  }
+};
+
 const rowIsExpired = (row = {}) => {
   const expiresAt = row?.expires_at ? new Date(row.expires_at).getTime() : 0;
   return Boolean(expiresAt) && expiresAt < Date.now();
@@ -308,6 +339,17 @@ export const submitPublicAddressRequest = async ({ code = "", payload = {}, ipAd
   // number stands. Nothing on the public page ever echoes the stored one.
   const submittedPhone = text(payload.customer_phone).replace(/[^\d+]/g, "").slice(0, 20);
   const customerPhone = submittedPhone || row.customer_phone;
+  if (await mainPhoneHasWhatsapp(customerPhone) === false) {
+    throw Object.assign(new Error("الرقم ده مش عليه واتساب. اكتب رقم عليه واتساب علشان نقدر نأكدلك الطلب."), {
+      status: 422,
+      code: "ADDRESS_REQUEST_NOT_ON_WHATSAPP",
+      field: "customer_phone",
+    });
+  }
+  // A second number for the courier (Bosta's receiver.secondPhone), optional. Kept only when it is a
+  // real Egyptian mobile and not the main number again.
+  const secondaryPhone = localEgyptMobile(payload.secondary_phone);
+  const secondaryPhoneKept = secondaryPhone && secondaryPhone !== localEgyptMobile(customerPhone) ? secondaryPhone : "";
 
   const address = {
     shipping_provider: "bosta",
@@ -321,6 +363,7 @@ export const submitPublicAddressRequest = async ({ code = "", payload = {}, ipAd
     floor_number: text(payload.floor_number).slice(0, 60),
     apartment_number: text(payload.apartment_number).slice(0, 60),
     landmark: text(payload.landmark).slice(0, 200),
+    ...(secondaryPhoneKept ? { secondary_phone: secondaryPhoneKept } : {}),
   };
 
   const updated = await db.query(
@@ -414,4 +457,116 @@ export const submitPublicAddressRequest = async ({ code = "", payload = {}, ipAd
   });
 
   return { already_submitted: false, ...(await loadPublicAddressRequest(code)) };
+};
+
+/*
+ * A returning customer's last address, offered back the moment they type their number (owner,
+ * 2026-10-18).
+ *
+ * The page is public: if any number returned its owner's address, anyone holding a link could read
+ * a stranger's home by typing their phone. So the lookup is scoped to THIS conversation — the same
+ * Messenger/Instagram/WhatsApp account that is holding the link — and the number must match what
+ * that account used before: an address it submitted through an earlier link, or an order it placed.
+ * A number never used from this account finds nothing.
+ */
+const sameMobile = (a = "", b = "") => {
+  const left = localEgyptMobile(a);
+  return Boolean(left) && left === localEgyptMobile(b);
+};
+
+export const lookupReturningCustomerAddress = async ({ code = "", phone = "" } = {}) => {
+  const row = await loadRowByCode(code);
+  if (row.status !== "pending" || rowIsExpired(row)) return { found: false };
+  const local = localEgyptMobile(phone);
+  if (!local) return { found: false };
+
+  let source = null;
+  const earlierLinks = await db.query(
+    `
+    SELECT customer_name, customer_phone, address
+    FROM conversation_address_requests
+    WHERE COALESCE(tenant_id, 0) = COALESCE($1::bigint, 0)
+      AND session_id = $2
+      AND status = 'submitted'
+      AND id <> $3
+    ORDER BY submitted_at DESC NULLS LAST
+    LIMIT 10
+    `,
+    [row.tenant_id || null, row.session_id, row.id]
+  ).catch(() => ({ rows: [] }));
+  const link = earlierLinks.rows.find((item) => sameMobile(item.customer_phone, local));
+  if (link) {
+    const address = link.address && typeof link.address === "object" ? link.address : {};
+    source = {
+      customer_name: link.customer_name,
+      secondary_phone: address.secondary_phone,
+      city_id: address.shipping_city_id,
+      zone_id: address.shipping_zone_id,
+      district_id: address.shipping_district_id,
+      street_address: address.street_address,
+      building_number: address.building_number,
+      floor_number: address.floor_number,
+      apartment_number: address.apartment_number,
+      landmark: address.landmark,
+    };
+  }
+  if (!source) {
+    const orders = await db.query(
+      `
+      SELECT customer_name, customer_phone, customer_secondary_phone,
+             shipping_city_id, shipping_zone_id, shipping_district_id,
+             street_address, building_number, floor_number, apartment_number, landmark
+      FROM orders
+      WHERE ai_agent_conversation_id = $1
+        AND ($2::bigint IS NULL OR tenant_id = $2::bigint)
+        AND COALESCE(shipping_district_id::text, '') <> ''
+      ORDER BY created_at DESC
+      LIMIT 10
+      `,
+      [row.session_id, row.tenant_id || null]
+    ).catch(() => ({ rows: [] }));
+    const order = orders.rows.find((item) => sameMobile(item.customer_phone, local));
+    if (order) {
+      source = {
+        customer_name: order.customer_name,
+        secondary_phone: order.customer_secondary_phone,
+        city_id: order.shipping_city_id,
+        zone_id: order.shipping_zone_id,
+        district_id: order.shipping_district_id,
+        street_address: order.street_address,
+        building_number: order.building_number,
+        floor_number: order.floor_number,
+        apartment_number: order.apartment_number,
+        landmark: order.landmark,
+      };
+    }
+  }
+  if (!source) return { found: false };
+
+  // The ids must still be a live Bosta location, and the page needs their names to show the pick.
+  const location = await validateBostaHierarchy({
+    cityId: source.city_id,
+    zoneId: source.zone_id,
+    districtId: source.district_id,
+  }).catch(() => null);
+  return {
+    found: true,
+    customer_name: text(source.customer_name),
+    secondary_phone: localEgyptMobile(source.secondary_phone),
+    location: location
+      ? {
+          city_id: text(location.city_id),
+          zone_id: text(location.zone_id),
+          district_id: text(location.district_id),
+          label: [location.city_label, location.zone_label, location.district_label !== location.zone_label ? location.district_label : ""]
+            .filter(Boolean)
+            .join(" — "),
+        }
+      : null,
+    street_address: text(source.street_address),
+    building_number: text(source.building_number),
+    floor_number: text(source.floor_number),
+    apartment_number: text(source.apartment_number),
+    landmark: text(source.landmark),
+  };
 };

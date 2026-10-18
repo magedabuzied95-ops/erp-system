@@ -641,3 +641,22 @@
   font-size: 13px;
   color: var(--m1h-text-2);
 }
+
+/* /addr: whether the main number is on WhatsApp, right under it. */
+.sfl .sfl-phone-state {
+  display: flex;
+  align-items: center;
+  gap: var(--m1h-s2);
+  margin: 0;
+  padding-inline: var(--m1h-s1);
+}
+
+.sfl .sfl-phone-state--ok {
+  color: var(--sfx-success) !important;
+  font-weight: 600;
+}
+
+.sfl .sfl-phone-state--bad {
+  color: var(--sfx-danger) !important;
+  font-weight: 600;
+}

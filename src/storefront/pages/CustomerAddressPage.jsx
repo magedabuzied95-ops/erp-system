@@ -40,6 +40,18 @@ const idOf = (item = {}) => text(item.id ?? item.city_id ?? item.zone_id ?? item
 const labelOf = (item = {}) =>
   text(item.name_ar || item.name_en || item.name || item.city_name_ar || item.zone_name_ar || item.district_name_ar);
 
+// Same reading as the server's localEgyptMobile: "+20 10…", "0020…", Arabic-Indic digits → "01xxxxxxxxx".
+const localEgyptMobile = (value = "") => {
+  let digits = text(value)
+    .replace(/[٠-٩]/g, (digit) => String(digit.charCodeAt(0) - 0x0660))
+    .replace(/[۰-۹]/g, (digit) => String(digit.charCodeAt(0) - 0x06F0))
+    .replace(/\D/g, "");
+  if (digits.startsWith("0020")) digits = digits.slice(4);
+  else if (digits.startsWith("20") && digits.length === 12) digits = digits.slice(2);
+  if (digits.length === 10 && digits.startsWith("1")) digits = `0${digits}`;
+  return /^01[0125][0-9]{8}$/.test(digits) ? digits : "";
+};
+
 const searchRowLabel = (row = {}) => {
   const city = text(row.city_name_ar || row.city_name_en);
   const zone = text(row.zone_name_ar || row.zone_name_en);
@@ -172,6 +184,67 @@ function CustomerAddressPageInner() {
   const [fieldError, setFieldError] = useState("");
   const searchBoxRef = useRef(null);
 
+  // A second number for the courier, and the WhatsApp state of the main one — the same rule as the
+  // website checkout: the order is confirmed on WhatsApp, so a main number without it is refused.
+  const [secondaryPhone, setSecondaryPhone] = useState("");
+  const [whatsappState, setWhatsappState] = useState("idle"); // idle | checking | ok | missing | unknown
+  // A returning customer: once their number is in, their last address from THIS conversation comes
+  // back (the server only looks inside the link's own conversation).
+  const [returningFilled, setReturningFilled] = useState(false);
+  const lookedUpPhoneRef = useRef("");
+  const typedPhone = localEgyptMobile(phoneOverride);
+
+  useEffect(() => {
+    if (!typedPhone || linkState !== "ready") {
+      setWhatsappState("idle");
+      return undefined;
+    }
+    let active = true;
+    setWhatsappState("checking");
+    const timer = window.setTimeout(() => {
+      api.get(`/storefront/checkout/whatsapp-check?phone=${encodeURIComponent(typedPhone)}`)
+        .then((payload) => {
+          if (!active) return;
+          setWhatsappState(payload?.exists === true ? "ok" : payload?.exists === false ? "missing" : "unknown");
+        })
+        .catch(() => active && setWhatsappState("unknown"));
+    }, 450);
+    return () => {
+      active = false;
+      window.clearTimeout(timer);
+    };
+  }, [typedPhone, linkState]);
+
+  useEffect(() => {
+    if (!typedPhone || linkState !== "ready" || lookedUpPhoneRef.current === typedPhone) return undefined;
+    let active = true;
+    const timer = window.setTimeout(() => {
+      lookedUpPhoneRef.current = typedPhone;
+      api.get(`/public/address-request/${encodeURIComponent(resolvedCode)}/returning?phone=${encodeURIComponent(typedPhone)}`)
+        .then((payload) => {
+          if (!active || !payload?.found) return;
+          // Fill only what the customer has not typed themselves.
+          setCustomerName((current) => text(current) || text(payload.customer_name));
+          setSecondaryPhone((current) => text(current) || text(payload.secondary_phone));
+          if (payload.location?.district_id) {
+            setLocation((current) => current || payload.location);
+          }
+          setStreetAddress((current) => text(current) || text(payload.street_address));
+          setBuildingNumber((current) => text(current) || text(payload.building_number));
+          setFloorNumber((current) => text(current) || text(payload.floor_number));
+          setApartmentNumber((current) => text(current) || text(payload.apartment_number));
+          setLandmark((current) => text(current) || text(payload.landmark));
+          if (text(payload.floor_number) || text(payload.apartment_number) || text(payload.landmark)) setExtrasOpen(true);
+          setReturningFilled(true);
+        })
+        .catch(() => {});
+    }, 450);
+    return () => {
+      active = false;
+      window.clearTimeout(timer);
+    };
+  }, [typedPhone, linkState, resolvedCode]);
+
   useEffect(() => {
     let active = true;
     if (!resolvedCode) {
@@ -275,12 +348,17 @@ function CustomerAddressPageInner() {
       setFieldError(sfText("storefront.addressLink.fieldsRequired"));
       return;
     }
+    if (whatsappState === "missing") {
+      setFieldError(sfText("storefront.addressLink.whatsappMissing"));
+      return;
+    }
     setFieldError("");
     setSubmitting(true);
     try {
       const payload = await api.post(`/public/address-request/${encodeURIComponent(resolvedCode)}/submit`, {
         customer_name: text(customerName),
         customer_phone: text(phoneOverride),
+        secondary_phone: text(secondaryPhone),
         shipping_city_id: selectedIds.city,
         shipping_zone_id: selectedIds.zone,
         shipping_district_id: selectedIds.district,
@@ -414,15 +492,47 @@ function CustomerAddressPageInner() {
                   <input
                     value={phoneOverride}
                     onChange={(event) => setPhoneOverride(event.target.value)}
-                    placeholder={request?.has_phone ? sfText("storefront.addressLink.newPhonePlaceholder") : sfText("storefront.addressLink.phonePlaceholder")}
-                    aria-label={request?.has_phone ? sfText("storefront.addressLink.newPhonePlaceholder") : sfText("storefront.addressLink.phonePlaceholder")}
+                    placeholder={request?.has_phone ? sfText("storefront.addressLink.newPhonePlaceholder") : sfText("storefront.addressLink.whatsappPhonePlaceholder")}
+                    aria-label={request?.has_phone ? sfText("storefront.addressLink.newPhonePlaceholder") : sfText("storefront.addressLink.whatsappPhonePlaceholder")}
+                    aria-invalid={whatsappState === "missing" ? true : undefined}
                     inputMode="tel"
+                    autoComplete="tel"
                     dir="ltr"
                     className={inputClass}
                   />
                 )}
+                {whatsappState === "checking" ? (
+                  <p className="sfl-text sfl-text--sm sfl-text--muted sfl-phone-state" role="status">
+                    <Loader2 className="h-3.5 w-3.5 animate-spin" aria-hidden="true" />
+                    {sfText("storefront.addressLink.whatsappChecking")}
+                  </p>
+                ) : whatsappState === "ok" ? (
+                  <p className="sfl-text sfl-text--sm sfl-phone-state sfl-phone-state--ok" role="status">
+                    {sfText("storefront.addressLink.whatsappOk")}
+                  </p>
+                ) : whatsappState === "missing" ? (
+                  <p className="sfl-text sfl-text--sm sfl-phone-state sfl-phone-state--bad" role="alert">
+                    {sfText("storefront.addressLink.whatsappMissing")}
+                  </p>
+                ) : null}
+                <input
+                  value={secondaryPhone}
+                  onChange={(event) => setSecondaryPhone(event.target.value)}
+                  placeholder={sfText("storefront.addressLink.secondPhonePlaceholder")}
+                  aria-label={sfText("storefront.addressLink.secondPhonePlaceholder")}
+                  inputMode="tel"
+                  dir="ltr"
+                  className={inputClass}
+                />
               </div>
             </section>
+
+            {returningFilled ? (
+              <div className="sfx-notice sfx-notice--success" role="status">
+                <CheckCircle2 aria-hidden="true" />
+                <p className="sfl-text">{sfText("storefront.addressLink.returningFound")}</p>
+              </div>
+            ) : null}
 
             {/* Where */}
             <section className="sfx-surface">
