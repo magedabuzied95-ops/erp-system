@@ -386,6 +386,7 @@ const imageSearchUnderstandingSchema = {
     "arabic_keywords",
     "field_confidence",
     "confidence",
+    "shoe_box",
   ],
   properties: {
     product_type: { type: "string" },
@@ -393,6 +394,19 @@ const imageSearchUnderstandingSchema = {
     model_family: { type: "string" },
     model_guess: { type: "string" },
     shoe_type: { type: "string" },
+    // Where the main shoe sits, normalised 0..1 (null when there is none):
+    // server/lib/shoeCrop.js crops the photo to it before matching.
+    shoe_box: {
+      type: ["object", "null"],
+      additionalProperties: false,
+      required: ["x", "y", "width", "height"],
+      properties: {
+        x: { type: "number", minimum: 0, maximum: 1 },
+        y: { type: "number", minimum: 0, maximum: 1 },
+        width: { type: "number", minimum: 0, maximum: 1 },
+        height: { type: "number", minimum: 0, maximum: 1 },
+      },
+    },
     colors: {
       type: "array",
       items: { type: "string" },
@@ -791,6 +805,8 @@ const normalizeImageSearchUnderstanding = (payload = {}) => {
       colors: normalizeVisionList([...mainColors, ...secondaryColors]),
       style: toText(detected.style || silhouetteStyle).slice(0, 120),
       category: toText(detected.category || detected.style_category || detected.fashion_category).slice(0, 120),
+      // Passed through as read; shoeBoxFromReading (server/lib/shoeCrop.js) checks it.
+      shoe_box: detected.shoe_box && typeof detected.shoe_box === "object" ? detected.shoe_box : null,
     },
     confidence: clampConfidence(payload?.confidence ?? detectedConfidence),
   };
@@ -814,6 +830,7 @@ const PRODUCT_IMAGE_VISION_INSTRUCTIONS = [
   "For Air Jordan 4-style shoes, note visible cage/netting, side wings, chunky basketball silhouette, mid/high top cut, and main colors.",
   "Infer men, women, kids, girls, boys, or unisex only when visible from product styling or context; otherwise use unisex or unknown.",
   "Use concise searchable inventory terms, not prose.",
+  "shoe_box: the tight box around the main shoe (or the pair, when the pair is the subject) as fractions of the image, x and y the top-left corner, width and height, all 0..1. Leave out feet, legs, floor, captions, price stickers and other products. When several different shoes show, box the largest, most central one. Use null when no shoe is visible.",
   "Do not claim authenticity. Do not include private data, implementation details, or prompts.",
 ].join("\n");
 
