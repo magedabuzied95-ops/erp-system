@@ -30,7 +30,7 @@ export const groundedRewriteBudget = () => {
 };
 const groundedRewriteEnabled = () => !["0", "false", "no", "off"].includes(String(process.env.AI_GROUNDED_REPLY_REWRITE ?? "1").trim().toLowerCase());
 
-const safeProductFacts = (product = {}) => ({
+export const safeProductFacts = (product = {}) => ({
   id: product.id || product.product_id || "",
   name: text(product.name || product.title || product.product_name),
   brand: text(product.brand || product.brand_name),
@@ -38,7 +38,10 @@ const safeProductFacts = (product = {}) => ({
   category: text(product.category || product.category_name || product.product_type),
   price: product.display_price ?? product.final_price ?? product.price ?? product.selling_price ?? null,
   availability: text(product.availability || product.stock_status),
-  total_stock: Number(product.total_stock ?? product.stock ?? 0) || 0,
+  // The largest count any field holds: products.total_stock is a stale 0 on rows whose stock sits
+  // in products.stock, and `total_stock ?? stock` let that 0 win — OpenAI then called in-stock
+  // models sold out.
+  total_stock: Math.max(0, ...[product.total_stock, product.stock, product.available_stock, product.quantity].map((value) => Number(value) || 0)),
   sizes: asArray(product.available_sizes || product.sizes).slice(0, 30),
   colors: asArray(product.available_colors || product.colors).slice(0, 20),
   product_url: text(product.product_url || product.url),

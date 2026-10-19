@@ -875,7 +875,8 @@ const scoreProduct = ({ product = {}, normalizedMessage = "", explicitModel = nu
   for (const term of namingTerms) {
     if (lowerName.includes(term)) reasons.push(`named:${term}`);
   }
-  const stock = Number(product.total_stock ?? product.stock ?? product.quantity ?? 0) || 0;
+  // The largest count: products.total_stock is a stale 0 on rows whose stock is in products.stock.
+  const stock = Math.max(0, ...[product.total_stock, product.stock, product.quantity].map((value) => Number(value) || 0));
   if (stock > 0) score += 8;
   if (product.status && !["active", "published", "available"].includes(text(product.status).toLowerCase())) score -= 20;
   return { score, reasons };
@@ -1171,9 +1172,38 @@ const withActiveDisplayPrice = (card = {}, fullProduct = {}) => {
   };
 };
 
-const buildPresentationProductCards = async ({ tenantId = null, selectedProducts = [], explicitModel = null, forceColorPresentation = false } = {}) => {
+/*
+ * A named model's cards carry what is really on the shelf. The catalog search returns bare product
+ * rows: no variants, so no sizes, and products.total_stock — 0 on live rows whose stock sits in
+ * products.stock and the variants. The OpenAI rewrite read that 0 and told a customer the three
+ * Air Force models on screen were all sold out. Only in-stock, active variants are kept, so a
+ * listed size is one we can sell.
+ */
+export const withShelfStock = (product = {}, fullProduct = null) => {
+  if (!fullProduct) return product;
+  const variants = asArray(fullProduct.variants).filter((variant) =>
+    variant?.is_active !== false && Number(variant?.stock ?? variant?.quantity ?? 0) > 0
+  );
+  const variantStock = variants.reduce((sum, variant) => sum + Number(variant?.stock ?? variant?.quantity ?? 0), 0);
+  return {
+    ...product,
+    ...fullProduct,
+    variants,
+    total_stock: variantStock || Math.max(Number(fullProduct.stock || 0), Number(product.stock || 0), 0),
+  };
+};
+
+const buildPresentationProductCards = async ({ tenantId = null, selectedProducts = [], explicitModel = null, forceColorPresentation = false, withVariants = false } = {}) => {
   if (!selectedProducts.length) return [];
-  if (!explicitModel && !forceColorPresentation) return normalizeProductCards(selectedProducts, { limit: 6 });
+  if (!explicitModel && !forceColorPresentation) {
+    if (!withVariants) return normalizeProductCards(selectedProducts, { limit: 6 });
+    const shelf = await Promise.all(selectedProducts.slice(0, 6).map(async (product) =>
+      withShelfStock(product, await loadFullProductForPresentation({ tenantId, productId: product.id || product.product_id }))
+    ));
+    const shelfCards = normalizeProductCards(shelf, { limit: 6 });
+    // Variant cards need a photo per colour; never trade the plain cards for none at all.
+    return shelfCards.length ? shelfCards : normalizeProductCards(selectedProducts, { limit: 6 });
+  }
   const fullProducts = await Promise.all(
     selectedProducts.slice(0, 12).map(async (product) => {
       const fullProduct = await loadFullProductForPresentation({ tenantId, productId: product.id || product.product_id });
@@ -1509,6 +1539,7 @@ export const generateAiBrainV2Decision = async (normalizedInbound = {}, options 
     selectedProducts: presentationProducts,
     explicitModel,
     forceColorPresentation: intent === "more_images",
+    withVariants: namedMatches.length > 0,
   });
   const images = productCards
     .map((card) => ({
