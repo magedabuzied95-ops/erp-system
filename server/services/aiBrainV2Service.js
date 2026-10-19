@@ -802,10 +802,15 @@ export const shouldSearchNamedProduct = ({ intent = "", namedProductTerms = [], 
 
 const productNameForTerms = (product = {}) => normalizeArabic(product.name || product.title || product.product_name || "").toLowerCase();
 
+// A two-letter word ("go") is a whole word of the name: "Go Walk", never the "go" in "Logo".
+const nameHoldsTerm = (name = "", term = "") => term.length >= 3
+  ? name.includes(term)
+  : new RegExp(`(?<![\\p{L}\\p{N}])${term}(?![\\p{L}\\p{N}])`, "u").test(name);
+
 export const namedProductTermsMatched = (product = {}, terms = []) => {
   const name = productNameForTerms(product);
   return {
-    words: asArray(terms).filter((term) => !term.includes(" ") && name.includes(term)).length,
+    words: asArray(terms).filter((term) => !term.includes(" ") && nameHoldsTerm(name, term)).length,
     phrase: asArray(terms).some((term) => term.includes(" ") && name.includes(term)),
   };
 };
@@ -884,7 +889,8 @@ const searchTermsForMessage = ({ message = "", explicitModel = null, namingTerms
     ]);
   }
   return unique([
-    ...asArray(namingTerms),
+    // "%go%" would pull every "Logo" / "Mango" row; the phrase ("ultra go") carries the short word.
+    ...asArray(namingTerms).filter((term) => term.length >= 3),
     ...(aliasHints.hasAliasHint ? aliasHints.searchTerms : []),
     ...(aliasHints.hasAliasHint ? aliasHints.productQueryHints : []),
     ...normalizeArabic(message)

@@ -21,6 +21,8 @@ const LATIN_STOPWORDS = new Set([
   "women", "woman", "womens", "ladies", "lady", "female", "girls", "girl", "men", "man", "mens",
   "male", "boys", "boy", "kids", "kid", "children", "child", "unisex",
 ]);
+// Two-letter model words (Skechers Ultra Go / Go Walk / Go Run). Matched as whole words only.
+const SHORT_MODEL_WORDS = new Map([["جو", "go"], ["go", "go"]]);
 const NUMBER_SPELLING = /^(?:zero|one|two|three|four|five|six|seven|eight|nine|\d)+$/;
 const ARABIC_DEFINITE = /^ال(?=\S{3,})/;
 
@@ -50,6 +52,13 @@ export const productNamingTerms = (message = "") => {
     run = [];
   };
   for (const word of words) {
+    // "الترا جو": too short to be a name on its own, so it counts only right after a model word.
+    const shortWord = SHORT_MODEL_WORDS.get(word.toLowerCase());
+    if (shortWord && run.length) {
+      terms.push(shortWord);
+      run.push(shortWord);
+      continue;
+    }
     const latin = latinOf(word);
     const parts = latin.split(" ").filter(Boolean);
     if (parts.length && parts.every((part) => isNamingWord(part) || /^\d+$/.test(part))) {

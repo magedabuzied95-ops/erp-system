@@ -110,6 +110,29 @@ test("the closest pairs of that brand for that gender are offered as the closest
   assert.match(decision.text, /^مش لاقي Skechers Max حريمي بالظبط/);
 });
 
+test("\"جو\" after a model word is part of the name, never on its own", () => {
+  assert.deepEqual(productNamingTerms("الترا جو حريمي"), ["ultra", "go", "ultra go"]);
+  assert.deepEqual(productNamingTerms("skechers ultra go"), ["skechers", "ultra", "go", "skechers ultra go"]);
+  assert.deepEqual(productNamingTerms("جو حريمي"), []);
+  assert.deepEqual(productNamingTerms("i want to go"), []);
+});
+
+test("Ultra Go asked for women, where only Ultra Light is, is not passed off as found", async () => {
+  const women = await ask("الترا جو حريمي");
+  assert.equal(women.intent, "product_search");
+  assert.ok(!names(women).includes("Skechers Ultra Go"), JSON.stringify(names(women)));
+  assert.match(women.text, /^مش لاقي Ultra Go حريمي بالظبط/);
+  const men = await ask("الترا جو رجالي");
+  assert.deepEqual(names(men), ["Skechers Ultra Go"]);
+  assert.equal(men.text, "أيوه يا فندم، Skechers Ultra Go رجالي متاح بالألوان دي:");
+});
+
+test("a two-letter name word matches a whole word, not the inside of one", async () => {
+  const { namedProductTermsMatched } = await import("../../server/services/aiBrainV2Service.js");
+  assert.equal(namedProductTermsMatched({ name: "Skechers Go Walk" }, ["go"]).words, 1);
+  assert.equal(namedProductTermsMatched({ name: "Logo Slipper" }, ["go"]).words, 0);
+});
+
 test("the reply for a model missing in that gender names the gender it is in", () => {
   const women = { key: "women", label: "حريمي" };
   assert.equal(
