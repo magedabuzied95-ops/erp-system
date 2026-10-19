@@ -1,4 +1,5 @@
 import { normalizeArabicIntentPayload, normalizeArabicMessage } from "./arabicTextNormalizer.js";
+import { detectNamedColorway } from "./namedColorways.js";
 
 const toText = (value = "", fallback = "") => String(value ?? fallback).trim();
 const asArray = (value) => (Array.isArray(value) ? value : []);
@@ -293,6 +294,9 @@ export const resolveFollowupContext = ({ memory = null, messageText = "", normal
     hasUsefulProductContext: hasContext,
   });
   if (!hasContext) return { type: "none" };
+  // "عايز البلاك كات" / "ميليتري بلاك 42" name another shoe: not a buy, size or colour of the one
+  // on screen (it became an order confirmation of the Air Force being discussed).
+  if (detectNamedColorway(messageText)) return { type: "none" };
 
   const productId = toText(v2.lastMentionedProductId || v2.lastShownProductCards?.[0]?.productId || "");
   const canonicalProduct = toText(v2.lastMentionedCanonicalProduct || "");

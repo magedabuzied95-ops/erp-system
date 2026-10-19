@@ -11,6 +11,7 @@ import { productNamingTerms } from "../utils/productNamingTerms.js";
 import { greetingReplyFor, greetingReplyParts } from "../utils/greetingReply.js";
 import { GRADE_CARD_LIMIT, GRADED_CARDS_TOTAL_LIMIT, PRODUCT_GRADES, productGrade, productGradeRank } from "../config/productGrades.js";
 import { detectCatalogBrowseSlots } from "../utils/catalogBrowseRequest.js";
+import { carriesColorway, detectNamedColorway, isColorwayBaseModel, missingColorwayText } from "../utils/namedColorways.js";
 import {
   buildConversationMemoryV2,
   mergeConversationMemoryV2,
@@ -587,6 +588,8 @@ const buildPostProductFsmDecision = ({ message = "", memory = {}, intent = "" } 
   const rememberedCards = memoryCardsFromContext(memory);
   const activeProductId = activeProductFromMemory(memory);
   if (!rememberedCards.length || !activeProductId) return null;
+  // "متاح بلاك كات ؟" asks for a colourway by name: a new search, not the shoe on screen.
+  if (detectNamedColorway(message)) return null;
 
   const confirmation = buildPostProductOrderConfirmationFromMemoryV2({ message, memory });
   if (confirmation) return confirmation;
@@ -723,13 +726,11 @@ const shouldUseColorAvailabilityFromMemory = ({ message = "", memory = {}, inten
 
 const containsAny = (value = "", terms = []) => terms.some((term) => value.includes(term));
 
-// "\u0628\u0644\u0627\u0643 \u0643\u0627\u062a" is the all-black Jordan 4. Read as a colour, "\u0645\u062a\u0627\u062d \u0628\u0644\u0627\u0643 \u0643\u0627\u062a \u061f" picked the black
-// card of whatever model was on screen \u2014 an Air Force \u2014 instead (production, 2026-10-19).
-export const BLACK_CAT_PATTERN = /(?<![\p{L}\p{N}])(?:(?:\u0627\u0644)?\u0628\u0644\u0627\u0643\s*\u0643\u0627\u062a|black\s*cat)(?![\p{L}\p{N}])/iu;
-
+// A Jordan 4 colourway by name ("\u0628\u0644\u0627\u0643 \u0643\u0627\u062a") is a Jordan 4 request. Read as a colour, "\u0645\u062a\u0627\u062d \u0628\u0644\u0627\u0643 \u0643\u0627\u062a \u061f" picked
+// the black card of whatever model was on screen \u2014 an Air Force \u2014 instead (production, 2026-10-19).
 export const detectExplicitModel = (message = "") => {
   const normalized = normalizeArabic(message);
-  if (/(\u062c\u0648\u0631\u062f\u0646\s*(?:4|\u0664|\u06f4|\u0641\u0648\u0631)|jordan\s*4|jordan4|aj4|j4)/i.test(normalized) || BLACK_CAT_PATTERN.test(normalized) || BLACK_CAT_PATTERN.test(text(message))) {
+  if (/(\u062c\u0648\u0631\u062f\u0646\s*(?:4|\u0664|\u06f4|\u0641\u0648\u0631)|jordan\s*4|jordan4|aj4|j4)/i.test(normalized) || detectNamedColorway(message)?.model === "jordan4") {
     return {
       brand: "Jordan",
       model: "jordan4",
@@ -1774,23 +1775,33 @@ export const generateAiBrainV2Decision = async (normalizedInbound = {}, options 
     : [];
   const gradeMissing = Boolean(requestedGrade && namedMatches.length && !inRequestedGrade.length);
   const gradedMatches = inRequestedGrade.length ? inRequestedGrade : namedMatches;
+  // "متاح بلاك كات ؟": only rows carrying that name are the colourway. With none, the same model in
+  // other colours is the alternative — said as one — and nothing else is shown.
+  const askedColorway = detectNamedColorway(originalMessage || message);
+  const colorwayProducts = askedColorway ? scoredProducts.filter((product) => carriesColorway(askedColorway, product)) : [];
+  const colorwayMissing = Boolean(askedColorway && !colorwayProducts.length);
+  const colorwayAlternatives = colorwayMissing
+    ? scoredProducts
+      .filter((product) => isColorwayBaseModel(askedColorway, product))
+      .sort((left, right) => Number(colorKeyFromText(right.name) === askedColorway.color) - Number(colorKeyFromText(left.name) === askedColorway.color))
+    : [];
   // A named model is picked across its grades, so a mirror pair is not cut by six local ones.
-  const selectedProducts = gradedMatches.length ? pickAcrossGrades(gradedMatches, 6) : scoredProducts.slice(0, 6);
+  const selectedProducts = askedColorway
+    ? (colorwayMissing ? colorwayAlternatives : colorwayProducts).slice(0, 6)
+    : gradedMatches.length ? pickAcrossGrades(gradedMatches, 6) : scoredProducts.slice(0, 6);
   const presentationProducts = selectedProducts.length
     ? selectedProducts
     : (intent === "more_images" && memoryActiveProductId ? [{ id: memoryActiveProductId, product_id: memoryActiveProductId }] : []);
-  const builtCards = await buildPresentationProductCards({
+  const productCards = await buildPresentationProductCards({
     tenantId,
     selectedProducts: presentationProducts,
     explicitModel,
     forceColorPresentation: intent === "more_images",
     withVariants: namedMatches.length > 0,
   });
-  // "بلاك كات" is the black colourway: its black cards, when the model has them.
-  const blackCatCards = BLACK_CAT_PATTERN.test(originalMessage || message)
-    ? builtCards.filter((card) => /^(black|اسود|أسود)$/i.test(text(card.color || card.matched_variant_color)))
-    : [];
-  const productCards = blackCatCards.length ? blackCatCards : builtCards;
+  const colorwayMissingText = colorwayMissing
+    ? missingColorwayText({ colorway: askedColorway, modelLabel: presentationModelName({ explicitModel, cards: productCards }), hasAlternatives: productCards.length > 0 })
+    : "";
   const gradeMissingText = gradeMissing && productCards.length
     ? missingGradeText({ requestedGrade, cards: productCards, explicitModel })
     : "";
@@ -1806,7 +1817,7 @@ export const generateAiBrainV2Decision = async (normalizedInbound = {}, options 
     }))
     .filter((image) => image.url);
   const activeProductId = text(productCards[0]?.product_id || productCards[0]?.id || activeProductFromMemory(memory));
-  const responseText = gradeMissingText || gradeFoundText || ((requestedAudience && productCards.length && namedMatches.length)
+  const responseText = colorwayMissingText || gradeMissingText || gradeFoundText || ((requestedAudience && productCards.length && namedMatches.length)
     ? audienceSearchText({ audience: requestedAudience, terms: namedProductTerms, audienceMissing, namedPartly, products: selectedProducts })
     : buildBaseText({ intent, cards: productCards, explicitModel, activeProductId, message: originalMessage || message }));
   const memoryUpdates = {
@@ -1860,6 +1871,8 @@ export const generateAiBrainV2Decision = async (normalizedInbound = {}, options 
       ...(gradeMissingText ? { grade_missing_reply: { text: gradeMissingText, grade: requestedGrade.key } } : {}),
       // The asked-for grade is what is on screen: said as it is, OpenAI never describes the grade.
       ...(gradeFoundText ? { grade_found_reply: { text: gradeFoundText, grade: requestedGrade.key } } : {}),
+      // The named colourway is not in the catalog: this sentence goes out as written.
+      ...(colorwayMissingText ? { colorway_missing_reply: { text: colorwayMissingText, colorway: askedColorway.key } } : {}),
       // What the gender-aware answer said, so a multi-grade introduction can keep it
       // ("للأسف مش لاقي … حريمي" must not be replaced by the grade lines).
       ...((requestedAudience && productCards.length && namedMatches.length) ? {

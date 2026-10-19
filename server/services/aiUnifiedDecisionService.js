@@ -1,5 +1,6 @@
 import { AI_AGENT_CHANNELS, normalizeChannel } from "./aiChannelAdapterService.js";
-import { BLACK_CAT_PATTERN, generateAiBrainV2Decision } from "./aiBrainV2Service.js";
+import { generateAiBrainV2Decision } from "./aiBrainV2Service.js";
+import { detectNamedColorway } from "../utils/namedColorways.js";
 import { generateUnifiedAiReply } from "./aiConversationOrchestrator.js";
 import { normalizeProductCards } from "./aiProductCards.js";
 import { customerSizeLabel } from "./footwearSizeResolver.js";
@@ -145,6 +146,11 @@ export const rewriteStructuredDecision = async ({ decision = {}, inbound = {}, t
   if (CATALOG_BROWSE_INTENTS.includes(intent)) return decision;
   // "تمام" with nothing pending gets the warm close as written.
   if (intent === "bare_confirmation" && !asArray(decision.product_cards).length) return decision;
+  // The named colourway is not in the catalog: "للأسف بلاك كات مش متاح عندنا دلوقتي" goes out as
+  // written, so no rewrite can present the alternatives as the shoe asked for.
+  if (text(decision.debug?.colorway_missing_reply?.text)) {
+    return withReplyText(decision, text(decision.debug.colorway_missing_reply.text), { grade_intro: "named_colorway_missing" });
+  }
   // The asked-for grade is not sold for this model: that sentence leads, word for word.
   if (text(decision.debug?.grade_missing_reply?.text)) {
     return withReplyText(decision, text(decision.debug.grade_missing_reply.text), { grade_intro: "requested_grade_missing" });
@@ -258,7 +264,8 @@ const classifySharedShortcutIntent = (message = "") => {
 const hasClearProductModelRequest = (message = "") => {
   const normalized = normalizeArabic(message);
   return /(\u062c\u0648\u0631\u062f\u0646\s*(?:4|\u0664|\u06f4|\u0641\u0648\u0631)|jordan\s*4|jordan4|aj4|j4)/i.test(normalized) ||
-    BLACK_CAT_PATTERN.test(normalized) || BLACK_CAT_PATTERN.test(text(message));
+    // A colourway by name ("بلاك كات", "ميليتري بلاك"): its colour word is part of the name.
+    Boolean(detectNamedColorway(message));
 };
 
 const hasJordan4TraceTrigger = (message = "") => hasClearProductModelRequest(message);
