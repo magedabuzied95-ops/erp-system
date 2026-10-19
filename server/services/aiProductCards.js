@@ -785,6 +785,12 @@ const buildBaseCard = (product = {}, overrides = {}) => {
     total_stock: Number.isFinite(totalStock) ? totalStock : (variantStocks.length ? variantStocks.reduce((sum, value) => sum + value, 0) : 0),
     availability,
     stock_status: availability,
+    // Carried through untouched: brain V2 tags a named model's cards with their grade, and the
+    // channels lay the carousels out grade by grade from it.
+    ...(text(overrides.grade_label || product?.grade_label) ? {
+      grade: text(overrides.grade || product?.grade),
+      grade_label: text(overrides.grade_label || product?.grade_label),
+    } : {}),
     image_url: cardImageUrlResolved,
     image: cardImageUrlResolved,
     main_image: cardImageUrlResolved || resolveProductMainImage(product) || cardImageUrl,

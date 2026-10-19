@@ -97,15 +97,11 @@ test("OpenAI's Markdown is gone before the reply reaches a channel", async () =>
   assert.match(result.answer, /Nike Air Force 1 بسعر 650/);
 });
 
-test("an OpenAI multi-grade reply that lists prices and sizes is replaced; a clean one goes out", async () => {
+test("a multi-grade answer does not wait for OpenAI: the owner's grade introduction goes out", async () => {
   const { rewriteStructuredDecision } = await import("../../server/services/aiUnifiedDecisionService.js");
   const client = getSharedOpenAiClient();
-  const replyWith = (answer) => {
-    client.responses.create = async () => ({
-      status: "completed",
-      output_text: JSON.stringify({ answer, confidence: 0.9, needs_human_support: false, sources_used: ["live_store_context"], suggested_products: [], suggested_actions: [] }),
-    });
-  };
+  let called = 0;
+  client.responses.create = async () => { called += 1; return { status: "completed", output_text: "{}" }; };
   const decision = {
     intent: "product_search",
     text: "دي أقرب النتايج المتاحة:",
@@ -114,15 +110,18 @@ test("an OpenAI multi-grade reply that lists prices and sizes is replaced; a cle
       { id: 61, name: "Nike Air Force 1 - Olive", grade: "mirror_original", grade_label: "ميرور اوريجينال", price: 1850 },
     ],
   };
-  const inbound = { originalText: "متاح ايرفورس ؟", text: "متاح اير4س" };
+  const out = await rewriteStructuredDecision({ decision, inbound: { originalText: "متاح ايرفورس ؟" }, tenantId: 1 });
+  assert.equal(called, 0);
+  assert.match(out.text, /محلي — مصري، خامة محترمة/);
+});
 
-  replyWith("محلي\n- Nike Air Force 1 Sneakers - White: بسعر 650 جنيه، ومقاسات من 39 لحد 49.\nميرور اوريجينال\n- Olive: بسعر 1850 جنيه");
-  const replaced = await rewriteStructuredDecision({ decision, inbound, tenantId: 1 });
-  assert.match(replaced.text, /محلي: مصري، خامة محترمة/);
-  assert.doesNotMatch(replaced.text, /650|1850/);
-
-  replyWith("أيوه يا فندم، عندنا منه محلي مصري بخامة محترمة، وميرور اوريجينال أعلى درجة طبق الأصل. الأسعار بتختلف والكروت فيها السعر والمقاسات.");
-  const kept = await rewriteStructuredDecision({ decision, inbound, tenantId: 1 });
-  assert.match(kept.text, /طبق الأصل/);
-  assert.equal(kept.debug.grounded_rewrite_applied, true);
+test("a bare greeting keeps its next step: it is not sent to OpenAI to be re-worded", async () => {
+  const { rewriteStructuredDecision } = await import("../../server/services/aiUnifiedDecisionService.js");
+  const client = getSharedOpenAiClient();
+  let called = 0;
+  client.responses.create = async () => { called += 1; return { status: "completed", output_text: "{}" }; };
+  const greeting = { intent: "greeting", text: "وعليكم السلام ورحمة الله، أهلاً بيك يا فندم ونورتنا 🌷\nتحب أساعدك تلاقي إيه النهارده؟" };
+  const out = await rewriteStructuredDecision({ decision: greeting, inbound: { originalText: "السلام عليكم" }, tenantId: 1 });
+  assert.equal(called, 0);
+  assert.equal(out.text, greeting.text);
 });

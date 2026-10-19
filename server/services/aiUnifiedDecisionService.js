@@ -72,29 +72,52 @@ export const storeReturnPolicyFor = async (tenantId = null) => {
 };
 
 /*
- * A model on screen in more than one grade. Production, 2026-10-19: told to leave prices and
- * sizes to the cards, OpenAI still listed all six models with prices and size ranges — two of
- * them wrong ("same sizes" for a colour with only 40 and 42) — and never used the owner's notes.
- * So the reply must name every grade and carry no price, size or product list; otherwise the
- * fixed introduction below goes out, built only from the owner's notes.
+ * A model on screen in more than one grade gets a fixed introduction built from the owner's
+ * grade notes, not an OpenAI rewrite. Production, 2026-10-19: told to leave prices and sizes to
+ * the cards, OpenAI listed every model with prices and size ranges — two of them wrong ("same
+ * sizes" for a colour with only 40 and 42) — on every try, and never explained the grades; the
+ * owner then found the one-line-per-grade version too thin to show what differs. This says
+ * where the difference lies (material and finish), what each grade is and who it suits, that the
+ * price follows the grade, and that the cards below carry each colour's price and sizes.
  */
-export const multiGradeIntroText = (guide = []) => [
-  "أيوه يا فندم، الموديل ده متاح عندنا بأكتر من درجة:",
-  "",
-  ...asArray(guide).map(({ grade_label: label, note }) => `• ${label}${note ? `: ${note}` : ""}`),
-  "",
-  "الأسعار بتختلف من درجة للتانية، وسعر ومقاسات كل لون على الكارت بتاعه.",
-  "تحب أنهي درجة؟",
-].join("\n");
+const GRADE_COUNT_WORDS = { 2: "بدرجتين", 3: "بـ3 درجات", 4: "بـ4 درجات" };
 
-export const multiGradeReplyIsSafe = (reply = "", guide = []) => {
-  const value = text(reply);
-  if (!value) return false;
-  if (!asArray(guide).every((entry) => value.includes(entry.grade_label))) return false;
-  if (/\d[\d,.]*\s*(?:جنيه|ج\.م|egp)/i.test(value)) return false;
-  if (/(?:مقاس|مقاسات|سايز|size)[^\n]{0,24}\d{2}/i.test(value) || /من\s*\d{2}\s*(?:لحد|ل|إلى|الى|-)\s*\d{2}/.test(value)) return false;
-  if ((value.match(/https?:\/\//g) || []).length > 1) return false;
-  return true;
+// The words every card's product name starts with ("Nike Air Force 1 Sneakers", "Nike Air Force
+// Half", "Nike Air Force 1" → "Nike Air Force"); empty when they share none.
+export const sharedModelName = (cards = []) => {
+  const names = asArray(cards)
+    .map((card) => text(card?.base_name || card?.name || card?.title).split(/\s+-\s+/)[0])
+    .filter(Boolean)
+    .map((name) => name.split(/\s+/));
+  if (!names.length) return "";
+  const shared = [];
+  for (let index = 0; index < names[0].length; index += 1) {
+    const word = names[0][index];
+    if (!names.every((words) => text(words[index]).toLowerCase() === word.toLowerCase())) break;
+    shared.push(word);
+  }
+  return shared.join(" ");
+};
+
+export const multiGradeIntroText = (guide = [], cards = []) => {
+  const grades = asArray(guide);
+  const model = sharedModelName(cards) || "الموديل ده";
+  const count = GRADE_COUNT_WORDS[grades.length] || "بأكتر من درجة";
+  const definite = (label = "") => (label ? `ال${label}` : "");
+  const firstLabel = definite(grades[0]?.grade_label);
+  const otherLabels = grades.slice(1).map((grade) => definite(grade.grade_label)).join(" و");
+  return [
+    `أيوه يا فندم، ${model} متاح عندنا ${count}، والفرق بينهم في الخامة والتشطيب:`,
+    "",
+    ...grades.map(({ grade, grade_label: label, note }) => {
+      const suits = productGrade(grade)?.suits || "";
+      return `🔹 ${label}${note ? ` — ${note}` : ""}${suits ? ` ${suits}` : ""}`;
+    }),
+    "",
+    "وكل ما الدرجة تعلى، الخامة والتشطيب بيقربوا أكتر من الأوريجينال، والسعر بيختلف على حسب الدرجة.",
+    `تحت هتلاقي كروت ${firstLabel} الأول وبعدها ${otherLabels}، وكل كارت عليه سعره والمقاسات المتاحة 👇`,
+    "تحب أنهي درجة أو أنهي لون؟",
+  ].join("\n");
 };
 
 const withReplyText = (decision = {}, replyText = "", debugPatch = {}) => ({
@@ -107,13 +130,14 @@ const withReplyText = (decision = {}, replyText = "", debugPatch = {}) => ({
 
 export const rewriteStructuredDecision = async ({ decision = {}, inbound = {}, tenantId = null } = {}) => {
   const intent = text(decision.detected_intent || decision.intent);
-  if (["human_takeover", "order_tracking", "order_follow_up", "post_product_order_confirmation"].includes(intent)) return decision;
+  // A bare greeting is answered from utils/greetingReply.js as it stands: re-worded, it lost the
+  // next step that keeps the customer talking.
+  if (["human_takeover", "order_tracking", "order_follow_up", "post_product_order_confirmation", "greeting"].includes(intent)) return decision;
   const products = asArray(decision.product_cards?.length ? decision.product_cards : decision.suggested_products?.length ? decision.suggested_products : decision.products);
   const gradeGuide = gradeGuideFor(products);
   const multiGrade = gradeGuide.length > 1;
-  if (!groundedRewriteEnabled()) {
-    return multiGrade ? withReplyText(decision, multiGradeIntroText(gradeGuide), { grade_intro: "fixed" }) : decision;
-  }
+  if (multiGrade) return withReplyText(decision, multiGradeIntroText(gradeGuide, products), { grade_intro: "fixed" });
+  if (!groundedRewriteEnabled()) return decision;
   const currentText = text(decision.text || decision.answer || decision.channel_reply?.text);
   const catalogUrl = text(decision.storefront_url || decision.catalog_url || decision.memory_updates?.catalog_url);
   const result = await generateSupportAnswer({
@@ -150,13 +174,6 @@ export const rewriteStructuredDecision = async ({ decision = {}, inbound = {}, t
   });
   const generated = text(result?.answer);
   const usable = Boolean(generated) && result?.needs_human_support !== true && Number(result?.confidence || 0) >= 0.35;
-  if (multiGrade) {
-    const safe = usable && multiGradeReplyIsSafe(generated, gradeGuide);
-    if (!safe && usable) console.info("[ai-grounded-rewrite:grade-intro-fixed]", { reply_preview: generated.slice(0, 160) });
-    return safe
-      ? withReplyText(decision, generated, { grounded_rewrite_applied: true, grounded_rewrite_source: "live_store_context" })
-      : withReplyText(decision, multiGradeIntroText(gradeGuide), { grade_intro: "fixed" });
-  }
   if (!usable) return decision;
   const finalText = catalogUrl && !generated.includes(catalogUrl) ? `${generated}\n${catalogUrl}` : generated;
   return {

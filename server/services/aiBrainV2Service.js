@@ -8,7 +8,8 @@ import { buildAliasAwareSearchHints } from "../utils/aliasAwareProductSearch.js"
 import { rankProductCandidates, scoreProductCandidate } from "../utils/productMatchConfidence.js";
 import { resolveCatalogNavigation } from "./aiCatalogNavigationService.js";
 import { productNamingTerms } from "../utils/productNamingTerms.js";
-import { productGrade, productGradeRank } from "../config/productGrades.js";
+import { greetingReplyFor } from "../utils/greetingReply.js";
+import { GRADE_CARD_LIMIT, GRADED_CARDS_TOTAL_LIMIT, productGrade, productGradeRank } from "../config/productGrades.js";
 import {
   buildConversationMemoryV2,
   mergeConversationMemoryV2,
@@ -1217,6 +1218,35 @@ export const pickAcrossGrades = (items = [], limit = 6, gradeOf = (item) => item
   return picked.sort((left, right) => productGradeRank(gradeOf(left)) - productGradeRank(gradeOf(right)));
 };
 
+/*
+ * Colour cards laid out grade by grade (local first), each grade up to GRADE_CARD_LIMIT. Inside a
+ * grade the products take turns, so four local models each show a colour before any shows a
+ * second; one product alone (the mirror Air Force, 16 colours) fills its grade's run.
+ */
+export const pickCardsPerGrade = (cards = [], { perGrade = GRADE_CARD_LIMIT, total = GRADED_CARDS_TOTAL_LIMIT } = {}) => {
+  const grades = new Map();
+  for (const card of asArray(cards)) {
+    const rank = productGradeRank(card?.grade);
+    if (!grades.has(rank)) grades.set(rank, new Map());
+    const productKey = text(card?.product_id || card?.id || "");
+    const products = grades.get(rank);
+    if (!products.has(productKey)) products.set(productKey, []);
+    products.get(productKey).push(card);
+  }
+  const picked = [];
+  for (const [, products] of [...grades.entries()].sort((left, right) => left[0] - right[0])) {
+    const queues = [...products.values()];
+    const run = [];
+    for (let index = 0; run.length < perGrade && queues.some((queue) => queue.length > index); index += 1) {
+      for (const queue of queues) {
+        if (queue[index] && run.length < perGrade) run.push(queue[index]);
+      }
+    }
+    picked.push(...run);
+  }
+  return picked.slice(0, total);
+};
+
 const withGrade = (card = {}, product = {}) => {
   const grade = text(product.grade || card.grade || "");
   return { ...card, grade, grade_label: productGrade(grade)?.label || "" };
@@ -1230,9 +1260,8 @@ const buildPresentationProductCards = async ({ tenantId = null, selectedProducts
       withShelfStock(product, await loadFullProductForPresentation({ tenantId, productId: product.id || product.product_id }))
     ));
     // One product at a time, so a product's colours stay tagged with its own grade.
-    const shelfCards = pickAcrossGrades(
-      shelf.flatMap((product) => normalizeProductCards([product], { limit: 6 }).map((card) => withGrade(card, product))),
-      6,
+    const shelfCards = pickCardsPerGrade(
+      shelf.flatMap((product) => normalizeProductCards([product], { limit: GRADE_CARD_LIMIT }).map((card) => withGrade(card, product))),
     );
     // Variant cards need a photo per colour; never trade the plain cards for none at all.
     return shelfCards.length
@@ -1283,8 +1312,8 @@ const presentationModelName = ({ explicitModel = null, cards = [] } = {}) => {
   return rawName.replace(/\s+-\s+.*$/, "") || "الموديل";
 };
 
-const buildBaseText = ({ intent = "", cards = [], explicitModel = null, activeProductId = "" } = {}) => {
-  if (intent === "greeting") return "\u0648\u0639\u0644\u064a\u0643\u0645 \u0627\u0644\u0633\u0644\u0627\u0645 \u0648\u0631\u062d\u0645\u0629 \u0627\u0644\u0644\u0647\u060c \u0623\u0647\u0644\u0627\u064b \u0628\u064a\u0643 \u064a\u0627 \u0641\u0646\u062f\u0645.";
+const buildBaseText = ({ intent = "", cards = [], explicitModel = null, activeProductId = "", message = "" } = {}) => {
+  if (intent === "greeting") return greetingReplyFor(message);
   if (intent === "price_objection") {
     return activeProductId
       ? "\u0641\u0627\u0647\u0645\u0643. \u0644\u0648 \u0627\u0644\u0633\u0639\u0631 \u0645\u0634 \u0645\u0646\u0627\u0633\u0628 \u0623\u0642\u062f\u0631 \u0623\u0637\u0644\u0639\u0644\u0643 \u0628\u062f\u064a\u0644 \u0623\u0642\u0631\u0628 \u0644\u0644\u0645\u064a\u0632\u0627\u0646\u064a\u0629."
@@ -1586,7 +1615,7 @@ export const generateAiBrainV2Decision = async (normalizedInbound = {}, options 
     }))
     .filter((image) => image.url);
   const activeProductId = text(productCards[0]?.product_id || productCards[0]?.id || activeProductFromMemory(memory));
-  const responseText = buildBaseText({ intent, cards: productCards, explicitModel, activeProductId });
+  const responseText = buildBaseText({ intent, cards: productCards, explicitModel, activeProductId, message: originalMessage || message });
   const memoryUpdates = {
     ...(activeProductId ? {
       active_product_id: activeProductId,
@@ -1618,6 +1647,8 @@ export const generateAiBrainV2Decision = async (normalizedInbound = {}, options 
     handoff: { needs_human_support: false, reason: "", conversation_status: "" },
     active_product_id: activeProductId,
     channel_reply: normalizeOutgoingChannelReply({ channel, response: { text: responseText, product_cards: productCards, image_cards: images, suggested_actions: actions } }),
+    // Graded runs can pass the channels' default 6 / 12; the Meta sender caps cards by this.
+    ...(productCards.length > 6 ? { metadata: { product_card_limit: productCards.length } } : {}),
     debug: {
       source: "aiBrainV2",
       engine: "ai_brain_v2",

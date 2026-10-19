@@ -68,7 +68,9 @@ test("the REAL messenger sender groups cards into one horizontal carousel", () =
   // only when the caller asked for exactly that — otherwise a lone card keeps its own send.
   assert.match(branch, /cards\.length >= templateMinimum && metaCarouselChannels\.includes\(normalizedChannel\)/, "a Meta channel + a batch");
   assert.match(meta, /const templateMinimum = singleCardAsTemplate && cards\.length === 1 \? 1 : 2;/, "a batch is two cards unless one picked colour was asked for");
-  assert.ok(branch.includes('template_type: "generic"') && branch.includes("elements.slice(i, i + 10)"), "a multi-element generic template, chunked at 10");
+  // Chunked at 10 — and, since 2026-10-19, at every grade change (metaCarouselChunks).
+  assert.ok(branch.includes('template_type: "generic"') && branch.includes("const carouselChunks = metaCarouselChunks(carouselItems);"), "a multi-element generic template, chunked");
+  assert.match(meta, /export const metaCarouselChunks = \(items = \[\], size = 10\) =>/, "at most 10 elements per carousel");
   assert.match(branch, /catch \(carouselError\)/, "failure falls through to the per-card loop");
   assert.match(meta, /if \(cards\.length && !metaCarouselDone\)/, "per-card loop runs only when the carousel did not");
 });
@@ -83,7 +85,7 @@ test("Messenger's frame follows the card photo, so the whole product shows", asy
   // The card photos are 1.91:1 now: a square frame would cut their sides, so the frame follows
   // the photo — wide for our card photos, square for a raw product photo.
   const branch = meta.slice(meta.indexOf("let metaCarouselDone = false"), meta.indexOf("if (cards.length && !metaCarouselDone)"));
-  assert.match(branch, /image_aspect_ratio: messengerCardAspectRatio\(elements\.slice\(i, i \+ 10\)\)/);
+  assert.match(branch, /image_aspect_ratio: messengerCardAspectRatio\(chunkElements\)/);
   const { messengerCardAspectRatio } = await import("../server/services/metaIntegrationService.js");
   assert.equal(messengerCardAspectRatio([{ image_url: "https://api.x.com/uploads/products/variants/a-card1200.jpg" }]), "horizontal");
   assert.equal(messengerCardAspectRatio([{ image_url: "https://api.x.com/uploads/products/a.jpg" }]), "square");
@@ -116,7 +118,7 @@ test("the lead line lands ABOVE the carousel, not after the cards", () => {
   const branch = meta.slice(meta.indexOf("let metaCarouselDone = false"), meta.indexOf("if (cards.length && !metaCarouselDone)"));
   assert.match(branch, /leadTextSentBeforeCarousel = true/, "the lead text is sent inside the carousel branch, before the cards");
   const leadIdx = branch.indexOf("messageText: safeMessage");
-  const loopIdx = branch.indexOf("for (let i = 0; i < elements.length; i += 10)");
+  const loopIdx = branch.indexOf("for (const chunk of carouselChunks)");
   assert.ok(leadIdx > -1 && loopIdx > -1 && leadIdx < loopIdx, "the lead send precedes the carousel element loop");
   // and the trailing body send is guarded so the lead is not repeated under the cards
   // 0f05672 added a second condition — an uncaptioned clip must not be followed by an empty text

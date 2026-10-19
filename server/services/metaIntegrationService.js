@@ -26676,6 +26676,21 @@ export const sendMessengerInboxReaction = async ({
   return { result, emoji: reaction, message_id: safeMessageId };
 };
 
+// Carousel messages for a card list: at most 10 elements each (the generic-template cap), and a
+// new one at every grade change. Labels name the grade only when the list holds more than one.
+export const metaCarouselChunks = (items = [], size = 10) => {
+  const list = Array.isArray(items) ? items : [];
+  const gradeOf = (item) => text(item?.card?.grade_label || "");
+  const multiGrade = new Set(list.map(gradeOf).filter(Boolean)).size > 1;
+  const chunks = [];
+  for (const item of list) {
+    const last = chunks[chunks.length - 1];
+    if (last && last.items.length < size && last.grade === gradeOf(item)) last.items.push(item);
+    else chunks.push({ grade: gradeOf(item), label: multiGrade && gradeOf(item) && gradeOf(item) !== last?.grade ? gradeOf(item) : "", items: [item] });
+  }
+  return chunks;
+};
+
 export const sendMetaInboxOutboundMessage = async ({
   tenantId,
   channel = "",
@@ -27072,7 +27087,10 @@ export const sendMetaInboxOutboundMessage = async ({
   let leadTextSentBeforeCarousel = false;
   if (cards.length >= templateMinimum && metaCarouselChannels.includes(normalizedChannel) && text(token)) {
     try {
-      const elements = cards.map(buildMetaCarouselElement).filter((el) => el.image_url && el.buttons);
+      const carouselItems = cards
+        .map((card) => ({ card, element: buildMetaCarouselElement(card) }))
+        .filter(({ element }) => element.image_url && element.buttons);
+      const elements = carouselItems.map(({ element }) => element);
       // Dropping down to the per-card loop is a real degradation on Instagram — each colour leaves
       // as its own text line with a link — and until now it happened without a word in the log.
       if (elements.length < cards.length) {
@@ -27106,7 +27124,16 @@ export const sendMetaInboxOutboundMessage = async ({
         // Left BEFORE the call: the echo can come back while Graph is still answering us, and
         // the echo handler needs to know these cards are ours (classifyMetaCarouselEcho).
         noteMetaTemplateSend({ recipientId: safeRecipientId, elements });
-        for (let i = 0; i < elements.length; i += 10) {
+        // One carousel per grade (محلي, then ميرور …), each named by a short line above it, so a
+        // mirror run never shares a carousel with the local pairs.
+        const carouselChunks = metaCarouselChunks(carouselItems);
+        for (const chunk of carouselChunks) {
+          const chunkElements = chunk.items.map(({ element }) => element);
+          if (chunk.label) {
+            await postMetaMessage({ token, recipientId: safeRecipientId, messageText: `🔹 ${chunk.label}`, sendContext }).catch((labelError) => {
+              console.warn("[meta] carousel grade label failed", { tenant_id: scopedTenantId, channel: normalizedChannel, message: labelError?.message });
+            });
+          }
           const carouselResult = await postMetaMessageWithThreadControl({
             token,
             recipientId: safeRecipientId,
@@ -27119,8 +27146,8 @@ export const sendMetaInboxOutboundMessage = async ({
                   type: "template",
                   payload: {
                     template_type: "generic",
-                    ...(normalizedChannel === AI_AGENT_CHANNELS.FACEBOOK_MESSENGER ? { image_aspect_ratio: messengerCardAspectRatio(elements.slice(i, i + 10)) } : {}),
-                    elements: elements.slice(i, i + 10),
+                    ...(normalizedChannel === AI_AGENT_CHANNELS.FACEBOOK_MESSENGER ? { image_aspect_ratio: messengerCardAspectRatio(chunkElements) } : {}),
+                    elements: chunkElements,
                   },
                 },
               },

@@ -27,7 +27,11 @@ const rows = {
   31: { id: 31, name: "Nike Air Force Low 31", grade: "local", stock: 4, total_stock: 0, price: 500 },
   61: { id: 61, name: "Nike Air Force 1", grade: "mirror_original", stock: 107, total_stock: 0, price: 1850 },
 };
-const colourVariants = (id) => [
+// Like production: the one mirror_original Air Force product is in stock in 16 colours.
+const MIRROR_COLOURS = ["White", "Black", "Olive", "Red", "Navy", "Grey", "Beige", "Brown", "Pink", "Green", "Gold", "Silver", "Cream", "Orange", "Purple", "Blue"];
+const colourVariants = (id) => id === 61
+  ? MIRROR_COLOURS.map((color, index) => ({ id: 6100 + index, size: "42", color, stock: 3, is_active: true, image_url: `https://cdn.example.test/61-${index}.jpg` }))
+  : [
   { id: id * 10 + 1, size: "41", color: "White", stock: 5, is_active: true, image_url: `https://cdn.example.test/${id}-w.jpg` },
   { id: id * 10 + 2, size: "42", color: "Black", stock: 5, is_active: true, image_url: `https://cdn.example.test/${id}-b.jpg` },
 ];
@@ -106,36 +110,58 @@ test("the confidence re-rank after brain V2 cannot undo local-first", async () =
   assert.deepEqual(output.product_cards.map((card) => card.grade), ["local", "mirror_original"]);
 });
 
-test("a multi-grade reply with prices, sizes or a product list is replaced by the owner's notes", async () => {
-  const { multiGradeReplyIsSafe, multiGradeIntroText } = await import("../../server/services/aiUnifiedDecisionService.js");
-  const guide = gradeGuideFor([{ grade: "local" }, { grade: "mirror_original" }]);
-  // What production sent on 2026-10-19.
-  const productionReply = "أيوه يا فندم، متاح عندنا Nike Air Force بأكتر من موديل:\n\nمحلي\n- Nike Air Force 1 Sneakers - Black: متوفر بنفس السعر والمقاسات.\n- Nike Air Force 1 Sneakers - White: متوفر بسعر 650 جنيه، ومقاسات من 39 لحد 49.\n\nميرور اوريجينال\n- Nike Air Force 1 - Olive: بسعر 1850 جنيه";
-  assert.equal(multiGradeReplyIsSafe(productionReply, guide), false);
-  assert.equal(multiGradeReplyIsSafe("فيه محلي بس، خامة محترمة.", guide), false, "every grade on screen is named");
-  assert.equal(multiGradeReplyIsSafe("المحلي بسعر 650 جنيه، والميرور اوريجينال أعلى درجة.", guide), false, "a price alone");
-  assert.equal(multiGradeReplyIsSafe("المحلي مقاسات 40 و42، والميرور اوريجينال أعلى درجة.", guide), false, "sizes alone");
-  assert.equal(multiGradeReplyIsSafe("فيه محلي مصري بخامة محترمة، وفيه ميرور اوريجينال أعلى درجة. الأسعار بتختلف والكروت فيها السعر والمقاسات.", guide), true);
-  const intro = multiGradeIntroText(guide);
-  assert.ok(intro.indexOf("محلي") < intro.indexOf("ميرور اوريجينال"), "local first");
-  for (const entry of guide) assert.ok(intro.includes(entry.note), `the owner's note on ${entry.grade_label}`);
-  assert.equal(multiGradeReplyIsSafe(intro, guide), true);
-});
-
-test("with no OpenAI rewrite, a multi-grade answer is still the owner's grade introduction", async () => {
+test("every grade gets its own run of cards: the 16-colour mirror pair is not cut to 3", async () => {
+  // Production, 2026-10-19 (owner's WhatsApp test): 3 local + 3 mirror went out of a 6-card budget
+  // shared by both grades, while the one mirror Air Force has 16 colours in stock.
   const decision = await ask("متاح ايرفورس ؟");
-  assert.match(decision.text, /محلي: مصري، خامة محترمة/);
-  assert.match(decision.text, /ميرور اوريجينال: أعلى درجة/);
-  assert.doesNotMatch(decision.text, /دي أقرب النتايج/);
+  const count = (grade) => decision.product_cards.filter((card) => card.grade === grade).length;
+  assert.equal(count("mirror_original"), 10, "a full carousel of mirror colours");
+  assert.ok(count("local") >= 5, `local models each show (got ${count("local")})`);
+  assert.ok(decision.product_cards.length <= 20);
+  const firstMirror = decision.product_cards.findIndex((card) => card.grade === "mirror_original");
+  assert.ok(decision.product_cards.slice(firstMirror).every((card) => card.grade === "mirror_original"), "local first, mirror after");
+  assert.equal(decision.metadata?.product_card_limit, decision.product_cards.length, "the Meta sender is told not to cut them");
 });
 
-test("with the grounded rewrite switched off, a multi-grade answer is the owner's grade introduction", async () => {
-  process.env.AI_GROUNDED_REPLY_REWRITE = "false";
-  try {
-    const decision = await ask("متاح ايرفورس ؟");
-    assert.match(decision.text, /محلي: مصري، خامة محترمة/);
-    assert.equal(decision.debug?.grade_intro, "fixed");
-  } finally {
-    delete process.env.AI_GROUNDED_REPLY_REWRITE;
-  }
+test("inside a grade the models take turns before any shows a second colour", async () => {
+  const { pickCardsPerGrade } = await import("../../server/services/aiBrainV2Service.js");
+  const card = (productId, colour, grade = "local") => ({ product_id: productId, color: colour, grade });
+  const picked = pickCardsPerGrade([card(1, "a"), card(1, "b"), card(1, "c"), card(2, "a"), card(3, "a")], { perGrade: 3 });
+  assert.deepEqual(picked.map((item) => `${item.product_id}${item.color}`), ["1a", "2a", "3a"]);
+});
+
+test("the multi-grade introduction explains what differs, from the owner's notes, with no price or size", async () => {
+  const decision = await ask("متاح ايرفورس ؟");
+  const reply = decision.text;
+  assert.match(reply, /Nike Air Force/, "names the model");
+  assert.match(reply, /بدرجتين، والفرق بينهم في الخامة والتشطيب/);
+  assert.match(reply, /محلي — مصري، خامة محترمة\. اختيار اقتصادي/);
+  assert.match(reply, /ميرور اوريجينال — أعلى درجة: نسخة طبق الأصل .* مناسب لو عايز نفس شكل وخامة الأوريجينال/);
+  assert.ok(reply.indexOf("محلي —") < reply.indexOf("ميرور اوريجينال —"), "local first");
+  assert.match(reply, /والسعر بيختلف على حسب الدرجة/);
+  assert.match(reply, /كروت المحلي الأول وبعدها الميرور اوريجينال/);
+  assert.doesNotMatch(reply, /\d{3,}\s*جنيه|من\s*\d{2}\s*لحد/, "prices and sizes stay on the cards");
+  assert.equal(decision.debug?.grade_intro, "fixed");
+});
+
+test("on Messenger and Instagram each grade goes out as its own carousel, named", async () => {
+  const { metaCarouselChunks } = await import("../../server/services/metaIntegrationService.js");
+  const items = (label, count) => Array.from({ length: count }, (_, index) => ({ card: { grade_label: label, id: `${label}${index}` } }));
+  const chunks = metaCarouselChunks([...items("محلي", 5), ...items("ميرور اوريجينال", 10)]);
+  assert.deepEqual(chunks.map((chunk) => [chunk.label, chunk.items.length]), [["محلي", 5], ["ميرور اوريجينال", 10]]);
+  assert.deepEqual(metaCarouselChunks(items("", 12)).map((chunk) => [chunk.label, chunk.items.length]), [["", 10], ["", 2]], "ungraded lists keep the plain 10-card split");
+});
+
+test("the card builder keeps a card's grade", async () => {
+  const { normalizeProductCards } = await import("../../server/services/aiProductCards.js");
+  const [card] = normalizeProductCards([{ id: 61, name: "Nike Air Force 1", price: 1850, image_url: "https://cdn.example.test/61.jpg", grade: "mirror_original", grade_label: "ميرور اوريجينال" }]);
+  assert.equal(card.grade_label, "ميرور اوريجينال");
+});
+
+test("brain V2 answers a bare greeting with the welcome and the next step", async () => {
+  const decision = await ask("السلام عليكم");
+  assert.equal(decision.intent, "greeting");
+  assert.match(decision.text, /^وعليكم السلام ورحمة الله/);
+  assert.match(decision.text, /رجالي ولا حريمي ولا أطفال/);
+  assert.equal((decision.product_cards || []).length, 0, "no products for a greeting");
 });

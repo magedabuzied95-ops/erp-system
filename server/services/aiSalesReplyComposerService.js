@@ -1,6 +1,7 @@
 ﻿import { resolveCustomerDisplayPrice, formatCustomerDisplayPrice } from "../utils/customerDisplayPrice.js";
 import { buildDynamicClarificationQuestion } from "./aiClassificationResolverService.js";
 import { applyHumanSalesPersonalityLayer } from "./aiHumanSalesPersonalityLayer.js";
+import { greetingReplyFor, withGreetingNextStep } from "../utils/greetingReply.js";
 
 const text = (value = "", fallback = "") => String(value ?? fallback).trim();
 const asArray = (value) => (Array.isArray(value) ? value : []);
@@ -548,9 +549,9 @@ const greetingKind = (message = "") => {
   return "";
 };
 
-const buildGreetingReply = (message = "", seed = "") => {
+// The opening only; buildGreetingReply adds the shared next step (utils/greetingReply.js).
+const buildGreetingOpening = (message = "", seed = "") => {
   const kind = greetingKind(message);
-  if (kind === "islamic") return "وعليكم السلام ورحمة الله، أهلاً بيك يا فندم.";
   if (kind === "morning") {
     return pickDeterministicText([
       "صباح الفل يا فندم، تحت أمرك.",
@@ -602,7 +603,12 @@ const buildGreetingReply = (message = "", seed = "") => {
   ], `default|${seed}|${message}`);
 };
 
-const buildGreetingOnlyOutput = ({ response = {}, message = "", context = {} } = {}) =>
+// A bare greeting is answered the same on every path: welcome, then the next step.
+const buildGreetingReply = (message = "", seed = "") => (greetingKind(message) === "islamic"
+  ? greetingReplyFor(message)
+  : withGreetingNextStep(buildGreetingOpening(message, seed)));
+
+const buildGreetingOnlyOutput =({ response = {}, message = "", context = {} } = {}) =>
   withAnswer(stripProductPayload(response, { preserveProductCards: false }), buildGreetingReply(message, text(context?.conversationId || context?.session_id || context?.id || "")), {
     detected_intent: "greeting_only",
     greeting_only_mode: true,
