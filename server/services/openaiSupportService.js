@@ -648,8 +648,10 @@ export const buildUnavailableSupportResponse = () => ({ ...FALLBACK_RESPONSE });
 const sameShoeSchema = {
   type: "object",
   additionalProperties: false,
-  required: ["match_index", "same_model", "same_color", "confidence"],
+  required: ["customer_shoe", "match_index", "same_model", "same_color", "confidence"],
   properties: {
+    // Said first, so the pick is made against what the customer's shoe actually is.
+    customer_shoe: { type: "string" },
     match_index: { type: "integer" },
     same_model: { type: "boolean" },
     same_color: { type: "boolean" },
@@ -659,6 +661,9 @@ const sameShoeSchema = {
 
 const SAME_SHOE_INSTRUCTIONS = [
   "You compare a customer's shoe photo with numbered product photos from a shoe store.",
+  "First write customer_shoe: brand, model if you can tell, and the main colours of the upper, stripes/logo and sole, in a few words.",
+  "Each candidate has a label with the product name and its colour name; use the photo first and the label to confirm.",
+  "A candidate whose colours clearly differ from the customer's shoe (e.g. brown vs white-and-black) is NOT the same colour, even if it is the same model.",
   "Pick the candidate that is the SAME shoe model as the customer's photo: same silhouette, sole, panels, stripes or logo placement, toe and collar shape. Brand alone is not enough.",
   "Among candidates of that model prefer the one in the same colourway.",
   "same_model: true only when you are confident the chosen candidate is the same model line, not just the same brand or a similar style.",
@@ -676,11 +681,11 @@ const SAME_SHOE_INSTRUCTIONS = [
  * burgundy one. Low-detail images keep each candidate at a fixed small token cost.
  * Never throws: null means "could not compare", and the caller keeps its text ranking.
  */
-export const pickSameShoeAmongCandidates = async ({ customerImage = "", candidateImages = [], requestId = "" } = {}) => {
+export const pickSameShoeAmongCandidates = async ({ customerImage = "", candidateImages = [], candidateLabels = [], requestId = "" } = {}) => {
   syncAgentCredentialState();
   // 12: the shape-nearest images, the read family and the brand look-alikes together (low detail
   // keeps each one a small fixed cost).
-  const images = asArrayOf(candidateImages).filter(Boolean).slice(0, 12);
+  const images = asArrayOf(candidateImages).filter(Boolean).slice(0, 16);
   if (!toText(customerImage) || images.length < 1 || !visionEnabled() || textGenerationTemporarilyBlocked()) return null;
   const model = toText(process.env.AI_VISUAL_RERANK_MODEL) || "gpt-4o";
   try {
@@ -692,14 +697,17 @@ export const pickSameShoeAmongCandidates = async ({ customerImage = "", candidat
           role: "user",
           content: [
             { type: "input_text", text: "Customer's photo:" },
-            { type: "input_image", image_url: customerImage, detail: "low" },
+            // The customer's photo at full detail: the colourway is decided on it.
+            { type: "input_image", image_url: customerImage, detail: "high" },
             ...images.flatMap((image, index) => [
-              { type: "input_text", text: `Candidate ${index}:` },
-              { type: "input_image", image_url: image, detail: "low" },
+              { type: "input_text", text: `Candidate ${index}${toText(candidateLabels[index]) ? ` (${toText(candidateLabels[index]).slice(0, 120)})` : ""}:` },
+              { type: "input_image", image_url: image, detail: "high" },
             ]),
           ],
         }],
         text: { format: { type: "json_schema", name: "same_shoe_pick", strict: true, schema: sameShoeSchema } },
+        // The same photo must get the same answer (LIVE 2026-10-20 it swung between runs).
+        ...(/^gpt-4/i.test(model) ? { temperature: 0 } : {}),
       },
       { timeout: resolveSupportTimeoutMs(), maxRetries: 0 }
     );
@@ -709,7 +717,7 @@ export const pickSameShoeAmongCandidates = async ({ customerImage = "", candidat
     const index = parsed.match_index;
     console.log("[ai-support] same-shoe pick", { requestId, model, candidates: images.length, ...parsed });
     if (index < 0 || index >= images.length) return { index: -1, sameModel: false, sameColor: false, confidence: clampConfidence(parsed.confidence) };
-    return { index, sameModel: Boolean(parsed.same_model), sameColor: Boolean(parsed.same_color), confidence: clampConfidence(parsed.confidence) };
+    return { index, sameModel: Boolean(parsed.same_model), sameColor: Boolean(parsed.same_color), confidence: clampConfidence(parsed.confidence), customerShoe: toText(parsed.customer_shoe) };
   } catch (error) {
     noteOpenAiFailure(error);
     console.warn("[ai-support] same-shoe pick failed", { requestId, model, status: error?.status, message: error?.message });
@@ -981,6 +989,8 @@ export const understandProductImageForSearch = async ({ imageBuffer, mimeType, i
             },
             verbosity: "medium",
           },
+          // One photo, one reading: the model name read decides the family searched.
+          ...(/^gpt-4/i.test(model) ? { temperature: 0 } : {}),
         },
         {
           timeout: resolveSupportTimeoutMs(),

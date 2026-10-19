@@ -378,6 +378,56 @@ export const photoCandidatePool = (rows = [], { familyIds = [], max = 8 } = {}) 
   return picked;
 };
 
+// Colour words a catalogue colour name or a description of the customer's shoe can carry, each
+// mapped to one family (catalogue spellings included: "Bige", "Blak", "Baige", "D.Gray").
+const COLOUR_FAMILIES = [
+  ["white", /(white|ابيض|أبيض|offwhite|ivory)/],
+  ["black", /(black|blak|اسود|أسود)/],
+  ["grey", /(grey|gray|رمادي|رصاصي|dgray|charcoal)/],
+  ["beige", /(beige|bige|baige|cream|bone|sand|تان|بيج|كريمي|camel|tan)/],
+  ["brown", /(brown|بني|chocolate|mocha)/],
+  ["silver", /(silver|metallic|فضي)/],
+  ["navy", /(navy|كحلي)/],
+  ["blue", /(blue|ازرق|أزرق|sky)/],
+  ["red", /(red|احمر|أحمر|burgundy|maroon|نبيتي)/],
+  ["green", /(green|olive|mint|اخضر|أخضر|زيتي)/],
+  ["pink", /(pink|بمبي|وردي|mauve)/],
+  ["yellow", /(yellow|اصفر|أصفر|orange|برتقالي)/],
+  ["purple", /(purple|بنفسجي|lilac)/],
+];
+export const colourFamiliesIn = (value = "") => {
+  const words = text(value).toLowerCase().replace(/[^\p{L}\p{N}]+/gu, " ");
+  return new Set(COLOUR_FAMILIES.filter(([, pattern]) => pattern.test(words)).map(([family]) => family));
+};
+
+/**
+ * Which of the chosen product's colours is the one in the photo: the card whose colour name shares
+ * the most colour families with what the customer's shoe was seen as (the judge's description and
+ * the vision reading). LIVE 2026-10-20 a white-and-black Superstar was answered with the Brown
+ * colourway of the right model. Empty when no card is a clearly better fit than `current`.
+ */
+export const bestColourForPhoto = (cards = [], seenAs = "", current = "") => {
+  const seen = colourFamiliesIn(seenAs);
+  if (!seen.size) return "";
+  const score = (name) => {
+    const families = colourFamiliesIn(name);
+    let shared = 0;
+    for (const family of families) if (seen.has(family)) shared += 1;
+    return shared * 2 - (families.size - shared);
+  };
+  let best = "";
+  let bestScore = score(current);
+  for (const card of asArray(cards)) {
+    const name = text(card?.color || card?.matched_variant_color);
+    const value = score(name);
+    if (name && value > bestScore) {
+      best = name;
+      bestScore = value;
+    }
+  }
+  return best;
+};
+
 // What the reply may say about the pick: the same shoe in the same colour, the same model in other
 // colours, or only the closest we have.
 export const photoMatchKind = (pick = {}) =>
@@ -437,7 +487,9 @@ export const cropForMatching = async ({ imageBuffer = null, box = null } = {}) =
 
 const pickByComparingPhotos = async ({ tenantId, search = null, modelRead = {}, understanding = null, visualQuery = "", imageUrl = "", imageBuffer = null, requestId = "", shapeRows = [] }) => {
   const familyIds = asArray(modelRead?.modelProductIds).map((id) => String(id));
-  let pool = mergeCandidatePools([shapeRows, photoCandidatePool(search?.topMatches, { familyIds })]);
+  // Shape-nearest first (CLIP is what tells colourways and lines apart), but always room for the
+  // read family and the brand look-alikes too.
+  let pool = mergeCandidatePools([asArray(shapeRows).slice(0, 10), photoCandidatePool(search?.topMatches, { familyIds }).slice(0, 6)], 16);
   if (familyIds.length && pool.length < 2) {
     const scoped = await searchAiVisualProductsPro({
       tenantId,
@@ -448,7 +500,7 @@ const pickByComparingPhotos = async ({ tenantId, search = null, modelRead = {}, 
       limit: 24,
       onlyProductIds: familyIds,
     }).catch(() => null);
-    pool = mergeCandidatePools([shapeRows, photoCandidatePool(scoped?.topMatches, { familyIds })]);
+    pool = mergeCandidatePools([asArray(shapeRows).slice(0, 10), photoCandidatePool(scoped?.topMatches, { familyIds }).slice(0, 6)], 16);
   }
   if (!pool.length) return null;
   const [customerImage, ...candidateImages] = await Promise.all([
@@ -457,19 +509,39 @@ const pickByComparingPhotos = async ({ tenantId, search = null, modelRead = {}, 
   ]);
   const usable = pool.map((row, index) => ({ row, image: candidateImages[index] })).filter((item) => item.image);
   if (!customerImage || !usable.length) return null;
-  const pick = await pickSameShoeAmongCandidates({ customerImage, candidateImages: usable.map((item) => item.image), requestId });
+  const pick = await pickSameShoeAmongCandidates({
+    customerImage,
+    candidateImages: usable.map((item) => item.image),
+    candidateLabels: usable.map((item) => [text(item.row.product_name || item.row.sourceTitle), text(item.row.color) && `colour: ${text(item.row.color)}`].filter(Boolean).join(" — ")),
+    requestId,
+  });
   if (!pick) return null;
   if (pick.index < 0) return { matched: false, reason: "photo_compare_no_match" };
   const chosen = usable[pick.index].row;
-  const productCards = await cardsForRecognisedProduct({ tenantId, productId: chosen.product_id, leadColor: text(chosen.color) }).catch(() => []);
+  let productCards = await cardsForRecognisedProduct({ tenantId, productId: chosen.product_id, leadColor: text(chosen.color) }).catch(() => []);
   if (!productCards.length) return null;
-  const photoMatch = photoMatchKind(pick);
+  // The right model with the wrong colourway in front: put the colour the photo shows first.
+  const seenAs = [pick.customerShoe, ...asArray(understanding?.detected?.colors), ...asArray(understanding?.detected?.secondary_colors)].join(" ");
+  const betterColour = bestColourForPhoto(productCards, seenAs, text(chosen.color));
+  let leadColour = text(chosen.color);
+  if (betterColour) {
+    leadColour = betterColour;
+    const rebuilt = await cardsForRecognisedProduct({ tenantId, productId: chosen.product_id, leadColor: betterColour }).catch(() => []);
+    if (rebuilt.length) productCards = rebuilt;
+  }
+  // The lead colour now carries only colours the shoe was seen in: it IS the photographed colourway.
+  const seenFamilies = colourFamiliesIn(seenAs);
+  const leadFamilies = colourFamiliesIn(leadColour);
+  const leadIsSeen = leadFamilies.size > 0 && [...leadFamilies].every((family) => seenFamilies.has(family));
+  const photoMatch = photoMatchKind({ ...pick, sameColor: pick.sameColor || (pick.sameModel && leadIsSeen) });
   console.log("[ai-visual-recognition] photo comparison pick", {
     tenant_id: tenantId || null,
     candidates: usable.length,
     family: modelRead?.modelQuery || "",
     product_id: chosen.product_id,
     color: text(chosen.color),
+    lead_colour: leadColour,
+    seen_as: text(pick.customerShoe).slice(0, 120),
     photo_match: photoMatch,
     confidence: pick.confidence,
   });
@@ -479,7 +551,7 @@ const pickByComparingPhotos = async ({ tenantId, search = null, modelRead = {}, 
     photoMatch,
     closest: photoMatch === "closest",
     productId: chosen.product_id,
-    matchedColor: text(chosen.color),
+    matchedColor: leadColour,
     score: pick.confidence,
     productCards,
   };
@@ -519,9 +591,13 @@ export const recogniseProductFromImage = async ({
     bytes: effectiveBuffer?.length || 0,
   });
 
-  // Screenshots from other pages and videos: read and match the shoe, not the feet and captions.
-  let matchCrop = await cropForMatching({ imageBuffer: effectiveBuffer });
-  if (matchCrop.cropped) console.log("[ai-visual-recognition] shoe cropped", { tenant_id: tenantId || null, box: matchCrop.box || null });
+  // Screenshots from other pages and videos: match the shoe, not the feet and captions. The vision
+  // reading already returns the shoe's box, so the crop normally comes from it (milliseconds); the
+  // on-server segmenter costs 6-8s a photo on this CPU (LIVE 2026-10-20) and is opt-in only.
+  let matchCrop = { buffer: effectiveBuffer, cropped: false };
+  if (["1", "true", "yes", "on"].includes(text(process.env.AI_VISUAL_SEGMENT_CROP).toLowerCase())) {
+    matchCrop = { ...(await cropForMatching({ imageBuffer: effectiveBuffer })), segmenterTried: true };
+  }
 
   let understanding;
   try {
@@ -592,7 +668,10 @@ export const recogniseProductFromImage = async ({
   // — a white Terrex went to a black-and-grey line, a white/black Superstar led with burgundy.
   // The reading may carry the shoe's box when the segmenter could not find it.
   const readBox = understanding?.detected?.shoe_box || understanding?.shoe_box || null;
-  if (!matchCrop.cropped && readBox) matchCrop = await cropForMatching({ imageBuffer: effectiveBuffer, box: readBox });
+  // Measured 2026-10-20 on the owner's photos: the reading's box is too rough to crop by (it cut
+  // shoes in half), so it is used only when the segmenter is switched on and found nothing.
+  if (matchCrop.segmenterTried && !matchCrop.cropped && readBox) matchCrop = await cropForMatching({ imageBuffer: effectiveBuffer, box: readBox });
+  if (matchCrop.cropped) console.log("[ai-visual-recognition] shoe cropped", { tenant_id: tenantId || null, box: matchCrop.box || null });
   const [readForCompare, shapeRows] = await Promise.all([
     modelReadFor({ tenantId, understanding }),
     shapeNearestRows({ tenantId, imageBuffer: matchCrop.buffer || effectiveBuffer }),

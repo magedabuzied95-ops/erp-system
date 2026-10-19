@@ -3,7 +3,9 @@ import { normalizeProductCards } from "./aiProductCards.js";
 import { ensureCarouselCardImageUrl } from "./productImageVariantService.js";
 
 const text = (value = "") => String(value ?? "").trim();
-const normalizeColorKey = (value = "") => text(value).toLowerCase().replace(/\s+/g, " ");
+// "White &Black" and "White & Black" are one colour: spacing and punctuation never decide it
+// (LIVE 2026-10-20 the photographed colour lost the lead to Brown over one missing space).
+const normalizeColorKey = (value = "") => text(value).toLowerCase().replace(/[^\p{L}\p{N}]+/gu, "");
 
 // ── One card per colour, expanded SERVER-side ────────────────────────────────────────────────
 // The AI Inbox frontend sends one HTTP request per picked product (Phase 13.4 FE-sequential), so

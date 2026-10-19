@@ -235,3 +235,14 @@ test("the comparison pool puts the shape-nearest images first, one per product c
   assert.equal(result.cropped, false);
   assert.equal(result.buffer, same);
 });
+
+test("the photographed colourway leads the cards, whatever the spacing of its name", async () => {
+  // LIVE 2026-10-20: a white-and-black Superstar answered with the Brown colourway of the right model.
+  const { bestColourForPhoto, colourFamiliesIn } = await import("../server/services/aiVisualProductRecognitionService.js");
+  const cards = ["Black", "Black & Bige", "Brown", "White &Black"].map((color) => ({ color }));
+  assert.equal(bestColourForPhoto(cards, "Louis Vuitton adidas, white and black white black", "Brown"), "White &Black");
+  assert.equal(bestColourForPhoto(["Black", "Black & White", "Dark Gray"].map((color) => ({ color })), "black upper, white stripes", "Dark Gray"), "Black & White");
+  assert.equal(bestColourForPhoto(cards, "", "Brown"), "", "nothing seen ⇒ the pick stands");
+  assert.equal(bestColourForPhoto([{ color: "White" }], "white", "White"), "", "already the best ⇒ no change");
+  assert.deepEqual([...colourFamiliesIn("Bige & D.Gray")].sort(), ["beige", "grey"], "catalogue spellings count");
+});
