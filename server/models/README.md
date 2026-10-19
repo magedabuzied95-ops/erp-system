@@ -33,3 +33,25 @@ Efficient Segment Anything*, Xiong et al. (CVPR 2024). Apache-2.0.
 Used by `server/lib/thermalSegmentModel.js` to keep only the front shoe when a
 product photo shows a second one standing behind it. Override the path with
 `THERMAL_SEGMENT_MODEL`.
+
+## clip_vit_b32_vision_int8.onnx
+
+Image tower of **CLIP ViT-B/32** — *Learning Transferable Visual Models From
+Natural Language Supervision*, Radford et al. (OpenAI, 2021). MIT licence.
+Int8 (dynamically quantised) vision-only ONNX export by Xenova for
+Transformers.js, 89 MB.
+
+- Source: https://github.com/openai/CLIP — weights `openai/clip-vit-base-patch32`
+- ONNX export: https://huggingface.co/Xenova/clip-vit-base-patch32/resolve/main/onnx/vision_model_quantized.onnx
+- SHA-256: `583fd1110a514667812fee7d684952aaf82a99b959760c8d7dca7e0ab9839299`
+- Input `pixel_values`: float32 `[1, 3, 224, 224]` — shortest edge 224 (bicubic),
+  centre crop, `(x/255 - mean) / std` with mean `[0.48145466, 0.4578275, 0.40821073]`,
+  std `[0.26862954, 0.26130258, 0.27577711]`.
+- Output `image_embeds`: float32 `[1, 512]` (projected; L2-normalise before cosine).
+
+Used by `server/lib/clipImageEmbedder.js` to fingerprint product photos and a
+customer's shoe photo, so photo search finds stocked shoes that look alike even
+when no model name can be read. Vectors live in
+`ai_product_image_visual_index.image_embedding` (`embedding_model =
+clip-vit-b32-int8`). Override the path with `CLIP_IMAGE_MODEL`; force the
+WebAssembly runtime with `CLIP_IMAGE_RUNTIME=web`.

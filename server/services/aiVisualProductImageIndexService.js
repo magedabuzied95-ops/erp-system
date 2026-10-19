@@ -1,6 +1,7 @@
 import crypto from "node:crypto";
 
 import db from "../database/db.js";
+import { scheduleClipEmbedding } from "../lib/clipImageIndexWriter.js";
 import { resolvePublicProductImageUrl } from "./aiProductCards.js";
 import {
   aiProductSqlExclusionClause,
@@ -450,18 +451,48 @@ const loadProductImageRows = async (clientOrPool = db, { tenantId = null, produc
   });
 };
 
-const upsertImageIndexRow = async (clientOrPool, row = {}) => {
+// Reindexing deletes and re-inserts a product's rows. The CLIP vector depends
+// only on the photo, so it is carried across by image URL instead of being
+// recomputed (~1 s each); photos that are new get embedded by the hook after.
+const snapshotImageEmbeddings = async (clientOrPool, { tenantId = null, productId = null } = {}) => {
+  const params = [];
+  const where = ["image_embedding IS NOT NULL", "embedding_model NOT LIKE 'failed:%'"];
+  if (tenantId) {
+    params.push(tenantId);
+    where.push(`tenant_id = $${params.length}`);
+  }
+  if (productId) {
+    params.push(productId);
+    where.push(`product_id = $${params.length}`);
+  }
+  const result = await clientOrPool.query(
+    `
+    SELECT DISTINCT ON (tenant_id, LOWER(TRIM(image_url)))
+      tenant_id, LOWER(TRIM(image_url)) AS image_key, image_embedding::text AS image_embedding,
+      embedding_model, embedding_updated_at
+    FROM ai_product_image_visual_index
+    WHERE ${where.join(" AND ")}
+    ORDER BY tenant_id, LOWER(TRIM(image_url)), embedding_updated_at DESC NULLS LAST
+    `,
+    params
+  );
+  return new Map(result.rows.map((row) => [`${row.tenant_id}:${row.image_key}`, row]));
+};
+
+const upsertImageIndexRow = async (clientOrPool, row = {}, carriedEmbeddings = null) => {
   const metadata = deriveVisualMetadata(row);
   const imageUrl = resolvePublicProductImageUrl(row.image_url);
+  const carried = carriedEmbeddings?.get(`${row.tenant_id}:${lower(imageUrl)}`) || null;
   await clientOrPool.query(
     `
     INSERT INTO ai_product_image_visual_index (
       tenant_id, product_id, variant_id, color, image_url, image_public_id, image_hash,
       brand, product_name, category, gender, price, stock, available_sizes, text_aliases, visual_attributes,
       visual_tags, detected_brand, detected_model, detected_category, detected_colors,
-      detected_silhouette, detected_features, visual_text, visual_json, source, updated_at
+      detected_silhouette, detected_features, visual_text, visual_json, source, updated_at,
+      image_embedding, embedding_model, embedding_updated_at
     )
-    VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14::text[],$15::text[],$16::jsonb,$17::text[],$18,$19,$20,$21::text[],$22,$23::text[],$24,$25::jsonb,$26,NOW())
+    VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14::text[],$15::text[],$16::jsonb,$17::text[],$18,$19,$20,$21::text[],$22,$23::text[],$24,$25::jsonb,$26,NOW(),$27::jsonb,$28::text,$29::timestamptz)
     ON CONFLICT (tenant_id, product_id, COALESCE(variant_id, 0), LOWER(TRIM(image_url)))
     DO UPDATE SET
       color = EXCLUDED.color,
@@ -515,6 +546,9 @@ const upsertImageIndexRow = async (clientOrPool, row = {}) => {
       metadata.visual_text,
       json(metadata.detected),
       row.source || "erp",
+      carried?.image_embedding ?? null,
+      carried?.embedding_model ?? "",
+      carried?.embedding_updated_at ?? null,
     ]
   );
 };
@@ -523,9 +557,11 @@ export const indexProductImagesForProduct = async (clientOrPool = db, { productI
   const id = numberOrNull(productId);
   if (!id) return { indexed: 0 };
   await ensureAiProductImageVisualIndexSchema(clientOrPool);
+  const carriedEmbeddings = await snapshotImageEmbeddings(clientOrPool, { productId: id });
   await clientOrPool.query("DELETE FROM ai_product_image_visual_index WHERE product_id = $1", [id]);
   const rows = await loadProductImageRows(clientOrPool, { productId: id });
-  for (const row of rows) await upsertImageIndexRow(clientOrPool, row);
+  for (const row of rows) await upsertImageIndexRow(clientOrPool, row, carriedEmbeddings);
+  scheduleClipEmbedding({ productIds: [id] });
   console.log("[ai-visual-index] product indexed", { product_id: id, indexed_images: rows.length });
   return { indexed: rows.length };
 };
@@ -533,9 +569,11 @@ export const indexProductImagesForProduct = async (clientOrPool = db, { productI
 export const reindexAllProductImages = async ({ tenantId = null, clientOrPool = db } = {}) => {
   await ensureAiProductImageVisualIndexSchema(clientOrPool);
   const rows = await loadProductImageRows(clientOrPool, { tenantId: numberOrNull(tenantId) });
+  const carriedEmbeddings = await snapshotImageEmbeddings(clientOrPool, { tenantId: numberOrNull(tenantId) });
   if (tenantId) await clientOrPool.query("DELETE FROM ai_product_image_visual_index WHERE tenant_id = $1", [numberOrNull(tenantId)]);
   else await clientOrPool.query("DELETE FROM ai_product_image_visual_index");
-  for (const row of rows) await upsertImageIndexRow(clientOrPool, row);
+  for (const row of rows) await upsertImageIndexRow(clientOrPool, row, carriedEmbeddings);
+  scheduleClipEmbedding({ all: true });
   console.log("[ai-visual-index] backfill complete", {
     tenant_id: tenantId || null,
     indexed_images: rows.length,
