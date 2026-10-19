@@ -1,4 +1,4 @@
-import { normalizeArabicIntentPayload, normalizeArabicMessage } from "./arabicTextNormalizer.js";
+import { normalizeArabicForIntent, normalizeArabicIntentPayload, normalizeArabicMessage } from "./arabicTextNormalizer.js";
 
 const text = (value = "") => String(value ?? "").trim();
 const unique = (items = [], limit = 32) => [...new Set(items.map(text).filter(Boolean))].slice(0, limit);
@@ -18,8 +18,10 @@ const STOP_WORDS = new Set([
 
 const numberize = (value = "") => text(value).replace(/[\u0660-\u0669]/g, (digit) => String(digit.charCodeAt(0) - 0x0660)).replace(/[\u06f0-\u06f9]/g, (digit) => String(digit.charCodeAt(0) - 0x06f0));
 
+// normalizeArabicForIntent is the payload's normalizedForIntent without its canonical-signal
+// pass — this runs for every candidate's whole text blob and every term matched against it.
 const normalizeToken = (value = "") =>
-  normalizeArabicIntentPayload(value).normalizedForIntent ||
+  normalizeArabicForIntent(value) ||
   normalizeArabicMessage(value) ||
   text(value).toLowerCase();
 

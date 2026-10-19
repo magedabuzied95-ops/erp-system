@@ -108,18 +108,43 @@ const normalizeTextForIntent = (value = "") => {
 
 const escapeRegex = (value = "") => value.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
 
-const hasCanonicalMatch = (text = "", alias = "") => {
+/*
+ * Speed, 2026-10-19: every signal check re-normalized the WHOLE text and compiled a new regex —
+ * 150 aliases × 3 texts per call, ~40ms for a 200-character message and far more for a product
+ * description. The product ranker calls this dozens of times per candidate, so ranking 80
+ * catalog rows took 32s of a playground reply. The alias patterns are now compiled once, and each
+ * text is normalized once per call; the results are unchanged.
+ */
+const aliasPatternCache = new Map();
+const aliasPattern = (alias = "") => {
+  if (aliasPatternCache.has(alias)) return aliasPatternCache.get(alias);
   const normalizedAlias = normalizeTextForIntent(normalizeBaseText(alias));
-  if (!normalizedAlias) return false;
-  const normalizedText = ` ${normalizeTextForIntent(text)} `;
-  const pattern = `(^|[^\\p{L}\\p{N}])${escapeRegex(normalizedAlias)}([^\\p{L}\\p{N}]|$)`;
-  return new RegExp(pattern, "iu").test(normalizedText);
+  const pattern = normalizedAlias
+    ? new RegExp(`(^|[^\\p{L}\\p{N}])${escapeRegex(normalizedAlias)}([^\\p{L}\\p{N}]|$)`, "iu")
+    : null;
+  aliasPatternCache.set(alias, pattern);
+  return pattern;
 };
 
-const extractSizeSignals = (originalText = "", normalizedForIntent = "") => {
+// One normalization per distinct text for the duration of a single signals pass.
+const paddedIntentTextMemo = () => {
+  const memo = new Map();
+  return (text = "") => {
+    if (!memo.has(text)) memo.set(text, ` ${normalizeTextForIntent(text)} `);
+    return memo.get(text);
+  };
+};
+
+const hasCanonicalMatch = (text = "", alias = "", paddedText = paddedIntentTextMemo()) => {
+  const pattern = aliasPattern(alias);
+  if (!pattern) return false;
+  return pattern.test(paddedText(text));
+};
+
+const extractSizeSignals = (originalText = "", normalizedForIntent = "", paddedText = paddedIntentTextMemo()) => {
   const signals = [];
   const sizeTerms = ["مقاس", "سايز", "size", "sizes"];
-  if (sizeTerms.some((alias) => hasCanonicalMatch(normalizedForIntent, alias) || hasCanonicalMatch(originalText, alias))) {
+  if (sizeTerms.some((alias) => hasCanonicalMatch(normalizedForIntent, alias, paddedText) || hasCanonicalMatch(originalText, alias, paddedText))) {
     signals.push("size");
   }
   const sizeNumberMatches = Array.from(
@@ -137,15 +162,16 @@ const buildCanonicalSignals = (payload = {}) => {
   const normalizedForIntent = toText(payload.normalizedForIntent || normalizedText);
   const originalText = toText(payload.originalText || "");
   const signals = new Set();
+  const paddedText = paddedIntentTextMemo();
 
   for (const [canonical, aliases] of Object.entries(ARABIC_INTENT_SYNONYMS)) {
     if (!Array.isArray(aliases) || !aliases.length) continue;
-    if (aliases.some((alias) => hasCanonicalMatch(normalizedForIntent, alias) || hasCanonicalMatch(originalText, alias) || hasCanonicalMatch(normalizedText, alias))) {
+    if (aliases.some((alias) => hasCanonicalMatch(normalizedForIntent, alias, paddedText) || hasCanonicalMatch(originalText, alias, paddedText) || hasCanonicalMatch(normalizedText, alias, paddedText))) {
       signals.add(canonical);
     }
   }
 
-  for (const signal of extractSizeSignals(originalText, normalizedForIntent)) {
+  for (const signal of extractSizeSignals(originalText, normalizedForIntent, paddedText)) {
     signals.add(signal);
   }
 
@@ -188,7 +214,9 @@ export const normalizeArabicIntentPayload = (input = "") => {
   };
 };
 
-export const normalizeArabicForIntent = (input = "") => normalizeArabicIntentPayload(input).normalizedForIntent;
+// The normalized text alone: the canonical signals the full payload computes do not feed it, and
+// the product ranker calls this for every candidate's name and description.
+export const normalizeArabicForIntent = (input = "") => normalizeTextForIntent(normalizeArabicMessage(resolveInputText(input)));
 
 export const buildArabicCanonicalSignals = (input = "") => normalizeArabicIntentPayload(input).canonicalSignals;
 

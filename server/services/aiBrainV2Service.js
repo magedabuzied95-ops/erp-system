@@ -881,7 +881,9 @@ const scoreProduct = ({ product = {}, normalizedMessage = "", explicitModel = nu
   return { score, reasons };
 };
 
-const loadCandidateProducts = async ({ tenantId = null, message = "", explicitModel = null, namingTerms = [], limit = 80 } = {}) => {
+// 40, not 80: rows come back best name match first, at most 6 are shown, and ranking is CPU work
+// on the one thread every other request and webhook waits behind.
+const loadCandidateProducts = async ({ tenantId = null, message = "", explicitModel = null, namingTerms = [], limit = 40 } = {}) => {
   const productColumns = await tableColumns("products");
   const tenantFilter = productColumns.has("tenant_id") ? "AND ($1::bigint IS NULL OR p.tenant_id = $1::bigint OR p.tenant_id IS NULL)" : "";
   const deletedFilter = productColumns.has("deleted_at") ? "AND p.deleted_at IS NULL" : "";
@@ -907,7 +909,7 @@ const loadCandidateProducts = async ({ tenantId = null, message = "", explicitMo
       ${statusFilter}
       ${likeClauses.length ? `AND (${likeClauses.map((clause) => `(${clause})`).join(" OR ")})` : ""}
     ORDER BY ${terms.length ? `(${terms.map((_, index) => `CASE WHEN ${searchable[0]} ILIKE $${index + 2} THEN 1 ELSE 0 END`).join(" + ")}) DESC, ` : ""}p.id DESC
-    LIMIT ${Math.max(1, Math.min(Number(limit) || 80, 200))}
+    LIMIT ${Math.max(1, Math.min(Number(limit) || 40, 200))}
   `;
   const params = [numberOrNull(tenantId), ...terms.map((term) => `%${term}%`)];
   const result = await db.query(sql, params);
