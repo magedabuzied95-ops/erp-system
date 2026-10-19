@@ -135,7 +135,10 @@ test("the lookup uses columns products really has, and Ultraboost finds Ultra Bo
 test("the recogniser hands the model read back on every miss", () => {
   const recognition = fs.readFileSync(new URL("../server/services/aiVisualProductRecognitionService.js", import.meta.url), "utf8");
   const missPaths = recognition.match(/\.\.\.\(await modelReadFor\(\{ tenantId, understanding \}\)\)/g) || [];
-  assert.equal(missPaths.length, 3, "index error, no confident match, and a match with no sendable card");
+  assert.equal(missPaths.length, 2, "index error and a match with no sendable card");
+  // No confident match: the read is taken once, tried as a family pick, and handed back on a miss.
+  assert.match(recognition, /const modelRead = await modelReadFor\(\{ tenantId, understanding \}\);/);
+  assert.equal((recognition.match(/\.\.\.modelRead,?\s*\}/g) || []).length + (recognition.match(/\.\.\.modelRead \}/g) || []).length >= 2, true, "both the family pick and the miss carry the read");
   assert.match(recognition, /return read \? \{ modelQuery: read\.phrase, modelProductIds:/);
 });
 
@@ -177,4 +180,18 @@ test("a photo with no caption is answered as 'is this available?'", () => {
   assert.match(gate, /const aiInput = photoOnlyQuestion \? \{ \.\.\.normalized, text: photoOnlyQuestion \} : normalized;/);
   assert.match(gate, /const aiReply = aiInput\.text && /);
   assert.match(gate, /triggerWhatsappAiAutoReply\(aiInput\)/);
+});
+
+test("a photo matched only to its family is told as the closest model, never as the same one", async () => {
+  const { productIsReadModelLine } = await import("../server/services/aiVisualProductRecognitionService.js");
+  const { buildVisualRecognitionPayload, VISUAL_SAME_MODEL_TEXT, VISUAL_CLOSEST_MODEL_TEXT } = await import("../server/services/aiInboxService.js");
+  // LIVE 2026-10-19: a Terrex photo got all 18 Terrex cards. The owner: the same model, or the
+  // closest — and the customer must be told it is the closest.
+  assert.equal(productIsReadModelLine({ model_guess: "Terrex Two Gore" }, "Adidas Terrex Two Gore"), true);
+  assert.equal(productIsReadModelLine({ model_guess: "Terrex" }, "Adidas Terrex"), false, "the family word alone cannot tell the lines apart");
+  assert.equal(productIsReadModelLine({ model_guess: "Terrex Free Hiker" }, "Adidas TERREX TRAILMAKER 2"), false);
+  const cards = [{ name: "Adidas Terrex - Grey", color: "Grey" }, { name: "Adidas Terrex - Black", color: "Black" }];
+  assert.equal(buildVisualRecognitionPayload({ cards, recognition: { closest: true } }).channel_reply.text, VISUAL_CLOSEST_MODEL_TEXT);
+  assert.equal(buildVisualRecognitionPayload({ cards, recognition: { closest: false } }).channel_reply.text, VISUAL_SAME_MODEL_TEXT);
+  assert.match(VISUAL_CLOSEST_MODEL_TEXT, /أقرب/);
 });

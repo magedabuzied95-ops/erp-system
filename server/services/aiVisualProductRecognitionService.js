@@ -284,6 +284,63 @@ const modelReadFor = async ({ tenantId, understanding }) => {
 };
 
 /**
+ * Is the stocked product the model line the photo was read as, word for word? "Terrex Two Gore"
+ * read and "Adidas Terrex Two Gore" stocked: yes. Only the family word ("Terrex") read: we cannot
+ * tell the lines apart from the name, so it is the closest, and the reply says so.
+ */
+export const productIsReadModelLine = (detected = {}, productName = "") => {
+  const name = text(productName).toLowerCase().replace(/[^a-z0-9]+/g, " ");
+  const longest = visualModelNamePhrases(detected)[0] || "";
+  const words = longest.split(" ").filter(Boolean);
+  if (words.length < 2) return false;
+  return words.every((word) => new RegExp(`(^| )${word}( |$)`).test(name));
+};
+
+/**
+ * One product out of the family the photo named: the one the indexed search ranks closest (colour,
+ * shape, the photo itself), restricted to the products carrying the model name. Null when none of
+ * them can be ranked — the caller then falls back to the family search.
+ */
+const pickModelFromFamily = async ({ tenantId, modelRead = {}, search = null, understanding = null, visualQuery = "", imageUrl = "", imageBuffer = null }) => {
+  const familyIds = asArray(modelRead?.modelProductIds).map((id) => String(id));
+  if (!familyIds.length) return null;
+  let best = asArray(search?.topMatches).find((match) => familyIds.includes(String(match?.product_id)));
+  if (!best) {
+    const scoped = await searchAiVisualProductsPro({
+      tenantId,
+      detected: understanding?.detected || {},
+      visualQuery,
+      uploadedImageUrl: imageUrl,
+      uploadedImageBuffer: imageBuffer,
+      limit: 24,
+      onlyProductIds: familyIds,
+    }).catch(() => null);
+    best = asArray(scoped?.topMatches)[0];
+  }
+  if (!best?.product_id) return null;
+  const productCards = await cardsForRecognisedProduct({ tenantId, productId: best.product_id, leadColor: text(best.color) }).catch(() => []);
+  if (!productCards.length) return null;
+  const sameLine = productIsReadModelLine(understanding?.detected || {}, best.product_name || best.sourceTitle || productCards[0]?.name);
+  console.log("[ai-visual-recognition] family pick", {
+    tenant_id: tenantId || null,
+    family: modelRead?.modelQuery || "",
+    family_size: familyIds.length,
+    product_id: best.product_id,
+    color: text(best.color),
+    same_line: sameLine,
+  });
+  return {
+    matched: true,
+    reason: sameLine ? "model_line_match" : "model_family_closest",
+    closest: !sameLine,
+    productId: best.product_id,
+    matchedColor: text(best.color),
+    score: Number(best.score ?? best.finalScore ?? 0),
+    productCards,
+  };
+};
+
+/**
  * Recognise the product in a customer's photo and return it as colour cards.
  *
  * This is the channel-agnostic half of "customer sends a picture, we answer with the product":
@@ -382,6 +439,20 @@ export const recogniseProductFromImage = async ({
     shortlist: decision.candidates.map((item) => ({ product_id: item.product_id, score: Math.round(item.score * 1000) / 1000 })),
   });
   if (!decision.accept) {
+    const modelRead = await modelReadFor({ tenantId, understanding });
+    // The photo was read as a model family we stock ("Terrex": seven pairs). The owner: show THE
+    // model in the photo, and if it is not the same, the closest one — said as the closest — not
+    // every Terrex in the shop (LIVE 2026-10-19, 18 cards for one photo).
+    const familyPick = await pickModelFromFamily({
+      tenantId,
+      modelRead,
+      search,
+      understanding,
+      visualQuery,
+      imageUrl: safeImageUrl,
+      imageBuffer: effectiveBuffer,
+    });
+    if (familyPick) return { ...familyPick, understanding, visualQuery, search, ...modelRead };
     return {
       matched: false,
       reason: decision.reason,
@@ -390,7 +461,7 @@ export const recogniseProductFromImage = async ({
       understanding,
       visualQuery,
       search,
-      ...(await modelReadFor({ tenantId, understanding })),
+      ...modelRead,
     };
   }
 

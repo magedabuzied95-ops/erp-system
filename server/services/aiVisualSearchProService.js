@@ -843,6 +843,8 @@ export const searchAiVisualProductsPro = async ({
   preferredSize = "",
   customerPreferenceProfile = {},
   limit = 8,
+  // Rank only these products (the ones carrying the model name the photo was read as).
+  onlyProductIds = [],
 } = {}) => {
   const tenant = numberOrNull(tenantId);
   if (!tenant) return { candidates: [], exactMatch: null, closeMatches: [], topMatches: [], searchedCount: 0, fallbackReason: "missing_tenant" };
@@ -955,9 +957,11 @@ export const searchAiVisualProductsPro = async ({
     memory: { lastVisualQueryText: visualQuery, lastImageUrl: uploadedImageUrl || (queryImages[0]?.imageUrl || "") },
     source: "visual_search_pro",
   });
-  const gatedScored = visualSearchNeedsRelevanceGate(understanding)
-    ? gateRelevantProducts({ products: scored, understanding, limit, fallback: false })
-    : scored;
+  const allowedIds = new Set((Array.isArray(onlyProductIds) ? onlyProductIds : []).map((id) => String(id)));
+  const inScope = allowedIds.size ? scored.filter((row) => allowedIds.has(String(row.product_id))) : scored;
+  const gatedScored = !allowedIds.size && visualSearchNeedsRelevanceGate(understanding)
+    ? gateRelevantProducts({ products: inScope, understanding, limit, fallback: false })
+    : inScope;
   console.log("[ai-orchestrator:candidates]", {
     exact_count: gatedScored.filter((product) => product.exact_image_match).length,
     family_count: gatedScored.filter((product) => product.relevance_reasons?.includes("model_family_match")).length,

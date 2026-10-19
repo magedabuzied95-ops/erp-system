@@ -344,12 +344,14 @@ const resolveAwaitingCustomerAction = (memory = null) => {
 // The reply that goes with a recognised photo. The cards carry the colours and the sizes, so the
 // text says only what a picture cannot: yes, we have it. Naming every colour in the text as well
 // would just repeat the carousel the customer is about to swipe.
-const buildVisualRecognitionPayload = ({ cards = [], recognition = {} } = {}) => {
-  const productName = text(cards[0]?.name || cards[0]?.product_name || cards[0]?.title || "");
+export const VISUAL_SAME_MODEL_TEXT = "أيوه متاح إن شاء الله 👇";
+export const VISUAL_CLOSEST_MODEL_TEXT = "مش لاقي نفس الموديل اللي في الصورة بالظبط يا فندم، بس ده أقرب موديل ليه عندنا 👇";
+
+export const buildVisualRecognitionPayload = ({ cards = [], recognition = {} } = {}) => {
+  // The owner's words (2026-10-19): one line, the cards do the rest. When the photo was only
+  // matched to its family, the customer is told this is the closest model, never sold it as the same.
+  const answer = recognition.closest ? VISUAL_CLOSEST_MODEL_TEXT : VISUAL_SAME_MODEL_TEXT;
   const colorCount = cards.length;
-  const answer = colorCount > 1
-    ? `أيوه يا فندم، ${productName || "المنتج ده"} موجود عندنا 👌\nدي كل الألوان المتاحة والمقاسات اللي في كل لون — اختار اللي يعجبك 👇`
-    : `أيوه يا فندم، ${productName || "المنتج ده"} موجود عندنا 👌\nدي تفاصيله والمقاسات المتاحة 👇`;
   return {
     answer,
     confidence: Number(recognition.score || 0.9),
