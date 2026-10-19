@@ -46,13 +46,25 @@ test("the ✅ answer with the fee owed is ONE message: the card, opening with th
   assert.equal(buildShippingFeePaymentCard({ order, amount: 100, transfer: { vodafone: "01024960585" }, uploadUrl: "https://x/pay/a" }).title, "💳 دفع الشحن");
 });
 
-test("wiring: both ✅ paths answer through one helper; a queued card is never doubled", () => {
+test("wiring: the card is the step after ✅ — never with the request, never doubled", () => {
   const source = fs.readFileSync(new URL("../server/services/whatsappOrderConfirmationService.js", import.meta.url), "utf8");
   // The late-confirm path (an order staff already confirmed — the portal "+" order) and the normal one.
   assert.equal(source.match(/await replyToCustomerConfirm\(\{/g)?.length, 2);
-  // Fee owed: the card replaces the text; a card still in the queue lands under the tap by itself.
-  assert.match(source, /if \(advance\?\.status === "awaiting_payment"\) \{\s*if \(await paymentCardJustQueued\(order\.id\)\) return \{ payment_card: false, reason: "card_already_below" \};/);
-  assert.match(source, /prepareShippingFeePaymentCard\(\{ order, amount: advance\.amount, confirmed: true \}\)/);
-  assert.match(source, /if \(queued\?\.queued \|\| queued\?\.sent\) return \{ payment_card: true \};/);
+  // Fee owed: the card IS the answer; the text goes out only when no card did.
+  assert.match(source, /const sent = await sendPaymentCardAfterConfirm\(\{ order, phone, tenantId, advance \}\);\s*if \(sent\.payment_card\) return sent;/);
+  assert.match(source, /prepareShippingFeePaymentCard\(\{ order, amount: owed\.amount, confirmed: true \}\)/);
+  assert.match(source, /if \(await paymentCardJustQueued\(order\.id\)\) return \{ payment_card: true, reason: "card_already_below", owed \};/);
   assert.match(source, /AND automation_type = 'shipping_fee_payment_card'\s+AND status IN \('pending', 'scheduled', 'sending'\)/);
+  // The confirm-link page sends it too.
+  assert.match(source, /if \(actionConfig\.payloadAction === "confirm" && !alreadyApplied && updatedWithItems\?\.id\) \{[\s\S]{0,300}sendPaymentCardAfterConfirm\(/);
+  // One card send in the whole module, and the request no longer prepares one.
+  assert.equal(source.match(/queueShippingFeePaymentCard\(/g)?.length, 1);
+  assert.doesNotMatch(source, /directPaymentCard/);
+});
+
+test("the request says the money comes after confirming, with no arrow to a card that is not there", async () => {
+  const { buildShippingFeeAdvanceNotice } = await import("../server/services/codPolicyReplyService.js");
+  const policy = { mode: "restricted", governorates: ["damietta"] };
+  const notice = buildShippingFeeAdvanceNotice({ policy, governorate: "الدقهلية", shippingFee: 100, orderTotal: 800, paymentCardAfterConfirm: true });
+  assert.equal(notice, "💳 بعد التأكيد هتحوّل قيمة الشحن 100 جنيه بس");
 });

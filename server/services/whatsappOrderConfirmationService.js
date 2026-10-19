@@ -818,9 +818,9 @@ const shippingFeeAdvanceForConfirmation = async (order = {}) => {
   try {
     const advance = describeShippingFeeAdvance({ order, policy: await loadCodPolicySettings() });
     if (!advance.required || advance.status === "paid") return null;
-    const paymentCard = await prepareShippingFeePaymentCard({ order, amount: advance.amount });
-    const notice = await shippingFeeAdvanceNoticeForOrder(order, { paymentCardFollows: Boolean(paymentCard) });
-    return notice ? { notice, amount: advance.amount, paymentCard } : null;
+    // The card comes after the ✅, so the request only names the amount and says when.
+    const notice = await shippingFeeAdvanceNoticeForOrder(order, { paymentCardAfterConfirm: true });
+    return notice ? { notice, amount: advance.amount } : null;
   } catch (error) {
     console.warn("[whatsapp:order-confirmation] shipping advance skipped", { orderId: order?.id, message: error?.message });
     return null;
@@ -862,25 +862,35 @@ const paymentCardJustQueued = async (orderId) => {
 };
 
 /*
- * The answer to a ✅ press. With the shipping fee still unpaid it says so and sends the payment
- * card again right under it: the card that rode with the request sat ABOVE the request by the
- * time the customer pressed, and the old "بدأ تجهيز طلبك للشحن" reply read as if nothing was
- * left to do (INV-2187, owner 2026-10-19). A screenshot already in review gets no new card.
+ * The payment card is the step AFTER the customer confirms, never part of the request (owner,
+ * 2026-10-19: one card with the request and another on the tap was two payment messages). It
+ * opens with "✅ تم تأكيد طلبك", so it is the whole answer to the tap — one message, as on
+ * Instagram/Messenger. A card already waiting in the queue is not doubled. Never throws.
+ */
+const sendPaymentCardAfterConfirm = async ({ order = {}, phone = "", tenantId = null, advance = undefined } = {}) => {
+  try {
+    const owed = advance === undefined ? await owedShippingAdvance(order) : advance;
+    if (owed?.status !== "awaiting_payment" || !phone) return { payment_card: false, owed };
+    if (await paymentCardJustQueued(order.id)) return { payment_card: true, reason: "card_already_below", owed };
+    const card = await prepareShippingFeePaymentCard({ order, amount: owed.amount, confirmed: true });
+    if (!card) return { payment_card: false, owed };
+    const queued = await queueShippingFeePaymentCard({ order, card, phone, tenantId, idempotencySuffix: `after-confirm-${Date.now()}` });
+    return { payment_card: Boolean(queued?.queued || queued?.sent || queued?.duplicate), owed };
+  } catch (error) {
+    console.warn("[whatsapp:order-confirmation] payment card after confirm failed", { orderId: order?.id, message: error?.message });
+    return { payment_card: false };
+  }
+};
+
+/*
+ * The answer to a ✅ press on WhatsApp. Fee owed: the payment card alone. Otherwise the short
+ * text — "بنراجع التحويل" for a screenshot in review, the usual reply when nothing is owed, and
+ * "فاضل تحوّل…" when the card could not be built (INV-2187, INV-2189, owner 2026-10-19).
  */
 const replyToCustomerConfirm = async ({ order = {}, phone = "", tenantId = null, source = "whatsapp_order_confirmed_reply" } = {}) => {
   const advance = await owedShippingAdvance(order);
-  // Fee still owed: ONE message, the payment card opening with "✅ تم تأكيد طلبك" — no separate
-  // text above it (owner, 2026-10-19: three messages for one tap, Instagram/Messenger send one).
-  // A card still waiting in the queue lands under the tap by itself, so nothing is added.
-  if (advance?.status === "awaiting_payment") {
-    if (await paymentCardJustQueued(order.id)) return { payment_card: false, reason: "card_already_below" };
-    const card = await prepareShippingFeePaymentCard({ order, amount: advance.amount, confirmed: true });
-    if (card) {
-      const queued = await queueShippingFeePaymentCard({ order, card, phone, tenantId, idempotencySuffix: `after-confirm-${Date.now()}` });
-      if (queued?.queued || queued?.sent) return { payment_card: true };
-    }
-    // No card could be built or sent: the text below still says what is owed.
-  }
+  const sent = await sendPaymentCardAfterConfirm({ order, phone, tenantId, advance });
+  if (sent.payment_card) return sent;
   await sendSystemOrderText({
     order,
     phone,
@@ -1032,8 +1042,8 @@ export const sendOrderConfirmation = async (order = {}, options = {}) => {
     order_id: current.id,
     phoneSuffix: phone.slice(-4),
   });
-  // The shipping-fee card that follows the request on the direct (unqueued) path.
-  let directPaymentCard = null;
+  // No payment card rides with the request any more: it is the step after the customer confirms
+  // (sendPaymentCardAfterConfirm, owner 2026-10-19).
   try {
     const confirmCode = await issueOrderConfirmationCode({
       tenantId: messageTenantId,
@@ -1041,7 +1051,6 @@ export const sendOrderConfirmation = async (order = {}, options = {}) => {
     });
     const confirmUrl = buildOrderConfirmationPublicUrl(confirmCode.code);
     const shippingAdvance = await shippingFeeAdvanceForConfirmation(current);
-    directPaymentCard = shippingAdvance?.paymentCard || null;
     message = buildOrderConfirmationLinksMessage({
       order: current,
       customerName: current.customer_name,
@@ -1109,10 +1118,6 @@ export const sendOrderConfirmation = async (order = {}, options = {}) => {
       directSend: null,
     });
     if (queued.queued || queued.duplicate) {
-      if (directPaymentCard) {
-        await queueShippingFeePaymentCard({ order: current, card: directPaymentCard, phone, tenantId: messageTenantId, idempotencySuffix: isManualSend ? `manual-${Date.now()}` : "" });
-        directPaymentCard = null;
-      }
       console.info("[whatsapp:order-confirmation-queued]", {
         order_id: current.id,
         order_number: orderRef,
@@ -1228,9 +1233,6 @@ export const sendOrderConfirmation = async (order = {}, options = {}) => {
       phoneSuffix: phone.slice(-4),
       message: persistError?.message || String(persistError),
     });
-  }
-  if (directPaymentCard) {
-    await queueShippingFeePaymentCard({ order: current, card: directPaymentCard, phone, tenantId: messageTenantId, idempotencySuffix: isManualSend ? `manual-${Date.now()}` : "" });
   }
   console.info("[whatsapp:order-confirmation-sent]", {
     orderId: current.id,
@@ -2260,6 +2262,12 @@ export const consumeOrderConfirmationLink = async ({ code = "", action = "", ipA
       tokenCode: safeCode,
       action: text(action),
     });
+    // Confirmed from the link page: the payment step follows on WhatsApp, as after a button tap.
+    if (actionConfig.payloadAction === "confirm" && !alreadyApplied && updatedWithItems?.id) {
+      const linkPhone = normalizeEgyptPhone(updatedWithItems.customer_phone || updatedWithItems.phone || "");
+      sendPaymentCardAfterConfirm({ order: updatedWithItems, phone: linkPhone, tenantId: tenantIdForMessage({}, updatedWithItems) })
+        .catch(() => {});
+    }
     return {
       success: true,
       action: actionConfig.payloadAction,

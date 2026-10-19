@@ -215,8 +215,10 @@ test("wiring: queue types, Evolution copy buttons, the public route, the webhook
   assert.match(read("../src/App.jsx"), /path="\/pay\/:code"/);
 
   const confirmation = read("../server/services/whatsappOrderConfirmationService.js");
-  assert.match(confirmation, /shippingFeeAdvanceNoticeForOrder\(order, \{ paymentCardFollows: Boolean\(paymentCard\) \}\)/);
-  assert.match(confirmation, /queueShippingFeePaymentCard\(/);
+  // The request names the amount only; the card is sent after the customer confirms (owner,
+  // 2026-10-19 — a card with the request and another on the tap was two payment messages).
+  assert.match(confirmation, /shippingFeeAdvanceNoticeForOrder\(order, \{ paymentCardAfterConfirm: true \}\)/);
+  assert.equal(confirmation.match(/queueShippingFeePaymentCard\(/g)?.length, 1, "one send: after the confirm");
 
   // The screenshot check runs before the sales flow and the AI, so a transfer screenshot never
   // reaches the product visual search.

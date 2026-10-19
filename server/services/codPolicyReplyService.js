@@ -64,7 +64,7 @@ export const transferDetailLines = ({ vodafone = "", instapay = "" } = {}) => [
  * Pure wording, so it can be tested without settings. `policy` is the loaded
  * { mode, governorates }; returns "" when nothing has to be prepaid.
  */
-export const buildShippingFeeAdvanceNotice = ({ policy, governorate = "", governorateId = "", shippingFee = 0, orderTotal = 0, transfer = {}, compact = false, paymentCardFollows = false, confirmationFeeExempt = false } = {}) => {
+export const buildShippingFeeAdvanceNotice = ({ policy, governorate = "", governorateId = "", shippingFee = 0, orderTotal = 0, transfer = {}, compact = false, paymentCardFollows = false, paymentCardAfterConfirm = false, confirmationFeeExempt = false } = {}) => {
   const cod = resolveCodPolicy({ policy, governorate, governorateId, shippingFee, orderTotal, confirmationFeeExempt });
   if (cod.cod_allowed) return "";
   const fee = formatMoney(cod.advance_amount);
@@ -85,6 +85,12 @@ export const buildShippingFeeAdvanceNotice = ({ policy, governorate = "", govern
   // The WhatsApp confirmation request is followed by its own payment card (pay buttons + the
   // screenshot upload link), so the request only names the amount — no governorate rule, the
   // same one line Instagram got (owner, 2026-10-19).
+  // The WhatsApp request: the card is sent only after the customer confirms (owner, 2026-10-19).
+  if (paymentCardAfterConfirm) {
+    return confirmation
+      ? `💳 بعد التأكيد هتحوّل ${fee} جنيه مقدّم (بيتخصم من الإجمالي)`
+      : `💳 بعد التأكيد هتحوّل قيمة الشحن ${fee} جنيه بس`;
+  }
   if (paymentCardFollows) {
     return confirmation
       ? `💳 لتأكيد الأوردر حوّل ${fee} جنيه مقدّم (بيتخصم من الإجمالي) 👇`
@@ -99,12 +105,12 @@ export const buildShippingFeeAdvanceNotice = ({ policy, governorate = "", govern
 
 // `policy` is for a caller that already holds the loaded settings (and for tests, which then
 // need no database); everything in production leaves it out and the settings are loaded here.
-export const shippingFeeAdvanceNoticeFor = async ({ governorate = "", governorateId = "", shippingFee = 0, orderTotal = 0, compact = false, paymentCardFollows = false, confirmationFeeExempt = false, policy: givenPolicy = null } = {}) => {
+export const shippingFeeAdvanceNoticeFor = async ({ governorate = "", governorateId = "", shippingFee = 0, orderTotal = 0, compact = false, paymentCardFollows = false, paymentCardAfterConfirm = false, confirmationFeeExempt = false, policy: givenPolicy = null } = {}) => {
   try {
     const policy = givenPolicy || (await loadCodPolicySettings());
     if (normalizeCodPolicy(policy).mode !== "restricted") return "";
-    const transfer = compact || paymentCardFollows ? {} : await loadTransferDetails();
-    return buildShippingFeeAdvanceNotice({ policy, governorate, governorateId, shippingFee, orderTotal, transfer, compact, paymentCardFollows, confirmationFeeExempt });
+    const transfer = compact || paymentCardFollows || paymentCardAfterConfirm ? {} : await loadTransferDetails();
+    return buildShippingFeeAdvanceNotice({ policy, governorate, governorateId, shippingFee, orderTotal, transfer, compact, paymentCardFollows, paymentCardAfterConfirm, confirmationFeeExempt });
   } catch (error) {
     console.warn("[cod-policy-reply] notice skipped", { message: error?.message || String(error) });
     return "";
