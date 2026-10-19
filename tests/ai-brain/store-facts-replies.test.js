@@ -182,3 +182,9 @@ test("right after a fee answer, a bare governorate is the next fee question", as
   assert.equal(answer.detected_intent, "shipping_fee");
   assert.match(answer.text, /^الشحن لأسيوط/);
 });
+
+test("a bare governorate follow-up also works from the Meta runtime memory shape", async () => {
+  const answer = await buildStoreFactsDecision({ message: "واسيوط", memory: { lastIntent: "shipping_fee" } });
+  assert.ok(answer);
+  assert.equal(answer.detected_intent, "shipping_fee");
+});

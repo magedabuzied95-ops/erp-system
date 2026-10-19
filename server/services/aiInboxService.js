@@ -47,6 +47,7 @@ import {
   recheckAutoReplyBeforeSend,
 } from "../utils/aiAutoReplyGate.js";
 import { getSetting } from "./settingsService.js";
+import { decisionFlowMemoryPatch } from "../utils/decisionFlowMemory.js";
 import {
   buildConversationMemoryV2,
   mergeConversationMemoryV2,
@@ -1918,13 +1919,20 @@ export const generateWhatsappAiAutoReply = async ({ tenantId, phone, sessionId, 
     ...asArray(aiPayload?.suggested_products),
     ...asArray(aiPayload?.product_cards),
   ];
+  // What the reply just asked, for the very next message: "المتاح مقاس 44" → "أنهي درجة؟" →
+  // "ايه الفرق" / "فيتنامي" (the browse flow), and "الشحن للقاهرة كام" → "واسيوط" (store facts).
+  // Neither was ever written on WhatsApp, so every follow-up landed on a generic reply
+  // (production, 2026-10-19).
+  const flowPatch = decisionFlowMemoryPatch(aiPayload);
   const awaitingPatch = /تحب\s+أشوفك\s+الألوان\s+والمقاسات|الألوان\s+والمقاسات/i.test(replyText)
     ? {
+        ...flowPatch,
         last_ai_question: replyText,
         awaiting_customer_action: "show_colors_sizes",
         last_bot_message: replyText,
       }
     : {
+        ...flowPatch,
         last_ai_question: replyText,
         last_bot_message: replyText,
       };

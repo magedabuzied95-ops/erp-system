@@ -31,6 +31,7 @@ import { greetingReplyParts } from "../utils/greetingReply.js";
 import { gradeHeaderLine } from "../config/productGrades.js";
 import { getAIChannelSettings } from "./aiChannelSettingsService.js";
 import { aiModeSwitchBlock, recheckAutoReplyBeforeSend } from "../utils/aiAutoReplyGate.js";
+import { decisionFlowMemoryPatch } from "../utils/decisionFlowMemory.js";
 import { logAIPersistentEvent } from "./aiPersistentEventLogService.js";
 import { syncMetaChannelAccounts } from "./channelAccountsService.js";
 import {
@@ -14231,6 +14232,7 @@ const persistentAiMemoryFromRuntime = (memory = {}) => {
     lastShownVariantIds: [...new Set(cards.map((card) => card.variant_id).filter(Boolean).map(String))],
     lastProductQuery: text(memory.lastProductQuery || memory.lastVisualQuery || ""),
     lastIntent: text(memory.lastIntent || ""),
+    catalogBrowse: memory.catalogBrowse && typeof memory.catalogBrowse === "object" ? memory.catalogBrowse : null,
     buyingStage: normalizeCheckoutStage(memory.buyingStage || memory.checkoutStage || "browsing"),
     pendingAction: text(memory.pendingAction || ""),
     updatedAt: memory.updatedAt || nowIso(),
@@ -29255,6 +29257,14 @@ export const processMetaWebhook = async ({ req } = {}) => {
         produced_by: "routeMessageThroughAi",
       });
       aiPayload = await routeMessageThroughAi({ req, message, config });
+      // What this reply asked, for the very next message (browse slots, "which governorate?").
+      if (aiPayload) {
+        const flow = decisionFlowMemoryPatch(aiPayload);
+        updateConversationMemory(message.external_conversation_id, {
+          ...(flow.last_intent ? { lastIntent: flow.last_intent } : {}),
+          catalogBrowse: flow.catalog_browse,
+        });
+      }
       console.info("[ai-brain-output]", {
         channel: text(message.channel || ""),
         source: "metaIntegrationService",

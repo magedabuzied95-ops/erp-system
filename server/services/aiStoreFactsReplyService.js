@@ -4,6 +4,7 @@ import { getSetting } from "./settingsService.js";
 import { loadShippingZones, resolveStorefrontShippingQuote } from "./storefrontShippingService.js";
 import { shippingFeeAdvanceNoticeFor, toPlace } from "./codPolicyReplyService.js";
 import { detectStoreFactsQuestion, extractGovernorateFromMessage } from "../utils/storeFactsQuestion.js";
+import { readDecisionFlowMemory } from "../utils/decisionFlowMemory.js";
 
 /*
  * The shipping fee, opening the parcel before taking it, and exchange / return — answered from
@@ -125,7 +126,7 @@ export const buildExchangeReturnReply = ({ policy = "" } = {}) => (
 // after a fee answer: "الشحن للقاهرة كام" → 100, then "واسيوط" means "and to Assiut?" (production,
 // 2026-10-19, it got "تحت أمرك. ابعت الموديل...").
 const awaitingGovernorateFrom = (memory = {}) =>
-  ["shipping_fee_ask_governorate", "shipping_fee"].includes(text(memory?.preferences?.last_intent ?? memory?.last_intent));
+  ["shipping_fee_ask_governorate", "shipping_fee"].includes(readDecisionFlowMemory(memory).lastIntent);
 
 const defaultLoaders = {
   shippingZones: () => loadShippingZones(),

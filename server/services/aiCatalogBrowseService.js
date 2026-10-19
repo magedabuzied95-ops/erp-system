@@ -4,6 +4,7 @@ import { normalizeChannel, normalizeOutgoingChannelReply } from "./aiChannelAdap
 import { storefrontBaseUrl } from "./aiSizeAvailabilityLinkService.js";
 import { detectCatalogBrowseSlots, productTypeByKey } from "../utils/catalogBrowseRequest.js";
 import { productNamingTerms } from "../utils/productNamingTerms.js";
+import { readDecisionFlowMemory } from "../utils/decisionFlowMemory.js";
 
 /*
  * Browsing by what the customer wants, like a salesperson (owner's spec, 2026-10-19):
@@ -116,11 +117,10 @@ export const gradeDifferenceText = () => [
 ].join("\n");
 
 const pendingFrom = (memory = {}, now = Date.now()) => {
-  const preferences = memory?.preferences || memory || {};
-  const pending = preferences.catalog_browse;
-  if (!pending || typeof pending !== "object") return null;
+  const { lastIntent, catalogBrowse: pending } = readDecisionFlowMemory(memory);
+  if (!pending) return null;
   // Only the very next message continues it: any other reply in between owns the conversation.
-  if (text(preferences.last_intent) !== "catalog_browse_ask" && text(preferences.last_intent) !== "grade_difference") return null;
+  if (lastIntent !== "catalog_browse_ask" && lastIntent !== "grade_difference") return null;
   const at = Date.parse(pending.at || "");
   if (!Number.isFinite(at) || now - at > PENDING_TTL_MS) return null;
   return pending;

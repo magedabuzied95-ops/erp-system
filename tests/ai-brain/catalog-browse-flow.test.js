@@ -108,3 +108,17 @@ test("slots: Arabic digits, ميرور اوريجينال is the mirror grade, b
   assert.equal(slots.grade, "mirror_original");
   assert.equal(slots.brand, "SKECHERS");
 });
+
+test("the next turn sees what was asked on both memory stores (WhatsApp snake_case, Meta camelCase)", async () => {
+  const { decisionFlowMemoryPatch } = await import("../../server/utils/decisionFlowMemory.js");
+  const ask = await turn("المتاح مقاس 44 ايه؟");
+  const flow = decisionFlowMemoryPatch(ask);
+  assert.equal(flow.last_intent, "catalog_browse_ask");
+  assert.equal(flow.catalog_browse.size, "44");
+  // WhatsApp: ai_conversation_memories.preferences carries the patch as is.
+  const whatsapp = await turn("ايه الفرق", { preferences: { ...flow } });
+  assert.equal(whatsapp.detected_intent, "grade_difference");
+  // Messenger / Instagram: the runtime memory carries lastIntent / catalogBrowse.
+  const meta = await turn("فيتنامي", { lastIntent: flow.last_intent, catalogBrowse: flow.catalog_browse });
+  assert.match(meta.text, /size=44&quality=imported_from_vietnam/);
+});
