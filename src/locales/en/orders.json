@@ -952,7 +952,9 @@
       "noPhone": "No phone",
       "noAddress": "No address",
       "morePhotos": "+{{count}}",
-      "moreItems": "+{{count}} more products"
+      "moreItems": "+{{count}} more products",
+      "returnedToStore": "Cancelled · back in store",
+      "returnedToStoreAt": "Returned by Bosta, stock restored — {{date}}"
     },
     "actions": {
       "call": "Call",

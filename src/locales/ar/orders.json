@@ -952,7 +952,9 @@
       "noPhone": "بدون رقم",
       "noAddress": "بدون عنوان",
       "morePhotos": "+{{count}}",
-      "moreItems": "+{{count}} منتجات أخرى"
+      "moreItems": "+{{count}} منتجات أخرى",
+      "returnedToStore": "اتلغى ورجع المخزن",
+      "returnedToStoreAt": "رجع من بوسطة والمخزون اترجع — {{date}}"
     },
     "actions": {
       "call": "اتصال",

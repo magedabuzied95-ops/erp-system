@@ -13,6 +13,7 @@ import {
   MapPin,
   MessageCircle,
   Package,
+  PackageCheck,
   PackagePlus,
   Plus,
   Phone,
@@ -437,9 +438,14 @@ function OrderCard({ order, ui, onOpen, selectable = false, selected = false, on
   const location = locationLine(order);
   const collect = Number(order.money?.collect_on_delivery || 0);
   const tracking = text(order.shipment?.tracking_number);
-  const statusText = order.group === "shipping" && text(order.shipping_status)
-    ? ui.shippingLabel(order.shipping_status)
-    : ui.statusLabel(order.status);
+  // A closed order the courier ended (cancelled / returned) says so — never the
+  // "جاهز للشحن" it was parked on before the parcel left.
+  const courierEnded = order.group === "closed" && ["returned", "cancelled", "canceled"].includes(lower(order.shipping_status));
+  const statusText = order.returned_to_store_at
+    ? ui.tb("card.returnedToStore")
+    : (order.group === "shipping" || courierEnded) && text(order.shipping_status)
+      ? ui.shippingLabel(order.shipping_status)
+      : ui.statusLabel(order.status);
 
   return (
     <article
@@ -490,6 +496,13 @@ function OrderCard({ order, ui, onOpen, selectable = false, selected = false, on
         </div>
         <ContactButtons order={order} phone={order.customer?.phone} ui={ui} onOpenChat={onOpenChat} />
       </div>
+
+      {order.returned_to_store_at ? (
+        <div className="mt-2 flex items-center gap-1.5 rounded-lg bg-surface-soft px-2 py-1.5 text-xs font-bold text-text">
+          <PackageCheck className="h-3.5 w-3.5 shrink-0 text-text-muted" />
+          <span dir="auto">{ui.tb("card.returnedToStoreAt", { date: ui.dateTime(order.returned_to_store_at) })}</span>
+        </div>
+      ) : null}
 
       <div className="mt-2 flex items-center gap-1.5 text-xs font-bold text-text-muted">
         <MapPin className="h-3.5 w-3.5 shrink-0" />

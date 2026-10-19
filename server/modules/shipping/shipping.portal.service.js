@@ -342,6 +342,11 @@ const shapeOrder = (order = {}, items = [], codPolicy = undefined) => {
       trackingNumber: order.shipping_tracking_number || order.tracking_number,
     }),
     delivery: shapeDelivery(order),
+    // The parcel came back and the order was cancelled with its stock restored
+    // (bostaReturnedParcel.js): when, so the card can say it.
+    returned_to_store_at: ["returned", "return"].includes(text(order.shipment_status || order.shipping_status).toLowerCase()) && order.cancelled_at
+      ? order.cancelled_at
+      : null,
     conversation: order.portal_conversation || null,
     whatsapp_confirmation_sent_at: order.whatsapp_confirmation_sent_at || null,
     whatsapp_confirmed_at: order.whatsapp_confirmed_at || null,

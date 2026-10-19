@@ -33,6 +33,12 @@ const IN_FLIGHT_STATUSES = [
   "failed",
 ];
 
+// A parcel cancelled at Bosta after it left, or reported returned while the order is
+// still open, is on its way back to the shelf: it is chased until Bosta says "returned"
+// and the refresh receives it (order cancelled, stock restored — bostaReturnedParcel.js).
+// `cancelled_at IS NULL` ends the chase the moment that happens.
+const COMING_BACK_STATUSES = ["cancelled", "canceled", "returned"];
+
 const DEFAULT_STALE_MINUTES = 45;
 const DEFAULT_BATCH = 20;
 // Old parcels are lost causes, not live shipments: a tracking number nobody has
@@ -53,13 +59,16 @@ export const listStaleBostaShipments = async ({ staleMinutes = DEFAULT_STALE_MIN
       AND COALESCE(NULLIF(TRIM(shipping_tracking_number), ''), NULLIF(TRIM(tracking_number), ''), '') <> ''
       AND deleted_at IS NULL
       AND cancelled_at IS NULL
-      AND LOWER(REPLACE(TRIM(COALESCE(shipment_status, shipping_status, '')), '-', '_')) = ANY($1::text[])
+      AND (
+        LOWER(REPLACE(TRIM(COALESCE(shipment_status, shipping_status, '')), '-', '_')) = ANY($1::text[])
+        OR LOWER(REPLACE(TRIM(COALESCE(shipment_status, shipping_status, '')), '-', '_')) = ANY($5::text[])
+      )
       AND created_at >= NOW() - ($2 || ' days')::interval
       AND COALESCE(shipping_last_synced_at, last_shipping_sync_at, created_at) < NOW() - ($3 || ' minutes')::interval
     ORDER BY COALESCE(shipping_last_synced_at, last_shipping_sync_at, created_at) ASC
     LIMIT $4
     `,
-    [IN_FLIGHT_STATUSES, String(MAX_AGE_DAYS), String(number(staleMinutes, DEFAULT_STALE_MINUTES)), number(limit, DEFAULT_BATCH)]
+    [IN_FLIGHT_STATUSES, String(MAX_AGE_DAYS), String(number(staleMinutes, DEFAULT_STALE_MINUTES)), number(limit, DEFAULT_BATCH), COMING_BACK_STATUSES]
   );
   return result.rows;
 };

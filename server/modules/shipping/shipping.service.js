@@ -9,6 +9,7 @@ import { createBostaClient } from "./providers/bosta.client.js";
 import { DELIVERED_CLOSES_CONFIRMATION_SQL, ensureCourierSettlementSchema, markCourierCollected } from "./shipping.settlements.service.js";
 import { reconcileCourierCostsSoon } from "./shipping.costs.service.js";
 import { exchangeParcelContextOf } from "../orders/exchangeParcel.js";
+import { receiveReturnedBostaParcel } from "./bostaReturnedParcel.js";
 import { isExternalMarketplaceOrder, marketplaceOrderLockedError } from "../amazon/amazonOrderGuards.js";
 import { BOSTA_OPEN_PACKAGE_IMAGE_LIMIT, bostaStateText, buildBostaAddressLine, extractBostaInsights, mapOrderToBostaDeliveryPayload, normalizeBostaAwbResponse, normalizeBostaDeliveryResponse, normalizeBostaMasterLocations, normalizeBostaStatus } from "./providers/bosta.mapper.js";
 
@@ -1360,6 +1361,14 @@ export const refreshBostaShipmentForOrder = async (orderId) => {
     void settleExchangeReturnOnDelivery(updatedOrder, { source: "bosta_refresh" })
       .catch((error) => console.warn("[bosta] exchange restock failed", { orderId, message: error?.message || String(error) }));
   }
+  // Back on our shelf: the order is cancelled and its stock restored. Awaited, so the
+  // refresh answers with the order as it now is.
+  if (status === "returned") {
+    const received = await receiveReturnedBostaParcel(updatedOrder, { source: "bosta_refresh" })
+      .catch((error) => ({ received: false, message: error?.message || String(error) }));
+    if (received.received) updatedOrder = (await db.query("SELECT * FROM orders WHERE id = $1", [orderId])).rows[0] || updatedOrder;
+    else if (received.message) console.warn("[bosta] returned parcel not received", { orderId, ...received });
+  }
   return { ...response, order: updatedOrder };
 };
 
@@ -1492,7 +1501,10 @@ export const processBostaWebhook = async ({ req, payload = {} } = {}) => {
 
     const orderStatus = normalizeKey(order.status);
     const shippingStatus = normalizeKey(order.shipping_status || order.shipment_status);
-    if (order.cancelled_at || orderStatus === "cancelled" || shippingStatus === "cancelled") {
+    // A parcel cancelled at Bosta after it left still comes BACK: Bosta's "returned" is the
+    // one event that may follow a cancelled shipment — it is how the goods reach the shelf.
+    const parcelComingBack = parsed.status === "returned" && shippingStatus === "cancelled";
+    if (order.cancelled_at || orderStatus === "cancelled" || (shippingStatus === "cancelled" && !parcelComingBack)) {
       await client.query("COMMIT");
       return { success: true, recorded: true, applied: false, matched: true, skipped: true, duplicate, order_id: order.id, auth, parsed, message: "ERP order is cancelled; webhook did not overwrite it" };
     }
@@ -1570,6 +1582,11 @@ export const processBostaWebhook = async ({ req, payload = {} } = {}) => {
     if (parsed.status === "delivered") {
       void settleExchangeReturnOnDelivery(updatedOrder, { source: "bosta_webhook" })
         .catch((error) => console.warn("[bosta-webhook] exchange restock failed", { orderId: updatedOrder?.id, message: error?.message || String(error) }));
+    }
+    // After the commit: cancelOrder opens its own transaction on the same row.
+    if (parsed.status === "returned") {
+      void receiveReturnedBostaParcel(updatedOrder, { source: "bosta_webhook", at: parsed.occurredAt || null })
+        .catch((error) => console.warn("[bosta-webhook] returned parcel not received", { orderId: updatedOrder?.id, message: error?.message || String(error) }));
     }
     return { success: true, recorded: true, applied: true, matched: true, duplicate: false, order_id: order.id, auth, parsed, order: updatedOrder };
   } catch (error) {
