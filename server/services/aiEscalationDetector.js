@@ -1,3 +1,5 @@
+import { isExchangeReturnPolicyQuestion } from "../utils/storeFactsQuestion.js";
+
 const ESCALATION_KEYWORDS = [
   "غاضب",
   "زعلان",
@@ -30,7 +32,10 @@ export function detectEscalation(message = "") {
     text.includes(keyword.toLowerCase())
   );
 
-  if (!matchedKeyword) {
+  // "متاح استبدال او استرجاع ؟" asks for the policy; it is no complaint, and escalating it left the
+  // customer with no reply at all (production, 2026-10-19). A message with a complaint word
+  // ("عايز ارجعه فيه مشكلة") is not a policy question and still escalates.
+  if (!matchedKeyword || isExchangeReturnPolicyQuestion(message)) {
     return {
       shouldEscalate: false,
       reason: null,

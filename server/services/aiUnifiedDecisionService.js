@@ -12,6 +12,7 @@ import { sanitizeGroundedAiReply } from "./aiReplyQualityService.js";
 import { generateSupportAnswer } from "./openaiSupportService.js";
 import { PRODUCT_GRADES, productGrade, productGradeRank } from "../config/productGrades.js";
 import { resolveInvoiceTemplateForOrder } from "./invoiceTemplateService.js";
+import { buildStoreFactsDecision, STORE_FACTS_INTENTS } from "./aiStoreFactsReplyService.js";
 import {
   buildConversationMemoryV2,
   mergeConversationMemoryV2,
@@ -108,6 +109,8 @@ const withReplyText = (decision = {}, replyText = "", debugPatch = {}) => ({
 export const rewriteStructuredDecision = async ({ decision = {}, inbound = {}, tenantId = null } = {}) => {
   const intent = text(decision.detected_intent || decision.intent);
   if (["human_takeover", "order_tracking", "order_follow_up", "post_product_order_confirmation"].includes(intent)) return decision;
+  // The store's own fee / policy words go out as they are: re-worded, they lost the facts.
+  if (STORE_FACTS_INTENTS.includes(intent)) return decision;
   const products = asArray(decision.product_cards?.length ? decision.product_cards : decision.suggested_products?.length ? decision.suggested_products : decision.products);
   const gradeGuide = gradeGuideFor(products);
   const multiGrade = gradeGuide.length > 1;
@@ -1014,7 +1017,23 @@ export const generateUnifiedConversationDecision = async (normalizedInbound = {}
 
   let decision = null;
   const directColorSelectionDecision = buildDirectColorSelectionDecision({ message: inbound.text, memory: rawMemory || effectiveMemoryWithV2 });
-  if (directColorSelectionDecision) {
+  // Shipping fee, opening the parcel, exchange / return: the store's settings answer them, on
+  // every channel, before the product brain can read them as a price or size question.
+  const storeFactsDecision = directColorSelectionDecision
+    ? null
+    : await buildStoreFactsDecision({
+        message: inbound.originalText || inbound.text,
+        memory: rawMemory || {},
+        channel: inbound.channel,
+        tenantId,
+        loaders: { returnPolicy: storeReturnPolicyFor },
+      }).catch((error) => {
+        console.warn("[ai-store-facts:skipped]", { message: error?.message || String(error) });
+        return null;
+      });
+  if (storeFactsDecision) {
+    decision = storeFactsDecision;
+  } else if (directColorSelectionDecision) {
     console.info("AI_V2_DIRECT_COLOR_SELECTION_MATCH", {
       channel: inbound.channel,
       message: inbound.text,

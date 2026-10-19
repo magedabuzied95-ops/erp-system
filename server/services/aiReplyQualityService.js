@@ -28,8 +28,24 @@ export const safeGroundedReply = ({ products = [], intent = "" } = {}) => {
   return "ممكن تقولّي رجالي ولا حريمي ولا أطفال، واسم الموديل أو المقاس اللي محتاجه؟ هطلع لك المتاح من المتجر مباشرة.";
 };
 
+/*
+ * Internal action names ("contact_support", "view_product") are schema values, never words for a
+ * customer. Production, 2026-10-19: the rewrite ended a WhatsApp reply with "... contact_support".
+ * snake_case words are removed outside links (a URL may carry one in its path or query).
+ */
+export const stripInternalActionNames = (value = "") =>
+  String(value ?? "")
+    .split(/(https?:\/\/\S+)/)
+    .map((part, index) => (index % 2 ? part : part
+      .replace(/[([{]?\s*\b[a-z]+(?:_[a-z]+)+\b\s*[)\]}]?/g, " ")
+      .replace(/[ \t]+([.,،!؟?])/g, "$1")
+      .replace(/[ \t]{2,}/g, " ")
+      .replace(/[ \t]+$/gm, "")))
+    .join("")
+    .trim();
+
 export const sanitizeGroundedAiReply = ({ reply = "", products = [], intent = "" } = {}) => {
-  const source = text(reply);
+  const source = stripInternalActionNames(text(reply));
   if (source && !hasBrokenReplyEncoding(source)) return { reply: source, replaced: false, reason: "ok" };
   return {
     reply: safeGroundedReply({ products, intent }),
@@ -38,4 +54,4 @@ export const sanitizeGroundedAiReply = ({ reply = "", products = [], intent = ""
   };
 };
 
-export default { hasBrokenReplyEncoding, safeGroundedReply, sanitizeGroundedAiReply };
+export default { hasBrokenReplyEncoding, safeGroundedReply, sanitizeGroundedAiReply, stripInternalActionNames };
