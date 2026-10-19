@@ -6,7 +6,7 @@ import { normalizeArabicForIntent, normalizeArabicIntentPayload } from "../utils
 import { resolveProductAlias } from "../utils/productAliasResolver.js";
 import { buildAliasAwareSearchHints } from "../utils/aliasAwareProductSearch.js";
 import { rankProductCandidates, scoreProductCandidate } from "../utils/productMatchConfidence.js";
-import { resolveCatalogNavigation } from "./aiCatalogNavigationService.js";
+import { audienceStoredValues, firstAudience, resolveCatalogNavigation } from "./aiCatalogNavigationService.js";
 import { productNamingTerms } from "../utils/productNamingTerms.js";
 import { productGrade, productGradeRank } from "../config/productGrades.js";
 import {
@@ -799,6 +799,57 @@ export const shouldSearchNamedProduct = ({ intent = "", namedProductTerms = [], 
   return true;
 };
 
+const productNameForTerms = (product = {}) => normalizeArabic(product.name || product.title || product.product_name || "").toLowerCase();
+
+export const namedProductTermsMatched = (product = {}, terms = []) => {
+  const name = productNameForTerms(product);
+  return {
+    words: asArray(terms).filter((term) => !term.includes(" ") && name.includes(term)).length,
+    phrase: asArray(terms).some((term) => term.includes(" ") && name.includes(term)),
+  };
+};
+
+/*
+ * The products carrying most of what the customer named. "نايك دانك": the whole name beats a
+ * product that only shares the brand. "الترا اسكتشر": the run is "ultra skechers", which no name
+ * holds in that order, so it is the count of named words that puts Skechers Ultra Light above
+ * every other Skechers and every adidas Ultraboost.
+ */
+export const namedProductMatches = (products = [], terms = []) => {
+  if (!asArray(terms).length) return [];
+  const rankOf = (match) => (match.phrase ? 1000 : 0) + match.words;
+  const matched = asArray(products)
+    .map((product) => ({ product, rank: rankOf(namedProductTermsMatched(product, terms)) }))
+    .filter((item) => item.rank > 0);
+  const best = Math.max(0, ...matched.map((item) => item.rank));
+  return matched.filter((item) => item.rank === best).map((item) => item.product);
+};
+
+const BRAND_WORDS = new Set(["skechers", "nike", "adidas", "puma", "vans", "converse", "hoka", "crocs", "jordan", "reebok", "fila", "asics"]);
+const AUDIENCE_LABELS = { men: "رجالي", women: "حريمي", kids: "أطفال" };
+
+const askedModelName = (terms = []) => {
+  const words = asArray(terms).filter((term) => !term.includes(" "));
+  return [...words.filter((word) => BRAND_WORDS.has(word)), ...words.filter((word) => !BRAND_WORDS.has(word))]
+    .map((word) => word.charAt(0).toUpperCase() + word.slice(1))
+    .join(" ");
+};
+
+const baseProductName = (product = {}) => text(product.name || product.title || product.product_name || "").replace(/\s+-\s+.*$/, "").replace(/\s+/g, " ");
+
+export const audienceSearchText = ({ audience = null, terms = [], audienceMissing = false, namedPartly = false, products = [] } = {}) => {
+  const label = audience?.label || "";
+  const asked = askedModelName(terms);
+  if (audienceMissing) {
+    const others = [...new Set(asArray(products).map((product) => AUDIENCE_LABELS[text(product.gender).toLowerCase()]).filter((value) => value && value !== label))];
+    return `للأسف مش لاقي ${asked} ${label} دلوقتي. ده المتاح منه${others.length ? ` ${others.join(" و")}` : ""}:`;
+  }
+  if (namedPartly) return `مش لاقي ${asked} ${label} بالظبط دلوقتي، ودي أقرب الاختيارات ${label} المتاحة:`;
+  const names = [...new Set(asArray(products).map(baseProductName).filter(Boolean).map((name) => name.toLowerCase()))];
+  const name = names.length === 1 ? baseProductName(products[0]) : asked;
+  return `أيوه يا فندم، ${name} ${label} متاح بالألوان دي:`;
+};
+
 const tableColumnCache = new Map();
 
 const tableColumns = async (tableName = "") => {
@@ -885,8 +936,9 @@ const scoreProduct = ({ product = {}, normalizedMessage = "", explicitModel = nu
 
 // 40, not 80: rows come back best name match first, at most 6 are shown, and ranking is CPU work
 // on the one thread every other request and webhook waits behind.
-const loadCandidateProducts = async ({ tenantId = null, message = "", explicitModel = null, namingTerms = [], limit = 40 } = {}) => {
+const loadCandidateProducts = async ({ tenantId = null, message = "", explicitModel = null, namingTerms = [], audience = null, limit = 40 } = {}) => {
   const productColumns = await tableColumns("products");
+  const audienceValues = audienceStoredValues(audience);
   const tenantFilter = productColumns.has("tenant_id") ? "AND ($1::bigint IS NULL OR p.tenant_id = $1::bigint OR p.tenant_id IS NULL)" : "";
   const deletedFilter = productColumns.has("deleted_at") ? "AND p.deleted_at IS NULL" : "";
   const activeFilter = productColumns.has("is_active") ? "AND COALESCE(p.is_active, TRUE) = TRUE" : "";
@@ -901,6 +953,15 @@ const loadCandidateProducts = async ({ tenantId = null, message = "", explicitMo
   const aliasResult = resolveProductAlias(message);
   const aliasHints = buildAliasAwareSearchHints({ text: message, aliasResult });
   const likeClauses = terms.map((_, index) => searchable.map((expr) => `${expr} ILIKE $${index + 2}`).join(" OR "));
+  // "الترا اسكتشر حريمي": filtered in SQL, so the 40-row cut is taken from the women's rows.
+  const audienceParam = terms.length + 2;
+  const audienceChecks = audienceValues.length ? [
+    ...(productColumns.has("gender") ? [`LOWER(COALESCE(p.gender, '')) = ANY($${audienceParam}::text[])`] : []),
+    ...((await tableColumns("product_audiences")).has("audience")
+      ? [`EXISTS (SELECT 1 FROM product_audiences pa WHERE pa.product_id = p.id AND LOWER(pa.audience) = ANY($${audienceParam}::text[]))`]
+      : []),
+  ] : [];
+  const audienceFilter = audienceChecks.length ? `AND (${audienceChecks.join(" OR ")})` : "";
   const sql = `
     SELECT p.*
     FROM products p
@@ -910,10 +971,11 @@ const loadCandidateProducts = async ({ tenantId = null, message = "", explicitMo
       ${activeFilter}
       ${statusFilter}
       ${likeClauses.length ? `AND (${likeClauses.map((clause) => `(${clause})`).join(" OR ")})` : ""}
+      ${audienceFilter}
     ORDER BY ${terms.length ? `(${terms.map((_, index) => `CASE WHEN ${searchable[0]} ILIKE $${index + 2} THEN 1 ELSE 0 END`).join(" + ")}) DESC, ` : ""}p.id DESC
     LIMIT ${Math.max(1, Math.min(Number(limit) || 40, 200))}
   `;
-  const params = [numberOrNull(tenantId), ...terms.map((term) => `%${term}%`)];
+  const params = [numberOrNull(tenantId), ...terms.map((term) => `%${term}%`), ...(audienceFilter ? [audienceValues] : [])];
   const result = await db.query(sql, params);
   console.info("AI_BRAIN_V2_SQL_TRACE", {
     tenant_id: tenantId || null,
@@ -921,6 +983,7 @@ const loadCandidateProducts = async ({ tenantId = null, message = "", explicitMo
     normalized_text: normalizeArabic(message),
     explicit_model: explicitModel?.model || "",
     search_terms: terms,
+    audience: audienceFilter ? audience.key : "",
     alias_search_hints: aliasHints,
     rows_returned: result.rows.length,
     first_product_ids: result.rows.slice(0, 20).map((row) => row.id),
@@ -1410,7 +1473,12 @@ export const generateAiBrainV2Decision = async (normalizedInbound = {}, options 
   // "عايز ايرفورس" answered "found N items" with a link to the whole shop. A named product is a
   // search, unless the customer also asked for a section.
   const namesAProduct = Boolean(explicitModel) || namedProductTerms.length > 0;
-  const mayNavigateCatalog = (!memoryActiveProductId || explicitCatalogFacet) && (!namesAProduct || explicitCatalogFacet);
+  // "متاح الترا اسكتشر حريمي ؟" was answered with the whole women's section (177 items, boots and
+  // Hoka on the cards): the gender word alone counted as asking for a section. Who it is for is a
+  // filter on the model search; only a section word (قسم / سكشن / فئة / نوع) still browses.
+  const explicitSectionRequest = /(قسم|سكشن|فئ[هة]|نوع)/i.test(originalMessage);
+  const requestedAudience = namesAProduct && !explicitSectionRequest ? firstAudience(originalMessage) : null;
+  const mayNavigateCatalog = (!memoryActiveProductId || explicitCatalogFacet) && (!namesAProduct || explicitSectionRequest);
   const catalogNavigation = mayNavigateCatalog && !["human_takeover", "order_tracking", "order_follow_up"].includes(intent)
     ? await resolveCatalogNavigation({ tenantId, message: originalMessage }).catch((error) => {
         console.warn("[ai-catalog-navigation:skipped]", {
@@ -1554,17 +1622,24 @@ export const generateAiBrainV2Decision = async (normalizedInbound = {}, options 
     return postProductFsmDecision;
   }
   const shouldSearch = ["product_search", "more_images", "visual_search"].includes(intent) || Boolean(explicitModel);
-  const candidates = shouldSearch ? await loadCandidateProducts({ tenantId, message, explicitModel, namingTerms: namedProductTerms }) : [];
+  const audienceCandidates = shouldSearch && requestedAudience
+    ? await loadCandidateProducts({ tenantId, message, explicitModel, namingTerms: namedProductTerms, audience: requestedAudience })
+    : [];
+  // Nothing of it for that audience: the model is still shown, and the reply says whom it is for.
+  const audienceMissing = Boolean(shouldSearch && requestedAudience && !namedProductMatches(audienceCandidates, namedProductTerms).length);
+  const candidates = shouldSearch
+    ? (requestedAudience && !audienceMissing ? audienceCandidates : await loadCandidateProducts({ tenantId, message, explicitModel, namingTerms: namedProductTerms }))
+    : [];
   const normalizedPayload = normalizeArabicIntentPayload(message);
   const aliasResult = resolveProductAlias(message);
   const searchHints = buildAliasAwareSearchHints({ text: message, aliasResult });
   const ranked = rankProducts({ products: candidates, message, explicitModel, namingTerms: namedProductTerms, aliasResult, searchHints, intentPayload: normalizedPayload });
   const scoredProducts = ranked.filter((product) => Number(product.ai_brain_v2_score || 0) > 0);
-  const namedReasons = (product) => asArray(product.ai_brain_v2_reasons).map(String).filter((reason) => reason.startsWith("named:"));
-  const namedAny = namedProductTerms.length ? scoredProducts.filter((product) => namedReasons(product).length) : [];
-  // "نايك دانك": a product carrying the whole name beats one that only shares the brand.
-  const namedPhrase = namedAny.filter((product) => namedReasons(product).some((reason) => reason.includes(" ")));
-  const namedMatches = namedPhrase.length ? namedPhrase : namedAny;
+  const namedMatches = namedProductMatches(scoredProducts, namedProductTerms);
+  const namedWords = namedProductTerms.filter((term) => !term.includes(" "));
+  // "الترا جو حريمي" when only Ultra Light is in the women's: the closest pairs, said as such.
+  const bestNamed = namedMatches.length ? namedProductTermsMatched(namedMatches[0], namedProductTerms) : null;
+  const namedPartly = Boolean(bestNamed && !bestNamed.phrase && bestNamed.words < namedWords.length);
   // A named model is picked across its grades, so a mirror pair is not cut by six local ones.
   const selectedProducts = namedMatches.length ? pickAcrossGrades(namedMatches, 6) : scoredProducts.slice(0, 6);
   const presentationProducts = selectedProducts.length
@@ -1586,7 +1661,9 @@ export const generateAiBrainV2Decision = async (normalizedInbound = {}, options 
     }))
     .filter((image) => image.url);
   const activeProductId = text(productCards[0]?.product_id || productCards[0]?.id || activeProductFromMemory(memory));
-  const responseText = buildBaseText({ intent, cards: productCards, explicitModel, activeProductId });
+  const responseText = (requestedAudience && productCards.length && namedMatches.length)
+    ? audienceSearchText({ audience: requestedAudience, terms: namedProductTerms, audienceMissing, namedPartly, products: selectedProducts })
+    : buildBaseText({ intent, cards: productCards, explicitModel, activeProductId });
   const memoryUpdates = {
     ...(activeProductId ? {
       active_product_id: activeProductId,
