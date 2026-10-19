@@ -165,3 +165,13 @@ test("brain V2 answers a bare greeting with the welcome and the next step", asyn
   assert.match(decision.text, /رجالي ولا حريمي ولا أطفال/);
   assert.equal((decision.product_cards || []).length, 0, "no products for a greeting");
 });
+
+test("a gender-aware answer survives the multi-grade introduction", async () => {
+  const { multiGradeIntroText } = await import("../../server/services/aiUnifiedDecisionService.js");
+  const cards = [{ name: "Nike Air Force 1 - White", grade: "local" }, { name: "Nike Air Force 1 - Olive", grade: "mirror_original" }];
+  const guide = gradeGuideFor(cards);
+  const missed = multiGradeIntroText(guide, cards, { exact: false, label: "حريمي", text: "للأسف مش لاقي Air Force حريمي دلوقتي. ده المتاح منه رجالي:" });
+  assert.match(missed, /^للأسف مش لاقي Air Force حريمي دلوقتي\. ده المتاح منه رجالي\.\nوالمتاح بدرجتين/);
+  const exact = multiGradeIntroText(guide, cards, { exact: true, label: "رجالي", text: "أيوه يا فندم، Nike Air Force 1 رجالي متاح بالألوان دي:" });
+  assert.match(exact, /^أيوه يا فندم، Nike Air Force 1 رجالي متاح عندنا بدرجتين/);
+});

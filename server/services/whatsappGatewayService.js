@@ -2516,10 +2516,12 @@ export const sendWhatsappTemplate = async ({ automationType = "", phone, values 
   return whatsappCloud.sendTemplate({ automationType, phone: normalizedPhone, values, phoneNumberId: transport.phoneNumberId });
 };
 
-export const sendCartCarouselMessage = async ({ phone, body = "", cards = [], fallbackText = "" } = {}) => {
+// `instance` is the number the conversation lives on; empty keeps the env default, so every older
+// caller sends exactly as before.
+export const sendCartCarouselMessage = async ({ phone, body = "", cards = [], fallbackText = "", instance = "" } = {}) => {
   // A carousel is not a session message on Cloud API — it exists only as an approved MARKETING
   // template, which is a different product with its own review, price and opt-out rules.
-  if (isCloudTransport()) throw gatewayError("A carousel can only be sent from the Evolution number; on Cloud it would have to be an approved marketing template", "WHATSAPP_CAROUSEL_UNSUPPORTED", 409);
+  if (isCloudTransport(instance)) throw gatewayError("A carousel can only be sent from the Evolution number; on Cloud it would have to be an approved marketing template", "WHATSAPP_CAROUSEL_UNSUPPORTED", 409);
   if (provider() !== "evolution") throw gatewayError("Carousel messages are only supported on the Evolution provider", "WHATSAPP_CAROUSEL_UNSUPPORTED", 409);
   const normalizedPhone = normalizeEgyptPhone(phone);
   if (!normalizedPhone) throw gatewayError("A valid WhatsApp phone number is required", "WHATSAPP_PHONE_REQUIRED", 400);
@@ -2550,7 +2552,7 @@ export const sendCartCarouselMessage = async ({ phone, body = "", cards = [], fa
   // Evolution refuses an empty body (400 "body does not meet minimum length of 1"), so a caller
   // that leaves it blank borrows the first card's first line instead of losing the carousel.
   const safeBody = text(body) || text(normalizedCards[0].body.split("\n")[0]);
-  const current = requireEvolutionConfig();
+  const current = requireEvolutionConfig(instance);
   const endpoint = `/message/sendCarousel/${encodeURIComponent(current.instanceName)}`;
   const requestBody = JSON.stringify({ number: normalizedPhone, body: safeBody, cards: normalizedCards });
   const logBase = { order_id: null, phoneSuffix: normalizedPhone.slice(-4), buttonIds: ["carousel"] };
@@ -2562,7 +2564,7 @@ export const sendCartCarouselMessage = async ({ phone, body = "", cards = [], fa
     logBase,
     phone: normalizedPhone,
     fallbackOnNotDelivered: async () =>
-      sendTextMessage({ phone: normalizedPhone, message: text(fallbackText) || text(body) }),
+      sendTextMessage({ phone: normalizedPhone, message: text(fallbackText) || text(body), instance }),
   });
   try {
     return await send();
@@ -3851,7 +3853,103 @@ const resolveCaptionVariant = (product = {}) => {
   }
   return product?.selected_variant || product?.variant || product?.matched_variant || variants[0] || null;
 };
-const buildWhatsappOutboundPlan = ({ message = {}, aiPayload = {}, replyText = "", cards = [] } = {}) => {
+
+/*
+ * The AI auto-reply's product cards as ONE swipeable carousel.
+ *
+ * 2026-10-19 (owner's live test, session 2391): this path only ever looped sendImageMessage, so
+ * every AI answer with several colours reached the customer as loose photos with a caption each,
+ * while the inbox send (aiChannelAdapterService) has gone as a carousel for weeks. Same card
+ * shape as that send: the colour leads, then price and sizes, and a reply button that carries
+ * the exact variant back (choose_color:<variant_id>).
+ */
+export const buildAiReplyCarouselCards = (cards = []) =>
+  asArray(cards)
+    .map((card) => {
+      const product = card?.product || card || {};
+      const variant = resolveCaptionVariant(product);
+      const priced = { ...product, selected_variant: variant || product.selected_variant || null };
+      const price = resolveImageCardPrice(priced) || productCardPrice(product);
+      const sizes = formatWhatsAppCaptionSizes(product.available_sizes || product.sizes);
+      const variantId = text(product.selected_variant_id || variant?.id || variant?.variant_id || product.variant_id || product.matched_variant_id || "");
+      const productUrl = productCardUrl(product);
+      const cardLines = [
+        text(product.color || product.matched_variant_color || variant?.color || "") || productCardName(product),
+        price ? `${price} جنيه` : "",
+        sizes.length ? `المقاسات: ${sizes.slice(0, 6).join(" / ")}` : "",
+      ].filter(Boolean);
+      return {
+        imageUrl: text(card?.resolved_image_url || card?.imageUrl || card?.image_url || product.image_url || product.image || product.main_image || ""),
+        body: cardLines.join("\n").slice(0, 160),
+        ...(variantId
+          ? { buttonId: `choose_color:${variantId}`, buttonText: "اطلب اللون ده ✅" }
+          : { url: productUrl, buttonText: "شوف المنتج 🛒" }),
+      };
+    })
+    .filter((card) => card.imageUrl && (card.buttonId || card.url));
+
+const AI_REPLY_CAROUSEL_MIN_CARDS = 2;
+const AI_REPLY_CAROUSEL_MAX_CARDS = 10;
+
+// Our own request timed out: Evolution may already have delivered it, so photos on top would
+// show the customer every colour twice.
+const isCarouselSendTimeout = (error) =>
+  error?.code === "EVOLUTION_BUTTONS_TIMEOUT" || error?.name === "AbortError" || /timed out/i.test(String(error?.message || ""));
+
+/*
+ * Tries the carousel and says how many of `cards` it delivered, in order. The caller sends the
+ * rest as photos — so a carousel that fails costs the customer nothing, and one that works is
+ * never followed by the same colours again as photos.
+ */
+export const sendAiReplyProductCarousel = async ({ phone, instance = "", body = "", cards = [], conversationId = "" } = {}) => {
+  const list = asArray(cards);
+  if (list.length < AI_REPLY_CAROUSEL_MIN_CARDS) return { sent_count: 0, reason: "single_card" };
+  if (isCloudTransport(instance)) return { sent_count: 0, reason: "cloud_transport" };
+  const carouselCards = buildAiReplyCarouselCards(list);
+  // A card that cannot be built must not be dropped silently: if any is missing, the whole set
+  // goes as photos, where the loop logs each one it cannot send.
+  if (carouselCards.length !== list.length) {
+    console.warn("[whatsapp-ai-carousel-skipped]", { conversation_id: conversationId, reason: "unbuildable_card", cards: list.length, buildable: carouselCards.length });
+    return { sent_count: 0, reason: "unbuildable_card" };
+  }
+  const leadLine = text(body).slice(0, 1024) || "اختار اللون اللي يعجبك 👇";
+  const responses = [];
+  let sentCount = 0;
+  for (let start = 0; start < carouselCards.length; start += AI_REPLY_CAROUSEL_MAX_CARDS) {
+    const chunk = carouselCards.slice(start, start + AI_REPLY_CAROUSEL_MAX_CARDS);
+    try {
+      const response = await sendCartCarouselMessage({
+        phone,
+        instance,
+        // Only the first carousel carries the AI's words; a second one is the same choice continued.
+        body: start === 0 ? leadLine : "اختار اللون اللي يعجبك 👇",
+        cards: chunk,
+        fallbackText: start === 0 ? leadLine : "",
+      });
+      responses.push(response);
+      sentCount += chunk.length;
+    } catch (error) {
+      const timedOut = isCarouselSendTimeout(error);
+      console.error("[whatsapp-ai-carousel-failed]", {
+        conversation_id: conversationId,
+        cards: chunk.length,
+        sent_before: sentCount,
+        status: error?.status || "",
+        code: error?.code || "",
+        message: error?.message || String(error),
+        response_raw: truncateText(error?.responseRaw || "", 300),
+        fallback: timedOut ? "none_may_be_delivered" : "photos",
+      });
+      // A timeout counts the chunk as sent: it may well be on the customer's phone already.
+      if (timedOut) sentCount += chunk.length;
+      return { sent_count: sentCount, responses, reason: timedOut ? "carousel_timeout" : "carousel_failed", error };
+    }
+  }
+  console.info("[whatsapp-ai-carousel-sent]", { conversation_id: conversationId, cards: sentCount, carousels: responses.length });
+  return { sent_count: sentCount, responses, reason: "sent" };
+};
+
+const buildWhatsappOutboundPlan =({ message = {}, aiPayload = {}, replyText = "", cards = [] } = {}) => {
   const conversationId = text(message.inbox?.session_id || message.sessionId || message.conversationIdentity || `whatsapp:${message.phone || ""}`);
   const inboundMessageId = text(message.messageId || message.message_id || message.external_message_id || "");
   const messageText = text(message.message_text || message.text || aiPayload?.message_text || "");
@@ -7063,7 +7161,32 @@ export const triggerWhatsappAiAutoReply = async (message = {}) => {
       });
       console.error("[whatsapp-image-send-failed]", payload);
     }
+    // Two or more cards go as one carousel; only the cards it did not deliver fall through to the
+    // photo loop below. The AI's words ride as the carousel's lead line — when cards are present
+    // they are not sent on their own (standalone_text_skipped above).
+    const aiCarousel = await sendAiReplyProductCarousel({
+      phone: sendTargetNumber,
+      instance: text(message.instance || ""),
+      body: willSendCards
+        ? applyWhatsappGreetingGuard({ customerMessageText: message.message_text || "", replyText: outboundPlan.text || "" })
+        : "",
+      cards: sendableImageCards,
+      conversationId: outboundPlan.conversation_id,
+    });
+    result = result || aiCarousel.responses?.[0] || null;
+    for (const carouselCard of sendableImageCards.slice(0, aiCarousel.sent_count)) {
+      const carouselImageUrl = text(carouselCard.resolved_image_url || carouselCard.imageUrl);
+      markSentImageDuplicateEntry({ phone: sendTargetNumber, imageUrl: carouselImageUrl, status: "success", timestamp: new Date().toISOString() });
+      imageMessages.push({
+        image_url: carouselImageUrl,
+        normalized_url: carouselCard.normalized_image_url || normalizeDuplicateImageUrl(carouselImageUrl),
+        product_id: carouselCard.product?.id || carouselCard.product?.product_id || null,
+        via: "carousel",
+        result: aiCarousel.responses?.[0]?.result || null,
+      });
+    }
     for (const [sendIndex, { product, imageUrl, resolved_image_url, raw_image_url, card_index, mime_type, normalized_image_url }] of sendableImageCards.entries()) {
+      if (sendIndex < aiCarousel.sent_count) continue;
       const imageSourceUrl = resolved_image_url || imageUrl;
       const productUrl = productCardUrl(product);
       const sizes = [...new Set(asArray(product?.available_sizes || product?.sizes).map((value) => text(value)).filter(Boolean))];

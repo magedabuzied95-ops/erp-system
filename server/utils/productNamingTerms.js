@@ -17,6 +17,9 @@ const LATIN_STOPWORDS = new Set([
   "colours", "how", "much", "have", "has", "you", "the", "and", "for", "any", "want", "need",
   "please", "hello", "hey", "is", "are", "do", "does", "there", "with", "this", "that", "what",
   "shoe", "shoes", "sneaker", "sneakers", "pair", "new", "now", "yes", "not",
+  // Who it is for is a filter, not part of the name ("skechers ultra women").
+  "women", "woman", "womens", "ladies", "lady", "female", "girls", "girl", "men", "man", "mens",
+  "male", "boys", "boy", "kids", "kid", "children", "child", "unisex",
 ]);
 const NUMBER_SPELLING = /^(?:zero|one|two|three|four|five|six|seven|eight|nine|\d)+$/;
 const ARABIC_DEFINITE = /^ال(?=\S{3,})/;

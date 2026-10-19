@@ -29,10 +29,19 @@ const BROWSE_TERMS = [
   "قسم", "سكشن", "فئه", "فئة", "نوع", "اختيارات", "looking for", "show me", "available",
 ];
 
-const firstAudience = (message = "") => {
+// Whole words only (an optional ال / لل / بال in front): "women" contains "men" and "woman"
+// contains "man", so a substring test read "skechers women" as the men's section.
+const audienceWordPattern = (alias = "") =>
+  new RegExp(`(?<![\\p{L}\\p{N}])(?:ال|لل|بال)?${normalize(alias)}(?![\\p{L}\\p{N}])`, "u");
+
+export const firstAudience = (message = "") => {
   const value = normalize(message);
-  return AUDIENCES.find((item) => item.aliases.some((alias) => value.includes(normalize(alias)))) || null;
+  return AUDIENCES.find((item) => item.aliases.some((alias) => audienceWordPattern(alias).test(value))) || null;
 };
+
+// The values products.gender / product_audiences.audience hold for one audience.
+export const audienceStoredValues = (audience = null) =>
+  audience ? [...new Set([audience.key, ...audience.aliases.map(normalize), "unisex"])] : [];
 
 const requestedSize = (message = "") => {
   const match = text(message).match(/(?:مقاس|size)?\s*([2-5][0-9])\b/i);

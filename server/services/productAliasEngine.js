@@ -52,6 +52,23 @@ const ARABIC_WORD_ALIASES = [
   ["فيس", "face"],
   ["نورثفيس", "north face"],
   ["كروكس", "crocs"],
+  // "متاح الترا اسكتشر حريمي ؟" read only "ultra", so the brand the customer named was lost.
+  // Every spelling is listed whole: replaceAll on "سكتشر" alone leaves "اskechers".
+  ["اسكتشر", "skechers"],
+  ["اسكتشرز", "skechers"],
+  ["اسكيتشر", "skechers"],
+  ["اسكيتشرز", "skechers"],
+  ["سكتشر", "skechers"],
+  ["سكتشرز", "skechers"],
+  ["سكيتشر", "skechers"],
+  ["سكيتشرز", "skechers"],
+  ["هوكا", "hoka"],
+  ["كونفرس", "converse"],
+  ["كونفيرس", "converse"],
+  ["بوما", "puma"],
+  ["فانس", "vans"],
+  ["لايت", "light"],
+  ["فليكس", "flex"],
 ];
 
 const ENGLISH_WORD_ALIASES = [

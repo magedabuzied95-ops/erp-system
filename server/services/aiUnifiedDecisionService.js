@@ -12,6 +12,7 @@ import { sanitizeGroundedAiReply } from "./aiReplyQualityService.js";
 import { generateSupportAnswer } from "./openaiSupportService.js";
 import { PRODUCT_GRADES, productGrade, productGradeRank } from "../config/productGrades.js";
 import { resolveInvoiceTemplateForOrder } from "./invoiceTemplateService.js";
+import { buildStoreFactsDecision, STORE_FACTS_INTENTS } from "./aiStoreFactsReplyService.js";
 import {
   buildConversationMemoryV2,
   mergeConversationMemoryV2,
@@ -99,15 +100,21 @@ export const sharedModelName = (cards = []) => {
   return shared.join(" ");
 };
 
-export const multiGradeIntroText = (guide = [], cards = []) => {
+// audienceReply: brain V2's gender-aware answer (debug.audience_reply). An exact match adds the
+// gender to the model name; a miss ("للأسف مش لاقي … حريمي") leads, and the grades follow it.
+export const multiGradeIntroText = (guide = [], cards = [], audienceReply = null) => {
   const grades = asArray(guide);
-  const model = sharedModelName(cards) || "الموديل ده";
+  const audienceLabel = audienceReply?.exact ? text(audienceReply.label) : "";
+  const model = [sharedModelName(cards) || "الموديل ده", audienceLabel].filter(Boolean).join(" ");
   const count = GRADE_COUNT_WORDS[grades.length] || "بأكتر من درجة";
   const definite = (label = "") => (label ? `ال${label}` : "");
   const firstLabel = definite(grades[0]?.grade_label);
   const otherLabels = grades.slice(1).map((grade) => definite(grade.grade_label)).join(" و");
+  const audienceLead = audienceReply && !audienceReply.exact ? text(audienceReply.text).replace(/[:：]\s*$/, ".") : "";
   return [
-    `أيوه يا فندم، ${model} متاح عندنا ${count}، والفرق بينهم في الخامة والتشطيب:`,
+    audienceLead
+      ? `${audienceLead}\nوالمتاح ${count}، والفرق بينهم في الخامة والتشطيب:`
+      : `أيوه يا فندم، ${model} متاح عندنا ${count}، والفرق بينهم في الخامة والتشطيب:`,
     "",
     ...grades.map(({ grade, grade_label: label, note }) => {
       const suits = productGrade(grade)?.suits || "";
@@ -133,10 +140,12 @@ export const rewriteStructuredDecision = async ({ decision = {}, inbound = {}, t
   // A bare greeting is answered from utils/greetingReply.js as it stands: re-worded, it lost the
   // next step that keeps the customer talking.
   if (["human_takeover", "order_tracking", "order_follow_up", "post_product_order_confirmation", "greeting"].includes(intent)) return decision;
+  // The store's own fee / policy words go out as they are: re-worded, they lost the facts.
+  if (STORE_FACTS_INTENTS.includes(intent)) return decision;
   const products = asArray(decision.product_cards?.length ? decision.product_cards : decision.suggested_products?.length ? decision.suggested_products : decision.products);
   const gradeGuide = gradeGuideFor(products);
   const multiGrade = gradeGuide.length > 1;
-  if (multiGrade) return withReplyText(decision, multiGradeIntroText(gradeGuide, products), { grade_intro: "fixed" });
+  if (multiGrade) return withReplyText(decision, multiGradeIntroText(gradeGuide, products, decision.debug?.audience_reply), { grade_intro: "fixed" });
   if (!groundedRewriteEnabled()) return decision;
   const currentText = text(decision.text || decision.answer || decision.channel_reply?.text);
   const catalogUrl = text(decision.storefront_url || decision.catalog_url || decision.memory_updates?.catalog_url);
@@ -1031,7 +1040,23 @@ export const generateUnifiedConversationDecision = async (normalizedInbound = {}
 
   let decision = null;
   const directColorSelectionDecision = buildDirectColorSelectionDecision({ message: inbound.text, memory: rawMemory || effectiveMemoryWithV2 });
-  if (directColorSelectionDecision) {
+  // Shipping fee, opening the parcel, exchange / return: the store's settings answer them, on
+  // every channel, before the product brain can read them as a price or size question.
+  const storeFactsDecision = directColorSelectionDecision
+    ? null
+    : await buildStoreFactsDecision({
+        message: inbound.originalText || inbound.text,
+        memory: rawMemory || {},
+        channel: inbound.channel,
+        tenantId,
+        loaders: { returnPolicy: storeReturnPolicyFor },
+      }).catch((error) => {
+        console.warn("[ai-store-facts:skipped]", { message: error?.message || String(error) });
+        return null;
+      });
+  if (storeFactsDecision) {
+    decision = storeFactsDecision;
+  } else if (directColorSelectionDecision) {
     console.info("AI_V2_DIRECT_COLOR_SELECTION_MATCH", {
       channel: inbound.channel,
       message: inbound.text,

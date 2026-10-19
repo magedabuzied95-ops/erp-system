@@ -125,3 +125,19 @@ test("a bare greeting keeps its next step: it is not sent to OpenAI to be re-wor
   assert.equal(called, 0);
   assert.equal(out.text, greeting.text);
 });
+
+test("the gender-aware sentence brain V2 wrote leads the grade introduction", async () => {
+  const { rewriteStructuredDecision } = await import("../../server/services/aiUnifiedDecisionService.js");
+  const decision = {
+    intent: "product_search",
+    text: "للأسف مش لاقي Air Force حريمي دلوقتي. ده المتاح منه رجالي:",
+    debug: { audience_reply: { exact: false, label: "حريمي", text: "للأسف مش لاقي Air Force حريمي دلوقتي. ده المتاح منه رجالي:" } },
+    product_cards: [
+      { id: 25, name: "Nike Air Force 1 - White", grade: "local", grade_label: "محلي" },
+      { id: 61, name: "Nike Air Force 1 - Olive", grade: "mirror_original", grade_label: "ميرور اوريجينال" },
+    ],
+  };
+  const out = await rewriteStructuredDecision({ decision, inbound: { originalText: "عايز ايرفورس حريمي" }, tenantId: 1 });
+  assert.match(out.text, /^للأسف مش لاقي Air Force حريمي دلوقتي/);
+  assert.match(out.text, /محلي — مصري/);
+});
