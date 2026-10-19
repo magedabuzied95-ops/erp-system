@@ -82,6 +82,43 @@ const composerLineFromCard = (card = {}) => ({
   quantity: 1,
 });
 
+// The shipping board's "+" sheet switches (NewOnlineOrderSheet), same copy and same server step.
+const FEE_SCOPES = [["shipping_fee", "orders.portalBoard.actions.feeScopeShipping"], ["order_total", "orders.portalBoard.actions.feeScopeOrder"]];
+const FEE_METHODS = ["vodafone_cash", "instapay", "cash"];
+
+function SwitchRow({ label, hint = "", checked, onChange }) {
+  return (
+    <button
+      type="button"
+      role="switch"
+      aria-label={label}
+      aria-checked={checked}
+      onClick={() => onChange(!checked)}
+      className="ai-order__group flex w-full items-center gap-3 px-3 py-2.5 text-start"
+    >
+      <span className="min-w-0 flex-1">
+        <span className="block text-sm font-black">{label}</span>
+        {hint ? <span className="ai-order__hint mt-0.5 block">{hint}</span> : null}
+      </span>
+      <span className={`relative h-6 w-11 shrink-0 rounded-full transition-colors ${checked ? "bg-primary" : "bg-border"}`}>
+        <span className={`absolute top-0.5 h-5 w-5 rounded-full bg-surface shadow transition-all ${checked ? "start-[1.375rem]" : "start-0.5"}`} />
+      </span>
+    </button>
+  );
+}
+
+// What the two switches did, for the toast after "save invoice". Empty when neither ran.
+export const composerFollowupNotes = (t, followups = {}) => {
+  const notes = [];
+  if (followups.payment) notes.push(t(followups.payment.ok ? "orders.portalBoard.newOrder.paidDone" : "orders.portalBoard.newOrder.paidFailed"));
+  if (followups.confirmation) {
+    notes.push(t(followups.confirmation.ok
+      ? "orders.portalBoard.newOrder.confirmSent"
+      : followups.confirmation.code === "CUSTOMER_NOT_ON_WHATSAPP" ? "orders.portalBoard.newOrder.confirmNoWhatsapp" : "orders.portalBoard.newOrder.confirmFailed"));
+  }
+  return notes.join(" · ");
+};
+
 function InboxOrderComposer({ open, conversation = {}, products = [], busy = false, headers = {}, onClose, onSubmit, portalTarget = null, picks = null, onRequestPick, onSendMessage }) {
   const { t, i18n } = useTranslation();
   // The sheet follows the app language: Arabic reads from the right, English
@@ -110,6 +147,11 @@ function InboxOrderComposer({ open, conversation = {}, products = [], busy = fal
   const [cityArea, setCityArea] = useState("");
   const [shippingLocations, setShippingLocations] = useState({ cities: [], zones: [], districts: [], loading: false });
   const [notes, setNotes] = useState("");
+  // The shipping board's two "+" switches: money already received (shipping fee or the whole
+  // order) and the WhatsApp confirmation. Both run on "save invoice" only.
+  const [sendConfirmation, setSendConfirmation] = useState(true);
+  const [paymentReceived, setPaymentReceived] = useState("");
+  const [paymentReceivedMethod, setPaymentReceivedMethod] = useState("instapay");
   // Quoted = what the zone price list says for this address. Override = what the
   // seller typed instead. Only the override travels in the payload; leaving it
   // null keeps the server as the single authority on the price.
@@ -143,6 +185,9 @@ function InboxOrderComposer({ open, conversation = {}, products = [], busy = fal
     setGovernorate(clean(profile.governorate || conversation?.governorate || ""));
     setCityArea(clean(profile.city_area || profile.area || conversation?.city_area || ""));
     setNotes("");
+    setSendConfirmation(true);
+    setPaymentReceived("");
+    setPaymentReceivedMethod("instapay");
     setQuotedShipping({ cost: null, source: "", freeShipping: false, loading: false });
     setShippingOverride(null);
     setAddressRequest(null);
@@ -404,6 +449,7 @@ function InboxOrderComposer({ open, conversation = {}, products = [], busy = fal
     apartment_number: apartmentNumber,
     landmark,
     notes,
+    ...(confirm ? { send_confirmation: sendConfirmation, payment_received: paymentReceived, payment_received_method: paymentReceivedMethod } : {}),
   });
   const content = (
     <div className="ai-order ai-order__scrim fixed inset-0 z-[140] flex justify-end backdrop-blur-sm" onMouseDown={(event) => event.target === event.currentTarget && onClose?.()}>
@@ -704,6 +750,45 @@ function InboxOrderComposer({ open, conversation = {}, products = [], busy = fal
               ) : null}
             </div>
           ) : null}
+          <div className="space-y-2">
+            <SwitchRow
+              label={t("orders.portalBoard.newOrder.paidSwitch")}
+              hint={t("orders.portalBoard.newOrder.paidHint")}
+              checked={Boolean(paymentReceived)}
+              onChange={(on) => setPaymentReceived(on ? "shipping_fee" : "")}
+            />
+            {paymentReceived ? (
+              <div className="ai-order__group space-y-2 p-2">
+                <div className="grid grid-cols-2 gap-2" role="radiogroup">
+                  {FEE_SCOPES.map(([scope, labelKey]) => {
+                    const active = paymentReceived === scope;
+                    return (
+                      <button key={scope} type="button" role="radio" aria-checked={active} onClick={() => setPaymentReceived(scope)} className={`ai-order__choice flex flex-col items-center justify-center px-2${active ? " is-active" : ""}`}>
+                        <span>{t(labelKey)}</span>
+                        <span className="text-[11px] opacity-80">{money(scope === "order_total" ? orderTotal : shippingCost)}</span>
+                      </button>
+                    );
+                  })}
+                </div>
+                <div className="grid grid-cols-3 gap-2" role="radiogroup" aria-label={t("orders.portalBoard.newOrder.paidMethod")}>
+                  {FEE_METHODS.map((method) => {
+                    const active = paymentReceivedMethod === method;
+                    return (
+                      <button key={method} type="button" role="radio" aria-checked={active} onClick={() => setPaymentReceivedMethod(method)} className={`ai-order__choice px-1${active ? " is-active" : ""}`}>
+                        {t(`orders.portalBoard.payment.${method}`)}
+                      </button>
+                    );
+                  })}
+                </div>
+              </div>
+            ) : null}
+            <SwitchRow
+              label={t("orders.portalBoard.newOrder.confirmSwitch")}
+              hint={t("orders.portalBoard.newOrder.confirmHint")}
+              checked={sendConfirmation}
+              onChange={setSendConfirmation}
+            />
+          </div>
           <textarea value={notes} onChange={(e) => setNotes(e.target.value)} placeholder={t("aiSupport.inbox.order.orderNotes")} className="ai-order__field min-h-20 w-full p-3" />
           {!lines.length ? <div className="ai-order__notice p-3">{t("aiSupport.inbox.order.addAtLeastOne")}</div> : null}
           {!shippingComplete ? <div className="ai-order__notice p-3">{t("aiSupport.inbox.order.completeShippingShort")}</div> : null}

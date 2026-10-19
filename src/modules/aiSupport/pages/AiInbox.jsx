@@ -102,7 +102,7 @@ import OriginPostCard from "../components/OriginPostCard.jsx";
 import InboxControlCenter from "../components/controlCenter/lazyInboxControlCenter";
 import { CONTROL_CENTER_SECTIONS } from "../components/controlCenter/InboxControlCenter.jsx";
 // One composer, both surfaces — see components/InboxOrderComposer.jsx.
-import InboxOrderComposer from "../components/InboxOrderComposer";
+import InboxOrderComposer, { composerFollowupNotes } from "../components/InboxOrderComposer";
 // The customer's real orders, with the confirmation message and the payment review on them.
 import InboxCustomerOrdersPanel from "../../../shared/components/inboxCustomerOrders/InboxCustomerOrdersPanel";
 // The suggested-reply card is shared with the PWA — see components/AiSuggestionCard.jsx.
@@ -8942,6 +8942,11 @@ export default function AiInbox({ reviewerMode = false }) {
       }, { headers });
       const order = response?.order || {};
       const number = order.public_order_number || order.invoice_number || order.id || "";
+      // What the deposit / confirmation switches did rides on the same toast.
+      const followups = response?.followups || {};
+      const followupNote = composerFollowupNotes(t, followups);
+      const followupFailed = [followups.payment, followups.confirmation].some((item) => item && !item.ok);
+      const withFollowups = (text) => [text, followupNote].filter(Boolean).join(" · ");
       if (confirm && response?.duplicate && !response?.confirmed) {
         // The same invoice was already saved moments ago; its link went out then.
         setToast({ tone: "amber", text: t("aiSupport.inbox.order.invoiceAlreadySaved", { number }) });
@@ -8955,12 +8960,12 @@ export default function AiInbox({ reviewerMode = false }) {
               tenant_id: tenantId,
               message: `تم تأكيد طلبك ✅\nرقم الفاتورة: ${number}\n\n🧾 الفاتورة:\n${invoiceUrl}`,
             }, { headers });
-            setToast({ tone: "emerald", text: t("aiSupport.inbox.order.invoiceSaved", { number }) });
+            setToast({ tone: followupFailed ? "amber" : "emerald", text: withFollowups(t("aiSupport.inbox.order.invoiceSaved", { number })) });
           } catch (sendError) {
-            setToast({ tone: "amber", text: t("aiSupport.inbox.order.invoiceSavedSendFailed", { number, reason: sendError?.message || "" }) });
+            setToast({ tone: "amber", text: withFollowups(t("aiSupport.inbox.order.invoiceSavedSendFailed", { number, reason: sendError?.message || "" })) });
           }
         } else {
-          setToast({ tone: "amber", text: t("aiSupport.inbox.order.invoiceSavedNoLink", { number }) });
+          setToast({ tone: "amber", text: withFollowups(t("aiSupport.inbox.order.invoiceSavedNoLink", { number })) });
         }
       } else {
         setToast({ tone: "emerald", text: t("aiSupport.inbox.order.draftCreated", { number }) });

@@ -252,6 +252,12 @@ const router = express.Router();
  */
 const inboxView = () => permit("ai_inbox_messenger", "view", { strict: true });
 const inboxReply = () => permit("ai_inbox_messenger", "reply", { strict: true });
+// The orders page's own gate for recording a payment or sending the confirmation (orders.edit),
+// asked without answering the request.
+const canEditOrders = (req) => new Promise((resolve) => {
+  const fakeRes = { status: () => fakeRes, json: () => resolve(false), send: () => resolve(false) };
+  Promise.resolve(permit("orders", "edit")(req, fakeRes, () => resolve(true))).catch(() => resolve(false));
+});
 
 const whatsappProfileSyncState = new Map();
 const WHATSAPP_PROFILE_SYNC_COOLDOWN_MS = 5 * 60 * 1000;
@@ -5471,6 +5477,27 @@ router.post("/conversations/:conversationId/create-draft-order", protect, inboxR
       }).catch((error) => console.warn("[ai-inbox] saving the address failed", { message: error?.message }));
 
       const finalOrder = confirmed?.order || draft.order;
+      // The composer's two switches — "الديبوزت / الشحن مدفوع" and "ابعت رسالة التأكيد على واتساب" —
+      // are the shipping board's "+" sheet ones (runCreateFollowups), so the money, the timeline and
+      // the WhatsApp receipt land the same way. Only on a freshly saved invoice, and only for someone
+      // the orders page itself would let do it; a refusal is reported next to the order, never thrown.
+      const wantsPayment = Boolean(envText(req.body?.payment_received));
+      const wantsConfirmation = req.body?.send_confirmation === true;
+      let followups = {};
+      if (confirmed && finalOrder?.id && (wantsPayment || wantsConfirmation)) {
+        if (await canEditOrders(req)) {
+          const { runCreateFollowups } = await import("../modules/shipping/shipping.portal.create.js");
+          followups = await runCreateFollowups({
+            actor: { ...req.user, tenant_id: tenantId },
+            surface: "ai-inbox",
+            orderId: finalOrder.id,
+            body: req.body,
+          });
+        } else {
+          if (wantsPayment) followups.payment = { ok: false, code: "FORBIDDEN" };
+          if (wantsConfirmation) followups.confirmation = { ok: false, code: "FORBIDDEN" };
+        }
+      }
       const invoiceUrl = buildPublicInvoiceUrl(finalOrder?.public_token || finalOrder?.invoice_number || "");
       console.log("ai_inbox_composer_order", {
         tenant_id: tenantId,
@@ -5479,6 +5506,7 @@ router.post("/conversations/:conversationId/create-draft-order", protect, inboxR
         line_count: requestedLines.length,
         confirmed: Boolean(confirmed),
         duplicate: Boolean(draft.duplicate),
+        followups,
       });
       return res.status(201).json({
         success: true,
@@ -5487,6 +5515,7 @@ router.post("/conversations/:conversationId/create-draft-order", protect, inboxR
         confirmed: Boolean(confirmed),
         duplicate: Boolean(draft.duplicate),
         invoice_url: invoiceUrl,
+        followups,
       });
     }
 

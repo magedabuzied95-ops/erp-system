@@ -117,7 +117,7 @@ import { moveWinterCollectionToEnd, normalizeMultiFilterValue, toggleMultiFilter
 // One composer for both surfaces. The phone-only PwaOrderComposer (single
 // product, no cart, no discount, no payment method, no shipping quote, no saved
 // addresses) is retired — see components/InboxOrderComposer.jsx.
-import InboxOrderComposer from "../components/InboxOrderComposer";
+import InboxOrderComposer, { composerFollowupNotes } from "../components/InboxOrderComposer";
 import { prefetchSocialWorkspace, readSocialWorkspaceCache, socialWorkspaceCacheKey, primeSocialWorkspaceCache } from "../services/socialWorkspaceProgressiveLoad.js";
 import { loadCustomerProductCatalogWarm } from "../services/customerProductCatalog";
 import { clearAllCatalogSnapshots, readCatalogSnapshot } from "../services/inboxCatalogSnapshot";
@@ -7080,6 +7080,11 @@ export default function AiInboxPwa({ portal = null } = {}) {
       );
       const order = response?.order || {};
       const number = order.public_order_number || order.invoice_number || order.id || "";
+      // What the deposit / confirmation switches did rides on the same toast.
+      const followups = response?.followups || {};
+      const followupNote = composerFollowupNotes(t, followups);
+      const followupFailed = [followups.payment, followups.confirmation].some((item) => item && !item.ok);
+      const withFollowups = (text) => [text, followupNote].filter(Boolean).join(" · ");
       if (confirmed && response?.duplicate && !response?.confirmed) {
         // The same invoice was already saved moments ago; its link went out then.
         toast.success(t("aiSupport.inbox.order.invoiceAlreadySaved", { number }));
@@ -7094,12 +7099,12 @@ export default function AiInboxPwa({ portal = null } = {}) {
               { tenant_id: tenantId, message: `تم تأكيد طلبك ✅\nرقم الفاتورة: ${number}\n\n🧾 الفاتورة:\n${invoiceUrl}` },
               { headers, perfComponent: "AiInboxPwa.sendInvoiceLink" }
             );
-            toast.success(t("aiSupport.inbox.order.invoiceSaved", { number }));
+            (followupFailed ? toast.error : toast.success)(withFollowups(t("aiSupport.inbox.order.invoiceSaved", { number })));
           } catch (sendError) {
-            toast.error(t("aiSupport.inbox.order.invoiceSavedSendFailed", { number, reason: sendError?.message || "" }));
+            toast.error(withFollowups(t("aiSupport.inbox.order.invoiceSavedSendFailed", { number, reason: sendError?.message || "" })));
           }
         } else {
-          toast.error(t("aiSupport.inbox.order.invoiceSavedNoLink", { number }));
+          toast.error(withFollowups(t("aiSupport.inbox.order.invoiceSavedNoLink", { number })));
         }
       } else {
         toast.success(t("aiSupport.inbox.order.draftCreated", { number }));
