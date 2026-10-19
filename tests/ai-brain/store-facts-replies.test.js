@@ -131,7 +131,8 @@ test("inspection before delivery follows the Bosta open-package setting, never i
   assert.match(buildOpenPackageReply({ mode: "deny" }), /مش متاح/);
   assert.match(buildOpenPackageReply({ mode: "unknown" }), /زمايلي يأكدلك/);
   const inherit = await buildStoreFactsDecision({ message: "متاح معاينه قبل الاستلام ؟", loaders: { openPackageSetting: () => "inherit" } });
-  assert.doesNotMatch(inherit.text, /مش متاح|متاح\b/);
+  // \b never fires next to an Arabic letter, so the bare-word half of this used to check nothing.
+  assert.doesNotMatch(inherit.text, /مش متاح|(?<![\p{L}\p{N}])متاح(?![\p{L}\p{N}])/u);
 });
 
 test("exchange / return is the invoice's policy; without one a colleague confirms", () => {
