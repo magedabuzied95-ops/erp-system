@@ -127,6 +127,12 @@ export const gradesNamedOutsideGuide = (replyText = "", guide = []) => {
   return named.filter((key) => !allowed.has(key));
 };
 
+// The one line that goes above product cards, in the owner's words. A single colour just picked
+// keeps the next step — the booking question — under it.
+export const CARDS_INTRO_TEXT = "أيوه متاح إن شاء الله 👇";
+export const cardsIntroText = (intent = "") =>
+  text(intent) === "post_product_color_selected" ? `${CARDS_INTRO_TEXT}\nتحب أحجزهولك؟` : CARDS_INTRO_TEXT;
+
 const withReplyText = (decision = {}, replyText = "", debugPatch = {}) => ({
   ...decision,
   text: replyText,
@@ -162,6 +168,13 @@ export const rewriteStructuredDecision = async ({ decision = {}, inbound = {}, t
   const gradeGuide = gradeGuideFor(products);
   const multiGrade = gradeGuide.length > 1;
   if (multiGrade) return withReplyText(decision, multiGradeIntroText(gradeGuide, products, decision.debug?.audience_reply), { grade_intro: "fixed" });
+  // Cards carry the colours, prices and sizes; the owner wants one short line above them, not a
+  // re-worded list of colours, a grade explanation and a link (2026-10-19). A gender miss
+  // ("للأسف مش لاقي … حريمي") is a different message and keeps its own words.
+  const audienceReply = decision.debug?.audience_reply;
+  if (asArray(decision.product_cards).length && !(audienceReply && !audienceReply.exact)) {
+    return withReplyText(decision, cardsIntroText(intent), { cards_intro: "short" });
+  }
   if (!groundedRewriteEnabled()) return decision;
   const currentText = text(decision.text || decision.answer || decision.channel_reply?.text);
   const catalogUrl = text(decision.storefront_url || decision.catalog_url || decision.memory_updates?.catalog_url);
