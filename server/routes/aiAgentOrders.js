@@ -526,6 +526,37 @@ const userDisplayName = (user = {}) =>
   String(user.name || user.full_name || user.username || user.email || user.role_name || user.role || "Staff").trim();
 
 const envText = (value = "") => String(value ?? "").trim();
+
+/*
+ * The conversation a takeover / return-to-AI / AI switch is about. The inbox sometimes sends
+ * "<channel>:<row id>" (e.g. "whatsapp:2391") instead of the session id ("whatsapp:201024960585").
+ * The state update UPSERTS by session id, so every such click created an empty phantom chat and
+ * left the real one untouched — LIVE 2026-10-20, ten phantoms chained one click after another and
+ * the owner's chat never left human takeover. A real session id is a phone (10+ digits), a LID
+ * ("whatsapp:lid:…") or a Meta id, never 1-9 digits, so "<kind>:<1-9 digits>" is a row id: follow
+ * it (through any phantom chain) to the session it names. Never throws; unknown ids pass through.
+ */
+const ROW_ID_SESSION = /^[a-z_]+:(\d{1,9})$/i;
+export const resolveConversationSessionId = async (tenantId, rawId = "") => {
+  let sessionId = envText(rawId);
+  try {
+    for (let hop = 0; hop < 25 && ROW_ID_SESSION.test(sessionId); hop += 1) {
+      const rowId = sessionId.match(ROW_ID_SESSION)[1];
+      const row = await db.query(
+        "SELECT session_id FROM ai_support_sessions WHERE tenant_id = $1 AND id = $2::bigint LIMIT 1",
+        [tenantId, rowId]
+      );
+      const next = envText(row.rows[0]?.session_id);
+      if (!next || next === sessionId) break;
+      sessionId = next;
+    }
+  } catch (error) {
+    console.warn("[ai-inbox] conversation id resolve failed", { raw_id: envText(rawId), message: error?.message });
+    return envText(rawId);
+  }
+  if (sessionId !== envText(rawId)) console.info("[ai-inbox] conversation id resolved", { raw_id: envText(rawId), session_id: sessionId });
+  return sessionId;
+};
 const isSocialCommentsDebugEnabled = () => String(process.env.DEBUG_SOCIAL_COMMENTS || "").toLowerCase() === "true";
 const debugSocialCommentsWarn = (...args) => {
   if (isSocialCommentsDebugEnabled()) console.warn(...args);
@@ -7844,7 +7875,7 @@ router.post("/conversations/:conversationId/takeover", protect, inboxReply(), as
     const channel = envText(req.body?.channel || req.query?.channel || "");
     const conversation = await updateAiSupportConversationState({
       tenantId,
-      sessionId: req.params.conversationId,
+      sessionId: await resolveConversationSessionId(tenantId, req.params.conversationId),
       channel,
       status: "human_takeover",
       assignedUserId: req.body?.assigned_user_id ?? req.body?.assignedUserId ?? req.user?.id,
@@ -7859,7 +7890,7 @@ router.post("/conversations/:conversationId/takeover", protect, inboxReply(), as
 
 router.post("/conversations/:conversationId/return-to-ai", protect, inboxReply(), async (req, res) => {
   const tenantId = toTenantId(req);
-  const conversationId = envText(req.params.conversationId);
+  const conversationId = await resolveConversationSessionId(tenantId, req.params.conversationId);
   const channel = envText(req.body?.channel || req.query?.channel || "");
   try {
     console.log("ai_return_to_ai_start", {
@@ -7967,7 +7998,7 @@ router.post("/conversations/:conversationId/reopen", protect, inboxReply(), asyn
 
 router.patch("/conversations/:conversationId/ai-enabled", protect, inboxReply(), async (req, res) => {
   const tenantId = toTenantId(req);
-  const conversationId = envText(req.params.conversationId);
+  const conversationId = await resolveConversationSessionId(tenantId, req.params.conversationId);
   const channel = envText(req.body?.channel || req.query?.channel || "");
   try {
     const aiEnabled = req.body?.ai_enabled !== false && req.body?.enabled !== false;
@@ -8041,7 +8072,7 @@ router.post("/inbox/:conversationId/takeover", protect, inboxReply(), async (req
     const channel = envText(req.body?.channel || req.query?.channel || "");
     const conversation = await updateAiSupportConversationState({
       tenantId,
-      sessionId: req.params.conversationId,
+      sessionId: await resolveConversationSessionId(tenantId, req.params.conversationId),
       channel,
       status: "human_takeover",
       assignedUserId: req.body?.assigned_user_id ?? req.body?.assignedUserId ?? req.user?.id,
@@ -8056,7 +8087,7 @@ router.post("/inbox/:conversationId/takeover", protect, inboxReply(), async (req
 
 router.post("/inbox/:conversationId/return-to-ai", protect, inboxReply(), async (req, res) => {
   const tenantId = toTenantId(req);
-  const conversationId = envText(req.params.conversationId);
+  const conversationId = await resolveConversationSessionId(tenantId, req.params.conversationId);
   const channel = envText(req.body?.channel || req.query?.channel || "");
   try {
     console.log("ai_return_to_ai_start", {
