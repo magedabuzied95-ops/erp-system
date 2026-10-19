@@ -17,8 +17,11 @@ export const refreshOpenAiCredentialOverrides = async () => {
 export const agentOpenAiApiKey = () =>
   persistedAgentApiKey || clean(process.env.OPENAI_AGENT_API_KEY) || clean(process.env.OPENAI_API_KEY);
 
+// Thermal artwork never borrows the shared OPENAI_API_KEY: that is the customer-reply credit,
+// and an "openai" thermal style silently spent it. With no dedicated thermal key the artwork
+// is drawn by the local engine (thermalArtworkService downgrades engine "openai" → "local").
 export const thermalOpenAiApiKey = () =>
-  persistedThermalApiKey || clean(process.env.OPENAI_THERMAL_API_KEY) || clean(process.env.OPENAI_API_KEY);
+  persistedThermalApiKey || clean(process.env.OPENAI_THERMAL_API_KEY);
 
 export const openAiCredentialStatus = () => ({
   agent_key_loaded: Boolean(agentOpenAiApiKey()),

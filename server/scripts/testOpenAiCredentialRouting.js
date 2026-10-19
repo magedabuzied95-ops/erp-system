@@ -16,7 +16,8 @@ try {
   delete process.env.OPENAI_AGENT_API_KEY;
   delete process.env.OPENAI_THERMAL_API_KEY;
   assert.equal(agentOpenAiApiKey(), "legacy-test-key");
-  assert.equal(thermalOpenAiApiKey(), "legacy-test-key");
+  // Thermal must not spend the shared customer-reply key; without its own key it stays local.
+  assert.equal(thermalOpenAiApiKey(), "");
 
   process.env.OPENAI_AGENT_API_KEY = "agent-test-key";
   process.env.OPENAI_THERMAL_API_KEY = "thermal-test-key";

@@ -174,3 +174,11 @@ test("the unified decision answers all three, on every channel, with no rewrite"
   }
   assert.equal(rewriteCalls, 0, "the store's words are never re-worded");
 });
+
+test("right after a fee answer, a bare governorate is the next fee question", async () => {
+  // Production 2026-10-19: "الشحن للقاهرة كام" → 100, then "واسيوط" got "تحت أمرك. ابعت الموديل...".
+  const answer = await buildStoreFactsDecision({ message: "واسيوط", memory: { preferences: { last_intent: "shipping_fee" } } });
+  assert.ok(answer, "the follow-up must be answered as a shipping question");
+  assert.equal(answer.detected_intent, "shipping_fee");
+  assert.match(answer.text, /^الشحن لأسيوط/);
+});

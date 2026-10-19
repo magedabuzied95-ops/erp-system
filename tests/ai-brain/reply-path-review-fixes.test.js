@@ -82,3 +82,11 @@ test("only the listed test numbers get the automatic WhatsApp reply", async () =
   assert.equal(isAiTestContact(contacts, "201111111111"), false, "a real customer is not a test number");
   assert.equal(isAiTestContact(parseAiTestContacts(""), "201024960585"), false, "an empty setting changes nothing");
 });
+
+test("a photo the bot could not match is acknowledged, not answered with a generic line", async () => {
+  const { buildBaseText, VISUAL_SEARCH_NO_MATCH_TEXT } = await import("../../server/services/aiBrainV2Service.js");
+  const reply = buildBaseText({ intent: "visual_search", cards: [] });
+  assert.equal(reply, VISUAL_SEARCH_NO_MATCH_TEXT);
+  assert.match(reply, /الصورة/);
+  assert.doesNotMatch(reply, /ابعت الموديل أو السؤال اللي محتاجه/);
+});

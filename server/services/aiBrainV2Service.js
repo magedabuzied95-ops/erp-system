@@ -1381,7 +1381,9 @@ const presentationModelName = ({ explicitModel = null, cards = [] } = {}) => {
   return rawName.replace(/\s+-\s+.*$/, "") || "الموديل";
 };
 
-const buildBaseText = ({ intent = "", cards = [], explicitModel = null, activeProductId = "", message = "" } = {}) => {
+export const VISUAL_SEARCH_NO_MATCH_TEXT = "وصلتني الصورة يا فندم 👌 بس مش قادر أحدد الموديل منها بالظبط. ابعتلي اسم الموديل لو تعرفه، أو صورة أوضح للكوتشي من الجنب، وأنا أطلعهولك.";
+
+export const buildBaseText = ({ intent = "", cards = [], explicitModel = null, activeProductId = "", message = "" } = {}) => {
   if (intent === "greeting") return greetingReplyFor(message);
   if (intent === "price_objection") {
     return activeProductId
@@ -1391,6 +1393,10 @@ const buildBaseText = ({ intent = "", cards = [], explicitModel = null, activePr
   if (cards.length) return (explicitModel || intent === "more_images")
     ? `أكيد يا فندم \n${presentationModelName({ explicitModel, cards })} متوفرة بالألوان دي:\n\nفيه لون عجبك أحجزهولك؟`
     : "\u062f\u064a \u0623\u0642\u0631\u0628 \u0627\u0644\u0646\u062a\u0627\u064a\u062c \u0627\u0644\u0645\u062a\u0627\u062d\u0629:";
+  // A photo the brain could not match (the vision provider out of budget, or no close product)
+  // used to fall through to "\u062a\u062d\u062a \u0623\u0645\u0631\u0643. \u0627\u0628\u0639\u062a \u0627\u0644\u0645\u0648\u062f\u064a\u0644 \u0623\u0648 \u0627\u0644\u0633\u0624\u0627\u0644 \u0627\u0644\u0644\u064a \u0645\u062d\u062a\u0627\u062c\u0647." \u2014 which reads as if
+  // the photo was never seen. Say it plainly and ask for what would let us find it.
+  if (intent === "visual_search") return VISUAL_SEARCH_NO_MATCH_TEXT;
   if (["product_search", "more_images"].includes(intent)) return "\u0645\u0634 \u0644\u0627\u0642\u064a \u0645\u0637\u0627\u0628\u0642\u0629 \u0648\u0627\u0636\u062d\u0629. \u0627\u0628\u0639\u062a \u0627\u0633\u0645 \u0627\u0644\u0645\u0648\u062f\u064a\u0644 \u0623\u0648 \u0635\u0648\u0631\u0629 \u0623\u0648\u0636\u062d.";
   return "\u062a\u062d\u062a \u0623\u0645\u0631\u0643. \u0627\u0628\u0639\u062a \u0627\u0644\u0645\u0648\u062f\u064a\u0644 \u0623\u0648 \u0627\u0644\u0633\u0624\u0627\u0644 \u0627\u0644\u0644\u064a \u0645\u062d\u062a\u0627\u062c\u0647.";
 };

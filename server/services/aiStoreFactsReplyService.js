@@ -121,7 +121,11 @@ export const buildExchangeReturnReply = ({ policy = "" } = {}) => (
 );
 
 // The last reply asked "which governorate?": a bare "اسكندريه" now answers it.
-const awaitingGovernorateFrom = (memory = {}) => text(memory?.preferences?.last_intent ?? memory?.last_intent) === "shipping_fee_ask_governorate";
+// A bare governorate is a shipping question both when we asked "which governorate?" and right
+// after a fee answer: "الشحن للقاهرة كام" → 100, then "واسيوط" means "and to Assiut?" (production,
+// 2026-10-19, it got "تحت أمرك. ابعت الموديل...").
+const awaitingGovernorateFrom = (memory = {}) =>
+  ["shipping_fee_ask_governorate", "shipping_fee"].includes(text(memory?.preferences?.last_intent ?? memory?.last_intent));
 
 const defaultLoaders = {
   shippingZones: () => loadShippingZones(),
