@@ -116,6 +116,108 @@ export const decideVisualMatch = ({ search = null, minScore = MIN_RECOGNITION_SC
   };
 };
 
+// Words a vision reading puts in model_guess that name no model: the brand, the kind of shoe, its
+// colour. "Adidas Terrex trail running shoe" names exactly one model word — Terrex.
+const MODEL_GUESS_NOISE = new Set([
+  "adidas", "nike", "jordan", "air", "puma", "reebok", "skechers", "crocs", "vans", "converse", "new", "balance",
+  "asics", "fila", "lacoste", "north", "face", "the", "timberland", "salomon", "brand", "unknown", "model", "style",
+  "shoe", "shoes", "sneaker", "sneakers", "trainer", "trainers", "boot", "boots", "running", "runner", "trail",
+  "hiking", "outdoor", "sport", "sports", "casual", "lifestyle", "basketball", "low", "mid", "high", "top", "men",
+  "mens", "women", "womens", "kids", "black", "white", "grey", "gray", "blue", "red", "green", "brown", "beige",
+  "navy", "pink", "orange", "yellow", "purple", "olive", "khaki", "cream", "with", "and", "similar", "like",
+]);
+
+/**
+ * The model names a photo was read as, longest first, ready to be looked up in product names.
+ *
+ * "Terrex Free Hiker" gives "terrex free hiker", "terrex free", "terrex": the catalogue may hold the
+ * family under a different line name ("TERREX TRAILMAKER 2"), so the lookup walks back to the
+ * family word. Brand, shoe-kind and colour words are dropped; a reading with no model word left
+ * (or a model under 3 letters) gives nothing — a brand alone is not a model.
+ */
+export const visualModelNamePhrases = (detected = {}) => {
+  const phrases = [];
+  for (const guess of [detected?.model_guess, detected?.model_family, detected?.likely_model]) {
+    const words = text(Array.isArray(guess) ? guess.join(" ") : guess)
+      .toLowerCase()
+      .replace(/[^a-z0-9]+/g, " ")
+      .split(" ")
+      .filter((word) => word && !MODEL_GUESS_NOISE.has(word));
+    if (!words.length || !/^[a-z][a-z0-9]{2,}$/.test(words[0])) continue;
+    for (let length = Math.min(words.length, 4); length >= 1; length -= 1) {
+      const phrase = words.slice(0, length).join(" ");
+      if (!phrases.includes(phrase)) phrases.push(phrase);
+    }
+  }
+  return phrases;
+};
+
+/**
+ * The in-stock products whose NAME carries the model the photo was read as.
+ *
+ * The keyword half of photo recognition. The image index only names a product when the model is in
+ * its small alias list or the photo is one of ours; a clearly read "Adidas Terrex" found nothing
+ * (LIVE 2026-10-19) while seven Terrex pairs were in stock. The phrase is matched as whole words,
+ * and only a product with a variant in stock counts, so "we have it" is never said about air.
+ */
+export const findStockedProductsNamingModel = async ({ tenantId, detected = {}, limit = 12 } = {}) => {
+  for (const phrase of visualModelNamePhrases(detected)) {
+    const result = await db.query(
+      `SELECT p.id, p.name
+       FROM products p
+       WHERE ($1::bigint IS NULL OR p.tenant_id = $1::bigint)
+         AND p.deleted_at IS NULL
+         AND COALESCE(p.is_active, TRUE) = TRUE
+         AND lower(p.name) ~ ('(^|[^a-z0-9])' || $2 || '([^a-z0-9]|$)')
+         AND EXISTS (
+           SELECT 1 FROM product_variants v
+           WHERE v.product_id = p.id
+             AND v.deleted_at IS NULL
+             AND COALESCE(v.is_active, TRUE) = TRUE
+             AND COALESCE(v.stock, 0) > 0
+         )
+       ORDER BY p.id
+       LIMIT $3`,
+      [tenantId || null, phrase, limit]
+    );
+    if (result.rows.length) return { phrase, products: result.rows };
+  }
+  return null;
+};
+
+// What a photo sent with no words is asking. The customer's own wording when they do type it.
+export const PHOTO_ONLY_CUSTOMER_QUESTION = "دا موجود؟";
+
+/**
+ * The text an uncaptioned WhatsApp PHOTO enters the auto-reply with, or "" for anything else.
+ *
+ * The gateway saves a caption-less photo as a media-only row and hands back `text: ""`, and the
+ * webhook only called the auto-reply `if (normalized.text)` — so a photo alone was never answered
+ * (LIVE 2026-10-19: two photos, no reply; the answer came only when the customer typed "دا موجود").
+ * A photo alone IS that question. Voice notes, videos and stickers stay out, as do our own echoes.
+ */
+export const photoOnlyAutoReplyText = (normalized = {}) => {
+  if (text(normalized?.text) || normalized?.fromMe === true) return "";
+  if (normalized?.media_type !== "image" || normalized?.inbox?.reason !== "media_saved") return "";
+  return firstInboundImageUrl(normalized?.visualAttachments || normalized?.visual_attachments) ? PHOTO_ONLY_CUSTOMER_QUESTION : "";
+};
+
+/**
+ * What the customer is asking once the photo has been read as a model we stock: "عندكم terrex؟",
+ * so the brain runs the same model search a typed name gets — grades split as cards. A real
+ * caption rides along ("مقاس 42"); the placeholder and the photo-only question do not.
+ */
+export const visualModelQuestion = (modelQuery = "", caption = "") => {
+  const model = text(modelQuery);
+  if (!model) return "";
+  const extra = text(caption);
+  const bare = extra.replace(/[\s?؟.!]+$/u, "");
+  const keep = extra
+    && bare !== PHOTO_ONLY_CUSTOMER_QUESTION.replace(/؟$/u, "")
+    && !/^[[(]?\s*(?:\u{1F4F7}\s*)?صور[ةه]\s*[\])]?$/u.test(bare);
+  return `عندكم ${model}؟${keep ? ` ${extra}` : ""}`;
+};
+
 const visualQueryFromUnderstanding = (understanding = {}) =>
   [
     understanding?.detected?.brand_guess,
@@ -155,6 +257,22 @@ const cardsForRecognisedProduct = async ({ tenantId, productId, leadColor = "" }
   // A single-colour product legitimately answers with one card; the expander returns the card it
   // was given in that case, which is already the correct one.
   return expandProductCardsByColor({ tenantId, cards: baseCards, leadColor });
+};
+
+// No single product named: is the model the photo was read as one we stock under that name? Never
+// throws — a failed lookup is just no model read, and the honest "can't tell" reply stands.
+const modelReadFor = async ({ tenantId, understanding }) => {
+  const read = await findStockedProductsNamingModel({ tenantId, detected: understanding?.detected || {} }).catch((error) => {
+    console.warn("[ai-visual-recognition] model name lookup failed", { tenant_id: tenantId || null, message: error?.message || "lookup failed" });
+    return null;
+  });
+  console.log("[ai-visual-recognition] model name lookup", {
+    tenant_id: tenantId || null,
+    model_guess: text(understanding?.detected?.model_guess),
+    phrase: read?.phrase || "",
+    product_ids: asArray(read?.products).map((row) => row.id),
+  });
+  return read ? { modelQuery: read.phrase, modelProductIds: read.products.map((row) => row.id) } : {};
 };
 
 /**
@@ -237,7 +355,7 @@ export const recogniseProductFromImage = async ({
       tenant_id: tenantId || null,
       message: error?.message || "indexed search failed",
     });
-    return { matched: false, reason: "visual_index_error", understanding, visualQuery };
+    return { matched: false, reason: "visual_index_error", understanding, visualQuery, ...(await modelReadFor({ tenantId, understanding })) };
   }
 
   const decision = decideVisualMatch({ search, minScore });
@@ -264,6 +382,7 @@ export const recogniseProductFromImage = async ({
       understanding,
       visualQuery,
       search,
+      ...(await modelReadFor({ tenantId, understanding })),
     };
   }
 
@@ -280,7 +399,7 @@ export const recogniseProductFromImage = async ({
     return [];
   });
   if (!productCards.length) {
-    return { matched: false, reason: "recognised_product_has_no_sendable_card", productId: best.product_id, understanding, visualQuery, search };
+    return { matched: false, reason: "recognised_product_has_no_sendable_card", productId: best.product_id, understanding, visualQuery, search, ...(await modelReadFor({ tenantId, understanding })) };
   }
 
   console.log("[ai-visual-recognition] colour cards built", {

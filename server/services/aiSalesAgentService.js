@@ -33,7 +33,7 @@ import {
 } from "./aiConversationMemory.js";
 import { ensureAiConversationMemorySchema } from "./aiConversationMemoryService.js";
 import { extractShoeSize } from "./aiMessageExtractors.js";
-import { firstInboundImageUrl, recogniseProductFromImage } from "./aiVisualProductRecognitionService.js";
+import { firstInboundImageUrl, recogniseProductFromImage, visualModelQuestion } from "./aiVisualProductRecognitionService.js";
 import { guardAIReply } from "./aiSafetyGuard.js";
 import { detectEscalation } from "./aiEscalationDetector.js";
 import { getAISettings, getAIToneInstruction } from "./aiSettingsService.js";
@@ -6265,6 +6265,17 @@ export const generateAiInboxReply = async ({ tenantId, conversationId, persist =
         product_id: visualRecognition.productId,
         matched_color: recognisedColor,
         colors: asArray(visualRecognition.productCards).length,
+        rewritten_message: lastMessage,
+      });
+    } else if (visualRecognition?.modelQuery) {
+      // Read as a model we stock by name, with no one product certain: the draft answers it as that
+      // model typed out, the same model search a customer's own words get.
+      lastMessage = visualModelQuestion(visualRecognition.modelQuery);
+      console.log("[ai-inbox] photo read as a stocked model; searched by name", {
+        tenant_id: tenantId,
+        conversation_id: conversationId,
+        model_query: visualRecognition.modelQuery,
+        product_ids: asArray(visualRecognition.modelProductIds),
         rewritten_message: lastMessage,
       });
     } else {

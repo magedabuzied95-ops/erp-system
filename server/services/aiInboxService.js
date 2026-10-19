@@ -38,7 +38,7 @@ import { normalizeArabicForIntent, normalizeArabicIntentPayload, normalizeArabic
 import { resolveProductAlias } from "../utils/productAliasResolver.js";
 import { buildAliasAwareSearchHints } from "../utils/aliasAwareProductSearch.js";
 import { rankProductCandidates } from "../utils/productMatchConfidence.js";
-import { firstInboundImageUrl, recogniseProductFromImage } from "./aiVisualProductRecognitionService.js";
+import { firstInboundImageUrl, recogniseProductFromImage, visualModelQuestion } from "./aiVisualProductRecognitionService.js";
 import {
   aiModeSwitchBlock,
   conversationAutoReplyBlock,
@@ -1390,7 +1390,32 @@ export const generateWhatsappAiAutoReply = async ({ tenantId, phone, sessionId, 
       conversation_id: safeSessionId,
       image_url: inboundImageUrl,
       reason: recognition.reason || "no_match",
+      model_query: recognition.modelQuery || "",
     });
+    // No one product named, but the photo was read as a model we stock by name ("Adidas Terrex",
+    // seven pairs across two grades): answer it as that model typed out, so the brain's model search
+    // shows the grades as cards. The picture is left behind on purpose — with it attached the brain
+    // reads the turn as an unmatched photo. Nothing named in stock ⇒ the honest reply below stands.
+    const modelQuestion = visualModelQuestion(recognition.modelQuery, originalBody);
+    if (modelQuestion) {
+      console.info("[whatsapp:visual-recognition-model-search]", {
+        conversation_id: safeSessionId,
+        model_query: recognition.modelQuery,
+        product_ids: asArray(recognition.modelProductIds),
+        rewritten_message: modelQuestion,
+      });
+      return generateWhatsappAiAutoReply({
+        tenantId,
+        phone,
+        sessionId,
+        customerName,
+        messageText: modelQuestion,
+        timestamp,
+        traceId,
+        dryRun,
+        attachments: [],
+      });
+    }
   }
   const loadedMemory = await loadAiConversationMemory({
     tenantId: safeTenantId,

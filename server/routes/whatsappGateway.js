@@ -21,6 +21,7 @@ import {
 } from "../services/whatsappGatewayService.js";
 import { applyConfirmationAction, processConfirmationReply, sendOrderConfirmation } from "../services/whatsappOrderConfirmationService.js";
 import { handleInboundMessageIntake } from "../services/aiInboundIntakeService.js";
+import { photoOnlyAutoReplyText } from "../services/aiVisualProductRecognitionService.js";
 import { handleWhatsappCloudWebhookRequest } from "./aiAgentOrders.js";
 import { updateAiSupportMessageDeliveryStatus } from "../services/aiSupportLogService.js";
 import {
@@ -726,8 +727,12 @@ router.post("/webhook", async (req, res) => {
         textPreview: String(normalized.text).slice(0, 80),
       });
     }
-    const aiReply = normalized.text && !["confirmed", "cancelled", "cancelled_by_customer", "edit_requested", "cancel_reason_saved"].includes(confirmation?.action)
-      ? await triggerWhatsappAiAutoReply(normalized).catch((error) => ({ triggered: false, sent: false, error: error?.message || "AI auto reply failed" }))
+    // A photo with no caption is the customer asking "دا موجود؟" — it enters the auto-reply as that,
+    // with the picture attached. It used to stop here on `normalized.text` and was never answered.
+    const photoOnlyQuestion = photoOnlyAutoReplyText(normalized);
+    const aiInput = photoOnlyQuestion ? { ...normalized, text: photoOnlyQuestion } : normalized;
+    const aiReply = aiInput.text && !["confirmed", "cancelled", "cancelled_by_customer", "edit_requested", "cancel_reason_saved"].includes(confirmation?.action)
+      ? await triggerWhatsappAiAutoReply(aiInput).catch((error) => ({ triggered: false, sent: false, error: error?.message || "AI auto reply failed" }))
       : { triggered: false, sent: false, reason: confirmation?.action || "no_text" };
     // Phase 10 (default OFF): pre-generate a grounded reply SUGGESTION for human approval. Fire-and-forget
     // so the webhook never waits on or fails because of it; it never sends and only runs on a genuinely

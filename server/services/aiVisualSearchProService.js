@@ -817,6 +817,20 @@ export const reindexAiVisualProducts = async ({ tenantId = null, clientOrPool = 
   };
 };
 
+/**
+ * Whether the chat's text relevance gate may filter the visual candidates.
+ *
+ * Only when the photo was read as a model family the gate knows (Jordan 4, Dunk, …): that is the
+ * one case it can pass at all — without a family match no product reaches its 65 points (brand 18 +
+ * sneaker 10 + stock 10 + style/colour ≈ 64), and a trail shoe loses 24 more for "different
+ * category". It used to run whenever the text LOOKED specific, and the text is the vision's own
+ * keywords: "اديداس" contains "دا", which the gate reads as "this one" (LIVE 2026-10-19, an Adidas
+ * Terrex photo: 2500 rows scored, every one rejected, product_id null). The visual score already
+ * penalises a wrong brand or model on its own.
+ */
+export const visualSearchNeedsRelevanceGate = (understanding = {}) =>
+  Boolean(understanding?.requires_relevance_gate && understanding?.requested_model_family);
+
 export const searchAiVisualProductsPro = async ({
   tenantId,
   detected = {},
@@ -941,7 +955,7 @@ export const searchAiVisualProductsPro = async ({
     memory: { lastVisualQueryText: visualQuery, lastImageUrl: uploadedImageUrl || (queryImages[0]?.imageUrl || "") },
     source: "visual_search_pro",
   });
-  const gatedScored = understanding.requires_relevance_gate
+  const gatedScored = visualSearchNeedsRelevanceGate(understanding)
     ? gateRelevantProducts({ products: scored, understanding, limit, fallback: false })
     : scored;
   console.log("[ai-orchestrator:candidates]", {
