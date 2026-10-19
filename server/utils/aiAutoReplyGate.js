@@ -8,7 +8,30 @@
  * colleague to take the conversation over and then be talked over by the bot.
  */
 
+import { canonicalPhoneKey } from "./phoneSearch.js";
+
 const text = (value = "") => String(value ?? "").trim();
+
+/*
+ * Test numbers (setting ai_channels.ai_test_contacts): the owner talks to the bot from their own
+ * phone with fully automatic replies while every real customer stays on the reply mode the
+ * screens say. Typed any way — 010…, +2010…, 0020…, with spaces — one key per phone.
+ */
+export const parseAiTestContacts = (value = "") => {
+  const raw = Array.isArray(value) ? value.join("\n") : text(value);
+  return new Set(
+    raw
+      .split(/[\n,;،]+/)
+      .map((entry) => canonicalPhoneKey(entry))
+      .filter((key) => key.length >= 8)
+  );
+};
+
+export const isAiTestContact = (contacts, phone = "") => {
+  if (!contacts || !contacts.size) return false;
+  const key = canonicalPhoneKey(text(phone).replace(/@.*$/, ""));
+  return Boolean(key) && contacts.has(key);
+};
 
 // A conversation a person owns, or one the AI was switched off for. Empty when the AI may answer.
 export const conversationAutoReplyBlock = (state = null) => {

@@ -72,3 +72,13 @@ test("the WhatsApp price guard fires only on a bare greeting", () => {
     assert.equal(isBareGreetingOrAck(question), false, `"${question}" is not a bare greeting`);
   }
 });
+
+test("only the listed test numbers get the automatic WhatsApp reply", async () => {
+  const { parseAiTestContacts, isAiTestContact } = await import("../../server/utils/aiAutoReplyGate.js");
+  const contacts = parseAiTestContacts("01024960585\n+20 100 000 0000, junk");
+  for (const phone of ["201024960585", "01024960585", "+201024960585", "201024960585@s.whatsapp.net", "00201000000000"]) {
+    assert.equal(isAiTestContact(contacts, phone), true, `${phone} is a listed number`);
+  }
+  assert.equal(isAiTestContact(contacts, "201111111111"), false, "a real customer is not a test number");
+  assert.equal(isAiTestContact(parseAiTestContacts(""), "201024960585"), false, "an empty setting changes nothing");
+});

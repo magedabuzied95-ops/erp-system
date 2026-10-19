@@ -39,7 +39,14 @@ import { resolveProductAlias } from "../utils/productAliasResolver.js";
 import { buildAliasAwareSearchHints } from "../utils/aliasAwareProductSearch.js";
 import { rankProductCandidates } from "../utils/productMatchConfidence.js";
 import { firstInboundImageUrl, recogniseProductFromImage } from "./aiVisualProductRecognitionService.js";
-import { aiModeSwitchBlock, conversationAutoReplyBlock, recheckAutoReplyBeforeSend } from "../utils/aiAutoReplyGate.js";
+import {
+  aiModeSwitchBlock,
+  conversationAutoReplyBlock,
+  isAiTestContact,
+  parseAiTestContacts,
+  recheckAutoReplyBeforeSend,
+} from "../utils/aiAutoReplyGate.js";
+import { getSetting } from "./settingsService.js";
 import {
   buildConversationMemoryV2,
   mergeConversationMemoryV2,
@@ -1045,7 +1052,7 @@ const addAiPayloadTraceSteps = async ({ traceId, aiPayload, messageText, replyTe
   }
 };
 
-const shouldAutoReplyToWhatsapp = async ({ tenantId, conversationId, payload = {} } = {}) => {
+const shouldAutoReplyToWhatsapp = async ({ tenantId, conversationId, phone = "", payload = {} } = {}) => {
   const state = await getAiSupportConversationState({ tenantId, sessionId: conversationId }).catch(() => null);
   const status = text(state?.status || payload?.conversation_status).toLowerCase();
   const agentSettings = await getAiAgentSettings({ tenantId }).catch(() => ({}));
@@ -1097,6 +1104,13 @@ const shouldAutoReplyToWhatsapp = async ({ tenantId, conversationId, payload = {
   // Switching the AI off for one conversation was logged here and never obeyed; Meta obeys it.
   if (conversationAutoReplyBlock(state) === "conversation_ai_disabled") return { ok: false, reason: "conversation_ai_disabled", ...base };
   if (agentSettings.ai_assistant_global_enabled === false) return { ok: false, reason: "AI_ASSISTANT_GLOBAL_PAUSED", ...base };
+  // A test number gets the automatic reply whatever the modes say; takeover, closed, the
+  // conversation's own AI switch and the global pause above still stop it.
+  const testContacts = parseAiTestContacts(await getSetting("ai_channels.ai_test_contacts", "").catch(() => ""));
+  if (isAiTestContact(testContacts, phone)) {
+    console.info("[ai-auto-reply] stage=test_contact", { conversation_id: conversationId, tenant_id: tenantId, phone_suffix: text(phone).slice(-4) });
+    return { ok: true, reason: "test_contact", settings: { globalSettings, channelAISettings, runtimeSettings }, ...base, effectiveMode: "fully_automatic", shouldAutoSend: true };
+  }
   const modeSwitchBlock = aiModeSwitchBlock({ globalMode, channelMode });
   if (modeSwitchBlock) return { ok: false, reason: modeSwitchBlock, ...base };
   if (runtimeSettings.ai_replies_enabled !== true || !automaticModes.has(runtimeMode)) {
@@ -1255,7 +1269,7 @@ export const generateWhatsappAiAutoReply = async ({ tenantId, phone, sessionId, 
         effectiveMode: "dry_run",
         shouldAutoSend: false,
       }
-    : await shouldAutoReplyToWhatsapp({ tenantId: safeTenantId, conversationId: safeSessionId });
+    : await shouldAutoReplyToWhatsapp({ tenantId: safeTenantId, conversationId: safeSessionId, phone: safePhone });
   await addTraceStep(traceId, "ai_mode_check", {
     globalMode: decision.globalMode,
     channelMode: decision.channelMode,

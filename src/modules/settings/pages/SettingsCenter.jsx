@@ -263,7 +263,7 @@ const sectionMap = {
   ],
   ai_channels: [
     ["OpenAI Credentials", ["ai_channels.openai_agent_api_key", "ai_channels.openai_thermal_api_key"]],
-    ["AI Assistant", ["ai_channels.ai_support_enabled", "ai_channels.ai_reply_mode", "ai_channels.product_recommendation_strictness"]],
+    ["AI Assistant", ["ai_channels.ai_support_enabled", "ai_channels.ai_reply_mode", "ai_channels.ai_test_contacts", "ai_channels.product_recommendation_strictness"]],
     ["AI Inbox", ["ai_channels.human_takeover_behavior", "ai_channels.auto_return_to_ai_minutes", "ai_channels.handoff_message", "ai_channels.ai_fallback_message"]],
     ["Marketing Automation", ["ai_channels.allowed_channels", "ai_channels.storefront_product_link_base"]],
     ["Meta Integrations", ["ai_channels.meta_integration_enabled", "ai_channels.webhook_url_display", "ai_channels.cloudinary_cloud_name", "ai_channels.cloudinary_api_secret"]],
