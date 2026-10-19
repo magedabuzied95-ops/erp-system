@@ -177,6 +177,38 @@ export default function NewOnlineOrderSheet({ api, ui, onClose, onCreated, error
   const idempotencyKey = useRef(newKey());
   const [bosta, setBosta] = useState({ cities: [], zones: [], districts: [] });
 
+  // A returning customer: once the number is a full Egyptian mobile, their last order fills the
+  // name, second phone and address — only the fields still empty, so nothing typed is lost.
+  const [returning, setReturning] = useState(null);
+  const lookedUpPhone = useRef("");
+  const typedPhone = normalizePhone(form.customer_phone);
+  useEffect(() => {
+    if (!validPhone(typedPhone) || !api.customer) {
+      if (!validPhone(typedPhone)) setReturning(null);
+      return undefined;
+    }
+    if (lookedUpPhone.current === typedPhone) return undefined;
+    lookedUpPhone.current = typedPhone;
+    let cancelled = false;
+    api.customer(typedPhone)
+      .then((data) => {
+        const found = data?.customer;
+        if (cancelled || !found) { if (!cancelled) setReturning(null); return; }
+        setReturning(found);
+        setForm((current) => {
+          const next = { ...current };
+          if (!text(next.customer_name) && found.customer_name) next.customer_name = found.customer_name;
+          if (!text(next.customer_secondary_phone) && found.customer_secondary_phone) next.customer_secondary_phone = found.customer_secondary_phone;
+          // The address moves as one piece, and only onto an empty one.
+          const addressEmpty = !text(next.shipping_city_id) && !text(next.governorate) && !text(next.street_address);
+          if (addressEmpty && found.address) Object.assign(next, found.address);
+          return next;
+        });
+      })
+      .catch(() => {});
+    return () => { cancelled = true; };
+  }, [api, typedPhone]);
+
   // ---- catalogue search (server-side, debounced)
   useEffect(() => {
     let cancelled = false;
@@ -477,9 +509,15 @@ export default function NewOnlineOrderSheet({ api, ui, onClose, onCreated, error
         {/* ---- customer */}
         <section className="space-y-2">
           <SectionTitle>{ui.tb("newOrder.customer")}</SectionTitle>
+          {returning ? (
+            <div className="flex items-start gap-2 rounded-[var(--radius-control)] bg-success-subtle px-3 py-2 text-xs font-black text-text" role="status">
+              <span className="mt-1 h-2 w-2 shrink-0 rounded-full bg-success" />
+              <span>{ui.tb("newOrder.returning", { count: ui.count(returning.order_count), number: returning.last_order?.invoice_number || "" })}</span>
+            </div>
+          ) : null}
           <div className="grid grid-cols-2 gap-2">
-            <Field label={ui.tb("detail.name")} value={form.customer_name} onChange={set("customer_name")} required error={showErrors && problems.name} />
             <Field label={ui.tb("detail.phone")} value={form.customer_phone} onChange={set("customer_phone")} type="tel" inputMode="tel" dir="ltr" placeholder="01xxxxxxxxx" required error={showErrors && problems.phone} />
+            <Field label={ui.tb("detail.name")} value={form.customer_name} onChange={set("customer_name")} required error={showErrors && problems.name} />
           </div>
           <Field label={ui.tb("detail.secondaryPhone")} value={form.customer_secondary_phone} onChange={set("customer_secondary_phone")} type="tel" inputMode="tel" dir="ltr" error={showErrors && problems.secondPhone} />
         </section>
@@ -492,7 +530,7 @@ export default function NewOnlineOrderSheet({ api, ui, onClose, onCreated, error
             <ThemedSelect
               value={form.shipping_city_id}
               options={cityOptions}
-              placeholder={ui.tb("manage.pickGovernorate")}
+              placeholder={form.governorate || ui.tb("manage.pickGovernorate")}
               ariaLabel={ui.tb("detail.governorate")}
               onChange={(value) => setForm((current) => ({ ...current, ...bostaCityPatch(bosta.cities, value) }))}
             />

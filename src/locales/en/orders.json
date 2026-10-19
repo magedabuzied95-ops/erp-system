@@ -846,6 +846,7 @@
         "phoneInvalid": "Invalid phone — 11 digits starting with 01",
         "outOfStock": "Not enough stock right now: {{items}}",
         "created": "Order {{number}} saved and stock deducted",
+        "returning": "Returning customer — {{count}} earlier orders, last {{number}}. Filled from the last order; check it.",
         "paidSwitch": "Deposit / shipping already paid",
         "paidHint": "Recorded with the save; the customer gets a WhatsApp receipt",
         "paidMethod": "Paid with",

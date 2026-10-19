@@ -28,6 +28,7 @@ export const getEmployeePortalOnlineOrder = (token, orderId) =>
 // "+" on أوردرات الشحن: search the catalogue, price the draft, write the order.
 export const employeePortalNewOrderApi = (token) => ({
   catalog: (query = "") => api.get(`${tokenPath(token)}/new-online-order/catalog`, { cache: "no-store", params: { q: query }, suppressErrorStatuses: [403, 404] }),
+  customer: (phone) => api.get(`${tokenPath(token)}/new-online-order/customer`, { cache: "no-store", params: { phone }, suppressErrorStatuses: [400, 403, 404] }),
   preview: (body) => api.post(`${tokenPath(token)}/new-online-order/preview`, body, { suppressErrorStatuses: [400, 403, 404] }),
   create: (body) => api.post(`${tokenPath(token)}/new-online-order`, body, { suppressErrorStatuses: [400, 403, 404, 409] }),
 });

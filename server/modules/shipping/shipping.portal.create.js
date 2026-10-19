@@ -127,6 +127,63 @@ export const searchPortalOrderCatalog = async ({ tenantId, query = "", client = 
     .filter((product) => product.variants.length);
 };
 
+// The phone written the three ways orders store it, so the (customer_phone, created_at)
+// index answers instead of a digit-stripping scan.
+const phoneVariants = (value = "") => {
+  const digits = text(value).replace(/[٠-٩]/g, (d) => String(d.charCodeAt(0) - 0x0660)).replace(/\D/g, "");
+  const local = digits.startsWith("20") && digits.length === 12 ? `0${digits.slice(2)}` : digits;
+  if (!/^01[0125]\d{8}$/.test(local)) return [];
+  return [local, `2${local}`, `+2${local}`];
+};
+
+// A returning customer typed into the "+" sheet: name, second phone and address from their
+// latest order (owner, 2026-10-19). The newest order that carries a Bosta governorate wins
+// for the address, so a till sale with no address never blanks it. Drafts and deleted rows
+// are skipped; nothing here is written.
+export const lookupPortalOrderCustomer = async ({ tenantId, phone = "", client = db } = {}) => {
+  const variants = phoneVariants(phone);
+  if (!tenantId || !variants.length) return null;
+  const result = await client.query(
+    `
+    SELECT id, invoice_number, customer_name, customer_secondary_phone, governorate, city_area,
+           shipping_city_id, shipping_zone_id, shipping_district_id, street_address, building_number,
+           floor_number, apartment_number, landmark, created_at, COUNT(*) OVER () AS total_orders
+    FROM orders
+    WHERE tenant_id = $1::bigint
+      AND customer_phone = ANY($2::text[])
+      AND COALESCE(ai_agent_status, '') <> 'ai_draft'
+      AND COALESCE(LOWER(status), '') NOT IN ('ai_draft', 'deleted')
+    ORDER BY created_at DESC
+    LIMIT 20
+    `,
+    [tenantId, variants]
+  );
+  const rows = result.rows;
+  if (!rows.length) return null;
+  const named = rows.find((row) => text(row.customer_name)) || rows[0];
+  const addressed = rows.find((row) => text(row.shipping_city_id)) || rows.find((row) => text(row.governorate)) || null;
+  return {
+    order_count: Number(rows[0].total_orders) || rows.length,
+    last_order: { invoice_number: text(rows[0].invoice_number), created_at: rows[0].created_at },
+    customer_name: text(named.customer_name),
+    customer_secondary_phone: text(rows.find((row) => text(row.customer_secondary_phone))?.customer_secondary_phone),
+    address: addressed
+      ? {
+          governorate: text(addressed.governorate),
+          city_area: text(addressed.city_area),
+          shipping_city_id: text(addressed.shipping_city_id),
+          shipping_zone_id: text(addressed.shipping_zone_id),
+          shipping_district_id: text(addressed.shipping_district_id),
+          street_address: text(addressed.street_address),
+          building_number: text(addressed.building_number),
+          floor_number: text(addressed.floor_number),
+          apartment_number: text(addressed.apartment_number),
+          landmark: text(addressed.landmark),
+        }
+      : null,
+  };
+};
+
 // What the order will be billed, before it is written: the lines at the invoice price,
 // the discount, and the shipping fee from the zone price list (or the typed override).
 export const previewPortalOrder = async ({ tenantId, body = {} } = {}) => {
@@ -332,6 +389,17 @@ export const mountPortalCreateOrderRoutes = (router, { loadActor, surface, canCr
       return res.json({ success: true, products });
     } catch (error) {
       return fail(res, error, surface, "Failed to load products");
+    }
+  });
+
+  router.get("/:token/new-online-order/customer", async (req, res) => {
+    try {
+      const actor = await guard(req, res);
+      if (!actor) return;
+      const customer = await lookupPortalOrderCustomer({ tenantId: actor.tenant_id, phone: req.query?.phone || "" });
+      return res.json({ success: true, customer });
+    } catch (error) {
+      return fail(res, error, surface, "Failed to look up the customer");
     }
   });
 

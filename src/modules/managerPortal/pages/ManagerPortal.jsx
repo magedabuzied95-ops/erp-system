@@ -1939,6 +1939,7 @@ export default function ManagerPortal() {
   const deleteOnlineOrder = useCallback((orderId, reason) => managerPortalApi.onlineOrderDelete(token, orderId, reason), [token]);
   const newOnlineOrder = useMemo(() => ({
     catalog: (query) => managerPortalApi.newOnlineOrderCatalog(token, query),
+    customer: (phone) => managerPortalApi.newOnlineOrderCustomer(token, phone),
     preview: (body) => managerPortalApi.newOnlineOrderPreview(token, body),
     create: (body) => managerPortalApi.newOnlineOrderCreate(token, body),
   }), [token]);
