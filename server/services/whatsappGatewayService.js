@@ -6597,6 +6597,7 @@ export const triggerWhatsappAiAutoReply = async (message = {}) => {
   const preSendCheck = await recheckWhatsappAutoReplyBeforeSend({
     tenantId: generated.tenantId || message.raw?.tenant_id || message.raw?.tenantId || process.env.WHATSAPP_TENANT_ID || 1,
     sessionId: normalizeWhatsappSessionId(generated.sessionId || message.inbox?.session_id || message.conversationIdentity || `whatsapp:${message.phone}`, message.phone),
+    phone: message.phone || generated.phone || "",
   });
   if (!preSendCheck.ok) {
     console.info("[whatsapp:ai-send-dropped-after-takeover]", {

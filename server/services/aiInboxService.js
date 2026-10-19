@@ -1101,13 +1101,15 @@ const shouldAutoReplyToWhatsapp = async ({ tenantId, conversationId, phone = "",
 
   if (status === "human_takeover") return { ok: false, reason: "human_takeover", ...base };
   if (status === "closed" || payload?.auto_response_paused === true) return { ok: false, reason: "paused", ...base };
-  // Switching the AI off for one conversation was logged here and never obeyed; Meta obeys it.
-  if (conversationAutoReplyBlock(state) === "conversation_ai_disabled") return { ok: false, reason: "conversation_ai_disabled", ...base };
   if (agentSettings.ai_assistant_global_enabled === false) return { ok: false, reason: "AI_ASSISTANT_GLOBAL_PAUSED", ...base };
-  // A test number gets the automatic reply whatever the modes say; takeover, closed, the
-  // conversation's own AI switch and the global pause above still stop it.
+  // A test number gets the automatic reply whatever the modes — and the chat's own AI switch —
+  // say: the owner's own chat had ai_enabled=false from an old order flow and the first test
+  // message went unanswered. Takeover, closed and the global pause above still stop it.
   const testContacts = parseAiTestContacts(await getSetting("ai_channels.ai_test_contacts", "").catch(() => ""));
-  if (isAiTestContact(testContacts, phone)) {
+  const isTestContact = isAiTestContact(testContacts, phone);
+  // Switching the AI off for one conversation was logged here and never obeyed; Meta obeys it.
+  if (!isTestContact && conversationAutoReplyBlock(state) === "conversation_ai_disabled") return { ok: false, reason: "conversation_ai_disabled", ...base };
+  if (isTestContact) {
     console.info("[ai-auto-reply] stage=test_contact", { conversation_id: conversationId, tenant_id: tenantId, phone_suffix: text(phone).slice(-4) });
     return { ok: true, reason: "test_contact", settings: { globalSettings, channelAISettings, runtimeSettings }, ...base, effectiveMode: "fully_automatic", shouldAutoSend: true };
   }
@@ -1176,10 +1178,17 @@ const recordWhatsappAiGenerationFailure = async ({ error, tenantId, sessionId, p
 
 // Generation can take over a minute; the gateway calls this right before it sends, so a
 // colleague who took the conversation over in the meantime is not talked over.
-export const recheckWhatsappAutoReplyBeforeSend = ({ tenantId, sessionId } = {}) =>
-  recheckAutoReplyBeforeSend({
+export const recheckWhatsappAutoReplyBeforeSend = async ({ tenantId, sessionId, phone = "" } = {}) => {
+  const check = await recheckAutoReplyBeforeSend({
     loadState: () => getAiSupportConversationState({ tenantId, sessionId }),
   });
+  // Same exemption as the gate before generation: a test number ignores the chat's AI switch.
+  if (!check.ok && check.reason === "conversation_ai_disabled") {
+    const testContacts = parseAiTestContacts(await getSetting("ai_channels.ai_test_contacts", "").catch(() => ""));
+    if (isAiTestContact(testContacts, phone)) return { ...check, ok: true, reason: "test_contact" };
+  }
+  return check;
+};
 
 const syncWhatsappLiveMemoryToChannel = async ({ tenantId, sessionId, phone = "", memory = null } = {}) => {
   const safeSessionId = normalizeWhatsappSessionId(sessionId, phone);
