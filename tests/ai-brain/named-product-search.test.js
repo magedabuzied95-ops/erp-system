@@ -85,9 +85,26 @@ test("messages that name nothing keep their old answers", async () => {
   assert.deepEqual(names(bare), []);
 });
 
-test("asking about the product already shown stays a follow-up on it", () => {
+test("asking the same question twice still answers with the model", async () => {
+  // Production, 2026-10-19: the first "متاح ايرفورس ؟" found the cards; the second, with those
+  // cards now in memory, was kept as a follow-up that had no size to answer — "no information".
+  // Memory carried between turns the way the playground and the channels carry it.
+  const first = await ask("متاح ايرفورس ؟");
+  const memory = {
+    ...first.ai_memory_patch,
+    preferences: { ...(first.ai_memory_patch?.preferences || {}) },
+    last_products: first.product_cards,
+  };
+  const second = await ask("متاح ايرفورس ؟", memory);
+  assert.ok(names(second).includes("Nike Air Force 1 Low"), `second turn: ${second.intent} ${JSON.stringify(names(second))}`);
+});
+
+test("a size or colour question about the product on screen stays a follow-up on it", () => {
   const memory = { last_product_cards: [{ product_id: 101, id: 101, name: "Nike Air Force 1 Low" }] };
-  assert.equal(shouldSearchNamedProduct({ intent: "size_followup", namedProductTerms: ["air", "force", "air force"], memory }), false);
+  const airForce = ["air", "force", "air force"];
+  assert.equal(shouldSearchNamedProduct({ intent: "size_followup", namedProductTerms: airForce, memory, message: "الاير فورس متاح 42؟" }), false);
+  assert.equal(shouldSearchNamedProduct({ intent: "color_followup", namedProductTerms: airForce, memory, message: "الاير فورس فيه اسود؟" }), false);
+  assert.equal(shouldSearchNamedProduct({ intent: "size_followup", namedProductTerms: airForce, memory, message: "متاح ايرفورس ؟" }), true);
   assert.equal(shouldSearchNamedProduct({ intent: "size_followup", namedProductTerms: ["samba"], memory }), true);
   assert.equal(shouldSearchNamedProduct({ intent: "size_followup", namedProductTerms: [], memory: {} }), false);
   assert.equal(shouldSearchNamedProduct({ intent: "human_takeover", namedProductTerms: ["samba"], memory: {} }), false);

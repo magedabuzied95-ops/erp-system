@@ -785,13 +785,16 @@ const classifyIntent = ({ message = "", attachments = [], explicitModel = null, 
 
 const NAMED_PRODUCT_OVERRIDABLE_INTENTS = new Set(["size_followup", "price_objection", "color_followup", "general", "greeting", "buying_intent"]);
 
-export const shouldSearchNamedProduct = ({ intent = "", namedProductTerms = [], memory = {} } = {}) => {
+export const shouldSearchNamedProduct = ({ intent = "", namedProductTerms = [], memory = {}, message = "" } = {}) => {
   if (!NAMED_PRODUCT_OVERRIDABLE_INTENTS.has(intent) || !asArray(namedProductTerms).length) return false;
-  // Asking about the product already on screen ("الاير فورس متاح 42؟" after its cards) stays a
-  // follow-up on it; only a name the active product does not carry starts a new search.
+  // A size or colour question about the product already on screen ("الاير فورس متاح 42؟" after
+  // its cards) stays a follow-up: the memory cards answer it. Without one ("متاح ايرفورس ؟"
+  // asked again) the follow-up has nothing to answer and fell through to "no information" — so
+  // that searches again and shows the cards.
   const activeCard = memoryCardsFromContext(memory)[0] || {};
   const activeName = text(activeCard.name || activeCard.title || "").toLowerCase();
-  if (activeName && namedProductTerms.some((term) => activeName.includes(term))) return false;
+  const isActiveProduct = activeName && namedProductTerms.some((term) => activeName.includes(term));
+  if (isActiveProduct && (extractRequestedSize(message) || intent === "color_followup")) return false;
   return true;
 };
 
@@ -1329,7 +1332,7 @@ export const generateAiBrainV2Decision = async (normalizedInbound = {}, options 
   // model we stock was answered with "no information". A product the message NAMES (and that is
   // not the one already being discussed) makes it a product search.
   const namedProductTerms = explicitModel ? [] : productNamingTerms(originalMessage || message);
-  const intent = shouldSearchNamedProduct({ intent: classifiedIntent, namedProductTerms, memory })
+  const intent = shouldSearchNamedProduct({ intent: classifiedIntent, namedProductTerms, memory, message: originalMessage || message })
     ? "product_search"
     : classifiedIntent;
   if (intent !== classifiedIntent) {
