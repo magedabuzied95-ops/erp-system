@@ -23,7 +23,7 @@ import { returnOrder } from "../../controllers/ordersController.js";
 import { confirmAiOrder, createAiOrderDraftLines } from "../../services/aiAgentOrderService.js";
 import { adjustVariantStock } from "../../services/inventoryService.js";
 import { recordWalletTransaction } from "../../services/walletService.js";
-import { postWalletLiabilityEntry } from "../../services/accountingService.js";
+import { createJournalEntry, ensureAccountingSchema, postWalletLiabilityEntry } from "../../services/accountingService.js";
 import { getTenantId } from "../../utils/requestScope.js";
 import { orderReachedCustomer } from "./inboxConversationOrders.js";
 export { describeExchangeReturnParcel, exchangeParcelContextOf } from "./exchangeParcel.js";
@@ -452,6 +452,167 @@ export const receiveExchangeReturn = async ({ tenantId = null, returnId, userId 
   } finally {
     client.release();
   }
+};
+
+/**
+ * The exchange parcel came BACK to the shop: the courier never swapped anything, so the
+ * customer still has the original piece and the replacement is on our shelf again (owner,
+ * 2026-10-19). The whole exchange is undone - the replacement is cancelled by the caller
+ * (cancelOrder: stock back), and this voids the return on the original:
+ *
+ *   - the original's lines are no longer returned, and the invoice is a sale again;
+ *   - the store credit the return created and the replacement spent are both reversed,
+ *     in the wallet and in the journal (mirror entries of the two the exchange posted),
+ *     so the books net to nothing, exactly as if the exchange had never been arranged;
+ *   - nothing touches stock here: the old piece never reached us (pending_restock).
+ *
+ * Refused when the old piece was already received - then the swap DID happen at least
+ * on our side, and undoing it is a person's call. Safe to call twice.
+ */
+export const voidReturnedExchange = async ({ tenantId = null, replacementOrderId, returnId, userId = null, source = "bosta" } = {}) => {
+  if (!returnId) return { voided: false, reason: "no_return" };
+  // Before the transaction: its first call runs ALTER TABLE orders, which deadlocks the
+  // FOR UPDATE row lock below (see shipping.portal.manage.js).
+  await ensureAccountingSchema();
+  const client = await db.connect();
+  try {
+    await client.query("BEGIN");
+    const returnRow = (await client.query(
+      `SELECT * FROM returns WHERE id = $1 AND ($2::bigint IS NULL OR tenant_id = $2::bigint OR tenant_id IS NULL) FOR UPDATE`,
+      [returnId, tenantId]
+    )).rows[0];
+    if (!returnRow) {
+      await client.query("ROLLBACK");
+      return { voided: false, reason: "not_found" };
+    }
+    const metadata = returnRow.metadata && typeof returnRow.metadata === "object" ? returnRow.metadata : {};
+    if (["cancelled", "canceled", "void"].includes(text(returnRow.status).toLowerCase()) || metadata.voided_at) {
+      await client.query("ROLLBACK");
+      return { voided: false, reason: "already_voided" };
+    }
+    if (metadata.restock_received_at || metadata.pending_restock === false) {
+      await client.query("ROLLBACK");
+      return { voided: false, reason: "piece_already_received" };
+    }
+    const shopTenantId = returnRow.tenant_id ?? tenantId;
+    const original = (await client.query(`SELECT * FROM orders WHERE id = $1 FOR UPDATE`, [returnRow.order_id])).rows[0];
+    const replacement = replacementOrderId
+      ? (await client.query(`SELECT * FROM orders WHERE id = $1`, [replacementOrderId])).rows[0] || null
+      : null;
+    const exchange = parseExchangeMetadata(replacement?.ai_agent_metadata);
+    const credit = money(returnRow.refund_amount);
+    const applied = money(exchange.applied_credit ?? Math.min(credit, Number(replacement?.paid_amount || 0)));
+
+    // 1) The original's lines are sold again.
+    const lines = (await client.query(`SELECT order_item_id, quantity FROM return_items WHERE return_id = $1`, [returnRow.id])).rows;
+    for (const line of lines) {
+      await client.query(
+        `UPDATE order_items SET returned_quantity = GREATEST(0, COALESCE(returned_quantity, 0) - $1) WHERE id = $2`,
+        [Number(line.quantity || 0), line.order_item_id]
+      );
+    }
+    await client.query(
+      `UPDATE returns SET status = 'cancelled', updated_at = NOW(), metadata = COALESCE(metadata, '{}'::jsonb) || $2::jsonb WHERE id = $1`,
+      [returnRow.id, JSON.stringify({ pending_restock: false, voided_at: new Date().toISOString(), void_reason: "exchange_parcel_returned", void_source: source, replacement_order_id: replacementOrderId || null })]
+    );
+    if (original) {
+      const otherReturns = Number((await client.query(
+        `SELECT COUNT(*)::int AS n FROM returns WHERE order_id = $1 AND id <> $2 AND LOWER(COALESCE(status, '')) NOT IN ('cancelled', 'canceled', 'void', 'rejected')`,
+        [original.id, returnRow.id]
+      )).rows[0]?.n || 0);
+      const event = { at: new Date().toISOString(), action: "exchange_voided", source, label: "الاستبدال اتلغى — شحنة البديل رجعت والعميل محتفظ بالقطعة", return_id: returnRow.id, replacement_order_id: replacementOrderId || null };
+      await client.query(
+        `UPDATE orders SET
+           status = CASE WHEN LOWER(COALESCE(status, '')) = 'returned'
+             THEN CASE WHEN LOWER(COALESCE(shipping_status, shipment_status, '')) = 'delivered' THEN 'delivered' ELSE 'completed' END
+             ELSE status END,
+           payment_status = CASE WHEN LOWER(COALESCE(payment_status, '')) IN ('refunded', 'partially_refunded')
+             THEN CASE WHEN $2::int > 0 THEN 'partially_refunded' WHEN COALESCE(remaining_amount, 0) > 0 THEN 'partially_paid' ELSE 'paid' END
+             ELSE payment_status END,
+           returned_at = CASE WHEN $2::int > 0 THEN returned_at ELSE NULL END,
+           timeline = COALESCE(timeline, '[]'::jsonb) || $3::jsonb,
+           updated_at = NOW()
+         WHERE id = $1`,
+        [original.id, otherReturns, JSON.stringify([event])]
+      );
+    }
+
+    // 2) The credit: the exchange posted "credit added" (returns outward / wallet liability)
+    // and "credit used" (wallet liability / cash). Each gets its mirror, and the wallet
+    // gets back what was spent and loses what was granted - net zero when all was spent.
+    const customerId = original?.customer_id || replacement?.customer_id || null;
+    const note = `إلغاء استبدال ${original?.invoice_number || returnRow.order_id} — شحنة البديل رجعت`;
+    if (customerId && applied > 0) {
+      await recordWalletTransaction(client, { tenantId: shopTenantId, customerId, type: "exchange_reversal", amount: applied, orderId: replacementOrderId || null, referenceType: "exchange_reversal", referenceId: replacementOrderId || returnRow.id, notes: note, userId });
+    }
+    if (customerId && credit > 0) {
+      await recordWalletTransaction(client, { tenantId: shopTenantId, customerId, type: "exchange_reversal", amount: -credit, orderId: returnRow.order_id, referenceType: "exchange_reversal", referenceId: returnRow.id, notes: note, userId });
+    }
+    await client.query("SAVEPOINT exchange_void_accounting");
+    try {
+      if (applied > 0) {
+        await createJournalEntry(client, {
+          tenantId: shopTenantId,
+          description: "Exchange cancelled: credit used on the replacement reversed",
+          referenceType: "exchange_reversal",
+          referenceId: replacementOrderId || returnRow.id,
+          createdBy: userId,
+          notes: note,
+          lines: [
+            { account_code: "1000", debit: applied, credit: 0, notes: note },
+            { account_code: "2000", debit: 0, credit: applied, notes: note },
+          ],
+        });
+      }
+      if (credit > 0) {
+        await createJournalEntry(client, {
+          tenantId: shopTenantId,
+          description: "Exchange cancelled: wallet credit from the return reversed",
+          referenceType: "exchange_reversal",
+          referenceId: returnRow.id,
+          createdBy: userId,
+          notes: note,
+          lines: [
+            { account_code: "2000", debit: credit, credit: 0, notes: note },
+            { account_code: "4020", debit: 0, credit: credit, notes: note },
+          ],
+        });
+      }
+      await client.query("RELEASE SAVEPOINT exchange_void_accounting");
+    } catch (accountingError) {
+      await client.query("ROLLBACK TO SAVEPOINT exchange_void_accounting").catch(() => {});
+      console.error("[exchange] void accounting fallback", accountingError.message);
+    }
+
+    // 3) The replacement no longer carries spent credit or a balance to collect.
+    if (replacementOrderId) {
+      await client.query(
+        `UPDATE orders SET paid_amount = 0, remaining_amount = 0, cod_amount = 0,
+           ai_agent_metadata = COALESCE(ai_agent_metadata, '{}'::jsonb) || jsonb_build_object('exchange', COALESCE(ai_agent_metadata->'exchange', '{}'::jsonb) || $2::jsonb),
+           updated_at = NOW()
+         WHERE id = $1`,
+        [replacementOrderId, JSON.stringify({ pending_restock: false, voided_at: new Date().toISOString(), void_reason: "exchange_parcel_returned" })]
+      );
+    }
+    await client.query("COMMIT");
+    console.log("[exchange] returned exchange parcel voided", { return_id: returnRow.id, replacement_order_id: replacementOrderId, credit, applied, source });
+    return { voided: true, return_id: returnRow.id, original_order_id: returnRow.order_id, credit, applied };
+  } catch (error) {
+    await client.query("ROLLBACK").catch(() => {});
+    console.error("[exchange] voiding the returned exchange failed", { return_id: returnId, message: error?.message });
+    throw error;
+  } finally {
+    client.release();
+  }
+};
+
+const parseExchangeMetadata = (value) => {
+  let parsed = value;
+  if (typeof value === "string") {
+    try { parsed = JSON.parse(value); } catch { parsed = {}; }
+  }
+  const exchange = parsed && typeof parsed === "object" ? parsed.exchange : null;
+  return exchange && typeof exchange === "object" ? exchange : {};
 };
 
 /**

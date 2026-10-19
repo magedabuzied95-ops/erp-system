@@ -12,6 +12,10 @@ import { exchangeParcelContextOf } from "../orders/exchangeParcel.js";
 // Only "returned" restocks. Bosta's "cancelled" (49) is a parcel that never left, and the
 // shop cancels a parcel to re-issue it; "terminated" (48) is still in Bosta's hands and
 // reaches 46 once it is back with us.
+//
+// An EXCHANGE parcel that comes back is the whole exchange undone: the replacement is
+// cancelled here like any order (stock back), then voidReturnedExchange makes the original
+// a sale again and reverses the store credit — the customer kept the old piece.
 
 const text = (value = "") => String(value ?? "").trim();
 const lower = (value = "") => text(value).toLowerCase();
@@ -59,6 +63,9 @@ const defaultDeps = {
     await (await import("../../services/accountingService.js")).ensureAccountingSchema();
     return invokeHandler((await import("../../controllers/ordersController.js")).cancelOrder, req);
   },
+  // A returned EXCHANGE parcel: the swap never happened, so the return on the original
+  // is voided and the credit reversed (onlineExchange.js) after the replacement is cancelled.
+  voidExchange: async (input) => (await import("../orders/onlineExchange.js")).voidReturnedExchange(input),
   stamp: async ({ orderId, at, source }) => {
     const event = { action: "returned_to_store", provider: "bosta", status: "returned", source, at, label: "رجعت من بوسطة للمخزن" };
     await db.query(
@@ -81,9 +88,6 @@ export const returnedParcelSkipReason = (order = {}) => {
   if (order.cancelled_at || ["cancelled", "canceled"].includes(lower(order.status))) return "already_cancelled";
   if (order.stock_restored_at || order.stock_reverted_at || order.inventory_rollback_done === true) return "stock_already_restored";
   if (["delivered", "completed", "complete", "returned", "refunded", "fully_refunded"].includes(lower(order.status))) return "order_closed";
-  // An exchange parcel carries a replacement out and the old piece back; its own return
-  // row decides what lands on the shelf, so cancelling the order here would double it.
-  if (exchangeParcelContextOf(order)) return "exchange_parcel";
   return "";
 };
 
@@ -96,9 +100,16 @@ export const receiveReturnedBostaParcel = async (order = {}, { source = "bosta",
     console.warn("[bosta-return] cancel refused", { orderId: order.id, statusCode, message: payload?.message });
     return { received: false, reason: "cancel_refused", message: payload?.message || "" };
   }
+  const exchange = exchangeParcelContextOf(order);
+  let exchangeVoid = null;
+  if (exchange?.return_id) {
+    exchangeVoid = await deps.voidExchange({ tenantId: order.tenant_id ?? null, replacementOrderId: order.id, returnId: exchange.return_id, source })
+      .catch((error) => ({ voided: false, reason: "void_failed", message: error?.message || String(error) }));
+    if (!exchangeVoid.voided) console.error("[bosta-return] exchange return NOT voided — needs a person", { orderId: order.id, return_id: exchange.return_id, ...exchangeVoid });
+  }
   // cancelOrder leaves the shipment columns alone; the stamp keeps them on "returned" and
   // records when the parcel came back, for the board and the order's history.
   await deps.stamp({ orderId: order.id, at: at || new Date().toISOString(), source });
   console.log("[bosta-return] parcel received back; order cancelled and stock restored", { orderId: order.id, source });
-  return { received: true, order: payload?.order || null };
+  return { received: true, order: payload?.order || null, exchange: exchangeVoid };
 };

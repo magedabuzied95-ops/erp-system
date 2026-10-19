@@ -13,12 +13,13 @@ import { listStaleBostaShipments } from "../server/modules/shipping/bosta.reconc
  */
 
 const fakeDeps = (statusCode = 200) => {
-  const calls = { cancel: [], stamp: [] };
+  const calls = { cancel: [], stamp: [], voids: [] };
   return {
     calls,
     deps: {
       cancelHandler: async (req) => { calls.cancel.push(req); return { statusCode, payload: { success: statusCode < 400, message: "x", order: { id: 7 } } }; },
       stamp: async (input) => { calls.stamp.push(input); },
+      voidExchange: async (input) => { calls.voids.push(input); return { voided: true }; },
     },
   };
 };
@@ -45,8 +46,23 @@ test("never twice, and never an order that is already closed", () => {
   assert.equal(returnedParcelSkipReason({ id: 1, stock_restored_at: "2026-10-01" }), "stock_already_restored");
   assert.equal(returnedParcelSkipReason({ id: 1, deleted_at: "2026-10-01" }), "deleted");
   assert.equal(returnedParcelSkipReason({ id: 1, status: "delivered" }), "order_closed");
-  assert.equal(returnedParcelSkipReason({ id: 1, ai_agent_metadata: { exchange: { return_id: 9, return_lines: [{ product_name: "x", quantity: 1 }] } } }), "exchange_parcel");
   assert.equal(returnedParcelSkipReason({ id: 1, status: "ready_to_ship" }), "");
+});
+
+test("a returned EXCHANGE parcel cancels the replacement, then voids the return on the original", async () => {
+  const { calls, deps } = fakeDeps();
+  const order = { id: 1669, tenant_id: 1, status: "confirmed", shipping_status: "returned", ai_agent_metadata: { exchange: { return_id: 10, return_lines: [{ product_name: "x", quantity: 1 }] } } };
+  assert.equal(returnedParcelSkipReason(order), "", "an exchange parcel is no longer left alone");
+  const result = await receiveReturnedBostaParcel(order, { source: "bosta_webhook", deps });
+  assert.equal(result.received, true);
+  assert.equal(calls.cancel.length, 1, "the replacement goes back on the shelf through cancelOrder");
+  assert.deepEqual(calls.voids, [{ tenantId: 1, replacementOrderId: 1669, returnId: 10, source: "bosta_webhook" }]);
+});
+
+test("a plain order never touches an exchange", async () => {
+  const { calls, deps } = fakeDeps();
+  await receiveReturnedBostaParcel({ id: 7, status: "confirmed" }, { deps });
+  assert.equal(calls.voids.length, 0);
 });
 
 test("a refused cancel stamps nothing", async () => {
@@ -54,6 +70,7 @@ test("a refused cancel stamps nothing", async () => {
   const result = await receiveReturnedBostaParcel({ id: 7, status: "confirmed" }, { deps });
   assert.equal(result.received, false);
   assert.equal(calls.stamp.length, 0);
+  assert.equal(calls.voids.length, 0, "the exchange is never voided when the replacement could not be cancelled");
 });
 
 test("both Bosta paths receive a returned parcel, and a cancelled shipment may still come back", () => {
@@ -72,4 +89,11 @@ test("the reconcile keeps chasing a cancelled parcel until the order is received
   assert.match(sql, /= ANY\(\$5::text\[\]\)/);
   assert.ok(params[4].includes("cancelled"));
   assert.ok(!params[4].includes("returned"), "a returned parcel was already received by its own event; exchange ones stay open and would be polled forever");
+});
+
+test("cancelOrder reverses only a sale that reached the ledger", () => {
+  const source = readFileSync(new URL("../server/controllers/ordersController.js", import.meta.url), "utf8");
+  const cancel = source.slice(source.indexOf("export const cancelOrder"), source.indexOf("const deletedInvoiceLines"));
+  assert.ok(cancel.includes("if (await orderSaleWasBooked(client, { tenantId: orderTenantId, orderId: loaded.order.id })) try {"), "the reversal is gated on the sale entry");
+  assert.ok(source.includes("reference_type = 'order' AND reference_id::text = $1::text"));
 });

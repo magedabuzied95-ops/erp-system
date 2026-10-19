@@ -8162,6 +8162,27 @@ const resolveReturnRefundShiftId = async (client, { tenantId, branchId = null, u
   return originalOrderShiftId || null;
 };
 
+// Whether the sale was posted to the journal (reference_type 'order', the till's sale
+// entry). On any doubt — no journal table, a failed read — it answers true, so the
+// cancel keeps the reversal it always made.
+export const orderSaleWasBooked = async (client, { tenantId = null, orderId } = {}) => {
+  try {
+    await client.query("SAVEPOINT order_sale_booked_check");
+    const result = await client.query(
+      `SELECT 1 FROM journal_entries
+       WHERE reference_type = 'order' AND reference_id::text = $1::text
+         AND ($2::bigint IS NULL OR tenant_id = $2::bigint)
+       LIMIT 1`,
+      [String(orderId), tenantId]
+    );
+    await client.query("RELEASE SAVEPOINT order_sale_booked_check");
+    return result.rowCount > 0;
+  } catch {
+    await client.query("ROLLBACK TO SAVEPOINT order_sale_booked_check").catch(() => {});
+    return true;
+  }
+};
+
 export const cancelOrder = async (req, res) => {
   const client = await db.connect();
   try {
@@ -8225,7 +8246,11 @@ export const cancelOrder = async (req, res) => {
     const orderTotal = Number(loaded.order.total_amount || loaded.order.total || 0);
     // What the returns already refunded is not reversed a second time.
     const cancelReversalAmount = normalizeInvoiceMoney(Math.max(0, orderTotal - priorRefunds.refundTotal));
-    try {
+    // Only a sale that reached the ledger is walked back out of it. Online orders never
+    // book a sale entry (only till sales with a shift do), and reversing one anyway
+    // credited cash for money that never came in — 16 Bosta returns booked 19,340 of
+    // phantom cash out on 2026-10-19 before this check.
+    if (await orderSaleWasBooked(client, { tenantId: orderTenantId, orderId: loaded.order.id })) try {
       await postReturnEntry(client, {
         tenantId: orderTenantId,
         amount: cancelReversalAmount,
