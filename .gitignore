@@ -263,3 +263,6 @@ server/data/backfill/
 !server/services/customerTagsService.js
 # Photo search by look (CLIP vectors): server/lib/clipImageEmbedder.js + clipImageIndexWriter.js.
 !server/services/visualEmbeddingSearchService.js
+
+# Photo-search eval run outputs (server/scripts/visualSearchEval.js).
+server/scripts/visual-eval/results/

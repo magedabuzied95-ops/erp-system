@@ -1,0 +1,657 @@
+{
+  "tenant_id": "1",
+  "labelled_at": "2026-10-20",
+  "cases": [
+    {
+      "id": "owner-terrex-white",
+      "kind": "owner_test",
+      "image": "uploads:whatsapp-media/3A78FF7A81D78E8F7D5D.jpg",
+      "also_sent_as": [
+        "3AC7346EF6DE868F448A.jpg"
+      ],
+      "expected_product_ids": [
+        "62"
+      ],
+      "expected_color": "White",
+      "note": "Terrex Two Gore, white upper / black heel+toe, Gore-Tex, Vibram sole. Same shoe as product 62's White photo."
+    },
+    {
+      "id": "owner-superstar-lv-cream-black",
+      "kind": "owner_test",
+      "image": "uploads:whatsapp-media/3AD92FE0A92002C8217C.jpg",
+      "also_sent_as": [
+        "3AC81C328BC531487781.jpg"
+      ],
+      "expected_product_ids": [
+        "185",
+        "220",
+        "337",
+        "716",
+        "717"
+      ],
+      "expected_color": "White & Black",
+      "exact_in_stock": false,
+      "note": "Superstar x Louis Vuitton (cream, black monogram-denim stripes). That collab is NOT stocked; any white/black Superstar is the acceptable answer (ideally said as the closest)."
+    },
+    {
+      "id": "owner-ultraboost-black",
+      "kind": "owner_test",
+      "image": "uploads:whatsapp-media/3A41D386772A2C313E14.jpg",
+      "also_sent_as": [
+        "3AB852ABC36CA8DDC468.jpg"
+      ],
+      "expected_product_ids": [
+        "65"
+      ],
+      "expected_color": "Black",
+      "note": "Ultraboost (black knit, grey striped cage, white Boost). Product 65 'Adidas UltraBoost22' Black is the same shoe. 3AB852… was listed as an unknown runner but is byte-identical to this photo."
+    },
+    {
+      "id": "owner-adidas-runner-speckled",
+      "kind": "owner_test",
+      "image": "uploads:whatsapp-media/3A850721169DD7CE7FBA.jpg",
+      "expected_product_ids": [],
+      "note": "Adidas runner, black upper, wide white stripes, white speckled midsole (Questar/Adistar-like). Checked against every stocked Adidas runner / Adistar / Supernova photo: not stocked. Right answer: honest miss or a reply that says 'closest'."
+    },
+    {
+      "id": "syn-af1-61-a",
+      "kind": "synthetic_screenshot",
+      "expected_product_ids": [
+        "61"
+      ],
+      "expected_color": "White & Black",
+      "source_indexed": true,
+      "slice": "exact_image",
+      "source": "https://api.m1store-egy.com/uploads/products/cloudinary/hatwrryexxzi5gfdlam6.jpg",
+      "augment": {
+        "seed": 1293710362
+      },
+      "note": "Nike Air Force 1 / White & Black"
+    },
+    {
+      "id": "syn-af1-61-b",
+      "kind": "synthetic_screenshot",
+      "expected_product_ids": [
+        "61"
+      ],
+      "expected_color": "White & Black",
+      "source_indexed": true,
+      "slice": "different_image",
+      "source": "https://api.m1store-egy.com/uploads/products/cloudinary/jt92u9frs9a1lz85gncv.webp",
+      "augment": {
+        "seed": 1276932743
+      },
+      "note": "Nike Air Force 1 / White & Black — second photo"
+    },
+    {
+      "id": "syn-jordan4-39-a",
+      "kind": "synthetic_screenshot",
+      "expected_product_ids": [
+        "39"
+      ],
+      "expected_color": "Grey",
+      "source_indexed": true,
+      "slice": "exact_image",
+      "source": "https://api.m1store-egy.com/uploads/products/1788572561966-photo_4_2026-09-03_22-19-58.jpg",
+      "augment": {
+        "seed": 3465881075
+      },
+      "note": "Air Jordan 4  Sneakers for Men / Grey"
+    },
+    {
+      "id": "syn-jordan4-39-b",
+      "kind": "synthetic_screenshot",
+      "expected_product_ids": [
+        "39"
+      ],
+      "expected_color": "Grey",
+      "source_indexed": true,
+      "slice": "different_image",
+      "source": "https://api.m1store-egy.com/uploads/products/cloudinary/no4is9r0ng0hxzctt2bn.webp",
+      "augment": {
+        "seed": 3482658694
+      },
+      "note": "Air Jordan 4  Sneakers for Men / Grey — second photo"
+    },
+    {
+      "id": "syn-jordan1-74-a",
+      "kind": "synthetic_screenshot",
+      "expected_product_ids": [
+        "74"
+      ],
+      "expected_color": "Brown",
+      "source_indexed": true,
+      "slice": "exact_image",
+      "source": "https://api.m1store-egy.com/uploads/products/cloudinary/inwfipiqlllqfnxyn3zj.webp",
+      "augment": {
+        "seed": 3504719881
+      },
+      "note": "Nike Air Jordan 1 / Brown"
+    },
+    {
+      "id": "syn-jordan1-74-b",
+      "kind": "synthetic_screenshot",
+      "expected_product_ids": [
+        "74"
+      ],
+      "expected_color": "Brown",
+      "source_indexed": true,
+      "slice": "different_image",
+      "source": "https://api.m1store-egy.com/uploads/products/cloudinary/vbguyyi0jaczbvqob4ql.jpg",
+      "augment": {
+        "seed": 3454387024
+      },
+      "note": "Nike Air Jordan 1 / Brown — second photo"
+    },
+    {
+      "id": "syn-superstar-717-a",
+      "kind": "synthetic_screenshot",
+      "expected_product_ids": [
+        "717"
+      ],
+      "expected_color": "White & Pink",
+      "source_indexed": true,
+      "slice": "exact_image",
+      "source": "/uploads/products/cloudinary/fkwhr8w0hi1beqcyhxsm.jpg",
+      "augment": {
+        "seed": 462924729
+      },
+      "note": "Adidas Superstar / White & Pink"
+    },
+    {
+      "id": "syn-superstar-716-a",
+      "kind": "synthetic_screenshot",
+      "expected_product_ids": [
+        "716"
+      ],
+      "expected_color": "White & Black",
+      "source_indexed": true,
+      "slice": "exact_image",
+      "source": "/uploads/products/cloudinary/wvettv4w9hok7ndbfskf.jpg",
+      "augment": {
+        "seed": 3870759002
+      },
+      "note": "Adidas Superstar / White & Black"
+    },
+    {
+      "id": "syn-samba-584-a",
+      "kind": "synthetic_screenshot",
+      "expected_product_ids": [
+        "584"
+      ],
+      "expected_color": "White",
+      "source_indexed": true,
+      "slice": "exact_image",
+      "source": "https://api.m1store-egy.com/uploads/products/cloudinary/q8yo31rfe8bxgd7lfugt.jpg",
+      "augment": {
+        "seed": 1234228918
+      },
+      "note": "Samba Sneakers / White"
+    },
+    {
+      "id": "syn-samba-584-b",
+      "kind": "synthetic_screenshot",
+      "expected_product_ids": [
+        "584"
+      ],
+      "expected_color": "White",
+      "source_indexed": true,
+      "slice": "different_image",
+      "source": "https://api.m1store-egy.com/uploads/products/cloudinary/r2njbmuzkslquhuo2evc.jpg",
+      "augment": {
+        "seed": 1217451299
+      },
+      "note": "Samba Sneakers / White — second photo"
+    },
+    {
+      "id": "syn-terrex-358-a",
+      "kind": "synthetic_screenshot",
+      "expected_product_ids": [
+        "358"
+      ],
+      "expected_color": "All Black",
+      "source_indexed": true,
+      "slice": "exact_image",
+      "source": "/uploads/products/cloudinary/pj1puxjnfbjyswpmfco6.webp",
+      "augment": {
+        "seed": 3634974593
+      },
+      "note": "Adidas Terrex / All Black"
+    },
+    {
+      "id": "syn-terrex-349-a",
+      "kind": "synthetic_screenshot",
+      "expected_product_ids": [
+        "349"
+      ],
+      "expected_color": "Bige",
+      "source_indexed": true,
+      "slice": "exact_image",
+      "source": "https://api.m1store-egy.com/uploads/products/cloudinary/b4jozoyqcmdvfyonlz1x.webp",
+      "augment": {
+        "seed": 3261797939
+      },
+      "note": "Adidas Terrex / Bige"
+    },
+    {
+      "id": "syn-ultraboost-800-a",
+      "kind": "synthetic_screenshot",
+      "expected_product_ids": [
+        "800"
+      ],
+      "expected_color": "Black",
+      "source_indexed": true,
+      "slice": "exact_image",
+      "source": "https://api.m1store-egy.com/uploads/products/1790006185490-18EC63D7-0947-441D-AA4C-7EC0BC8D3C23.png",
+      "augment": {
+        "seed": 498071046
+      },
+      "note": "Adidas Ultra boost / Black"
+    },
+    {
+      "id": "syn-ultraboost-724-a",
+      "kind": "synthetic_screenshot",
+      "expected_product_ids": [
+        "724"
+      ],
+      "expected_color": "Black",
+      "source_indexed": true,
+      "slice": "exact_image",
+      "source": "/uploads/products/cloudinary/qtdbexamw52zclr5kerj.jpg",
+      "augment": {
+        "seed": 2302462317
+      },
+      "note": "adidas ultra boost / Black"
+    },
+    {
+      "id": "syn-campus-769-a",
+      "kind": "synthetic_screenshot",
+      "expected_product_ids": [
+        "769"
+      ],
+      "expected_color": "Bige",
+      "source_indexed": true,
+      "slice": "exact_image",
+      "source": "https://api.m1store-egy.com/uploads/products/1789428325136-4580A885-354B-4C85-8497-B7C787016F83.png",
+      "augment": {
+        "seed": 2247921062
+      },
+      "note": "Adidas Campus / Bige"
+    },
+    {
+      "id": "syn-campus-177-a",
+      "kind": "synthetic_screenshot",
+      "expected_product_ids": [
+        "177"
+      ],
+      "expected_color": "Bige",
+      "source_indexed": true,
+      "slice": "exact_image",
+      "source": "https://api.m1store-egy.com/uploads/products/cloudinary/v83k1dtsynjr5lnak30q.jpg",
+      "augment": {
+        "seed": 1993729875
+      },
+      "note": "Adidas Campus / Bige"
+    },
+    {
+      "id": "syn-newbalance-777-a",
+      "kind": "synthetic_screenshot",
+      "expected_product_ids": [
+        "777"
+      ],
+      "expected_color": "Black",
+      "source_indexed": true,
+      "slice": "exact_image",
+      "source": "https://api.m1store-egy.com/uploads/products/1788817553946-5830416391088050259.jpg",
+      "augment": {
+        "seed": 2400182510
+      },
+      "note": "new balance / Black"
+    },
+    {
+      "id": "syn-newbalance-777-b",
+      "kind": "synthetic_screenshot",
+      "expected_product_ids": [
+        "777"
+      ],
+      "expected_color": "Black",
+      "source_indexed": true,
+      "slice": "different_image",
+      "source": "https://api.m1store-egy.com/uploads/products/1788817555571-5830416391088050260.jpg",
+      "augment": {
+        "seed": 2383404891
+      },
+      "note": "new balance / Black — second photo"
+    },
+    {
+      "id": "syn-skechers-721-a",
+      "kind": "synthetic_screenshot",
+      "expected_product_ids": [
+        "721"
+      ],
+      "expected_color": "White",
+      "source_indexed": true,
+      "slice": "exact_image",
+      "source": "https://api.m1store-egy.com/uploads/products/cloudinary/gi9qjyhqxfrpwmbfblek.jpg",
+      "augment": {
+        "seed": 470217493
+      },
+      "note": "SKECHERS / White"
+    },
+    {
+      "id": "syn-skechers-721-b",
+      "kind": "synthetic_screenshot",
+      "expected_product_ids": [
+        "721"
+      ],
+      "expected_color": "White",
+      "source_indexed": true,
+      "slice": "different_image",
+      "source": "https://api.m1store-egy.com/uploads/products/cloudinary/qaqyedynavswwocibi3u.jpg",
+      "augment": {
+        "seed": 419884636
+      },
+      "note": "SKECHERS / White — second photo"
+    },
+    {
+      "id": "syn-airmax-215-a",
+      "kind": "synthetic_screenshot",
+      "expected_product_ids": [
+        "215"
+      ],
+      "expected_color": "Black",
+      "source_indexed": true,
+      "slice": "exact_image",
+      "source": "/uploads/products/cloudinary/mdtzgcftxfkt4vz056w1.jpg",
+      "augment": {
+        "seed": 1138454401
+      },
+      "note": "Air Max 97 / Black"
+    },
+    {
+      "id": "syn-airmax-215-b",
+      "kind": "synthetic_screenshot",
+      "expected_product_ids": [
+        "215"
+      ],
+      "expected_color": "Black",
+      "source_indexed": true,
+      "slice": "different_image",
+      "source": "/uploads/products/cloudinary/y0x8rivyye7vf0ugcw9h.jpg",
+      "augment": {
+        "seed": 1088121544
+      },
+      "note": "Air Max 97 / Black — second photo"
+    },
+    {
+      "id": "syn-crocs-733-a",
+      "kind": "synthetic_screenshot",
+      "expected_product_ids": [
+        "733"
+      ],
+      "expected_color": "Black",
+      "source_indexed": true,
+      "slice": "exact_image",
+      "source": "https://api.m1store-egy.com/uploads/products/1786474382909-c40c1aa2-30ca-4d05-8ff9-af78ac075aeb.webp",
+      "augment": {
+        "seed": 2307597488
+      },
+      "note": "Crocs / Black"
+    },
+    {
+      "id": "syn-crocs-733-b",
+      "kind": "synthetic_screenshot",
+      "expected_product_ids": [
+        "733"
+      ],
+      "expected_color": "Black",
+      "source_indexed": true,
+      "slice": "different_image",
+      "source": "https://api.m1store-egy.com/uploads/products/1786887153556-photo_5769295557607231346_y.webp",
+      "augment": {
+        "seed": 2357930345
+      },
+      "note": "Crocs / Black — second photo"
+    },
+    {
+      "id": "syn-converse-792-a",
+      "kind": "synthetic_screenshot",
+      "expected_product_ids": [
+        "792"
+      ],
+      "expected_color": "Black",
+      "source_indexed": true,
+      "slice": "exact_image",
+      "source": "https://api.m1store-egy.com/uploads/products/1789757578172-s-l960.webp",
+      "augment": {
+        "seed": 399220728
+      },
+      "note": "CONVERSE / Black"
+    },
+    {
+      "id": "syn-converse-792-b",
+      "kind": "synthetic_screenshot",
+      "expected_product_ids": [
+        "792"
+      ],
+      "expected_color": "Black",
+      "source_indexed": true,
+      "slice": "different_image",
+      "source": "https://api.m1store-egy.com/uploads/products/1789757733291-s-l1600_3_.webp",
+      "augment": {
+        "seed": 449553585
+      },
+      "note": "CONVERSE / Black — second photo"
+    },
+    {
+      "id": "syn-asics-791-a",
+      "kind": "synthetic_screenshot",
+      "expected_product_ids": [
+        "791"
+      ],
+      "expected_color": "Pink",
+      "source_indexed": true,
+      "slice": "exact_image",
+      "source": "https://api.m1store-egy.com/uploads/products/1789681471502-1773167997_1840659292_photo_12_2026-03-10_20-33-42.webp",
+      "augment": {
+        "seed": 355482689
+      },
+      "note": "asics gel / Pink"
+    },
+    {
+      "id": "syn-asics-571-a",
+      "kind": "synthetic_screenshot",
+      "expected_product_ids": [
+        "571"
+      ],
+      "expected_color": "Black & White",
+      "source_indexed": true,
+      "slice": "exact_image",
+      "source": "https://api.m1store-egy.com/uploads/products/cloudinary/cqtdvjsnybfgkfxmgswv.webp",
+      "augment": {
+        "seed": 885714845
+      },
+      "note": "asics sneakers / Black & White"
+    },
+    {
+      "id": "syn-puma-774-a",
+      "kind": "synthetic_screenshot",
+      "expected_product_ids": [
+        "774"
+      ],
+      "expected_color": "Black & Grey",
+      "source_indexed": true,
+      "slice": "exact_image",
+      "source": "https://api.m1store-egy.com/uploads/products/1788719672446-5830416391088050274.jpg",
+      "augment": {
+        "seed": 2285642904
+      },
+      "note": "Puma Sneakers / Black & Grey"
+    },
+    {
+      "id": "syn-puma-774-b",
+      "kind": "synthetic_screenshot",
+      "expected_product_ids": [
+        "774"
+      ],
+      "expected_color": "Black & Grey",
+      "source_indexed": true,
+      "slice": "different_image",
+      "source": "https://api.m1store-egy.com/uploads/products/1788719673649-5830416391088050273.jpg",
+      "augment": {
+        "seed": 2335975761
+      },
+      "note": "Puma Sneakers / Black & Grey — second photo"
+    },
+    {
+      "id": "syn-lacoste-586-a",
+      "kind": "synthetic_screenshot",
+      "expected_product_ids": [
+        "586"
+      ],
+      "expected_color": "Black",
+      "source_indexed": true,
+      "slice": "exact_image",
+      "source": "https://api.m1store-egy.com/uploads/products/cloudinary/jzswwwvhjdhjo5xojlci.jpg",
+      "augment": {
+        "seed": 729291779
+      },
+      "note": "Lacoste Sneakers / Black"
+    },
+    {
+      "id": "syn-lacoste-586-b",
+      "kind": "synthetic_screenshot",
+      "expected_product_ids": [
+        "586"
+      ],
+      "expected_color": "Black",
+      "source_indexed": true,
+      "slice": "different_image",
+      "source": "https://api.m1store-egy.com/uploads/products/cloudinary/vuogwxywoqeo63pcuaob.jpg",
+      "augment": {
+        "seed": 746069398
+      },
+      "note": "Lacoste Sneakers / Black — second photo"
+    },
+    {
+      "id": "syn-hoka-799-a",
+      "kind": "synthetic_screenshot",
+      "expected_product_ids": [
+        "799"
+      ],
+      "expected_color": "Blue",
+      "source_indexed": true,
+      "slice": "exact_image",
+      "source": "https://api.m1store-egy.com/uploads/products/1789768990514-1767995075_185046988_23C90FD9-BB4A-45AC-8C1B-B2D1E601A575.webp",
+      "augment": {
+        "seed": 1137662585
+      },
+      "note": "Hoka Running / Blue"
+    },
+    {
+      "id": "syn-hoka-420-a",
+      "kind": "synthetic_screenshot",
+      "expected_product_ids": [
+        "420"
+      ],
+      "expected_color": "Navy",
+      "source_indexed": true,
+      "slice": "exact_image",
+      "source": "https://api.m1store-egy.com/uploads/products/cloudinary/xfpi8qsbsr1ssawdsbwo.webp",
+      "augment": {
+        "seed": 266687108
+      },
+      "note": "Hoka  YZ811/20 / Navy"
+    },
+    {
+      "id": "syn-saucony-794-a",
+      "kind": "synthetic_screenshot",
+      "expected_product_ids": [
+        "794"
+      ],
+      "expected_color": "Navy",
+      "source_indexed": true,
+      "slice": "exact_image",
+      "source": "https://api.m1store-egy.com/uploads/products/1792420489996-IMG_4122.jpg",
+      "augment": {
+        "seed": 1258082215
+      },
+      "note": "Saucony Running / Navy"
+    },
+    {
+      "id": "syn-saucony-368-a",
+      "kind": "synthetic_screenshot",
+      "expected_product_ids": [
+        "368"
+      ],
+      "expected_color": "Black",
+      "source_indexed": true,
+      "slice": "exact_image",
+      "source": "https://api.m1store-egy.com/uploads/products/cloudinary/un8zgwcsgkovtfbmr53o.jpg",
+      "augment": {
+        "seed": 65090064
+      },
+      "note": "Saucony Bwr / Black"
+    },
+    {
+      "id": "syn-reebok-427-a",
+      "kind": "synthetic_screenshot",
+      "expected_product_ids": [
+        "427"
+      ],
+      "expected_color": "White",
+      "source_indexed": true,
+      "slice": "exact_image",
+      "source": "/uploads/products/cloudinary/pmsz3jxwpjzplvhjymrg.webp",
+      "augment": {
+        "seed": 966884376
+      },
+      "note": "Reebok Running / White"
+    },
+    {
+      "id": "syn-reebok-366-a",
+      "kind": "synthetic_screenshot",
+      "expected_product_ids": [
+        "366"
+      ],
+      "expected_color": "Black",
+      "source_indexed": true,
+      "slice": "exact_image",
+      "source": "https://api.m1store-egy.com/uploads/products/cloudinary/jlb8ot9js2shplbqp3pm.webp",
+      "augment": {
+        "seed": 64910894
+      },
+      "note": "Reebok Zig / Black"
+    },
+    {
+      "id": "syn-adistar-359-a",
+      "kind": "synthetic_screenshot",
+      "expected_product_ids": [
+        "359"
+      ],
+      "expected_color": "Black",
+      "source_indexed": true,
+      "slice": "exact_image",
+      "source": "https://api.m1store-egy.com/uploads/products/cloudinary/mhne6uzuxx7hz0rtiaox.webp",
+      "augment": {
+        "seed": 115495956
+      },
+      "note": "Adidas Adistar22 / Black"
+    },
+    {
+      "id": "syn-adistar-351-a",
+      "kind": "synthetic_screenshot",
+      "expected_product_ids": [
+        "351"
+      ],
+      "expected_color": "Black & White",
+      "source_indexed": true,
+      "slice": "exact_image",
+      "source": "/uploads/products/cloudinary/g8q5wfm8jojizkmfi2wl.webp",
+      "augment": {
+        "seed": 1576105500
+      },
+      "note": "Adidas adistar / Black & White"
+    }
+  ]
+}
