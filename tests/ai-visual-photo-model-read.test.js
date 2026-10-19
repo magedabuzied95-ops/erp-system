@@ -137,7 +137,7 @@ test("the recogniser hands the model read back on every miss", () => {
   const missPaths = recognition.match(/\.\.\.\(await modelReadFor\(\{ tenantId, understanding \}\)\)/g) || [];
   assert.equal(missPaths.length, 2, "index error and a match with no sendable card");
   // No confident match: the read is taken once, tried as a family pick, and handed back on a miss.
-  assert.match(recognition, /const readForCompare = await modelReadFor\(\{ tenantId, understanding \}\);/);
+  assert.match(recognition, /const \[readForCompare, shapeRows\] = await Promise\.all\(\[\s*modelReadFor\(\{ tenantId, understanding \}\),/);
   assert.match(recognition, /const modelRead = readForCompare;/);
   assert.equal((recognition.match(/\.\.\.modelRead,?\s*\}/g) || []).length + (recognition.match(/\.\.\.modelRead \}/g) || []).length >= 2, true, "both the family pick and the miss carry the read");
   assert.match(recognition, /return read \? \{ modelQuery: read\.phrase, modelProductIds:/);
@@ -216,4 +216,22 @@ test("the photo comparison gets one candidate per product colour, from the right
   assert.equal(buildVisualRecognitionPayload({ cards, recognition: { photoMatch: "same" } }).channel_reply.text, VISUAL_SAME_MODEL_TEXT);
   assert.equal(buildVisualRecognitionPayload({ cards, recognition: { photoMatch: "same_model_other_color" } }).channel_reply.text, VISUAL_OTHER_COLOR_TEXT);
   assert.equal(buildVisualRecognitionPayload({ cards, recognition: { photoMatch: "closest", closest: true } }).channel_reply.text, VISUAL_CLOSEST_MODEL_TEXT);
+});
+
+test("the comparison pool puts the shape-nearest images first, one per product colour, at most 12", async () => {
+  const { mergeCandidatePools, cropForMatching } = await import("../server/services/aiVisualProductRecognitionService.js");
+  const shape = [
+    { product_id: "65", color: "Black", image_url: "/u/1.jpg", similarity: 0.91 },
+    { product_id: "65", color: "black", image_url: "/u/1b.jpg", similarity: 0.9 },
+  ];
+  const family = [{ product_id: "65", color: "Black", image_url: "/u/1c.jpg" }, { product_id: "129", color: "Navy", image_url: "/u/2.jpg" }];
+  const merged = mergeCandidatePools([shape, family]);
+  assert.deepEqual(merged.map((row) => row.image_url), ["/u/1.jpg", "/u/2.jpg"], "shape first, duplicates dropped");
+  const many = Array.from({ length: 30 }, (_, index) => ({ product_id: String(index), color: "x", image_url: `/u/${index}.jpg` }));
+  assert.equal(mergeCandidatePools([many]).length, 12);
+  // No crop module or no buffer: the photo goes on as it is, never an error.
+  const same = Buffer.from("x");
+  const result = await cropForMatching({ imageBuffer: same });
+  assert.equal(result.cropped, false);
+  assert.equal(result.buffer, same);
 });

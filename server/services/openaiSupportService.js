@@ -664,7 +664,9 @@ const SAME_SHOE_INSTRUCTIONS = [
  */
 export const pickSameShoeAmongCandidates = async ({ customerImage = "", candidateImages = [], requestId = "" } = {}) => {
   syncAgentCredentialState();
-  const images = asArrayOf(candidateImages).filter(Boolean).slice(0, 8);
+  // 12: the shape-nearest images, the read family and the brand look-alikes together (low detail
+  // keeps each one a small fixed cost).
+  const images = asArrayOf(candidateImages).filter(Boolean).slice(0, 12);
   if (!toText(customerImage) || images.length < 1 || !visionEnabled() || textGenerationTemporarilyBlocked()) return null;
   const model = toText(process.env.AI_VISUAL_RERANK_MODEL) || "gpt-4o";
   try {

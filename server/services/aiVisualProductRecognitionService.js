@@ -387,9 +387,57 @@ export const photoMatchKind = (pick = {}) =>
  * The customer's photo next to the candidates' own product photos (OpenAI picks the same shoe, or
  * the closest, or none). Null when the comparison could not run — the caller keeps the text ranking.
  */
-const pickByComparingPhotos = async ({ tenantId, search = null, modelRead = {}, understanding = null, visualQuery = "", imageUrl = "", imageBuffer = null, requestId = "" }) => {
+/**
+ * One candidate list from several sources, in order of trust: the shape-nearest images (CLIP), then
+ * the family the photo was read as, then the same-brand look-alikes. One per product + colour.
+ */
+export const mergeCandidatePools = (lists = [], max = 12) => {
+  const seen = new Set();
+  const merged = [];
+  for (const list of asArray(lists)) {
+    for (const row of asArray(list)) {
+      const productId = text(row?.product_id || row?.productId);
+      const imageUrl = text(row?.image_url || row?.imageUrl);
+      if (!productId || !imageUrl) continue;
+      const key = `${productId}:${text(row?.color).toLowerCase()}`;
+      if (seen.has(key)) continue;
+      seen.add(key);
+      merged.push(row);
+      if (merged.length >= max) return merged;
+    }
+  }
+  return merged;
+};
+
+// Pieces built in parallel (2026-10-19): a missing module just means that layer is skipped.
+const optionalModule = async (specifier) => import(specifier).catch(() => null);
+
+const shapeNearestRows = async ({ tenantId, imageBuffer }) => {
+  if (!imageBuffer) return [];
+  const service = await optionalModule("./visualEmbeddingSearchService.js");
+  if (typeof service?.findNearestProductImages !== "function") return [];
+  const rows = await service.findNearestProductImages({ tenantId, imageBuffer, limit: 15, onlyInStock: true }).catch((error) => {
+    console.warn("[ai-visual-recognition] shape search failed", { tenant_id: tenantId || null, message: error?.message });
+    return [];
+  });
+  return asArray(rows);
+};
+
+// The shoe cut out of a busy screenshot (feet, floor, captions); the original when that cannot be done.
+export const cropForMatching = async ({ imageBuffer = null, box = null } = {}) => {
+  if (!imageBuffer) return { buffer: imageBuffer, cropped: false };
+  const crop = await optionalModule("../lib/shoeCrop.js");
+  if (typeof crop?.cropShoeFromPhoto !== "function") return { buffer: imageBuffer, cropped: false };
+  const result = await Promise.resolve(crop.cropShoeFromPhoto(imageBuffer, { box })).catch(() => null);
+  if (!result?.buffer?.length || !result.cropped) return { buffer: imageBuffer, cropped: false };
+  // Whatever format the crop came back in, hand the vision call a JPEG it can name.
+  const jpeg = await sharp(result.buffer).jpeg({ quality: 88 }).toBuffer().catch(() => null);
+  return jpeg ? { buffer: jpeg, cropped: true, box: result.box || null, mimeType: "image/jpeg" } : { buffer: imageBuffer, cropped: false };
+};
+
+const pickByComparingPhotos = async ({ tenantId, search = null, modelRead = {}, understanding = null, visualQuery = "", imageUrl = "", imageBuffer = null, requestId = "", shapeRows = [] }) => {
   const familyIds = asArray(modelRead?.modelProductIds).map((id) => String(id));
-  let pool = photoCandidatePool(search?.topMatches, { familyIds });
+  let pool = mergeCandidatePools([shapeRows, photoCandidatePool(search?.topMatches, { familyIds })]);
   if (familyIds.length && pool.length < 2) {
     const scoped = await searchAiVisualProductsPro({
       tenantId,
@@ -400,7 +448,7 @@ const pickByComparingPhotos = async ({ tenantId, search = null, modelRead = {}, 
       limit: 24,
       onlyProductIds: familyIds,
     }).catch(() => null);
-    pool = photoCandidatePool(scoped?.topMatches, { familyIds });
+    pool = mergeCandidatePools([shapeRows, photoCandidatePool(scoped?.topMatches, { familyIds })]);
   }
   if (!pool.length) return null;
   const [customerImage, ...candidateImages] = await Promise.all([
@@ -471,14 +519,18 @@ export const recogniseProductFromImage = async ({
     bytes: effectiveBuffer?.length || 0,
   });
 
+  // Screenshots from other pages and videos: read and match the shoe, not the feet and captions.
+  let matchCrop = await cropForMatching({ imageBuffer: effectiveBuffer });
+  if (matchCrop.cropped) console.log("[ai-visual-recognition] shoe cropped", { tenant_id: tenantId || null, box: matchCrop.box || null });
+
   let understanding;
   try {
     understanding = await understandProductImageForSearch({
-      imageBuffer: effectiveBuffer || undefined,
-      mimeType: effectiveMime || undefined,
+      imageBuffer: matchCrop.buffer || effectiveBuffer || undefined,
       // buildVisionImageInput prefers a URL whenever one is passed, so hand it the URL only when
       // there are no bytes to send.
       imageUrl: effectiveBuffer ? "" : safeImageUrl,
+      mimeType: matchCrop.cropped ? matchCrop.mimeType : effectiveMime || undefined,
       requestId: requestId || `visual-recognition:${Date.now()}`,
       // Every caller of this is a customer chat (WhatsApp, the AI inbox) — read by OpenAI first.
       chat: true,
@@ -538,7 +590,19 @@ export const recogniseProductFromImage = async ({
   // The owner (2026-10-19): look at the candidates' own photos and pick the same model and colour,
   // or the closest and say it is the closest. The keyword ranking above cannot see shape or colour
   // — a white Terrex went to a black-and-grey line, a white/black Superstar led with burgundy.
-  const readForCompare = await modelReadFor({ tenantId, understanding });
+  // The reading may carry the shoe's box when the segmenter could not find it.
+  const readBox = understanding?.detected?.shoe_box || understanding?.shoe_box || null;
+  if (!matchCrop.cropped && readBox) matchCrop = await cropForMatching({ imageBuffer: effectiveBuffer, box: readBox });
+  const [readForCompare, shapeRows] = await Promise.all([
+    modelReadFor({ tenantId, understanding }),
+    shapeNearestRows({ tenantId, imageBuffer: matchCrop.buffer || effectiveBuffer }),
+  ]);
+  if (shapeRows.length) {
+    console.log("[ai-visual-recognition] shape nearest", {
+      tenant_id: tenantId || null,
+      top: shapeRows.slice(0, 5).map((row) => ({ product_id: row.product_id, color: row.color, similarity: Math.round(Number(row.similarity || 0) * 1000) / 1000 })),
+    });
+  }
   const compared = await pickByComparingPhotos({
     tenantId,
     search,
@@ -546,8 +610,9 @@ export const recogniseProductFromImage = async ({
     understanding,
     visualQuery,
     imageUrl: safeImageUrl,
-    imageBuffer: effectiveBuffer,
+    imageBuffer: matchCrop.buffer || effectiveBuffer,
     requestId,
+    shapeRows,
   });
   if (compared?.matched) return { ...compared, understanding, visualQuery, search, ...readForCompare };
   // Compared and nothing in the shop looks like it: an honest no-match, never the whole family.
