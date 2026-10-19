@@ -13,6 +13,7 @@ import { generateSupportAnswer } from "./openaiSupportService.js";
 import { PRODUCT_GRADES, productGrade, productGradeRank } from "../config/productGrades.js";
 import { resolveInvoiceTemplateForOrder } from "./invoiceTemplateService.js";
 import { buildStoreFactsDecision, STORE_FACTS_INTENTS } from "./aiStoreFactsReplyService.js";
+import { buildCatalogBrowseDecision, CATALOG_BROWSE_INTENTS } from "./aiCatalogBrowseService.js";
 import {
   buildConversationMemoryV2,
   mergeConversationMemoryV2,
@@ -127,6 +128,8 @@ export const rewriteStructuredDecision = async ({ decision = {}, inbound = {}, t
   if (["human_takeover", "order_tracking", "order_follow_up", "post_product_order_confirmation", "greeting"].includes(intent)) return decision;
   // The store's own fee / policy words go out as they are: re-worded, they lost the facts.
   if (STORE_FACTS_INTENTS.includes(intent)) return decision;
+  // The browse link and its counts go out exactly as built.
+  if (CATALOG_BROWSE_INTENTS.includes(intent)) return decision;
   const products = asArray(decision.product_cards?.length ? decision.product_cards : decision.suggested_products?.length ? decision.suggested_products : decision.products);
   const gradeGuide = gradeGuideFor(products);
   const multiGrade = gradeGuide.length > 1;
@@ -1039,8 +1042,22 @@ export const generateUnifiedConversationDecision = async (normalizedInbound = {}
         console.warn("[ai-store-facts:skipped]", { message: error?.message || String(error) });
         return null;
       });
+  // "عايز اشوف الفيتنامي مقاس 42": ask only what is missing, then one storefront link.
+  const catalogBrowseDecision = directColorSelectionDecision || storeFactsDecision
+    ? null
+    : await buildCatalogBrowseDecision({
+        message: inbound.originalText || inbound.text,
+        memory: rawMemory || {},
+        channel: inbound.channel,
+        tenantId,
+      }).catch((error) => {
+        console.warn("[ai-catalog-browse:skipped]", { message: error?.message || String(error) });
+        return null;
+      });
   if (storeFactsDecision) {
     decision = storeFactsDecision;
+  } else if (catalogBrowseDecision) {
+    decision = catalogBrowseDecision;
   } else if (directColorSelectionDecision) {
     console.info("AI_V2_DIRECT_COLOR_SELECTION_MATCH", {
       channel: inbound.channel,

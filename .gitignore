@@ -43,6 +43,7 @@ services/
 server/services/*
 !server/services/chatPresenceService.js
 !server/services/aiStoreFactsReplyService.js
+!server/services/aiCatalogBrowseService.js
 !server/services/linkPreviewService.js
 !server/services/metaReviewerAccessService.js
 !server/services/metaReviewerInboxService.js
@@ -109,6 +110,7 @@ server/services/*
 !server/services/managerPortalInventoryCoverageService.js
 !server/services/chatPresenceService.js
 !server/services/aiStoreFactsReplyService.js
+!server/services/aiCatalogBrowseService.js
 !server/services/codPolicyReplyService.js
 !server/services/transactionalEmail/
 !server/services/transactionalEmail/payment.js

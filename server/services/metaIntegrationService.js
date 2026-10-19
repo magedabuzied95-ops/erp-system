@@ -20996,6 +20996,10 @@ const answerFaqIfMatched = async ({ config, message } = {}) => {
 };
 
 const handleSizeAvailabilityLinkIfMatched = async ({ config, message } = {}) => {
+  // "المتاح مقاس 42" is answered by the shared browse flow (aiCatalogBrowseService, through the
+  // unified decision) — type, size, grade, brand, the same on WhatsApp, Messenger and Instagram.
+  // This Meta-only copy asked its own question with its own grade keys; it stays off unless asked.
+  if (!["1", "true", "yes", "on"].includes(String(process.env.META_LEGACY_SIZE_BROWSE || "").trim().toLowerCase())) return null;
   const memory = getConversationMemory(message.external_conversation_id) || {};
   const pendingLock = resolvePendingSizeBrowseQuality({ memory, message: message.message_text || "" });
   if (pendingLock.expired && pendingLock.clearPending) {

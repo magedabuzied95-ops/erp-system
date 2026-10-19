@@ -3610,8 +3610,11 @@ export const storefrontQualityAliases = (quality = "") => {
   if (["egyptian", "egypt", "local", "locally_made", "made_in_egypt"].includes(normalized)) {
     return ["egyptian", "egypt", "local", "locally_made", "locally made", "made_in_egypt", "made in egypt"];
   }
-  if (["vietnamese_import", "vietnamese", "vietnam", "import", "imported", "imported_vietnamese", "vietnam_import"].includes(normalized)) {
-    return ["vietnamese_import", "vietnamese import", "vietnamese", "vietnam", "import", "imported", "imported_vietnamese", "vietnam_import"];
+  // products.grade stores "imported_from_vietnam" — the one spelling this list lacked, so the
+  // bot's "المتاح مقاس 42 فيتنامي" link (quality=vietnamese_import) opened on 0 products while the
+  // grade had 126 (production, 2026-10-19).
+  if (["vietnamese_import", "vietnamese", "vietnam", "import", "imported", "imported_vietnamese", "vietnam_import", "imported_from_vietnam"].includes(normalized)) {
+    return ["imported_from_vietnam", "vietnamese_import", "vietnamese import", "vietnamese", "vietnam", "import", "imported", "imported_vietnamese", "vietnam_import"];
   }
   if (!normalized || ["all", "الكل", "كل"].includes(normalized)) return [];
   if (normalized === "mirror" || normalized === "ميرور") {
@@ -3621,7 +3624,7 @@ export const storefrontQualityAliases = (quality = "") => {
     return ["egyptian", "egypt", "مصري"];
   }
   if (["vietnamese_import", "vietnamese", "vietnam", "import", "مستورد", "فيتنامي", "مستورد_فيتنامي"].includes(normalized)) {
-    return ["vietnamese_import", "vietnamese import", "vietnamese", "vietnam", "import", "مستورد", "فيتنامي", "مستورد فيتنامي"];
+    return ["imported_from_vietnam", "vietnamese_import", "vietnamese import", "vietnamese", "vietnam", "import", "مستورد", "فيتنامي", "مستورد فيتنامي"];
   }
   return [normalized.replace(/_/g, " "), normalized];
 };
