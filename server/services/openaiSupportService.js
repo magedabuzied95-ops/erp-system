@@ -974,6 +974,9 @@ export const generateSupportAnswer = async ({
   understanding = null,
   customerCard = "",
   salesHint = "",
+  // A caller that already holds a usable answer (the grounded rewrite) caps how long OpenAI may
+  // take. The defaults — 25s × 3 attempts — run past the server's 60s request limit.
+  requestBudget = null,
 } = {}) => {
   syncAgentCredentialState();
   const customerMessage = toText(message).slice(0, MAX_MESSAGE_CHARS);
@@ -1046,11 +1049,13 @@ export const generateSupportAnswer = async ({
         ...resolveSupportSamplingParams(resolveSupportModel()),
       },
       {
-        timeout: resolveSupportTimeoutMs(),
+        timeout: positiveNumber(requestBudget?.timeoutMs, resolveSupportTimeoutMs()),
         // maxRetries was 0, so a single transient 500/timeout dropped the customer
         // straight onto canned fallback text. The SDK's own retry is cheaper than
         // losing the reply.
-        maxRetries: resolveSupportMaxRetries(),
+        maxRetries: Number.isInteger(requestBudget?.maxRetries) && requestBudget.maxRetries >= 0
+          ? Math.min(requestBudget.maxRetries, resolveSupportMaxRetries())
+          : resolveSupportMaxRetries(),
       }
     );
 

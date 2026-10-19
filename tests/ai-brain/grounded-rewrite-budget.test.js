@@ -1,0 +1,76 @@
+import test from "node:test";
+import assert from "node:assert/strict";
+import fs from "node:fs";
+
+import pool from "../../server/database/db.js";
+
+/**
+ * 2026-10-19: the playground's "متاح ايرفورس ؟" died with "Request timed out". The server cuts
+ * every request at 60s (REQUEST_TIMEOUT_MS), and the OpenAI call that only re-words an answer
+ * brain V2 already has was allowed 25s × 3 attempts = 75s. A slow OpenAI therefore lost the whole
+ * reply instead of falling back to the grounded answer.
+ */
+
+process.env.AI_SUPPORT_ENABLED = "true";
+process.env.OPENAI_AGENT_API_KEY = "test-key-not-real";
+pool.query = async () => ({ rows: [] });
+
+const { generateSupportAnswer, getSharedOpenAiClient } = await import("../../server/services/openaiSupportService.js");
+const { groundedRewriteBudget } = await import("../../server/services/aiUnifiedDecisionService.js");
+
+const SERVER_REQUEST_LIMIT_MS = 60_000;
+const worstCaseMs = ({ timeoutMs, maxRetries }) => timeoutMs * (maxRetries + 1);
+
+const withEnv = (patch, fn) => {
+  const previous = Object.fromEntries(Object.keys(patch).map((key) => [key, process.env[key]]));
+  Object.assign(process.env, patch);
+  try {
+    return fn();
+  } finally {
+    for (const [key, value] of Object.entries(previous)) {
+      if (value === undefined) delete process.env[key];
+      else process.env[key] = value;
+    }
+  }
+};
+
+test("the rewrite budget leaves brain V2 room inside the 60s request limit, whatever the env says", () => {
+  assert.deepEqual(groundedRewriteBudget(), { timeoutMs: 15_000, maxRetries: 1 });
+  for (const env of [
+    {},
+    { AI_GROUNDED_REWRITE_TIMEOUT_MS: "90000", AI_GROUNDED_REWRITE_MAX_RETRIES: "5" },
+    { AI_GROUNDED_REWRITE_TIMEOUT_MS: "nonsense", AI_GROUNDED_REWRITE_MAX_RETRIES: "-1" },
+  ]) {
+    const budget = withEnv(env, groundedRewriteBudget);
+    assert.ok(worstCaseMs(budget) <= 40_000, `${JSON.stringify(env)} → ${JSON.stringify(budget)}`);
+  }
+  assert.ok(worstCaseMs({ timeoutMs: 25_000, maxRetries: 2 }) > SERVER_REQUEST_LIMIT_MS, "the old defaults could not fit");
+});
+
+test("generateSupportAnswer hands OpenAI the caller's budget, and the defaults without one", async () => {
+  const client = getSharedOpenAiClient();
+  assert.ok(client, "the stub key must configure a client");
+  const calls = [];
+  client.responses.create = async (body, options) => {
+    calls.push(options);
+    return { status: "completed", output_text: "{}" };
+  };
+  const ask = (extra = {}) => generateSupportAnswer({
+    message: "متاح ايرفورس ؟",
+    trustedContext: { sources: [{ id: "live_store_context", title: "facts", content: "{}" }] },
+    metadata: { tenant_id: 1 },
+    ...extra,
+  });
+
+  await ask({ requestBudget: { timeoutMs: 15_000, maxRetries: 1 } });
+  assert.deepEqual(calls.at(-1), { timeout: 15_000, maxRetries: 1 });
+
+  await ask();
+  assert.deepEqual(calls.at(-1), { timeout: 25_000, maxRetries: 2 }, "other callers keep their behaviour");
+});
+
+test("the grounded rewrite passes that budget", () => {
+  const source = fs.readFileSync(new URL("../../server/services/aiUnifiedDecisionService.js", import.meta.url), "utf8");
+  const rewrite = source.slice(source.indexOf("const rewriteStructuredDecision"), source.indexOf("[ai-grounded-rewrite:skipped]"));
+  assert.match(rewrite, /requestBudget: groundedRewriteBudget\(\),/);
+});

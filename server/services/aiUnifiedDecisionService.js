@@ -19,6 +19,15 @@ import {
 
 const text = (value = "") => String(value ?? "").trim();
 const asArray = (value) => (Array.isArray(value) ? value : []);
+export const groundedRewriteBudget = () => {
+  const timeoutMs = Number(process.env.AI_GROUNDED_REWRITE_TIMEOUT_MS);
+  const maxRetries = Number(process.env.AI_GROUNDED_REWRITE_MAX_RETRIES);
+  return {
+    // At most 20s × 2 attempts: brain V2 + this must finish inside the 60s request limit.
+    timeoutMs: Number.isFinite(timeoutMs) && timeoutMs >= 3_000 ? Math.min(timeoutMs, 20_000) : 15_000,
+    maxRetries: Number.isInteger(maxRetries) && maxRetries >= 0 ? Math.min(maxRetries, 1) : 1,
+  };
+};
 const groundedRewriteEnabled = () => !["0", "false", "no", "off"].includes(String(process.env.AI_GROUNDED_REPLY_REWRITE ?? "1").trim().toLowerCase());
 
 const safeProductFacts = (product = {}) => ({
@@ -64,6 +73,10 @@ const rewriteStructuredDecision = async ({ decision = {}, inbound = {}, tenantId
     },
     suggestedProducts: products.map(safeProductFacts),
     suggestedActions: asArray(decision.suggested_actions || decision.actions),
+    // The grounded answer is already in hand; OpenAI only re-words it. Capped so a slow OpenAI
+    // falls back to that answer instead of the whole reply dying at the 60s request limit
+    // (25s × 3 attempts by default).
+    requestBudget: groundedRewriteBudget(),
   }).catch((error) => {
     console.warn("[ai-grounded-rewrite:skipped]", { message: error?.message || "rewrite failed" });
     return null;
