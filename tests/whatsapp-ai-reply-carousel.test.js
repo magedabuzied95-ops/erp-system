@@ -19,10 +19,11 @@ process.env.EVOLUTION_INSTANCE_NAME = "default_instance";
 const gateway = await import("../server/services/whatsappGatewayService.js");
 
 // The shape triggerWhatsappAiAutoReply hands its send loop (sendableImageCards).
-const aiCard = (id, color, price) => ({
+const aiCard = (id, color, price, grade = "") => ({
   resolved_image_url: `https://cdn.example.com/${id}.jpg`,
   product: {
     id: "77",
+    ...(grade ? { grade_label: grade } : {}),
     name: `Nike Air Force 1 - ${color}`,
     color,
     selected_variant_id: id,
@@ -137,4 +138,56 @@ test("the auto-reply sends through the carousel and skips the cards it delivered
   assert.ok(carouselAt > 0, "the auto-reply tries the carousel");
   assert.ok(loopAt > carouselAt, "before the photo loop");
   assert.match(fn.slice(loopAt, loopAt + 200), /if \(sendIndex < aiCarousel\.sent_count\) continue;/);
+});
+
+// Since 0488423 a named-model answer carries every grade (local first, up to 10 each). WhatsApp
+// splits like Messenger/Instagram (metaCarouselChunks): a new carousel at each grade change and at
+// 10 cards, with the "🔹 <grade>" line over each grade's first carousel.
+const LOCAL = "محلي";
+const MIRROR = "ميرور اوريجينال";
+const gradedCards = [
+  ...Array.from({ length: 5 }, (_, i) => aiCard(`10${i}`, `Local ${i}`, 900, LOCAL)),
+  ...Array.from({ length: 12 }, (_, i) => aiCard(`20${i}`, `Mirror ${i}`, 1600, MIRROR)),
+];
+const carouselCalls = (calls) => calls.filter((call) => call.url.includes("/message/sendCarousel/"));
+
+test("a multi-grade answer goes as one carousel per grade, split again at 10, each grade labelled", async () => {
+  await withFetch(Array.from({ length: 6 }, () => ok), async (calls) => {
+    const outcome = await gateway.sendAiReplyProductCarousel({ phone: "01024960585", body: "الفرق بين الدرجات", cards: gradedCards });
+    assert.equal(outcome.sent_count, 17, "all 17 cards, no cap at 6");
+    const sent = carouselCalls(calls);
+    assert.deepEqual(sent.map((call) => call.body.cards.length), [5, 10, 2]);
+    assert.equal(sent[0].body.body, `الفرق بين الدرجات\n\n🔹 ${LOCAL}`, "the AI's words, then the first grade's label");
+    assert.equal(sent[1].body.body, `🔹 ${MIRROR}`, "the next grade opens with its own label");
+    assert.ok(!sent[2].body.body.includes("🔹"), "the same grade continued is not labelled again");
+    assert.ok(sent[2].body.body.length > 0);
+  });
+});
+
+test("a single-grade answer carries no grade label", async () => {
+  const oneGrade = gradedCards.slice(5, 8);
+  await withFetch([ok], async (calls) => {
+    await gateway.sendAiReplyProductCarousel({ phone: "01024960585", body: "عندنا 3 ألوان", cards: oneGrade });
+    assert.equal(carouselCalls(calls)[0].body.body, "عندنا 3 ألوان");
+  });
+});
+
+test("AI words longer than a carousel body go first as their own text, whole", async () => {
+  const longText = "ملاحظة ".repeat(200).trim();
+  await withFetch(Array.from({ length: 6 }, () => ok), async (calls) => {
+    const outcome = await gateway.sendAiReplyProductCarousel({ phone: "01024960585", body: longText, cards: gradedCards.slice(0, 7) });
+    assert.equal(outcome.sent_count, 7);
+    const textCall = calls.find((call) => call.url.includes("/message/sendText/"));
+    assert.ok(textCall, "the long text was sent on its own");
+    assert.equal(textCall.body.text, longText);
+    const sent = carouselCalls(calls);
+    assert.deepEqual(sent.map((call) => call.body.body), [`🔹 ${LOCAL}`, `🔹 ${MIRROR}`]);
+  });
+});
+
+test("the auto-reply hands the carousel the AI's own reply, not the plan's blank text", () => {
+  const source = fs.readFileSync(new URL("../server/services/whatsappGatewayService.js", import.meta.url), "utf8");
+  const fn = source.slice(source.indexOf("export const triggerWhatsappAiAutoReply"));
+  const call = fn.slice(fn.indexOf("await sendAiReplyProductCarousel("), fn.indexOf("cards: sendableImageCards,"));
+  assert.match(call, /replyText: generated\.replyText/);
 });

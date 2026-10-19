@@ -3891,6 +3891,25 @@ export const buildAiReplyCarouselCards = (cards = []) =>
 const AI_REPLY_CAROUSEL_MIN_CARDS = 2;
 const AI_REPLY_CAROUSEL_MAX_CARDS = 10;
 
+/*
+ * The same split Messenger and Instagram use (metaCarouselChunks): a new carousel at every grade
+ * change and at Evolution's 10-card cap, in the order the brain ranked them (local first). A grade
+ * label is shown only when the answer spans more than one grade, and only on the first carousel
+ * of each grade. `items` are { card } where card is a send-loop card (grade on card.product).
+ */
+export const aiReplyCarouselChunks = (items = [], size = AI_REPLY_CAROUSEL_MAX_CARDS) => {
+  const list = asArray(items);
+  const gradeOf = (item) => text(item?.card?.product?.grade_label || item?.card?.grade_label || "");
+  const multiGrade = new Set(list.map(gradeOf).filter(Boolean)).size > 1;
+  const chunks = [];
+  for (const item of list) {
+    const last = chunks[chunks.length - 1];
+    if (last && last.items.length < size && last.grade === gradeOf(item)) last.items.push(item);
+    else chunks.push({ grade: gradeOf(item), label: multiGrade && gradeOf(item) && gradeOf(item) !== last?.grade ? gradeOf(item) : "", items: [item] });
+  }
+  return chunks;
+};
+
 // Our own request timed out: Evolution may already have delivered it, so photos on top would
 // show the customer every colour twice.
 const isCarouselSendTimeout = (error) =>
@@ -3912,27 +3931,40 @@ export const sendAiReplyProductCarousel = async ({ phone, instance = "", body = 
     console.warn("[whatsapp-ai-carousel-skipped]", { conversation_id: conversationId, reason: "unbuildable_card", cards: list.length, buildable: carouselCards.length });
     return { sent_count: 0, reason: "unbuildable_card" };
   }
-  const leadLine = text(body).slice(0, 1024) || "اختار اللون اللي يعجبك 👇";
+  // A carousel body holds 1024 characters. Longer AI words (a grade explanation) go first as
+  // their own text, whole, rather than cut mid-sentence over the cards.
+  let leadLine = text(body);
   const responses = [];
+  if (leadLine.length > 1024) {
+    try {
+      responses.push(await sendTextMessage({ phone, message: leadLine, instance }));
+    } catch (error) {
+      console.error("[whatsapp-ai-carousel-lead-text-failed]", { conversation_id: conversationId, message: error?.message || String(error) });
+    }
+    leadLine = "";
+  }
   let sentCount = 0;
-  for (let start = 0; start < carouselCards.length; start += AI_REPLY_CAROUSEL_MAX_CARDS) {
-    const chunk = carouselCards.slice(start, start + AI_REPLY_CAROUSEL_MAX_CARDS);
+  for (const [chunkIndex, chunk] of aiReplyCarouselChunks(list.map((card, index) => ({ card, built: carouselCards[index] }))).entries()) {
+    // Only the first carousel carries the AI's words; each grade's carousel is named by its
+    // "🔹 <grade>" line, the same line Messenger and Instagram print above theirs.
+    const gradeLine = chunk.label ? `🔹 ${chunk.label}` : "";
+    const chunkBody = [chunkIndex === 0 ? leadLine : "", gradeLine].filter(Boolean).join("\n\n").slice(0, 1024)
+      || "اختار اللون اللي يعجبك 👇";
     try {
       const response = await sendCartCarouselMessage({
         phone,
         instance,
-        // Only the first carousel carries the AI's words; a second one is the same choice continued.
-        body: start === 0 ? leadLine : "اختار اللون اللي يعجبك 👇",
-        cards: chunk,
-        fallbackText: start === 0 ? leadLine : "",
+        body: chunkBody,
+        cards: chunk.items.map((item) => item.built),
+        fallbackText: chunkBody,
       });
       responses.push(response);
-      sentCount += chunk.length;
+      sentCount += chunk.items.length;
     } catch (error) {
       const timedOut = isCarouselSendTimeout(error);
       console.error("[whatsapp-ai-carousel-failed]", {
         conversation_id: conversationId,
-        cards: chunk.length,
+        cards: chunk.items.length,
         sent_before: sentCount,
         status: error?.status || "",
         code: error?.code || "",
@@ -3941,7 +3973,7 @@ export const sendAiReplyProductCarousel = async ({ phone, instance = "", body = 
         fallback: timedOut ? "none_may_be_delivered" : "photos",
       });
       // A timeout counts the chunk as sent: it may well be on the customer's phone already.
-      if (timedOut) sentCount += chunk.length;
+      if (timedOut) sentCount += chunk.items.length;
       return { sent_count: sentCount, responses, reason: timedOut ? "carousel_timeout" : "carousel_failed", error };
     }
   }
@@ -7161,14 +7193,15 @@ export const triggerWhatsappAiAutoReply = async (message = {}) => {
       });
       console.error("[whatsapp-image-send-failed]", payload);
     }
-    // Two or more cards go as one carousel; only the cards it did not deliver fall through to the
-    // photo loop below. The AI's words ride as the carousel's lead line — when cards are present
-    // they are not sent on their own (standalone_text_skipped above).
+    // Two or more cards go as carousels (one per grade, 10 cards each); only the cards they did not
+    // deliver fall through to the photo loop below. The AI's words ride as the first carousel's
+    // lead line — with cards present they are not sent on their own (standalone_text_skipped
+    // above), and outboundPlan.text is blank then, so the words come from the reply itself.
     const aiCarousel = await sendAiReplyProductCarousel({
       phone: sendTargetNumber,
       instance: text(message.instance || ""),
       body: willSendCards
-        ? applyWhatsappGreetingGuard({ customerMessageText: message.message_text || "", replyText: outboundPlan.text || "" })
+        ? applyWhatsappGreetingGuard({ customerMessageText: message.message_text || "", replyText: generated.replyText || "" })
         : "",
       cards: sendableImageCards,
       conversationId: outboundPlan.conversation_id,
