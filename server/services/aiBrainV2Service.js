@@ -10,6 +10,7 @@ import { audienceStoredValues, firstAudience, resolveCatalogNavigation } from ".
 import { productNamingTerms } from "../utils/productNamingTerms.js";
 import { greetingReplyFor, greetingReplyParts } from "../utils/greetingReply.js";
 import { GRADE_CARD_LIMIT, GRADED_CARDS_TOTAL_LIMIT, productGrade, productGradeRank } from "../config/productGrades.js";
+import { detectCatalogBrowseSlots } from "../utils/catalogBrowseRequest.js";
 import {
   buildConversationMemoryV2,
   mergeConversationMemoryV2,
@@ -358,6 +359,8 @@ const resolveCardDisplayPrice = (card = {}) => {
 const prettyColorLabel = (card = {}) => text(card.color || card.matched_variant_color || card.name || card.title || "");
 
 const buildColorSelectionFromMemoryCards = ({ message = "", memory = {} } = {}) => {
+  // A model named by name is a new search, not a colour of the cards on screen.
+  if (detectExplicitModel(message)) return null;
   const requestedColorKey = detectSelectedColorKey(message);
   const rememberedCards = memoryCardsFromContext(memory);
   if (!requestedColorKey || !rememberedCards.length) return null;
@@ -720,9 +723,13 @@ const shouldUseColorAvailabilityFromMemory = ({ message = "", memory = {}, inten
 
 const containsAny = (value = "", terms = []) => terms.some((term) => value.includes(term));
 
-const detectExplicitModel = (message = "") => {
+// "\u0628\u0644\u0627\u0643 \u0643\u0627\u062a" is the all-black Jordan 4. Read as a colour, "\u0645\u062a\u0627\u062d \u0628\u0644\u0627\u0643 \u0643\u0627\u062a \u061f" picked the black
+// card of whatever model was on screen \u2014 an Air Force \u2014 instead (production, 2026-10-19).
+export const BLACK_CAT_PATTERN = /(?<![\p{L}\p{N}])(?:(?:\u0627\u0644)?\u0628\u0644\u0627\u0643\s*\u0643\u0627\u062a|black\s*cat)(?![\p{L}\p{N}])/iu;
+
+export const detectExplicitModel = (message = "") => {
   const normalized = normalizeArabic(message);
-  if (/(\u062c\u0648\u0631\u062f\u0646\s*(?:4|\u0664|\u06f4|\u0641\u0648\u0631)|jordan\s*4|jordan4|aj4|j4)/i.test(normalized)) {
+  if (/(\u062c\u0648\u0631\u062f\u0646\s*(?:4|\u0664|\u06f4|\u0641\u0648\u0631)|jordan\s*4|jordan4|aj4|j4)/i.test(normalized) || BLACK_CAT_PATTERN.test(normalized) || BLACK_CAT_PATTERN.test(text(message))) {
     return {
       brand: "Jordan",
       model: "jordan4",
@@ -1381,6 +1388,25 @@ const presentationModelName = ({ explicitModel = null, cards = [] } = {}) => {
   return rawName.replace(/\s+-\s+.*$/, "") || "الموديل";
 };
 
+// The customer named a grade the model is not sold in: say so, then the grades it does come in.
+export const missingGradeText = ({ requestedGrade = null, cards = [], explicitModel = null } = {}) => {
+  const model = presentationModelName({ explicitModel, cards });
+  const labels = [...new Set(
+    asArray(cards)
+      .slice()
+      .sort((left, right) => productGradeRank(left?.grade) - productGradeRank(right?.grade))
+      .map((card) => text(card?.grade_label || productGrade(card?.grade)?.label))
+      .filter(Boolean)
+  )];
+  const asked = text(requestedGrade?.label) || "الدرجة دي";
+  return labels.length
+    ? `للأسف ${model} مش متاح عندنا ${asked} دلوقتي 🙏\nبس متاح ${labels.join(" و")} 👇`
+    : `للأسف ${model} مش متاح عندنا ${asked} دلوقتي 🙏\nبس دي الاختيارات المتاحة منه 👇`;
+};
+
+// "تمام" / "ماشي" with nothing pending: a warm close, not "ابعت الموديل أو السؤال اللي محتاجه".
+export const BARE_CONFIRMATION_TEXT = "تمام يا فندم 🌷 لو محتاج أي حاجة تانية أنا موجود.";
+
 export const VISUAL_SEARCH_NO_MATCH_TEXT = "وصلتني الصورة يا فندم 👌 بس مش قادر أحدد الموديل منها بالظبط. ابعتلي اسم الموديل لو تعرفه، أو صورة أوضح للكوتشي من الجنب، وأنا أطلعهولك.";
 
 export const buildBaseText = ({ intent = "", cards = [], explicitModel = null, activeProductId = "", message = "" } = {}) => {
@@ -1397,6 +1423,7 @@ export const buildBaseText = ({ intent = "", cards = [], explicitModel = null, a
   // used to fall through to "\u062a\u062d\u062a \u0623\u0645\u0631\u0643. \u0627\u0628\u0639\u062a \u0627\u0644\u0645\u0648\u062f\u064a\u0644 \u0623\u0648 \u0627\u0644\u0633\u0624\u0627\u0644 \u0627\u0644\u0644\u064a \u0645\u062d\u062a\u0627\u062c\u0647." \u2014 which reads as if
   // the photo was never seen. Say it plainly and ask for what would let us find it.
   if (intent === "visual_search") return VISUAL_SEARCH_NO_MATCH_TEXT;
+  if (intent === "bare_confirmation") return BARE_CONFIRMATION_TEXT;
   if (["product_search", "more_images"].includes(intent)) return "\u0645\u0634 \u0644\u0627\u0642\u064a \u0645\u0637\u0627\u0628\u0642\u0629 \u0648\u0627\u0636\u062d\u0629. \u0627\u0628\u0639\u062a \u0627\u0633\u0645 \u0627\u0644\u0645\u0648\u062f\u064a\u0644 \u0623\u0648 \u0635\u0648\u0631\u0629 \u0623\u0648\u0636\u062d.";
   return "\u062a\u062d\u062a \u0623\u0645\u0631\u0643. \u0627\u0628\u0639\u062a \u0627\u0644\u0645\u0648\u062f\u064a\u0644 \u0623\u0648 \u0627\u0644\u0633\u0624\u0627\u0644 \u0627\u0644\u0644\u064a \u0645\u062d\u062a\u0627\u062c\u0647.";
 };
@@ -1681,18 +1708,34 @@ export const generateAiBrainV2Decision = async (normalizedInbound = {}, options 
   // "الترا جو حريمي" when only Ultra Light is in the women's: the closest pairs, said as such.
   const bestNamed = namedMatches.length ? namedProductTermsMatched(namedMatches[0], namedProductTerms) : null;
   const namedPartly = Boolean(bestNamed && !bestNamed.phrase && bestNamed.words < namedWords.length);
+  // "الترا بوست ميرور": a named grade narrows the model to that grade. When the model is not sold
+  // in it, the reply says so first and shows the grades it does come in — it used to answer with
+  // the Vietnamese pairs as if they were what was asked for (production, 2026-10-19).
+  const requestedGradeKey = namedMatches.length ? text(detectCatalogBrowseSlots(originalMessage || message).grade) : "";
+  const requestedGrade = productGrade(requestedGradeKey);
+  const inRequestedGrade = requestedGrade ? namedMatches.filter((product) => text(product.grade) === requestedGrade.key) : [];
+  const gradeMissing = Boolean(requestedGrade && !inRequestedGrade.length);
+  const gradedMatches = inRequestedGrade.length ? inRequestedGrade : namedMatches;
   // A named model is picked across its grades, so a mirror pair is not cut by six local ones.
-  const selectedProducts = namedMatches.length ? pickAcrossGrades(namedMatches, 6) : scoredProducts.slice(0, 6);
+  const selectedProducts = gradedMatches.length ? pickAcrossGrades(gradedMatches, 6) : scoredProducts.slice(0, 6);
   const presentationProducts = selectedProducts.length
     ? selectedProducts
     : (intent === "more_images" && memoryActiveProductId ? [{ id: memoryActiveProductId, product_id: memoryActiveProductId }] : []);
-  const productCards = await buildPresentationProductCards({
+  const builtCards = await buildPresentationProductCards({
     tenantId,
     selectedProducts: presentationProducts,
     explicitModel,
     forceColorPresentation: intent === "more_images",
     withVariants: namedMatches.length > 0,
   });
+  // "بلاك كات" is the black colourway: its black cards, when the model has them.
+  const blackCatCards = BLACK_CAT_PATTERN.test(originalMessage || message)
+    ? builtCards.filter((card) => /^(black|اسود|أسود)$/i.test(text(card.color || card.matched_variant_color)))
+    : [];
+  const productCards = blackCatCards.length ? blackCatCards : builtCards;
+  const gradeMissingText = gradeMissing && productCards.length
+    ? missingGradeText({ requestedGrade, cards: productCards, explicitModel })
+    : "";
   const images = productCards
     .map((card) => ({
       id: text(card.image_id || card.image_url || card.product_id || card.id),
@@ -1702,9 +1745,9 @@ export const generateAiBrainV2Decision = async (normalizedInbound = {}, options 
     }))
     .filter((image) => image.url);
   const activeProductId = text(productCards[0]?.product_id || productCards[0]?.id || activeProductFromMemory(memory));
-  const responseText = (requestedAudience && productCards.length && namedMatches.length)
+  const responseText = gradeMissingText || ((requestedAudience && productCards.length && namedMatches.length)
     ? audienceSearchText({ audience: requestedAudience, terms: namedProductTerms, audienceMissing, namedPartly, products: selectedProducts })
-    : buildBaseText({ intent, cards: productCards, explicitModel, activeProductId, message: originalMessage || message });
+    : buildBaseText({ intent, cards: productCards, explicitModel, activeProductId, message: originalMessage || message }));
   const memoryUpdates = {
     ...(activeProductId ? {
       active_product_id: activeProductId,
@@ -1752,6 +1795,8 @@ export const generateAiBrainV2Decision = async (normalizedInbound = {}, options 
         confidence: productAlias.confidence,
       },
       explicit_model: explicitModel,
+      // The asked-for grade is not sold for this model: the rewrite keeps this sentence as it is.
+      ...(gradeMissingText ? { grade_missing_reply: { text: gradeMissingText, grade: requestedGrade.key } } : {}),
       // What the gender-aware answer said, so a multi-grade introduction can keep it
       // ("للأسف مش لاقي … حريمي" must not be replaced by the grade lines).
       ...((requestedAudience && productCards.length && namedMatches.length) ? {

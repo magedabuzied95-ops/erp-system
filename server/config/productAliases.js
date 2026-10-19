@@ -7,7 +7,7 @@ const freezeEntry = (entry = {}) =>
 
 export const PRODUCT_ALIASES = Object.freeze({
   jordan4: freezeEntry({
-    aliases: ["جوردن 4", "جوردن فور", "جوردن فورات", "aj4", "air jordan 4", "j4"],
+    aliases: ["جوردن 4", "جوردن فور", "جوردن فورات", "aj4", "air jordan 4", "j4", "بلاك كات", "black cat"],
     searchTerms: ["jordan 4", "air jordan 4", "aj4", "j4", "جوردن"],
   }),
   nike_shox: freezeEntry({
