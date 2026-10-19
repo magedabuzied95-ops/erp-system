@@ -827,6 +827,45 @@ const shippingFeeAdvanceForConfirmation = async (order = {}) => {
   }
 };
 
+// The closing-system money still owed when the customer presses ✅ — null when nothing is
+// (paid, waived, a COD governorate, or the policy could not be read). Never throws.
+const owedShippingAdvance = async (order = {}) => {
+  try {
+    const advance = describeShippingFeeAdvance({ order, policy: await loadCodPolicySettings() });
+    return advance.required && ["awaiting_payment", "awaiting_review"].includes(advance.status) ? advance : null;
+  } catch (error) {
+    console.warn("[whatsapp:order-confirmation] advance check skipped", { orderId: order?.id, message: error?.message });
+    return null;
+  }
+};
+
+/*
+ * The answer to a ✅ press. With the shipping fee still unpaid it says so and sends the payment
+ * card again right under it: the card that rode with the request sat ABOVE the request by the
+ * time the customer pressed, and the old "بدأ تجهيز طلبك للشحن" reply read as if nothing was
+ * left to do (INV-2187, owner 2026-10-19). A screenshot already in review gets no new card.
+ */
+const replyToCustomerConfirm = async ({ order = {}, phone = "", tenantId = null, source = "whatsapp_order_confirmed_reply" } = {}) => {
+  const advance = await owedShippingAdvance(order);
+  await sendSystemOrderText({
+    order,
+    phone,
+    message: buildOrderConfirmedMessage({
+      customerName: firstName(order.customer_name),
+      order,
+      trackingUrl: buildOrderTrackingUrl(orderNumber(order), phone),
+      shippingAdvance: advance,
+    }),
+    source,
+    tenantId,
+  });
+  if (advance?.status !== "awaiting_payment") return { payment_card: false };
+  const card = await prepareShippingFeePaymentCard({ order, amount: advance.amount });
+  if (!card) return { payment_card: false };
+  const queued = await queueShippingFeePaymentCard({ order, card, phone, tenantId, idempotencySuffix: `after-confirm-${Date.now()}` });
+  return { payment_card: Boolean(queued?.queued || queued?.sent) };
+};
+
 const storeOrderConfirmationCode = async (client, { tenantId, orderId, action, expiresAt, code }) => {
   const codeHash = hashOrderConfirmationCode(code);
   await client.query(
@@ -2475,19 +2514,7 @@ export const processConfirmationReply = async (message = {}) => {
       return null;
     });
     const current = stamped || order;
-    if (phone) {
-      await sendSystemOrderText({
-        order: current,
-        phone,
-        message: buildOrderConfirmedMessage({
-          customerName: firstName(current.customer_name),
-          order: current,
-          trackingUrl: buildOrderTrackingUrl(orderNumber(current), phone),
-        }),
-        source: "whatsapp_order_confirmed_reply",
-        tenantId: tenantIdForMessage(message, current),
-      });
-    }
+    if (phone) await replyToCustomerConfirm({ order: current, phone, tenantId: tenantIdForMessage(message, current) });
     return { action: "confirmed", order: current, repeated: true, customer_confirmation_recorded: Boolean(stamped) };
   }
   const alreadyInState = {
@@ -2591,16 +2618,12 @@ export const processConfirmationReply = async (message = {}) => {
       }).catch(() => {});
     }
 
-    if (phone) {
-      const notificationMessage = action === "confirm"
-        ? buildOrderConfirmedMessage({
-            customerName: firstName(updatedOrder.customer_name),
-            order: updatedOrder,
-            trackingUrl: buildOrderTrackingUrl(orderNumber(updatedOrder), phone),
-          })
-        : action === "edit"
-          ? `وصلنا طلب التعديل على طلبك رقم ${orderNumber(updatedOrder)}. سيقوم الفريق بمراجعته الآن.`
-          : `تم إلغاء طلبك رقم ${orderNumber(updatedOrder)}. نأسف لعدم إكمال الطلب.`;
+    if (phone && action === "confirm") {
+      await replyToCustomerConfirm({ order: updatedOrder, phone, tenantId: tenantIdForMessage(message, updatedOrder), source: "whatsapp_order_confirm_reply" });
+    } else if (phone) {
+      const notificationMessage = action === "edit"
+        ? `وصلنا طلب التعديل على طلبك رقم ${orderNumber(updatedOrder)}. سيقوم الفريق بمراجعته الآن.`
+        : `تم إلغاء طلبك رقم ${orderNumber(updatedOrder)}. نأسف لعدم إكمال الطلب.`;
       await sendSystemOrderText({
         order: updatedOrder,
         phone,

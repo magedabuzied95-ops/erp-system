@@ -163,6 +163,9 @@ export const buildOrderConfirmedMessage = ({
   customerName = "عميلنا",
   order = null,
   trackingUrl = "",
+  // describeShippingFeeAdvance's answer when the closing system still wants money up front
+  // ({ status: "awaiting_payment" | "awaiting_review", amount, kind }); null otherwise.
+  shippingAdvance = null,
 } = {}) => {
   const name = clean(customerName) || "عميلنا";
   const source = order || {};
@@ -184,6 +187,20 @@ export const buildOrderConfirmedMessage = ({
       trackingUrl && `📍 تابع طلبك من هنا:\n${trackingUrl}`,
       "شكراً لاختيارك M1 Store ❤️",
     ].filter(Boolean).join("\n\n");
+  }
+
+  // The fee is still owed: "بدأ تجهيز طلبك للشحن" would be a lie and buried the payment step
+  // (INV-2187, owner 2026-10-19). Say what is left; the payment card is sent again right under this.
+  const owed = shippingAdvance && ["awaiting_payment", "awaiting_review"].includes(clean(shippingAdvance.status));
+  if (owed) {
+    const fee = formatAmount(shippingAdvance.amount);
+    const what = clean(shippingAdvance.kind) === "confirmation_fee" ? `${fee} جنيه مقدّم` : `قيمة الشحن ${fee} جنيه`;
+    return [
+      orderRef ? `✅ تم تأكيد طلبك رقم ${orderRef} يا ${name}` : `✅ تم تأكيد طلبك يا ${name}`,
+      clean(shippingAdvance.status) === "awaiting_review"
+        ? "🧾 صورة التحويل وصلتنا وبنراجعها، وأول ما تتأكد هنشحن طلبك 🚚"
+        : `💳 فاضل بس تحوّل ${what} عشان نشحنه 👇`,
+    ].join("\n");
   }
 
   // Deliberately short. The customer read the full order seconds ago in the message they just
