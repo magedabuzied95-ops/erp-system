@@ -49,6 +49,6 @@ test("the rewrite gets the policy and the price and warranty rules", () => {
   const unified = fs.readFileSync(new URL("../../server/services/aiUnifiedDecisionService.js", import.meta.url), "utf8");
   assert.match(unified, /store_return_policy: await storeReturnPolicyFor\(tenantId\),/);
   const openai = fs.readFileSync(new URL("../../server/services/openaiSupportService.js", import.meta.url), "utf8");
-  assert.match(openai, /prices differ from grade to grade and that each card carries its own price; do not write the prices/);
+  assert.match(openai, /prices differ from grade to grade and that each card carries its own price and sizes. Do not list the products, and write no price and no size/);
   assert.match(openai, /answer with store_return_policy, keeping its terms as written\. Never promise a warranty/);
 });

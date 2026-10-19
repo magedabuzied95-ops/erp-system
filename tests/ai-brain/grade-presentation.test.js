@@ -105,3 +105,37 @@ test("the confidence re-rank after brain V2 cannot undo local-first", async () =
   const output = normalizeUnifiedDecisionOutput({ text: "x", product_cards: cards, intent: "product_search" }, { originalText: "Nike Air Force 1" });
   assert.deepEqual(output.product_cards.map((card) => card.grade), ["local", "mirror_original"]);
 });
+
+test("a multi-grade reply with prices, sizes or a product list is replaced by the owner's notes", async () => {
+  const { multiGradeReplyIsSafe, multiGradeIntroText } = await import("../../server/services/aiUnifiedDecisionService.js");
+  const guide = gradeGuideFor([{ grade: "local" }, { grade: "mirror_original" }]);
+  // What production sent on 2026-10-19.
+  const productionReply = "أيوه يا فندم، متاح عندنا Nike Air Force بأكتر من موديل:\n\nمحلي\n- Nike Air Force 1 Sneakers - Black: متوفر بنفس السعر والمقاسات.\n- Nike Air Force 1 Sneakers - White: متوفر بسعر 650 جنيه، ومقاسات من 39 لحد 49.\n\nميرور اوريجينال\n- Nike Air Force 1 - Olive: بسعر 1850 جنيه";
+  assert.equal(multiGradeReplyIsSafe(productionReply, guide), false);
+  assert.equal(multiGradeReplyIsSafe("فيه محلي بس، خامة محترمة.", guide), false, "every grade on screen is named");
+  assert.equal(multiGradeReplyIsSafe("المحلي بسعر 650 جنيه، والميرور اوريجينال أعلى درجة.", guide), false, "a price alone");
+  assert.equal(multiGradeReplyIsSafe("المحلي مقاسات 40 و42، والميرور اوريجينال أعلى درجة.", guide), false, "sizes alone");
+  assert.equal(multiGradeReplyIsSafe("فيه محلي مصري بخامة محترمة، وفيه ميرور اوريجينال أعلى درجة. الأسعار بتختلف والكروت فيها السعر والمقاسات.", guide), true);
+  const intro = multiGradeIntroText(guide);
+  assert.ok(intro.indexOf("محلي") < intro.indexOf("ميرور اوريجينال"), "local first");
+  for (const entry of guide) assert.ok(intro.includes(entry.note), `the owner's note on ${entry.grade_label}`);
+  assert.equal(multiGradeReplyIsSafe(intro, guide), true);
+});
+
+test("with no OpenAI rewrite, a multi-grade answer is still the owner's grade introduction", async () => {
+  const decision = await ask("متاح ايرفورس ؟");
+  assert.match(decision.text, /محلي: مصري، خامة محترمة/);
+  assert.match(decision.text, /ميرور اوريجينال: أعلى درجة/);
+  assert.doesNotMatch(decision.text, /دي أقرب النتايج/);
+});
+
+test("with the grounded rewrite switched off, a multi-grade answer is the owner's grade introduction", async () => {
+  process.env.AI_GROUNDED_REPLY_REWRITE = "false";
+  try {
+    const decision = await ask("متاح ايرفورس ؟");
+    assert.match(decision.text, /محلي: مصري، خامة محترمة/);
+    assert.equal(decision.debug?.grade_intro, "fixed");
+  } finally {
+    delete process.env.AI_GROUNDED_REPLY_REWRITE;
+  }
+});

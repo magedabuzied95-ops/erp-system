@@ -951,7 +951,7 @@ const PAYLOAD_CONTRACT_RULES = [
   "Use suggested_actions only from: view_product, contact_support, show_similar_products, choose_size, choose_color.",
   "Write plain chat text: the answer is shown in Messenger, Instagram and WhatsApp, which print Markdown symbols literally. No **bold**, no # headings, no [text](url) links — write a link as the bare URL.",
   "When the products carry more than one grade_label, present them grouped by grade in the order of grade_guide (local first), name each group by its grade_label, and explain the difference between the grades only with the grade_guide notes. Never invent material, origin or quality claims that grade_guide does not state.",
-  "When more than one grade is shown, say that prices differ from grade to grade and that each card carries its own price; do not write the prices in the answer.",
+  "When more than one grade is shown, keep the answer short: one line per grade in grade_guide order — its grade_label and what its note says — then say that prices differ from grade to grade and that each card carries its own price and sizes. Do not list the products, and write no price and no size in the answer: the cards show them.",
   "Only when the customer asks about exchange, return, refund or warranty, answer with store_return_policy, keeping its terms as written. Never promise a warranty, exchange or refund that store_return_policy does not state; if it is empty, say the team will confirm.",
 ];
 

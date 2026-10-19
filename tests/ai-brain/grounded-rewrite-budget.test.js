@@ -96,3 +96,33 @@ test("OpenAI's Markdown is gone before the reply reaches a channel", async () =>
   assert.doesNotMatch(result.answer, /\*\*|\]\(/, result.answer);
   assert.match(result.answer, /Nike Air Force 1 بسعر 650/);
 });
+
+test("an OpenAI multi-grade reply that lists prices and sizes is replaced; a clean one goes out", async () => {
+  const { rewriteStructuredDecision } = await import("../../server/services/aiUnifiedDecisionService.js");
+  const client = getSharedOpenAiClient();
+  const replyWith = (answer) => {
+    client.responses.create = async () => ({
+      status: "completed",
+      output_text: JSON.stringify({ answer, confidence: 0.9, needs_human_support: false, sources_used: ["live_store_context"], suggested_products: [], suggested_actions: [] }),
+    });
+  };
+  const decision = {
+    intent: "product_search",
+    text: "دي أقرب النتايج المتاحة:",
+    product_cards: [
+      { id: 25, name: "Nike Air Force 1 Sneakers - White", grade: "local", grade_label: "محلي", price: 650 },
+      { id: 61, name: "Nike Air Force 1 - Olive", grade: "mirror_original", grade_label: "ميرور اوريجينال", price: 1850 },
+    ],
+  };
+  const inbound = { originalText: "متاح ايرفورس ؟", text: "متاح اير4س" };
+
+  replyWith("محلي\n- Nike Air Force 1 Sneakers - White: بسعر 650 جنيه، ومقاسات من 39 لحد 49.\nميرور اوريجينال\n- Olive: بسعر 1850 جنيه");
+  const replaced = await rewriteStructuredDecision({ decision, inbound, tenantId: 1 });
+  assert.match(replaced.text, /محلي: مصري، خامة محترمة/);
+  assert.doesNotMatch(replaced.text, /650|1850/);
+
+  replyWith("أيوه يا فندم، عندنا منه محلي مصري بخامة محترمة، وميرور اوريجينال أعلى درجة طبق الأصل. الأسعار بتختلف والكروت فيها السعر والمقاسات.");
+  const kept = await rewriteStructuredDecision({ decision, inbound, tenantId: 1 });
+  assert.match(kept.text, /طبق الأصل/);
+  assert.equal(kept.debug.grounded_rewrite_applied, true);
+});

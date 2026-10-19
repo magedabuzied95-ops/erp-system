@@ -71,11 +71,49 @@ export const storeReturnPolicyFor = async (tenantId = null) => {
   }
 };
 
-const rewriteStructuredDecision = async ({ decision = {}, inbound = {}, tenantId = null } = {}) => {
-  if (!groundedRewriteEnabled()) return decision;
+/*
+ * A model on screen in more than one grade. Production, 2026-10-19: told to leave prices and
+ * sizes to the cards, OpenAI still listed all six models with prices and size ranges — two of
+ * them wrong ("same sizes" for a colour with only 40 and 42) — and never used the owner's notes.
+ * So the reply must name every grade and carry no price, size or product list; otherwise the
+ * fixed introduction below goes out, built only from the owner's notes.
+ */
+export const multiGradeIntroText = (guide = []) => [
+  "أيوه يا فندم، الموديل ده متاح عندنا بأكتر من درجة:",
+  "",
+  ...asArray(guide).map(({ grade_label: label, note }) => `• ${label}${note ? `: ${note}` : ""}`),
+  "",
+  "الأسعار بتختلف من درجة للتانية، وسعر ومقاسات كل لون على الكارت بتاعه.",
+  "تحب أنهي درجة؟",
+].join("\n");
+
+export const multiGradeReplyIsSafe = (reply = "", guide = []) => {
+  const value = text(reply);
+  if (!value) return false;
+  if (!asArray(guide).every((entry) => value.includes(entry.grade_label))) return false;
+  if (/\d[\d,.]*\s*(?:جنيه|ج\.م|egp)/i.test(value)) return false;
+  if (/(?:مقاس|مقاسات|سايز|size)[^\n]{0,24}\d{2}/i.test(value) || /من\s*\d{2}\s*(?:لحد|ل|إلى|الى|-)\s*\d{2}/.test(value)) return false;
+  if ((value.match(/https?:\/\//g) || []).length > 1) return false;
+  return true;
+};
+
+const withReplyText = (decision = {}, replyText = "", debugPatch = {}) => ({
+  ...decision,
+  text: replyText,
+  answer: replyText,
+  channel_reply: { ...(decision.channel_reply || {}), text: replyText },
+  debug: { ...(decision.debug || {}), ...debugPatch },
+});
+
+export const rewriteStructuredDecision = async ({ decision = {}, inbound = {}, tenantId = null } = {}) => {
   const intent = text(decision.detected_intent || decision.intent);
   if (["human_takeover", "order_tracking", "order_follow_up", "post_product_order_confirmation"].includes(intent)) return decision;
   const products = asArray(decision.product_cards?.length ? decision.product_cards : decision.suggested_products?.length ? decision.suggested_products : decision.products);
+  const gradeGuide = gradeGuideFor(products);
+  const multiGrade = gradeGuide.length > 1;
+  if (!groundedRewriteEnabled()) {
+    return multiGrade ? withReplyText(decision, multiGradeIntroText(gradeGuide), { grade_intro: "fixed" }) : decision;
+  }
   const currentText = text(decision.text || decision.answer || decision.channel_reply?.text);
   const catalogUrl = text(decision.storefront_url || decision.catalog_url || decision.memory_updates?.catalog_url);
   const result = await generateSupportAnswer({
@@ -90,7 +128,7 @@ const rewriteStructuredDecision = async ({ decision = {}, inbound = {}, tenantId
           catalog_filters: decision.catalog_filters || {},
           catalog_url: catalogUrl,
           products: products.map(safeProductFacts),
-          grade_guide: gradeGuideFor(products),
+          grade_guide: gradeGuide,
           store_return_policy: await storeReturnPolicyFor(tenantId),
         }),
       }],
@@ -111,7 +149,15 @@ const rewriteStructuredDecision = async ({ decision = {}, inbound = {}, tenantId
     return null;
   });
   const generated = text(result?.answer);
-  if (!generated || result?.needs_human_support === true || Number(result?.confidence || 0) < 0.35) return decision;
+  const usable = Boolean(generated) && result?.needs_human_support !== true && Number(result?.confidence || 0) >= 0.35;
+  if (multiGrade) {
+    const safe = usable && multiGradeReplyIsSafe(generated, gradeGuide);
+    if (!safe && usable) console.info("[ai-grounded-rewrite:grade-intro-fixed]", { reply_preview: generated.slice(0, 160) });
+    return safe
+      ? withReplyText(decision, generated, { grounded_rewrite_applied: true, grounded_rewrite_source: "live_store_context" })
+      : withReplyText(decision, multiGradeIntroText(gradeGuide), { grade_intro: "fixed" });
+  }
+  if (!usable) return decision;
   const finalText = catalogUrl && !generated.includes(catalogUrl) ? `${generated}\n${catalogUrl}` : generated;
   return {
     ...decision,
