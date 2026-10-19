@@ -1178,6 +1178,9 @@ const recordWhatsappAiGenerationFailure = async ({ error, tenantId, sessionId, p
 
 // Generation can take over a minute; the gateway calls this right before it sends, so a
 // colleague who took the conversation over in the meantime is not talked over.
+export const isWhatsappAiTestContact = async (phone = "") =>
+  isAiTestContact(parseAiTestContacts(await getSetting("ai_channels.ai_test_contacts", "").catch(() => "")), phone);
+
 export const recheckWhatsappAutoReplyBeforeSend = async ({ tenantId, sessionId, phone = "" } = {}) => {
   const check = await recheckAutoReplyBeforeSend({
     loadState: () => getAiSupportConversationState({ tenantId, sessionId }),

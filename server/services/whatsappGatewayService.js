@@ -11,7 +11,12 @@ import {
   logChannelEvent,
   upsertChannelConversationMapping,
 } from "./aiChannelAdapterService.js";
-import { generateWhatsappAiAutoReply, logWhatsappAiOutbound, recheckWhatsappAutoReplyBeforeSend } from "./aiInboxService.js";
+import {
+  generateWhatsappAiAutoReply,
+  isWhatsappAiTestContact,
+  logWhatsappAiOutbound,
+  recheckWhatsappAutoReplyBeforeSend,
+} from "./aiInboxService.js";
 import { handleInboundMarketingStopWord } from "./marketingConsentService.js";
 import { debugAiImagesLog, normalizeProductCards } from "./aiProductCards.js";
 import { ensureCarouselCardImageUrl } from "./productImageVariantService.js";
@@ -6426,7 +6431,13 @@ export const handleIncomingWebhook = async (payload = {}) => {
 
 export const triggerWhatsappAiAutoReply = async (message = {}) => {
   let outboundPlan = null;
-  if (String(process.env.WHATSAPP_AI_AUTO_REPLY).toLowerCase() === "false") {
+  // The server-wide kill switch. A test number (ai_channels.ai_test_contacts) is the one way
+  // through it, so the owner can try the live bot without switching it on for every customer;
+  // the reply gate after this still applies to them in full.
+  if (
+    String(process.env.WHATSAPP_AI_AUTO_REPLY).toLowerCase() === "false" &&
+    !(await isWhatsappAiTestContact(message?.phone || "").catch(() => false))
+  ) {
     console.log("[whatsapp:ai-auto-reply-disabled]");
     return { triggered: false, sent: false, reason: "ai_auto_reply_disabled" };
   }
