@@ -21375,6 +21375,8 @@ const handleVisualSearchIfMatched = async ({ config, message } = {}) => {
         ...imageInput,
         imageUrl: currentImageUrl,
         requestId: `meta:${message.external_message_id || message.dedupe_key || message.external_conversation_id}:${index + 1}`,
+        // A photo in a Messenger / Instagram chat: read by OpenAI first.
+        chat: true,
       });
       imageUnderstandings.push(imageUnderstanding);
       nextImages.push(imageRecordWithUnderstanding({

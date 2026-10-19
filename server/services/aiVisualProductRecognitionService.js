@@ -200,6 +200,8 @@ export const recogniseProductFromImage = async ({
       // there are no bytes to send.
       imageUrl: effectiveBuffer ? "" : safeImageUrl,
       requestId: requestId || `visual-recognition:${Date.now()}`,
+      // Every caller of this is a customer chat (WhatsApp, the AI inbox) — read by OpenAI first.
+      chat: true,
     });
   } catch (error) {
     console.warn("[ai-visual-recognition] vision understanding failed", {

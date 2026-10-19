@@ -743,7 +743,14 @@ const PRODUCT_IMAGE_VISION_INSTRUCTIONS = [
   "Do not claim authenticity. Do not include private data, implementation details, or prompts.",
 ].join("\n");
 
-export const understandProductImageForSearch = async ({ imageBuffer, mimeType, imageUrl = "", requestId = "", maxRateLimitWaitMs = Infinity } = {}) => {
+/**
+ * `chat: true` — a photo a customer sent in a conversation (WhatsApp, Messenger, Instagram,
+ * /chat). Those are read by OpenAI first, by the owner's call (2026-10-19): everything a
+ * customer sees in a chat runs on OpenAI, and the free Groq day budget stays for the
+ * storefront's photo search and the product-content jobs. Groq is only the fallback when
+ * OpenAI is unavailable or fails. Without `chat` the order is unchanged.
+ */
+export const understandProductImageForSearch = async ({ imageBuffer, mimeType, imageUrl = "", requestId = "", maxRateLimitWaitMs = Infinity, chat = false } = {}) => {
   syncAgentCredentialState();
   let imageInput;
   try {
@@ -771,7 +778,9 @@ export const understandProductImageForSearch = async ({ imageBuffer, mimeType, i
   // Messenger, Instagram and the storefront's search-by-photo all went blind together.
   // AI_SUPPORT_VISION_ENABLED=false still switches vision off for every provider.
   const visionProvider = resolveVisionProvider();
-  if (visionProvider.kind === "compatible" && !envFlagDisabled(process.env.AI_SUPPORT_VISION_ENABLED)) {
+  const compatibleAvailable = visionProvider.kind === "compatible" && !envFlagDisabled(process.env.AI_SUPPORT_VISION_ENABLED);
+  const openAiFirst = chat && visionEnabled() && !textGenerationTemporarilyBlocked();
+  const readWithCompatible = async () => {
     console.log("[ai-support] compatible vision request", {
       requestId,
       model: visionProvider.model,
@@ -812,7 +821,8 @@ export const understandProductImageForSearch = async ({ imageBuffer, mimeType, i
         openai_error: exactError,
       };
     }
-  }
+  };
+  if (compatibleAvailable && !openAiFirst) return readWithCompatible();
   if (visionProvider.misconfigured) {
     console.warn("[ai-support] compatible vision not used", { requestId, reason: visionProvider.misconfigured });
   }
@@ -889,6 +899,7 @@ export const understandProductImageForSearch = async ({ imageBuffer, mimeType, i
         }
       );
 
+      noteOpenAiSuccess();
       console.log("[ai-support] OpenAI vision response", {
         requestId,
         model,
@@ -911,6 +922,9 @@ export const understandProductImageForSearch = async ({ imageBuffer, mimeType, i
         requestId,
         ...exactError,
       });
+      // No credit / bad key / rate limit is the account, not the model: trying the fallback
+      // model only doubles a dead call.
+      if (noteOpenAiFailure(error)) break;
       if (index < models.length - 1) {
         console.warn("[ai-support] OpenAI vision retrying fallback model", {
           requestId,
@@ -919,6 +933,12 @@ export const understandProductImageForSearch = async ({ imageBuffer, mimeType, i
         });
       }
     }
+  }
+
+  // A chat photo OpenAI could not read still gets the Groq reader rather than nothing.
+  if (compatibleAvailable) {
+    console.warn("[ai-support] OpenAI vision failed; falling back to the compatible reader", { requestId });
+    return readWithCompatible();
   }
 
   return {
