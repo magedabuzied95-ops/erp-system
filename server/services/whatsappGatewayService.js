@@ -11,7 +11,7 @@ import {
   logChannelEvent,
   upsertChannelConversationMapping,
 } from "./aiChannelAdapterService.js";
-import { generateWhatsappAiAutoReply, logWhatsappAiOutbound } from "./aiInboxService.js";
+import { generateWhatsappAiAutoReply, logWhatsappAiOutbound, recheckWhatsappAutoReplyBeforeSend } from "./aiInboxService.js";
 import { handleInboundMarketingStopWord } from "./marketingConsentService.js";
 import { debugAiImagesLog, normalizeProductCards } from "./aiProductCards.js";
 import { ensureCarouselCardImageUrl } from "./productImageVariantService.js";
@@ -6590,6 +6590,36 @@ export const triggerWhatsappAiAutoReply = async (message = {}) => {
   });
   const generatedCards = asArray(generated?.aiPayload?.product_cards || generated?.aiPayload?.suggested_products || generated?.reply?.product_cards || generated?.whatsapp_image_cards || []);
   if (!generated.replyText && !generatedCards.length) return generated;
+
+  // The conversation was read before generation, and generation (brain V2 + the OpenAI rewrite)
+  // can take 25-75s. A colleague who took over, closed it or switched its AI off in that window
+  // must not be talked over, so read it again now — the last moment before anything is sent.
+  const preSendCheck = await recheckWhatsappAutoReplyBeforeSend({
+    tenantId: generated.tenantId || message.raw?.tenant_id || message.raw?.tenantId || process.env.WHATSAPP_TENANT_ID || 1,
+    sessionId: normalizeWhatsappSessionId(generated.sessionId || message.inbox?.session_id || message.conversationIdentity || `whatsapp:${message.phone}`, message.phone),
+  });
+  if (!preSendCheck.ok) {
+    console.info("[whatsapp:ai-send-dropped-after-takeover]", {
+      tenantId: generated.tenantId,
+      sessionId: generated.sessionId,
+      reason: preSendCheck.reason,
+      replyLength: text(generated.replyText).length,
+    });
+    await logWhatsappAiOutbound({
+      tenantId: generated.tenantId,
+      phone: message.phone,
+      sessionId: generated.sessionId,
+      replyText: generated.replyText,
+      sent: false,
+      metadata: { reason: preSendCheck.reason, dropped_before_send: true },
+    }).catch(() => {});
+    await addTraceStep(message.trace_id, "send_to_whatsapp", {
+      delivery_status: "skipped",
+      skip_reason: preSendCheck.reason,
+    });
+    await finishTrace(message.trace_id, { status: "skipped", reason: preSendCheck.reason });
+    return { ...generated, sent: false, reason: preSendCheck.reason };
+  }
 
   const outboundReplyTarget = resolveOutboundWhatsappReplyTarget(message);
   // The address we send to — a phone number, or a LID for a username customer.

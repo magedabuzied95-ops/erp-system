@@ -26,6 +26,9 @@ import {
   claimAiInboxReplyLock,
   completeAiInboxReplyLock,
 } from "./aiSupportLogService.js";
+import { getAISettings } from "./aiSettingsService.js";
+import { getAIChannelSettings } from "./aiChannelSettingsService.js";
+import { aiModeSwitchBlock, recheckAutoReplyBeforeSend } from "../utils/aiAutoReplyGate.js";
 import { logAIPersistentEvent } from "./aiPersistentEventLogService.js";
 import { syncMetaChannelAccounts } from "./channelAccountsService.js";
 import {
@@ -7200,6 +7203,9 @@ const metaAutoReplyPauseChannelLabel = (channel = "") => {
   return normalized.includes("instagram") ? "instagram" : "messenger";
 };
 const adapterChannel = (channel = "") => (channel === "instagram" ? AI_AGENT_CHANNELS.INSTAGRAM : AI_AGENT_CHANNELS.FACEBOOK_MESSENGER);
+// The AI channel id brain V2 is told. channelAlias() says "facebook", which normalizeChannel() does
+// not know and turns into web_chat — so Messenger was decided as the website chat.
+const metaUnifiedDecisionChannel = (channel = "") => adapterChannel(channelAlias(channel));
 const normalizeMetaAccountId = (value = "") => text(value).replace(/[^\d]/g, "");
 const summarizeMetaWebhookPayload = (payload = {}) => {
   const entries = Array.isArray(payload.entry) ? payload.entry : [];
@@ -12494,7 +12500,7 @@ const routeMessageThroughAi = async ({ req, message, config }) => {
     memoryUpdated: Boolean(followupContextV2.type && followupContextV2.type !== "none"),
   });
   return generateUnifiedConversationDecision({
-    channel,
+    channel: metaUnifiedDecisionChannel(channel),
     externalConversationId: message.external_conversation_id,
     externalCustomerId: message.external_customer_id,
     customerName: ["facebook_messenger", "facebook", "messenger"].includes(channel)
@@ -12539,7 +12545,7 @@ const routeMessageThroughAi = async ({ req, message, config }) => {
           externalCustomerId: text(message.external_customer_id || ""),
         })
       : message.customer_name,
-      channel,
+      channel: metaUnifiedDecisionChannel(channel),
       adapter_channel: message.channel,
       external_conversation_id: message.external_conversation_id,
       external_customer_id: message.external_customer_id,
@@ -12607,7 +12613,7 @@ export const generateMetaUnifiedDecisionDryRun = async ({ message = {}, config =
     intentPayload,
   });
   return generateUnifiedConversationDecision({
-    channel: alias,
+    channel: metaUnifiedDecisionChannel(alias),
     externalConversationId: message.external_conversation_id,
     externalCustomerId: message.external_customer_id,
     customerName: ["facebook_messenger", "facebook", "messenger"].includes(alias)
@@ -12638,7 +12644,7 @@ export const generateMetaUnifiedDecisionDryRun = async ({ message = {}, config =
     metadata: {
       tenant_id: config.tenant_id || 1,
       branch_id: config.branch_id || null,
-      channel: alias,
+      channel: metaUnifiedDecisionChannel(alias),
       adapter_channel: message.channel || alias,
       session_id: message.external_conversation_id,
       external_conversation_id: message.external_conversation_id,
@@ -28242,6 +28248,31 @@ export const processMetaWebhook = async ({ req } = {}) => {
       results.push({ channel: alias, external_user_id: message.external_customer_id, stored: true, sent: false, reason: "global_pause" });
       continue;
     }
+    // The "off" of the AI settings screens — every channel (ai_settings.autoReplyMode) and this
+    // channel (ai_channel_settings.aiMode). WhatsApp has always stopped on both; Meta read neither.
+    if (!shouldForceShippingHandler && isMetaAutoReplyChannel(message.channel)) {
+      const metaAiChannel = adapterChannel(alias);
+      const [globalModeSettings, channelModeSettings] = await Promise.all([
+        getAISettings().catch(() => ({})),
+        getAIChannelSettings(metaAiChannel, alias).catch(() => ({})),
+      ]);
+      const modeSwitchBlock = aiModeSwitchBlock({
+        globalMode: globalModeSettings?.autoReplyMode,
+        channelMode: channelModeSettings?.aiMode,
+      });
+      if (modeSwitchBlock) {
+        if (await routeSocialCommentTapPastClosedDoor(modeSwitchBlock)) continue;
+        console.log(`[AI_AUTO_REPLY_SKIPPED] reason=${modeSwitchBlock}`, {
+          tenant_id: config.tenant_id,
+          session_id: message.external_conversation_id,
+          channel: alias,
+          global_mode: text(globalModeSettings?.autoReplyMode || ""),
+          channel_mode: text(channelModeSettings?.aiMode || ""),
+        });
+        results.push({ channel: alias, external_user_id: message.external_customer_id, stored: true, sent: false, reason: modeSwitchBlock });
+        continue;
+      }
+    }
     if (!shouldForceShippingHandler) {
       const providerMessageId = text(message.external_message_id || message.raw?.event?.message?.mid || message.raw?.event?.message?.id || message.dedupe_key || "");
       const aiReplyTriggerSource = "meta_webhook_auto_reply";
@@ -29294,6 +29325,28 @@ export const processMetaWebhook = async ({ req } = {}) => {
       results.push({ channel: alias, external_user_id: message.external_customer_id, stored: true, sent: false, reason: autoReplyMode });
       continue;
     }
+    // The conversation was read before generation, which (brain V2 + the OpenAI rewrite) can take
+    // 25-75s. A colleague who took over, closed it or switched its AI off meanwhile must not be
+    // talked over: read it again before ANY of the sends below.
+    if (!shouldForceShippingHandler) {
+      const preSendCheck = await recheckAutoReplyBeforeSend({
+        loadState: () => getAiSupportConversationState({
+          tenantId: config.tenant_id,
+          sessionId: message.external_conversation_id,
+          channel: message.channel,
+        }),
+      });
+      if (!preSendCheck.ok) {
+        console.log(`[AI_AUTO_REPLY_SKIPPED] reason=${preSendCheck.reason} stage=before_send`, {
+          tenant_id: config.tenant_id,
+          session_id: message.external_conversation_id,
+          channel: alias,
+        });
+        markMessageProcessingStatus(messageId, "sent");
+        results.push({ channel: alias, external_user_id: message.external_customer_id, stored: true, sent: false, reason: preSendCheck.reason, dropped_before_send: true });
+        continue;
+      }
+    }
     const reply = aiPayload.channel_reply || normalizeOutgoingChannelReply({ channel: message.channel, response: aiPayload });
     const modelNameSearch = detectModelNameSearch(message.message_text || "") && !detectAllColorsRequest(message.message_text || "");
     const aiPayloadMetadata = aiPayload?.metadata && typeof aiPayload.metadata === "object" ? aiPayload.metadata : {};
@@ -29505,21 +29558,27 @@ export const processMetaWebhook = async ({ req } = {}) => {
           continue;
         }
       }
+      let introAlreadySent = false;
       if (productCards.length && modelNameSearch && finalReplyText) {
-        await sendAndLogMetaText({
+        const introSend = await sendAndLogMetaText({
           config,
           message,
           text: finalReplyText,
           detectedIntent: "model_color_limit_intro",
           metadata: { ...finalOutboundMetadata, model_color_limit_applied: true, product_card_count: productCards.length, force_reply_text_passthrough: protectedV2ProductIntent(aiPayload.detected_intent || latestDebugClassification?.intent || "") },
         });
+        introAlreadySent = Boolean(introSend?.message_id);
       }
+      // The intro above IS this reply's text. Handing it to the card send as well made the
+      // customer read it twice: a 2+ card carousel posts its message text as a lead line above
+      // the cards. Once the intro is out, the cards go alone (the per-card path never posted it).
+      // The transcript row below keeps the text, as it always did.
       const replyTextForSend = protectedV2ProductIntent(aiPayload.detected_intent || latestDebugClassification?.intent || "") ? text(replyText) : finalOutbound.text;
       const sendResult = await sendMetaInboxOutboundMessage({
         tenantId: config.tenant_id,
         channel: message.channel,
         recipientId: message.external_customer_id,
-        messageText: replyTextForSend,
+        messageText: introAlreadySent ? "" : replyTextForSend,
         customerMessageText: message.message_text || "",
         conversationId: message.external_conversation_id,
         productCards,

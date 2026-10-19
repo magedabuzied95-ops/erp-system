@@ -14,7 +14,7 @@ import {
 } from "./aiUnifiedDecisionService.js";
 import { detectEscalation } from "./aiEscalationDetector.js";
 import { pushAIEvent } from "./aiEventLogger.js";
-import { getAISettings, getAIToneInstruction } from "./aiSettingsService.js";
+import { getAISettings } from "./aiSettingsService.js";
 import { logAIPersistentEvent } from "./aiPersistentEventLogService.js";
 import { getAiAgentSettings } from "./aiSalesAgentService.js";
 import { resolveCustomerDisplayPrice } from "../utils/customerDisplayPrice.js";
@@ -39,6 +39,7 @@ import { resolveProductAlias } from "../utils/productAliasResolver.js";
 import { buildAliasAwareSearchHints } from "../utils/aliasAwareProductSearch.js";
 import { rankProductCandidates } from "../utils/productMatchConfidence.js";
 import { firstInboundImageUrl, recogniseProductFromImage } from "./aiVisualProductRecognitionService.js";
+import { aiModeSwitchBlock, conversationAutoReplyBlock, recheckAutoReplyBeforeSend } from "../utils/aiAutoReplyGate.js";
 import {
   buildConversationMemoryV2,
   mergeConversationMemoryV2,
@@ -1093,9 +1094,11 @@ const shouldAutoReplyToWhatsapp = async ({ tenantId, conversationId, payload = {
 
   if (status === "human_takeover") return { ok: false, reason: "human_takeover", ...base };
   if (status === "closed" || payload?.auto_response_paused === true) return { ok: false, reason: "paused", ...base };
+  // Switching the AI off for one conversation was logged here and never obeyed; Meta obeys it.
+  if (conversationAutoReplyBlock(state) === "conversation_ai_disabled") return { ok: false, reason: "conversation_ai_disabled", ...base };
   if (agentSettings.ai_assistant_global_enabled === false) return { ok: false, reason: "AI_ASSISTANT_GLOBAL_PAUSED", ...base };
-  if (globalMode === "off") return { ok: false, reason: "GLOBAL_OFF", ...base };
-  if (channelMode === "off") return { ok: false, reason: "CHANNEL_OFF", ...base };
+  const modeSwitchBlock = aiModeSwitchBlock({ globalMode, channelMode });
+  if (modeSwitchBlock) return { ok: false, reason: modeSwitchBlock, ...base };
   if (runtimeSettings.ai_replies_enabled !== true || !automaticModes.has(runtimeMode)) {
     return { ok: false, reason: runtimeMode === "off" ? "AUTO_REPLY_OFF" : "SUGGEST_ONLY", ...base };
   }
@@ -1103,41 +1106,66 @@ const shouldAutoReplyToWhatsapp = async ({ tenantId, conversationId, payload = {
   return { ok: true, reason: "fully_automatic", settings: { globalSettings, channelAISettings, runtimeSettings }, ...base };
 };
 
-const routeWhatsappMessageThroughAi = async ({ tenantId, message = {} } = {}) => {
-  const globalSettings = await getAISettings();
-  const channelAISettings = await getAIChannelSettings(AI_AGENT_CHANNELS.WHATSAPP, AI_AGENT_CHANNELS.WHATSAPP);
-  const effectiveTone = channelAISettings.tone || globalSettings.tone || "casual";
-  const originalMessage = text(message.message_text || "");
-  const productAlias = resolveProductAlias(originalMessage);
-  const aliasSearchHints = buildAliasAwareSearchHints({ text: originalMessage, aliasResult: productAlias });
-  return generateUnifiedConversationDecision({
-    channel: AI_AGENT_CHANNELS.WHATSAPP,
-    externalConversationId: message.external_conversation_id,
-    externalCustomerId: message.external_customer_id,
-    customerName: message.customer_name,
-    text: message.message_text || "Customer sent an attachment",
-    attachments: message.attachments || [],
-    metadata: {
-      session_id: message.external_conversation_id,
-      customer_id: message.external_customer_id,
-      customer_phone: message.external_customer_id,
-      customer_name: message.customer_name,
-      channel: AI_AGENT_CHANNELS.WHATSAPP,
-      external_conversation_id: message.external_conversation_id,
-      external_customer_id: message.external_customer_id,
-      ai_tone: effectiveTone,
-      ai_tone_instruction: getAIToneInstruction(effectiveTone),
-      attachments: message.attachments || [],
-      timestamp: message.timestamp,
-      provider_message_id: message.external_message_id || message.raw?.event?.message?.mid || "",
-      productQueryHints: aliasSearchHints.productQueryHints,
-      aliasSearchTerms: aliasSearchHints.searchTerms,
-    },
-  }, {
+/*
+ * The AI could not produce a decision for this message. The customer is not answered
+ * automatically (a canned line on every message while the AI is down would be worse), but the
+ * failure is never silent: a failed row in the inbox thread for the team, a persistent
+ * auto_reply_failure event, and the trace closed as failed.
+ */
+const recordWhatsappAiGenerationFailure = async ({ error, tenantId, sessionId, phone = "", traceId = null } = {}) => {
+  const summary = errorSummary(error);
+  console.error("[whatsapp:ai-generate-error]", {
+    ...summary,
+    target: "ai-support-chat",
     tenantId,
-    providerMessageId: message.external_message_id || message.raw?.event?.message?.mid || "",
+    sessionId,
+    phoneSuffix: text(phone).slice(-4),
   });
+  await appendAiGeneratedSupportReply({
+    tenantId,
+    sessionId,
+    clientRequestId: traceId || sessionId,
+    answer: `WhatsApp AI generation failed: ${summary.message}`,
+    confidence: 0,
+    detectedIntent: "whatsapp_ai_generation_error",
+    channel: AI_AGENT_CHANNELS.WHATSAPP,
+    deliveryStatus: "failed",
+    deliveryError: summary.causeMessage ? `${summary.message} / cause: ${summary.causeMessage}` : summary.message,
+  }).catch(() => {});
+  await logAIPersistentEvent({
+    tenantId,
+    category: "auto_reply_failure",
+    eventType: "whatsapp_ai_generation_failed",
+    conversationId: sessionId,
+    sessionId,
+    channel: AI_AGENT_CHANNELS.WHATSAPP,
+    source: "aiInboxService.generateWhatsappAiAutoReply",
+    reason: "ai_generation_failed",
+    message: summary.message || "WhatsApp AI generation failed",
+    error: summary,
+    metadata: {
+      trace_id: traceId || "",
+      phone_suffix: text(phone).slice(-4),
+      target: "ai-support-chat",
+    },
+  }).catch(() => {});
+  await addTraceStep(traceId, "reply_generation", {
+    generated_text: "",
+    response_type: "error",
+    detectedIntent: "whatsapp_ai_generation_error",
+    confidence: 0,
+    error: summary,
+  });
+  await failTrace(traceId, error, { phase: "ai_generation", target: "ai-support-chat", sessionId });
+  return { triggered: true, sent: false, reason: "ai_generation_failed", error: summary };
 };
+
+// Generation can take over a minute; the gateway calls this right before it sends, so a
+// colleague who took the conversation over in the meantime is not talked over.
+export const recheckWhatsappAutoReplyBeforeSend = ({ tenantId, sessionId } = {}) =>
+  recheckAutoReplyBeforeSend({
+    loadState: () => getAiSupportConversationState({ tenantId, sessionId }),
+  });
 
 const syncWhatsappLiveMemoryToChannel = async ({ tenantId, sessionId, phone = "", memory = null } = {}) => {
   const safeSessionId = normalizeWhatsappSessionId(sessionId, phone);
@@ -1407,33 +1435,50 @@ export const generateWhatsappAiAutoReply = async ({ tenantId, phone, sessionId, 
     phone_suffix: safePhone.slice(-4),
     trace_id: traceId || "",
   });
-  const unifiedDecision = await generateUnifiedConversationDecision({
-    channel: AI_AGENT_CHANNELS.WHATSAPP,
-    externalConversationId: safeSessionId,
-    externalCustomerId: safePhone,
-    customerName,
-    text: body,
-    attachments: message.attachments || [],
-    metadata: {
-      tenant_id: safeTenantId,
+  // Brain V2 throws when it cannot decide (AI_BRAIN_V2_LEGACY_FALLBACK is off). This call used to
+  // sit outside every try block, so the error went up to the webhook route's .catch: no reply, no
+  // failure row in the inbox, no persistent event, and a trace left open forever.
+  let unifiedDecision = null;
+  try {
+    unifiedDecision = await generateUnifiedConversationDecision({
       channel: AI_AGENT_CHANNELS.WHATSAPP,
-      session_id: safeSessionId,
-      external_conversation_id: safeSessionId,
-      external_customer_id: safePhone,
-      customer_phone: safePhone,
-      customer_name: customerName,
-      timestamp: timestamp || new Date().toISOString(),
-      ai_memory: loadedMemoryWithV2,
-      aiConversationMemoryV2: loadedMemoryV2,
-      followup_context_v2: followupContextV2,
-      productQueryHints: aliasSearchHints.productQueryHints,
-      aliasSearchTerms: aliasSearchHints.searchTerms,
-    },
-  }, {
-    tenantId: safeTenantId,
-    memory: loadedMemoryWithV2,
-    providerMessageId: message.external_message_id || "",
-  });
+      externalConversationId: safeSessionId,
+      externalCustomerId: safePhone,
+      customerName,
+      text: body,
+      attachments: message.attachments || [],
+      metadata: {
+        tenant_id: safeTenantId,
+        channel: AI_AGENT_CHANNELS.WHATSAPP,
+        session_id: safeSessionId,
+        external_conversation_id: safeSessionId,
+        external_customer_id: safePhone,
+        customer_phone: safePhone,
+        customer_name: customerName,
+        timestamp: timestamp || new Date().toISOString(),
+        ai_memory: loadedMemoryWithV2,
+        aiConversationMemoryV2: loadedMemoryV2,
+        followup_context_v2: followupContextV2,
+        productQueryHints: aliasSearchHints.productQueryHints,
+        aliasSearchTerms: aliasSearchHints.searchTerms,
+      },
+    }, {
+      tenantId: safeTenantId,
+      memory: loadedMemoryWithV2,
+      providerMessageId: message.external_message_id || "",
+    });
+  } catch (error) {
+    return recordWhatsappAiGenerationFailure({ error, tenantId: safeTenantId, sessionId: safeSessionId, phone: safePhone, traceId });
+  }
+  if (!unifiedDecision || typeof unifiedDecision !== "object") {
+    return recordWhatsappAiGenerationFailure({
+      error: new Error("AI decision came back empty"),
+      tenantId: safeTenantId,
+      sessionId: safeSessionId,
+      phone: safePhone,
+      traceId,
+    });
+  }
   const unifiedDecisionCandidates = asArray(unifiedDecision.products?.length ? unifiedDecision.products : unifiedDecision.suggested_products);
   const confidenceRanking = unifiedDecisionCandidates.length
     ? rankProductCandidates({
@@ -1773,70 +1818,22 @@ export const generateWhatsappAiAutoReply = async ({ tenantId, phone, sessionId, 
     sessionId: safeSessionId,
     phoneSuffix: safePhone.slice(-4),
   });
-  let aiPayload = null;
-  try {
-    aiPayload = unifiedDecision || await routeWhatsappMessageThroughAi({ tenantId: safeTenantId, message });
-    if (cleanProductTrace.used_for_search && aiPayload && typeof aiPayload === "object") {
-      aiPayload.detected_intent = cleanProductTrace.detected_intent || aiPayload.detected_intent;
-      aiPayload.query = cleanProductTrace.clean_query;
-      aiPayload.search_query = cleanProductTrace.clean_query;
-      aiPayload.entities = {
-        ...(aiPayload.entities || {}),
-        brand: aiPayload.entities?.brand || cleanProductTrace.brand || "",
-        model: aiPayload.entities?.model || cleanProductTrace.model || "",
-      };
-      aiPayload.debug = {
-        ...(aiPayload.debug || {}),
-        clean_product_query: cleanProductTrace.clean_query,
-        clean_product_query_source: cleanProductTrace.source,
-      };
-    }
-  } catch (error) {
-    const summary = errorSummary(error);
-    console.error("[whatsapp:ai-generate-error]", {
-      ...summary,
-      target: "ai-support-chat",
-      tenantId: safeTenantId,
-      sessionId: safeSessionId,
-      phoneSuffix: safePhone.slice(-4),
-    });
-    await appendAiGeneratedSupportReply({
-      tenantId: safeTenantId,
-      sessionId: safeSessionId,
-      clientRequestId: traceId || safeSessionId,
-      answer: `WhatsApp AI generation failed: ${summary.message}`,
-      confidence: 0,
-      detectedIntent: "whatsapp_ai_generation_error",
-      channel: AI_AGENT_CHANNELS.WHATSAPP,
-      deliveryStatus: "failed",
-      deliveryError: summary.causeMessage ? `${summary.message} / cause: ${summary.causeMessage}` : summary.message,
-    }).catch(() => {});
-    await logAIPersistentEvent({
-      tenantId: safeTenantId,
-      category: "auto_reply_failure",
-      eventType: "whatsapp_ai_generation_failed",
-      conversationId: safeSessionId,
-      sessionId: safeSessionId,
-      channel: AI_AGENT_CHANNELS.WHATSAPP,
-      source: "aiInboxService.generateAiInboxReply",
-      reason: "ai_generation_failed",
-      message: summary.message || "WhatsApp AI generation failed",
-      error: summary,
-      metadata: {
-        trace_id: traceId || "",
-        phone_suffix: safePhone.slice(-4),
-        target: "ai-support-chat",
-      },
-    });
-    await addTraceStep(traceId, "reply_generation", {
-      generated_text: "",
-      response_type: "error",
-      detectedIntent: "whatsapp_ai_generation_error",
-      confidence: 0,
-      error: summary,
-    });
-    await failTrace(traceId, error, { phase: "ai_generation", target: "ai-support-chat", sessionId: safeSessionId });
-    return { triggered: true, sent: false, reason: "ai_generation_failed", error: summary };
+  // The decision is in hand (a failure returned above), so there is nothing left here to fail.
+  const aiPayload = unifiedDecision;
+  if (cleanProductTrace.used_for_search) {
+    aiPayload.detected_intent = cleanProductTrace.detected_intent || aiPayload.detected_intent;
+    aiPayload.query = cleanProductTrace.clean_query;
+    aiPayload.search_query = cleanProductTrace.clean_query;
+    aiPayload.entities = {
+      ...(aiPayload.entities || {}),
+      brand: aiPayload.entities?.brand || cleanProductTrace.brand || "",
+      model: aiPayload.entities?.model || cleanProductTrace.model || "",
+    };
+    aiPayload.debug = {
+      ...(aiPayload.debug || {}),
+      clean_product_query: cleanProductTrace.clean_query,
+      clean_product_query_source: cleanProductTrace.source,
+    };
   }
   pushAIEvent({
     type: "AI_REPLY_GENERATED",
