@@ -118,7 +118,7 @@ export const issuePaymentProofLink = async ({ order = {}, client = db } = {}) =>
  * number (owner, 2026-09-15). So the card shows that ONE number and says it works for InstaPay and
  * Vodafone Cash alike, rather than a separate InstaPay handle the customer has to choose between.
  */
-export const buildShippingFeePaymentCard = ({ order = {}, amount = 0, transfer = {}, uploadUrl = "" } = {}) => {
+export const buildShippingFeePaymentCard = ({ order = {}, amount = 0, transfer = {}, uploadUrl = "", confirmed = false } = {}) => {
   const fee = formatMoney(amount);
   const rest = Math.max(0, money(orderTotal(order) - money(amount)));
   const ref = orderRef(order);
@@ -141,10 +141,16 @@ export const buildShippingFeePaymentCard = ({ order = {}, amount = 0, transfer =
   // The Instagram card's wording (buildShippingFeeMetaCard), on WhatsApp too (owner, 2026-10-19 —
   // "كلام كتير"): what to transfer, that it comes off the total, the number, then the buttons.
   const isShippingFee = advanceLabel(order) === "رسوم الشحن";
-  const title = isShippingFee ? "💳 دفع الشحن" : "💳 الدفع المقدّم";
-  const headline = isShippingFee
-    ? `💳 لتأكيد ${ref ? `الأوردر ${ref}` : "الأوردر"} حوّل قيمة الشحن ${fee} جنيه`
-    : `💳 لتأكيد ${ref ? `الأوردر ${ref}` : "الأوردر"} حوّل ${fee} جنيه مقدّم`;
+  // `confirmed`: the answer to the customer's ✅ — the card IS the reply, one message (owner,
+  // 2026-10-19), so it says the order is confirmed and what is left.
+  const title = confirmed
+    ? `✅ تم تأكيد طلبك${ref ? ` ${ref}` : ""}`
+    : isShippingFee ? "💳 دفع الشحن" : "💳 الدفع المقدّم";
+  const headline = confirmed
+    ? `💳 فاضل بس تحوّل ${isShippingFee ? `قيمة الشحن ${fee} جنيه` : `${fee} جنيه مقدّم`} عشان نشحنه`
+    : isShippingFee
+      ? `💳 لتأكيد ${ref ? `الأوردر ${ref}` : "الأوردر"} حوّل قيمة الشحن ${fee} جنيه`
+      : `💳 لتأكيد ${ref ? `الأوردر ${ref}` : "الأوردر"} حوّل ${fee} جنيه مقدّم`;
   const offTotal = rest > 0 ? `✨ المبلغ بيتخصم من الإجمالي، والباقي ${formatMoney(rest)} جنيه عند الاستلام` : "✨ المبلغ بيتخصم من إجمالي الأوردر";
   const payStep = number ? `📱 ${number}\n(فودافون كاش أو انستا باي)` : instapayUrl ? "🏦 بانستا باي" : "";
 
@@ -157,6 +163,7 @@ export const buildShippingFeePaymentCard = ({ order = {}, amount = 0, transfer =
 
   // What the customer gets when the buttons do not render: every value spelled out.
   const fallbackText = [
+    confirmed ? title : "",
     headline,
     offTotal,
     [payStep, !number && instapayUrl ? instapayUrl : ""].filter(Boolean).join("\n"),
@@ -219,12 +226,12 @@ export const buildShippingFeeMetaCard = ({ order = {}, amount = 0, transfer = {}
  * follow it. Returns null when it will not (nothing owed, or the link could not be issued), and the
  * request then keeps the payment details in its own body as before.
  */
-export const prepareShippingFeePaymentCard = async ({ order = {}, amount = 0 } = {}) => {
+export const prepareShippingFeePaymentCard = async ({ order = {}, amount = 0, confirmed = false } = {}) => {
   try {
     if (!order?.id || !(money(amount) > 0)) return null;
     const { loadTransferDetails } = await import("../../services/codPolicyReplyService.js");
     const [transfer, link] = await Promise.all([loadTransferDetails(), issuePaymentProofLink({ order })]);
-    const card = buildShippingFeePaymentCard({ order, amount, transfer, uploadUrl: link.url });
+    const card = buildShippingFeePaymentCard({ order, amount, transfer, uploadUrl: link.url, confirmed });
     const metaCard = buildShippingFeeMetaCard({ order, amount, transfer, payUrl: link.url });
     return card.buttons.length ? { ...card, uploadUrl: link.url, metaCard } : null;
   } catch (error) {

@@ -839,6 +839,28 @@ const owedShippingAdvance = async (order = {}) => {
   }
 };
 
+// A payment card for this order still waiting in the queue: it will land under the reply. One
+// already sent sits ABOVE it, so that one is sent again. False on any error: a second card is
+// better than none.
+const paymentCardJustQueued = async (orderId) => {
+  try {
+    const result = await db.query(
+      `
+      SELECT 1 FROM whatsapp_message_queue
+      WHERE order_id = $1
+        AND automation_type = 'shipping_fee_payment_card'
+        AND status IN ('pending', 'scheduled', 'sending')
+      LIMIT 1
+      `,
+      [orderId]
+    );
+    return result.rows.length > 0;
+  } catch (error) {
+    console.warn("[whatsapp:order-confirmation] card check skipped", { orderId, message: error?.message });
+    return false;
+  }
+};
+
 /*
  * The answer to a ✅ press. With the shipping fee still unpaid it says so and sends the payment
  * card again right under it: the card that rode with the request sat ABOVE the request by the
@@ -847,6 +869,18 @@ const owedShippingAdvance = async (order = {}) => {
  */
 const replyToCustomerConfirm = async ({ order = {}, phone = "", tenantId = null, source = "whatsapp_order_confirmed_reply" } = {}) => {
   const advance = await owedShippingAdvance(order);
+  // Fee still owed: ONE message, the payment card opening with "✅ تم تأكيد طلبك" — no separate
+  // text above it (owner, 2026-10-19: three messages for one tap, Instagram/Messenger send one).
+  // A card still waiting in the queue lands under the tap by itself, so nothing is added.
+  if (advance?.status === "awaiting_payment") {
+    if (await paymentCardJustQueued(order.id)) return { payment_card: false, reason: "card_already_below" };
+    const card = await prepareShippingFeePaymentCard({ order, amount: advance.amount, confirmed: true });
+    if (card) {
+      const queued = await queueShippingFeePaymentCard({ order, card, phone, tenantId, idempotencySuffix: `after-confirm-${Date.now()}` });
+      if (queued?.queued || queued?.sent) return { payment_card: true };
+    }
+    // No card could be built or sent: the text below still says what is owed.
+  }
   await sendSystemOrderText({
     order,
     phone,
@@ -859,11 +893,7 @@ const replyToCustomerConfirm = async ({ order = {}, phone = "", tenantId = null,
     source,
     tenantId,
   });
-  if (advance?.status !== "awaiting_payment") return { payment_card: false };
-  const card = await prepareShippingFeePaymentCard({ order, amount: advance.amount });
-  if (!card) return { payment_card: false };
-  const queued = await queueShippingFeePaymentCard({ order, card, phone, tenantId, idempotencySuffix: `after-confirm-${Date.now()}` });
-  return { payment_card: Boolean(queued?.queued || queued?.sent) };
+  return { payment_card: false };
 };
 
 const storeOrderConfirmationCode = async (client, { tenantId, orderId, action, expiresAt, code }) => {
