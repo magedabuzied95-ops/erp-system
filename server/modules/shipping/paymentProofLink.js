@@ -4,6 +4,7 @@ import db from "../../database/db.js";
 import { generateOrderLinkCode, orderLinkSecret } from "../../utils/orderLinkSecret.js";
 import { buildOrderTrackingUrl, buildPublicInvoiceUrl, resolvePublicAppUrl } from "../../utils/whatsapp.js";
 import { emitToRooms } from "../../utils/socket.js";
+import { ctaTranscriptButtons } from "../../utils/whatsappCtaTranscript.js";
 import { describeShippingFeeAdvance, DEPOSIT_REQUEST_TIMELINE_ACTION } from "./shippingFeeAdvance.js";
 
 /*
@@ -378,16 +379,27 @@ export const queueShippingFeePaymentCard = async ({ order = {}, card = null, pho
 // `delayMs` holds it back: the queue gets a scheduled_at, and the direct path (queue switched
 // off) gets a detached timer, so switching the queue off never turns a deliberate wait into an
 // instant send — the reason for the wait is the WhatsApp account, not the queue.
-const sendOrderPaymentText = async ({ order = {}, automationType, message, idempotencySuffix = "", source, delayMs = 0 }) => {
+// `card` (optional): send as a CTA-buttons message; `message` is then its text fallback.
+const sendOrderPaymentText = async ({ order = {}, automationType, message, card = null, idempotencySuffix = "", source, delayMs = 0 }) => {
   const phone = await orderPhone(order);
   if (!phone || !message) return { sent: false, reason: "missing_phone" };
   const tenantId = tenantOf(order);
+  const cardMessage = card ? `${card.title}\n\n${card.body}` : "";
   try {
     const [{ queueWhatsappAutomation }, gateway] = await Promise.all([
       import("../../services/whatsappQueue/index.js"),
       import("../../services/whatsappGatewayService.js"),
     ]);
     const sendNow = async () => {
+      if (card) {
+        try {
+          const result = await gateway.sendCtaButtonsMessage({ phone, title: card.title, text: card.body, footer: card.footer, buttons: card.buttons, fallbackText: message });
+          await appendSystemTranscript({ tenantId, phone, message: cardMessage, source, buttons: card.transcriptButtons, result, customerName: text(order.customer_name) });
+          return result;
+        } catch (error) {
+          console.warn("[payment-proof] receipt buttons unavailable, sending text", { orderId: order.id, message: error?.message || String(error) });
+        }
+      }
       const result = await gateway.sendTextMessage({ phone, message });
       await appendSystemTranscript({ tenantId, phone, message, source, result, customerName: text(order.customer_name) });
       return result;
@@ -409,10 +421,16 @@ const sendOrderPaymentText = async ({ order = {}, automationType, message, idemp
       orderId: order.id,
       invoiceNumber: text(order.invoice_number),
       recipientPhone: phone,
-      send: { kind: "text" },
+      send: card
+        ? { kind: "cta_buttons", title: card.title, footer: card.footer, buttons: card.buttons, fallbackText: message }
+        : { kind: "text" },
       values: { customer_name: text(order.customer_name), order_number: orderRef(order) },
-      fallbackBody: message,
-      onSent: { transcript: { session_id: `whatsapp:${phone}`, source, customer_name: text(order.customer_name), message } },
+      fallbackBody: card ? card.body : message,
+      onSent: {
+        transcript: card
+          ? { session_id: `whatsapp:${phone}`, source, customer_name: text(order.customer_name), message: cardMessage, buttons: card.transcriptButtons }
+          : { session_id: `whatsapp:${phone}`, source, customer_name: text(order.customer_name), message },
+      },
       scheduledAt: delayMs > 0 ? new Date(Date.now() + delayMs) : null,
       directSend,
     });
@@ -467,6 +485,30 @@ export const buildPaymentProofApprovedMessage = (order = {}, { trackingUrl = "",
     invoiceUrl && `🧾 فاتورتك: ${invoiceUrl}`,
     trackingUrl && `📍 تابع طلبك: ${trackingUrl}`,
   ].filter(Boolean).join("\n");
+};
+
+/**
+ * The same receipt on WhatsApp with the invoice and the tracking page as two buttons instead of
+ * two long links (owner, 2026-10-19). The first line is the header, the rest is the body, and
+ * `fallbackText` is the full text message above — what the customer gets if the buttons do not
+ * render. Messenger/Instagram keep the text version. Null when there is no link to put on a button.
+ */
+export const buildPaymentProofApprovedCard = (order = {}, { trackingUrl = "", invoiceUrl = "" } = {}) => {
+  // Evolution answers a third CTA with 400, so two is also the ceiling.
+  const buttons = [
+    invoiceUrl ? { type: "url", displayText: "🧾 فاتورتك", url: invoiceUrl } : null,
+    trackingUrl ? { type: "url", displayText: "📍 تابع طلبك", url: trackingUrl } : null,
+  ].filter(Boolean);
+  if (!buttons.length) return null;
+  const [title, ...rest] = buildPaymentProofApprovedMessage(order).split("\n");
+  return {
+    title,
+    body: rest.join("\n"),
+    footer: FOOTER,
+    buttons,
+    fallbackText: buildPaymentProofApprovedMessage(order, { trackingUrl, invoiceUrl }),
+    transcriptButtons: ctaTranscriptButtons({ footer: FOOTER, buttons }),
+  };
 };
 
 // Nothing to announce on an order that is already over: a cancelled or delivered row can still
@@ -573,10 +615,8 @@ export const notifyPaymentProofApproved = async (order = null) => {
   if (NOT_WORTH_ANNOUNCING.has(text(order.status).toLowerCase())) return { sent: false, reason: "order_closed" };
   const phone = await orderPhone(order);
   const invoiceUrl = buildPublicInvoiceUrl(text(order.public_token) || text(order.invoice_number));
-  const message = buildPaymentProofApprovedMessage(order, {
-    trackingUrl: phone ? buildOrderTrackingUrl(orderRef(order), phone) : "",
-    invoiceUrl,
-  });
+  const links = { trackingUrl: phone ? buildOrderTrackingUrl(orderRef(order), phone) : "", invoiceUrl };
+  const message = buildPaymentProofApprovedMessage(order, links);
   // An order taken on Instagram/Messenger hears it there too, whatever WhatsApp does.
   const meta = await notifyPaymentOnMeta(order, message);
   if (!phone) {
@@ -589,6 +629,8 @@ export const notifyPaymentProofApproved = async (order = null) => {
     automationType: "payment_proof_approved",
     idempotencySuffix: `paid:${Math.round(money(order.paid_amount) * 100)}`,
     message,
+    // WhatsApp only: the invoice and tracking links ride as two buttons.
+    card: buildPaymentProofApprovedCard(order, links),
     source: "whatsapp_payment_proof_approved",
     delayMs: PAYMENT_APPROVED_DELAY_MS,
   });

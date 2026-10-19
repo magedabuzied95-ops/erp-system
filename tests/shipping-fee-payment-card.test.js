@@ -5,6 +5,7 @@ import { createHmac } from "node:crypto";
 
 import {
   PAYMENT_PROOF_CODE_ACTION,
+  buildPaymentProofApprovedCard,
   buildPaymentProofApprovedMessage,
   buildPaymentProofReceivedMessage,
   buildScreenshotInChatReply,
@@ -147,7 +148,10 @@ test("confirming the money anywhere tells the customer, and the message carries 
   // The link is built here, not by the caller: every approval path gets it for free.
   // The invoice link travels with it too (2026-10-18), and a phoneless Instagram order still gets
   // the message there, so the tracking link is built only when there is a phone.
-  assert.match(module, /buildPaymentProofApprovedMessage\(order, \{\s*trackingUrl: phone \? buildOrderTrackingUrl\(orderRef\(order\), phone\) : "",\s*invoiceUrl,\s*\}\)/);
+  assert.match(module, /const links = \{ trackingUrl: phone \? buildOrderTrackingUrl\(orderRef\(order\), phone\) : "", invoiceUrl \};\s*const message = buildPaymentProofApprovedMessage\(order, links\);/);
+  // WhatsApp gets the links as two buttons; Messenger/Instagram keep the text message.
+  assert.match(module, /card: buildPaymentProofApprovedCard\(order, links\),/);
+  assert.match(module, /const meta = await notifyPaymentOnMeta\(order, message\);/);
   // The receipt waits five minutes: the wallet matcher approves a website order a second after
   // checkout, and two automated messages back to back on one number is the burst WhatsApp bans.
   assert.equal(PAYMENT_APPROVED_DELAY_MS, 5 * 60 * 1000);
@@ -164,6 +168,42 @@ test("confirming the money anywhere tells the customer, and the message carries 
   for (const path of ["../server/controllers/ordersController.js", "../server/modules/walletTransfers/walletTransfers.service.js", "../server/modules/shipping/shipping.portal.actions.js"]) {
     assert.match(read(path), /notifyPaymentProofApproved\(/, path);
   }
+});
+
+test("on WhatsApp the receipt's invoice and tracking links are two buttons", async () => {
+  const invoiceUrl = "https://m1store-egy.com/invoice/abc";
+  const trackingUrl = "https://m1store-egy.com/track?order=INV-1700&phone=201558934989";
+  const paid = { ...order, customer_name: "Mo3taz Ali", paid_amount: 90 };
+  const card = buildPaymentProofApprovedCard(paid, { invoiceUrl, trackingUrl });
+  assert.equal(card.title, "✅ وصلنا دفع رسوم الشحن للطلب INV-1700 يا Mo3taz");
+  assert.equal(card.body, "🚚 طلبك بيتجهز للشحن دلوقتي\n💰 المندوب هيحصّل 1,850 جنيه عند الاستلام");
+  assert.doesNotMatch(card.body, /https?:/);
+  assert.deepEqual(card.buttons, [
+    { type: "url", displayText: "🧾 فاتورتك", url: invoiceUrl },
+    { type: "url", displayText: "📍 تابع طلبك", url: trackingUrl },
+  ]);
+  // Buttons that will not render still hand over both links.
+  assert.equal(card.fallbackText, buildPaymentProofApprovedMessage(paid, { invoiceUrl, trackingUrl }));
+  assert.deepEqual(card.transcriptButtons.map((button) => button.type), ["whatsapp_footer", "whatsapp_url_button", "whatsapp_url_button"]);
+  // One link → one button; none → plain text.
+  assert.equal(buildPaymentProofApprovedCard(paid, { invoiceUrl }).buttons.length, 1);
+  assert.equal(buildPaymentProofApprovedCard(paid, {}), null);
+
+  // The queue sends it as a CTA card, and falls back to the full text when Evolution refuses.
+  const calls = [];
+  const gateway = {
+    sendCtaButtonsMessage: async (args) => { calls.push(["cta", args]); throw new Error("400"); },
+    sendTextMessage: async (args) => { calls.push(["text", args]); return { ok: true }; },
+  };
+  const row = {
+    recipient_phone: "201558934989",
+    rendered_body: card.body,
+    payload: { send: { kind: "cta_buttons", title: card.title, footer: card.footer, buttons: card.buttons, fallbackText: card.fallbackText } },
+  };
+  await performSend(row, gateway);
+  assert.equal(calls[0][1].title, card.title);
+  assert.equal(calls[0][1].buttons.length, 2);
+  assert.equal(calls[1][1].message, card.fallbackText);
 });
 
 test("a card that will not render goes out as its text fallback", async () => {
