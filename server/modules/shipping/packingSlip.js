@@ -198,6 +198,14 @@ const readPageInk = (page) => {
   const glyphs = [];
   const strokes = [];
   const subpaths = [];
+  // The same marks as boxes. A point says where a barcode bar starts and ends, not that the
+  // space between is taken — a box does, which is what a search over open space needs.
+  const shapes = [];
+  const boundsOf = (points) => {
+    const xs = points.map((point) => point[0]);
+    const ys = points.map((point) => point[1]);
+    return { x0: Math.min(...xs), x1: Math.max(...xs), y0: Math.min(...ys), y1: Math.max(...ys) };
+  };
   let clipping = false;
   const numbers = (count) => operands.filter((operand) => typeof operand === "number").slice(-count);
   const nextLine = () => { tlm = matMul([1, 0, 0, 1, 0, -leading], tlm); tm = [...tlm]; };
@@ -233,7 +241,12 @@ const readPageInk = (page) => {
       case "h": break;
       // An image or form is ink too. Bosta's own label has none, but a page that was already
       // stamped once must not get a second QR printed over the first.
-      case "Do": strokes.push(matApply(ctm, 0, 0), matApply(ctm, 1, 0), matApply(ctm, 0, 1), matApply(ctm, 1, 1), matApply(ctm, 0.5, 0.5)); break;
+      case "Do": {
+        const corners = [matApply(ctm, 0, 0), matApply(ctm, 1, 0), matApply(ctm, 0, 1), matApply(ctm, 1, 1)];
+        strokes.push(...corners, matApply(ctm, 0.5, 0.5));
+        shapes.push(boundsOf(corners));
+        break;
+      }
       // A path reaches the page here. Rules and boxes are the label's own frame and may be
       // drawn over; everything else is somebody's ink. Clipping paths (W n) mark nothing.
       case "W": clipping = true; break;
@@ -242,7 +255,7 @@ const readPageInk = (page) => {
           for (const subpath of subpaths) {
             const rect = asRectangle(subpath);
             if (rect) rects.push(rect);
-            else strokes.push(...subpath);
+            else { strokes.push(...subpath); shapes.push(boundsOf(subpath)); }
           }
         }
         subpaths.length = 0;
@@ -253,7 +266,7 @@ const readPageInk = (page) => {
     }
     operands = [];
   }
-  return { rects, glyphs, strokes };
+  return { rects, glyphs, strokes, shapes };
 };
 
 // The notes box: the wide half of the one divided row at the foot of the label. Everything is
@@ -280,7 +293,40 @@ const findNotesCell = (ink, box) => {
       : { x0: divider, x1: right, y0: bottom, y1: top };
     if (wide.x1 - wide.x0 < (right - left) * 0.5) continue;
     if (ink.strokes.filter((point) => within(wide, point)).length > AWB_CELL_MAX_STROKES) continue;
-    return wide;
+    // The full-width row on top of it, where the QR goes when notes fill the box.
+    const above = index + 2 < rules.length ? { x0: left, x1: right, y0: top, y1: rules[index + 2] } : null;
+    return { ...wide, above };
+  }
+  return null;
+};
+
+// Glyph origins sit on the baseline at the glyph's left edge; Bosta's text is 6-8pt, so this
+// box covers the letter itself plus its neighbour's gap.
+const GLYPH_BOX = { left: 1, right: 8, below: 3, above: 10 };
+const overlaps = (a, b) => a.x0 < b.x1 && b.x0 < a.x1 && a.y0 < b.y1 && b.y0 < a.y1;
+
+// When notes fill the box, the row above usually has open paper under its text (measured on
+// real labels 2026-10-19: the address sits at the top of the row, the lower half is empty). The
+// search runs bottom-up from the left, against every mark as a BOX — a barcode drawn as bars
+// has open space between its end points that is not open paper.
+const findQrSquareInRow = (row, ink, box, largest) => {
+  const obstacles = [
+    ...ink.glyphs.map(([x, y]) => ({ x0: x - GLYPH_BOX.left, x1: x + GLYPH_BOX.right, y0: y - GLYPH_BOX.below, y1: y + GLYPH_BOX.above })),
+    // A shape that wraps the whole row is a frame round it — Bosta's rounded border round the
+    // label is one such path — not ink inside it.
+    ...ink.shapes.filter((shape) => !(shape.x0 <= row.x0 && shape.x1 >= row.x1 && shape.y0 <= row.y0 && shape.y1 >= row.y1)),
+    // Every drawn rectangle but the label's own full-width rules, which bound the row.
+    ...ink.rects.filter((rect) => !(rect.h <= 2 && rect.w >= box.width * 0.8)).map((rect) => ({ x0: rect.x, x1: rect.x + rect.w, y0: rect.y, y1: rect.y + rect.h })),
+  ].filter((mark) => overlaps(mark, row));
+  const floor = row.y0 + 1 + AWB_QR_PADDING;
+  const ceiling = row.y1 - AWB_QR_PADDING;
+  for (let size = Math.floor(largest); size >= AWB_QR_MIN; size -= 2) {
+    for (let y = floor; y + size <= ceiling; y += 2) {
+      for (let x = row.x0 + 1 + AWB_QR_PADDING; x + size + AWB_QR_PADDING <= row.x1; x += 2) {
+        const area = { x0: x - AWB_QR_PADDING, x1: x + size + AWB_QR_PADDING, y0: y - AWB_QR_PADDING, y1: y + size + AWB_QR_PADDING };
+        if (!obstacles.some((mark) => overlaps(area, mark))) return { x, y, size };
+      }
+    }
   }
   return null;
 };
@@ -427,8 +473,15 @@ export const findPackingQrSpot = (page) => {
   try {
     const ink = readPageInk(page);
     if (!ink) return null;
-    const cell = findNotesCell(ink, page.getMediaBox());
-    return cell ? findQrSquare(cell, ink) : null;
+    const box = page.getMediaBox();
+    const cell = findNotesCell(ink, box);
+    if (!cell) return null;
+    const inNotes = findQrSquare(cell, ink);
+    if (inNotes) return { ...inNotes, where: "notes_box" };
+    // Same size as an empty notes box would give, so every label in a batch scans alike.
+    const largest = Math.min(cell.y1 - cell.y0, cell.x1 - cell.x0) - AWB_QR_PADDING * 2;
+    const aboveNotes = cell.above ? findQrSquareInRow(cell.above, ink, box, largest) : null;
+    return aboveNotes ? { ...aboveNotes, where: "above_notes" } : null;
   } catch {
     return null;
   }
@@ -497,7 +550,7 @@ export const stampPackingQrOnAirwayBill = async (pdfBase64 = "", printed = []) =
   return {
     pdf_base64: Buffer.from(bytes).toString("base64"),
     stamped: true,
-    placement: inNotesBox ? "notes_box" : "strip",
+    placement: !inNotesBox ? "strip" : spots.every((spot) => spot.where === "notes_box") ? "notes_box" : "inside_label",
     qr_size: inNotesBox ? Math.round(spots[0].size) : STRIP_HEIGHT - 12,
     // Page order as proved off the labels, so a print can be audited after the fact.
     matched: owner.map((index) => printed[index].order_id),

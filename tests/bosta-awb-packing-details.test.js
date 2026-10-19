@@ -86,7 +86,7 @@ test("a page count that does not match the orders prints the plain label rather 
  * placed by reading the label: its drawn rules give the box, and every glyph and path point on
  * the page is ink the QR may not cover. A label shaped like Bosta's is built here rather than
  * committing a real one, which would carry a customer's name, phone and address. */
-const bostaShapedLabel = async (pages = 1, { notes = false, tracking = ["5784437282"] } = {}) => {
+const bostaShapedLabel = async (pages = 1, { notes = false, tracking = ["5784437282"], rowAbove = "address" } = {}) => {
   const { StandardFonts, rgb } = await import("pdf-lib");
   const pdf = await PDFDocument.create();
   const font = await pdf.embedFont(StandardFonts.Helvetica);
@@ -95,6 +95,9 @@ const bostaShapedLabel = async (pages = 1, { notes = false, tracking = ["5784437
     const page = pdf.addPage([297.12, 420]);
     // Bosta prints the tracking number on every label; it is what tells one page from another.
     page.drawText(`Tracking Number${tracking[index] || tracking[0]}`, { x: 14, y: 400, size: 6, font });
+    // The rounded frame Bosta draws round the whole label, as one curved path — read as a box it
+    // covers the entire page, which is what kept the QR out of the row above on real labels.
+    page.drawSvgPath("M 8 0 L 272 0 C 277 0 280 3 280 8 L 280 400 C 280 405 277 408 272 408 L 8 408 C 3 408 0 405 0 400 L 0 8 C 0 3 3 0 8 0 Z", { x: 8.3, y: 414, borderWidth: 0.6 });
     // The label's full-width rules, measured off a real Bosta airway bill.
     for (const y of [36.7, 86.4, 186.8, 260, 305.8, 332.1, 352.6]) {
       page.drawRectangle({ x: 8.8, y, width: 278.8, height: 0.97, color: rgb(0, 0, 0) });
@@ -106,6 +109,15 @@ const bostaShapedLabel = async (pages = 1, { notes = false, tracking = ["5784437
     }
     const runs = [glyphs(12, 113, 42.5, 5.7), glyphs(6, 244, 74.7, 5.8)];
     if (notes) runs.push(glyphs(28, 118, 70, 5.9));
+    // The row above the notes: the address at its top, open paper under it — as measured on real
+    // labels. "full" packs it with text; "barcode" draws bars across its lower half.
+    runs.push(glyphs(42, 31, 157.5, 5.9));
+    if (rowAbove === "full") for (let line = 0; line < 6; line += 1) runs.push(glyphs(42, 14, 92 + line * 11, 6.4));
+    if (rowAbove === "barcode") {
+      for (let bar = 0; bar < 80; bar += 1) {
+        page.drawLine({ start: { x: 14 + bar * 3.4, y: 90 }, end: { x: 14 + bar * 3.4, y: 150 }, thickness: 0.6 });
+      }
+    }
     for (const run of runs) {
       for (let step = 0; step < run.count; step += 1) page.drawText("x", { x: run.x + step * run.step, y: run.y, size: 5, font });
     }
@@ -139,22 +151,42 @@ test("printing keeps Bosta's own page size when the QR goes in the notes box", a
   }
 });
 
-// What the owner asked for: a parcel that carries written notes keeps them readable. There is
-// no room for both, so the QR goes back under the label rather than over somebody's words.
-test("notes already written in the box push the QR back under the label", async () => {
+// What the owner asked for: a parcel that carries written notes keeps them readable. Orders
+// 2194 and 2192 (2026-10-19) had notes on the box's top line and went back to the old taller
+// label; the QR now takes the open paper in the row above instead.
+test("notes in the box move the QR into the row above, at Bosta's own page size", async () => {
+  const pdf = await PDFDocument.load(Buffer.from(await bostaShapedLabel(1, { notes: true }), "base64"));
+  const spot = findPackingQrSpot(pdf.getPages()[0]);
+  assert.equal(spot?.where, "above_notes");
+  assert.ok(spot.size >= 40, `same size as the notes box gives, got ${spot.size}`);
+  assert.ok(spot.y >= 86.4 && spot.y + spot.size < 157.5 - 3, "under the address, inside the row");
   const result = await stampPackingQrOnAirwayBill(await bostaShapedLabel(1, { notes: true }), [{ order_id: 1, order_number: "INV-1", tracking_number: "5784437282" }]);
-  assert.equal(result.stamped, true);
+  assert.equal(result.placement, "inside_label");
+  const stamped = await PDFDocument.load(Buffer.from(result.pdf_base64, "base64"));
+  assert.equal(stamped.getPages()[0].getMediaBox().height, 420);
+});
+
+test("a row above packed with text still sends the QR under the label", async () => {
+  const result = await stampPackingQrOnAirwayBill(await bostaShapedLabel(1, { notes: true, rowAbove: "full" }), [{ order_id: 1, order_number: "INV-1", tracking_number: "5784437282" }]);
   assert.equal(result.placement, "strip");
   const pdf = await PDFDocument.load(Buffer.from(result.pdf_base64, "base64"));
   assert.equal(pdf.getPages()[0].getMediaBox().height, 420 + 96);
 });
 
+// Bars are drawn as lines whose only points are their two ends; the space between them is a
+// barcode, not paper.
+test("the QR never lands between the bars of a barcode", async () => {
+  const pdf = await PDFDocument.load(Buffer.from(await bostaShapedLabel(1, { notes: true, rowAbove: "barcode" }), "base64"));
+  const spot = findPackingQrSpot(pdf.getPages()[0]);
+  assert.ok(!spot || spot.y >= 150 + 3 || spot.x >= 14 + 79 * 3.4, `landed on the bars: ${JSON.stringify(spot)}`);
+});
+
 // One printer job, one page size: a batch where some labels grew and some did not is a batch
 // the printer either scales or jams.
-test("a batch prints one page size even when a single label has notes", async () => {
+test("a batch prints one page size even when a single label has no room", async () => {
   const mixed = await PDFDocument.create();
   for (const [index, withNotes] of [false, true].entries()) {
-    const source = await PDFDocument.load(Buffer.from(await bostaShapedLabel(1, { notes: withNotes, tracking: [["5784437282", "1515188641"][index]] }), "base64"));
+    const source = await PDFDocument.load(Buffer.from(await bostaShapedLabel(1, { notes: withNotes, rowAbove: withNotes ? "full" : "address", tracking: [["5784437282", "1515188641"][index]] }), "base64"));
     const [copied] = await mixed.copyPages(source, [0]);
     mixed.addPage(copied);
   }
