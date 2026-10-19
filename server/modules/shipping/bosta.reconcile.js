@@ -33,11 +33,13 @@ const IN_FLIGHT_STATUSES = [
   "failed",
 ];
 
-// A parcel cancelled at Bosta after it left, or reported returned while the order is
-// still open, is on its way back to the shelf: it is chased until Bosta says "returned"
-// and the refresh receives it (order cancelled, stock restored — bostaReturnedParcel.js).
-// `cancelled_at IS NULL` ends the chase the moment that happens.
-const COMING_BACK_STATUSES = ["cancelled", "canceled", "returned"];
+// A parcel cancelled at Bosta after it left is on its way back to the shelf: it is
+// chased until Bosta says "returned" and the refresh receives it (order cancelled, stock
+// restored — bostaReturnedParcel.js). `cancelled_at IS NULL` ends the chase the moment
+// that happens. "returned" itself is NOT chased: the event that set it already received
+// the parcel, and the ones it deliberately skips (exchange parcels) stay open, so chasing
+// them would poll Bosta every 45 minutes forever.
+const COMING_BACK_STATUSES = ["cancelled", "canceled"];
 
 const DEFAULT_STALE_MINUTES = 45;
 const DEFAULT_BATCH = 20;

@@ -70,5 +70,6 @@ test("the reconcile keeps chasing a cancelled parcel until the order is received
   const { sql, params } = calls[0];
   assert.match(sql, /cancelled_at IS NULL/);
   assert.match(sql, /= ANY\(\$5::text\[\]\)/);
-  assert.ok(params[4].includes("cancelled") && params[4].includes("returned"));
+  assert.ok(params[4].includes("cancelled"));
+  assert.ok(!params[4].includes("returned"), "a returned parcel was already received by its own event; exchange ones stay open and would be polled forever");
 });
