@@ -11,6 +11,7 @@ import { rankProductCandidates } from "../utils/productMatchConfidence.js";
 import { sanitizeGroundedAiReply } from "./aiReplyQualityService.js";
 import { generateSupportAnswer } from "./openaiSupportService.js";
 import { PRODUCT_GRADES, productGrade, productGradeRank } from "../config/productGrades.js";
+import { resolveInvoiceTemplateForOrder } from "./invoiceTemplateService.js";
 import {
   buildConversationMemoryV2,
   mergeConversationMemoryV2,
@@ -57,6 +58,19 @@ export const gradeGuideFor = (products = []) => {
   return PRODUCT_GRADES.filter((grade) => present.has(grade.key)).map(({ key, label, note }) => ({ grade: key, grade_label: label, note }));
 };
 
+// The exchange / return policy exactly as the online invoice prints it (Invoice Studio). Chat
+// customers are online customers; the template list is cached by the invoice service, and an
+// edit made there reaches the AI without a deploy. Empty when the invoice hides its policy.
+export const storeReturnPolicyFor = async (tenantId = null) => {
+  try {
+    const { config } = await resolveInvoiceTemplateForOrder(tenantId || 1, { channel: "website" });
+    const footer = config?.footer || {};
+    return footer.return_policy_enabled === false ? "" : text(footer.return_policy_ar);
+  } catch {
+    return "";
+  }
+};
+
 const rewriteStructuredDecision = async ({ decision = {}, inbound = {}, tenantId = null } = {}) => {
   if (!groundedRewriteEnabled()) return decision;
   const intent = text(decision.detected_intent || decision.intent);
@@ -77,6 +91,7 @@ const rewriteStructuredDecision = async ({ decision = {}, inbound = {}, tenantId
           catalog_url: catalogUrl,
           products: products.map(safeProductFacts),
           grade_guide: gradeGuideFor(products),
+          store_return_policy: await storeReturnPolicyFor(tenantId),
         }),
       }],
     },

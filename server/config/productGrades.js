@@ -8,9 +8,10 @@
  * it names the grade and says nothing about its material.
  */
 export const PRODUCT_GRADES = Object.freeze([
-  Object.freeze({ key: "local", label: "محلي", note: "" }),
-  Object.freeze({ key: "imported_from_vietnam", label: "مستورد فيتنامي", note: "" }),
-  Object.freeze({ key: "mirror_original", label: "ميرور اوريجينال", note: "" }),
+  // The owner's words, 2026-10-19.
+  Object.freeze({ key: "local", label: "محلي", note: "مصري، خامة محترمة." }),
+  Object.freeze({ key: "imported_from_vietnam", label: "مستورد فيتنامي", note: "خامة أعلى وتشطيب أنضف من المحلي، وعمره أطول." }),
+  Object.freeze({ key: "mirror_original", label: "ميرور اوريجينال", note: "أعلى درجة: نسخة طبق الأصل من الأوريجينال في الشكل والخامة والنعل والتفاصيل." }),
   Object.freeze({ key: "original", label: "أوريجينال", note: "" }),
 ]);
 
