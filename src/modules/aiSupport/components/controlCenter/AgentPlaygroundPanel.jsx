@@ -270,6 +270,11 @@ export default function AgentPlaygroundPanel({ headers, tenantId }) {
               >
                 {t("aiSupport.controlCenter.playground.wouldSend")}:{" "}
                 <b>{result.wouldSendAutomatically ? t("aiSupport.controlCenter.playground.yes") : t("aiSupport.controlCenter.playground.no")}</b>
+                {result.autoSendReason ? (
+                  <p className="mt-1 font-semibold opacity-80" dir="auto">
+                    {t(`aiSupport.controlCenter.playground.autoSendReasons.${result.autoSendReason}`, { defaultValue: result.autoSendReason })}
+                  </p>
+                ) : null}
               </div>
             </div>
           </div>

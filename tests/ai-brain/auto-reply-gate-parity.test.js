@@ -4,6 +4,7 @@ import fs from "node:fs";
 
 import {
   aiModeSwitchBlock,
+  channelAutoSendDecision,
   conversationAutoReplyBlock,
   recheckAutoReplyBeforeSend,
 } from "../../server/utils/aiAutoReplyGate.js";
@@ -152,4 +153,32 @@ test("after the model-name intro is sent, the carousel does not repeat it", () =
   const block = between(meta, "let introAlreadySent = false;", "if (sendResult?.dedupe_skipped)");
   assert.match(block, /introAlreadySent = Boolean\(introSend\?\.message_id\);/);
   assert.match(block, /sendMetaInboxOutboundMessage\(\{[\s\S]*?messageText: introAlreadySent \? "" : replyTextForSend,/);
+});
+
+// ---- playground: "would it be sent on its own?" ----------------------------------------------
+
+test("the playground's auto-send answer follows the channel's live auto-reply switch", () => {
+  // The owner's production shape on 2026-10-19: legacy global mode suggest_only, no per-channel
+  // row, and the channel's own auto-reply switch on. The playground said "no"; the live path sends.
+  const live = { ai_replies_enabled: true, auto_reply_mode: "fully_automatic" };
+  for (const channel of ["facebook_messenger", "instagram", "whatsapp"]) {
+    const decision = channelAutoSendDecision({ channel, globalMode: "suggest_only", channelMode: "suggest_only", runtimeSettings: live });
+    assert.deepEqual([decision.automatic, decision.reason], [true, "fully_automatic"], channel);
+  }
+  assert.equal(channelAutoSendDecision({ channel: "instagram", runtimeSettings: { ai_replies_enabled: false } }).reason, "AUTO_REPLY_OFF");
+  assert.equal(channelAutoSendDecision({ channel: "facebook_messenger", runtimeSettings: { ai_replies_enabled: true, auto_reply_mode: "suggest_only" } }).reason, "SUGGEST_ONLY");
+  assert.equal(channelAutoSendDecision({ channel: "facebook_messenger", runtimeSettings: { ai_replies_enabled: true, auto_reply_mode: "auto_reply_after_approval" } }).automatic, false);
+  assert.equal(channelAutoSendDecision({ channel: "whatsapp", runtimeSettings: live, whatsappAutoReplyEnv: "false" }).reason, "WHATSAPP_AI_AUTO_REPLY_OFF");
+  assert.equal(channelAutoSendDecision({ channel: "whatsapp", runtimeSettings: live, agentSettings: { ai_assistant_global_enabled: false } }).reason, "AI_ASSISTANT_GLOBAL_PAUSED");
+  assert.equal(channelAutoSendDecision({ channel: "instagram", runtimeSettings: live, channelMode: "off" }).reason, "CHANNEL_OFF");
+  assert.equal(channelAutoSendDecision({ channel: "instagram", runtimeSettings: live, globalMode: "off" }).reason, "GLOBAL_OFF");
+});
+
+test("the playground route answers with that decision, not the legacy modes", () => {
+  const route = between(read("../../server/routes/aiAgentOrders.js"), 'router.post("/test-reply"', "\n});\n");
+  assert.match(route, /getChannelSettings\(\{ tenantId, channel: channelId \}\)/);
+  assert.match(route, /const autoSend = channelAutoSendDecision\(\{/);
+  assert.match(route, /wouldSendAutomatically: autoSend\.automatic && /);
+  assert.match(route, /autoSendReason: autoSend\.reason/);
+  assert.doesNotMatch(route, /globalSettings\.autoReplyMode !== "fully_automatic"/);
 });

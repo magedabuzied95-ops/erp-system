@@ -2400,6 +2400,15 @@
       "wouldSend": "Would it send on its own?",
       "yes": "Yes",
       "no": "No",
+      "autoSendReasons": {
+        "fully_automatic": "This channel's auto-reply is on — customers get this reply without anyone pressing send.",
+        "AUTO_REPLY_OFF": "This channel's auto-reply is off — the reply waits for the team.",
+        "SUGGEST_ONLY": "This channel is on suggestions only — the team sends the reply.",
+        "GLOBAL_OFF": "AI replies are off for every channel in the AI settings.",
+        "CHANNEL_OFF": "AI replies are off for this channel in the AI settings.",
+        "AI_ASSISTANT_GLOBAL_PAUSED": "The AI assistant is paused for every channel.",
+        "WHATSAPP_AI_AUTO_REPLY_OFF": "WhatsApp auto-reply is off on the server (WHATSAPP_AI_AUTO_REPLY)."
+      },
       "error": "Could not run the test",
       "reset": "New conversation",
       "resetHint": "The test remembers earlier messages, exactly like a customer chat. Tap to start over.",

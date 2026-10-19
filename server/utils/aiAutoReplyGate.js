@@ -30,6 +30,38 @@ export const aiModeSwitchBlock = ({ globalMode = "", channelMode = "" } = {}) =>
 };
 
 /*
+ * Would a reply on this channel leave on its own? The channel-level switches only, in the order
+ * the live paths read them — WhatsApp: shouldAutoReplyToWhatsapp (aiInboxService), Meta: the
+ * webhook auto-reply loop (metaIntegrationService). The conversation's own state is not part of
+ * it. The playground uses this so its "would it be sent" answer is the server's, not a guess
+ * from the legacy ai_settings modes alone (those said "no" while the channel replied live).
+ */
+const AUTOMATIC_RUNTIME_MODES = new Set(["fully_automatic", "automatic"]);
+const META_HELD_MODES = new Set(["suggest_only", "auto_reply_after_approval"]);
+
+export const channelAutoSendDecision = ({
+  channel = "",
+  agentSettings = {},
+  globalMode = "",
+  channelMode = "",
+  runtimeSettings = {},
+  whatsappAutoReplyEnv = "",
+} = {}) => {
+  const isWhatsapp = text(channel).toLowerCase() === "whatsapp";
+  const runtimeMode = text(runtimeSettings?.auto_reply_mode || (runtimeSettings?.ai_replies_enabled === true ? "fully_automatic" : "off")).toLowerCase();
+  const decide = (automatic, reason) => ({ automatic, reason, runtimeMode });
+  if (isWhatsapp && text(whatsappAutoReplyEnv).toLowerCase() === "false") return decide(false, "WHATSAPP_AI_AUTO_REPLY_OFF");
+  if (agentSettings?.ai_assistant_global_enabled === false) return decide(false, "AI_ASSISTANT_GLOBAL_PAUSED");
+  const modeBlock = aiModeSwitchBlock({ globalMode, channelMode });
+  if (modeBlock) return decide(false, modeBlock);
+  if (runtimeSettings?.ai_replies_enabled !== true || runtimeMode === "off") return decide(false, "AUTO_REPLY_OFF");
+  if (isWhatsapp) {
+    return AUTOMATIC_RUNTIME_MODES.has(runtimeMode) ? decide(true, "fully_automatic") : decide(false, "SUGGEST_ONLY");
+  }
+  return META_HELD_MODES.has(runtimeMode) ? decide(false, "SUGGEST_ONLY") : decide(true, "fully_automatic");
+};
+
+/*
  * Read the conversation again right before sending. A failed lookup lets the reply through:
  * the gate before generation already passed, and a database blip must not become a new way
  * for a customer to go unanswered.

@@ -72,6 +72,7 @@ import { buildHumanizedReply } from "../services/aiHumanizedReplies.js";
 import { isDuplicateMessage } from "../services/aiMessageDeduplication.js";
 import { getAISettings, getAIToneInstruction, updateAISettings, wasAISettingsPersisted } from "../services/aiSettingsService.js";
 import { splitAiSettingsPayload } from "../utils/aiSettingsPartition.js";
+import { channelAutoSendDecision } from "../utils/aiAutoReplyGate.js";
 import {
   __resetAgentActionPolicyCache,
   applyAgentActionUpdates,
@@ -1431,11 +1432,23 @@ router.post("/test-reply", protect, permit("settings", "view"), async (req, res)
     const channelId = envText(req.body?.channelId || req.body?.channel_id || AI_AGENT_CHANNELS.FACEBOOK_MESSENGER);
     const platform = envText(req.body?.platform || channelId);
     const message = envText(req.body?.message);
-    const globalSettings = await getAISettings();
-    const channelSettings = await getAIChannelSettings(channelId, platform);
-    const effectiveMode = globalSettings.autoReplyMode !== "fully_automatic"
-      ? globalSettings.autoReplyMode
-      : channelSettings.aiMode || "suggest_only";
+    const [globalSettings, channelSettings, runtimeSettings, agentSettings] = await Promise.all([
+      getAISettings(),
+      getAIChannelSettings(channelId, platform),
+      getChannelSettings({ tenantId, channel: channelId }).catch(() => ({})),
+      getAiAgentSettings({ tenantId }).catch(() => ({})),
+    ]);
+    // The same channel switches the live webhook paths read — the per-channel auto-reply switch
+    // decides, not the legacy ai_settings modes alone.
+    const autoSend = channelAutoSendDecision({
+      channel: channelId,
+      agentSettings,
+      globalMode: globalSettings.autoReplyMode,
+      channelMode: channelSettings.aiMode,
+      runtimeSettings,
+      whatsappAutoReplyEnv: process.env.WHATSAPP_AI_AUTO_REPLY,
+    });
+    const effectiveMode = autoSend.runtimeMode;
     const testConversationId = `test:${channelId}:${req.user?.id || "admin"}`;
     if (req.body?.reset) playgroundMemories.delete(testConversationId);
     const memory = playgroundMemories.get(testConversationId) || {};
@@ -1482,7 +1495,8 @@ router.post("/test-reply", protect, permit("settings", "view"), async (req, res)
         model: runtime.text_model,
       },
       safetyReason: output.debug?.grounded_rewrite_applied ? "" : (runtime.text_generation_block_reason || ""),
-      wouldSendAutomatically: effectiveMode === "fully_automatic" && Boolean(finalReply || productCards.length),
+      wouldSendAutomatically: autoSend.automatic && Boolean(finalReply || productCards.length),
+      autoSendReason: autoSend.reason,
     };
     pushAIEvent({
       type: "AI_TEST_PLAYGROUND_RUN",
