@@ -27,6 +27,7 @@ import {
   completeAiInboxReplyLock,
 } from "./aiSupportLogService.js";
 import { getAISettings } from "./aiSettingsService.js";
+import { greetingReplyParts } from "../utils/greetingReply.js";
 import { getAIChannelSettings } from "./aiChannelSettingsService.js";
 import { aiModeSwitchBlock, recheckAutoReplyBeforeSend } from "../utils/aiAutoReplyGate.js";
 import { logAIPersistentEvent } from "./aiPersistentEventLogService.js";
@@ -16426,6 +16427,7 @@ const sendAndLogMetaText = async ({ config, message, text: replyText, detectedIn
     replyPath: finalMetadata.replyPath,
     orchestratorUsed: true,
     resolvedQuestionType: finalMetadata.resolvedQuestionType,
+    skipGreetingGuard: metadata.skipGreetingGuard === true,
   });
   if (result?.dedupe_skipped) return result;
   console.log("[AI_CHANNEL_ADAPTER_RESULT]", {
@@ -26212,22 +26214,28 @@ const handleGreetingIfMatched = async ({ config, message } = {}) => {
     blockedHandlers,
     templateId: orchestratedGreeting.templateId || "",
   });
-  await sendAndLogMetaText({
-    config,
-    message,
-    text: orchestratedGreeting.replyText || "",
-    detectedIntent: "greeting",
-    metadata: {
-      ...orchestratedReplyMetadata(orchestratedGreeting),
-      preserveReplyText: true,
-      replyCategory: "GREETING",
-      replyType: "greeting",
-      resolvedQuestionType: QUESTION_TYPES.GREETING,
-      blockedProductContext,
-      blockedHandlers,
-      handler: "greeting_guard",
-    },
-  });
+  // The owner's short greeting, the same as WhatsApp's (utils/greetingReply.js): one message per
+  // part — "وعليكم السلام ورحمة الله", then "تحت أمر حضرتك؟".
+  const greetingParts = greetingReplyParts(message.message_text || "");
+  for (const [partIndex, part] of greetingParts.entries()) {
+    await sendAndLogMetaText({
+      config,
+      message,
+      text: part,
+      detectedIntent: "greeting",
+      metadata: {
+        ...orchestratedReplyMetadata(orchestratedGreeting),
+        preserveReplyText: true,
+        replyCategory: "GREETING",
+        replyType: "greeting",
+        resolvedQuestionType: QUESTION_TYPES.GREETING,
+        blockedProductContext,
+        blockedHandlers,
+        handler: "greeting_guard",
+        skipGreetingGuard: partIndex > 0,
+      },
+    });
+  }
   return { handled: true, reason: "greeting_only" };
 };
 
@@ -26721,13 +26729,15 @@ export const sendMetaInboxOutboundMessage = async ({
   replyPath = [],
   orchestratorUsed = true,
   resolvedQuestionType = "",
+  // A greeting's later part ("تحت أمر حضرتك؟"): its "وعليكم السلام" already went in the first.
+  skipGreetingGuard = false,
 } = {}) => {
   await ensureMetaIntegrationSchema();
   const scopedTenantId = numberOrNull(tenantId);
   const normalizedChannel = adapterChannel(channelAlias(channel) === "instagram" || channel === AI_AGENT_CHANNELS.INSTAGRAM ? "instagram" : "facebook");
   let safeRecipientId = text(recipientId);
   let safeMessage = text(messageText);
-  safeMessage = applyMetaGreetingGuard({
+  if (!skipGreetingGuard) safeMessage = applyMetaGreetingGuard({
     channel: normalizedChannel,
     source: replySource || replyOwner || "sendMetaInboxOutboundMessage",
     customerMessageText,

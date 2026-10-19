@@ -1,35 +1,30 @@
 /*
- * The answer to a bare greeting, the same on every channel. "السلام عليكم" used to get only
- * "وعليكم السلام ورحمة الله، أهلاً بيك يا فندم." — polite, and a dead end: the customer had to
- * think of the next move. It now welcomes them and offers the next step (a section or a model)
- * without pushing any product at someone who has not asked for one yet.
+ * The answer to a bare greeting, the same on every channel, in the owner's words (2026-10-19):
+ * short, and in two messages — the greeting back, then "تحت أمر حضرتك؟". No "نورتنا", no list of
+ * sections: the customer says what they want next. Thanks get "تحت أمر حضرتك ❤️".
+ *
+ * greetingReplyParts() is what the senders that can post several messages use (reply_parts);
+ * greetingReplyFor() is the same parts on two lines, for anything that sends one text.
  */
 
-export const GREETING_NEXT_STEP = "تحب أساعدك تلاقي إيه النهارده؟ بتدور على حاجة رجالي ولا حريمي ولا أطفال، ولا في موديل معين في بالك؟";
+export const GREETING_OFFER = "تحت أمر حضرتك؟";
 
 const text = (value = "") => String(value ?? "").trim();
 
 const SALAM = /(?:^|\s)(?:ال)?سلام(?:و)?\s*(?:عليكم|عليكو)|السلاام عليكم/;
-
-// Openings that already end on an offer to help need no second question after them.
-const asksAlready = (opening = "") => /أساعدك|اساعدك|نساعدك|محتاج إيه|محتاج ايه|[؟?]\s*$/.test(text(opening));
-
-export const withGreetingNextStep = (opening = "") => {
-  const value = text(opening);
-  if (!value) return GREETING_NEXT_STEP;
-  return asksAlready(value) ? value : `${value}\n${GREETING_NEXT_STEP}`;
-};
-
 const THANKS = /(?:شكر|متشكر|تسلم|ميرسي|thank|thx)/i;
+const CHECK_IN = /(?:عامل ايه|عامل إيه|ازيك|إزيك|اخبارك|أخبارك)/;
 
-// "شكراً" is classified as a greeting too; it gets a thank-you answer, not a welcome.
-export const greetingReplyFor = (message = "") => {
+export const greetingReplyParts = (message = "") => {
   const value = text(message);
-  if (THANKS.test(value) && !SALAM.test(value)) return "العفو يا فندم، ده واجبنا 🌷\nلو محتاج أي حاجة تانية أنا موجود.";
-  if (SALAM.test(value)) return withGreetingNextStep("وعليكم السلام ورحمة الله، أهلاً بيك يا فندم ونورتنا 🌷");
-  if (/صباح/.test(value)) return withGreetingNextStep("صباح النور يا فندم، نورتنا 🌷");
-  if (/مساء/.test(value)) return withGreetingNextStep("مساء النور يا فندم، نورتنا 🌷");
-  return withGreetingNextStep("أهلاً بيك يا فندم، نورتنا 🌷");
+  if (THANKS.test(value) && !SALAM.test(value)) return ["تحت أمر حضرتك ❤️"];
+  if (SALAM.test(value)) return ["وعليكم السلام ورحمة الله", GREETING_OFFER];
+  if (/صباح/.test(value)) return ["صباح النور", GREETING_OFFER];
+  if (/مساء/.test(value)) return ["مساء النور", GREETING_OFFER];
+  if (CHECK_IN.test(value)) return ["الحمد لله يا فندم", GREETING_OFFER];
+  return ["أهلاً بيك يا فندم", GREETING_OFFER];
 };
+
+export const greetingReplyFor = (message = "") => greetingReplyParts(message).join("\n");
 
 export default greetingReplyFor;

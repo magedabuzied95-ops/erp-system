@@ -17,6 +17,7 @@ import {
   logWhatsappAiOutbound,
   recheckWhatsappAutoReplyBeforeSend,
 } from "./aiInboxService.js";
+import { greetingReplyFor } from "../utils/greetingReply.js";
 import { handleInboundMarketingStopWord } from "./marketingConsentService.js";
 import { debugAiImagesLog, normalizeProductCards } from "./aiProductCards.js";
 import { ensureCarouselCardImageUrl } from "./productImageVariantService.js";
@@ -130,6 +131,14 @@ export const getEvolutionWebhookSkipReason = ({ event = "", remoteJid = "", mess
   if (!String(messageId || "").trim()) return WHATSAPP_WEBHOOK_SKIP_REASONS.missingMessageId;
   if (!hasMessageContent && !hasMedia) return WHATSAPP_WEBHOOK_SKIP_REASONS.missingText;
   return "";
+};
+
+// The parts of a reply that should leave as separate messages (brain V2's reply_parts for a
+// greeting). Empty unless the text about to be sent is still exactly those parts on their own
+// lines — a guard that rewrote the reply wins, and the rewritten text goes as one message.
+export const whatsappReplyParts = ({ aiPayload = {}, finalText = "" } = {}) => {
+  const parts = asArray(aiPayload?.reply_parts).map((part) => text(part)).filter(Boolean);
+  return parts.length > 1 && parts.join("\n") === text(finalText) ? parts : [];
 };
 
 const applyWhatsappGreetingGuard = ({ customerMessageText = "", replyText = "" } = {}) => {
@@ -7137,7 +7146,7 @@ export const triggerWhatsappAiAutoReply = async (message = {}) => {
         !explicitProductFollowup &&
         !isImageFollowup &&
         isBareGreetingOrAck(message.message_text || message.text || "")
-        ? "وعليكم السلام ورحمة الله، أهلاً بيك يا فندم "
+        ? greetingReplyFor(message.message_text || message.text || "")
         : outboundPlan.text;
       const safeText = applyWhatsappGreetingGuard({
         customerMessageText: message.message_text || "",
@@ -7159,7 +7168,16 @@ export const triggerWhatsappAiAutoReply = async (message = {}) => {
           text_preview: outboundPlan.text.slice(0, 120),
         });
       }
-      result = await sendTextMessage({ phone: sendTargetNumber, message: safeText, instance: text(message.instance || "") });
+      // A reply made of parts (a greeting: "وعليكم السلام ورحمة الله", then "تحت أمر حضرتك؟")
+      // leaves as one message per part — but only while no guard above rewrote the text.
+      const replyParts = whatsappReplyParts({ aiPayload: generated.aiPayload, finalText: safeText });
+      if (replyParts.length > 1) {
+        for (const part of replyParts) {
+          result = await sendTextMessage({ phone: sendTargetNumber, message: part, instance: text(message.instance || "") });
+        }
+      } else {
+        result = await sendTextMessage({ phone: sendTargetNumber, message: safeText, instance: text(message.instance || "") });
+      }
     }
     const runtimeProductId = outboundPlan.selected_product_ids[0] || null;
     const runtimeColorsFound = [...new Set(dedupedOutboundCards.map((card) => text(card.color || card.product?.color || card.matched_variant_color || "")).filter(Boolean))];

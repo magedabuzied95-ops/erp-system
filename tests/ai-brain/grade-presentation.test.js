@@ -158,11 +158,11 @@ test("the card builder keeps a card's grade", async () => {
   assert.equal(card.grade_label, "ميرور اوريجينال");
 });
 
-test("brain V2 answers a bare greeting with the welcome and the next step", async () => {
+test("brain V2 answers a bare greeting short, in two parts, end to end", async () => {
   const decision = await ask("السلام عليكم");
   assert.equal(decision.intent, "greeting");
-  assert.match(decision.text, /^وعليكم السلام ورحمة الله/);
-  assert.match(decision.text, /رجالي ولا حريمي ولا أطفال/);
+  assert.deepEqual(decision.reply_parts, ["وعليكم السلام ورحمة الله", "تحت أمر حضرتك؟"]);
+  assert.equal(decision.text, "وعليكم السلام ورحمة الله\nتحت أمر حضرتك؟");
   assert.equal((decision.product_cards || []).length, 0, "no products for a greeting");
 });
 

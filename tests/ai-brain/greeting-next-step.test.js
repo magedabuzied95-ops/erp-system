@@ -1,41 +1,63 @@
 import test from "node:test";
 import assert from "node:assert/strict";
+import fs from "node:fs";
 
-import { GREETING_NEXT_STEP, greetingReplyFor, withGreetingNextStep } from "../../server/utils/greetingReply.js";
+import { GREETING_OFFER, greetingReplyFor, greetingReplyParts } from "../../server/utils/greetingReply.js";
+import { whatsappReplyParts } from "../../server/services/whatsappGatewayService.js";
 
 /**
- * The owner's WhatsApp test, 2026-10-19: "السلام عليكم" got only "وعليكم السلام ورحمة الله، أهلاً
- * بيك يا فندم." — a dead end. A greeting now welcomes the customer and offers the next step
- * (رجالي / حريمي / أطفال or a model) without pushing a product.
+ * The owner, 2026-10-19: a greeting is short and in two messages — "وعليكم السلام ورحمة الله",
+ * then "تحت أمر حضرتك؟". No "نورتنا", no list of sections. Thanks: "تحت أمر حضرتك ❤️".
  */
 
-test("السلام عليكم gets the salam back, a welcome and the next step", () => {
-  const reply = greetingReplyFor("السلام عليكم");
-  assert.match(reply, /^وعليكم السلام ورحمة الله، أهلاً بيك يا فندم/);
-  assert.match(reply, /رجالي ولا حريمي ولا أطفال، ولا في موديل معين في بالك؟$/);
-  assert.doesNotMatch(reply, /جنيه|\d{2}/, "no product, price or size");
+const read = (path) => fs.readFileSync(new URL(path, import.meta.url), "utf8").replace(/\r\n/g, "\n");
+
+test("السلام عليكم is answered in two short messages", () => {
+  assert.deepEqual(greetingReplyParts("السلام عليكم"), ["وعليكم السلام ورحمة الله", "تحت أمر حضرتك؟"]);
+  assert.equal(greetingReplyFor("السلام عليكم"), "وعليكم السلام ورحمة الله\nتحت أمر حضرتك؟");
 });
 
-test("other greetings get a matching opening and the same next step", () => {
-  assert.match(greetingReplyFor("صباح الخير"), /^صباح النور يا فندم/);
-  assert.match(greetingReplyFor("مساء الخير"), /^مساء النور يا فندم/);
-  assert.match(greetingReplyFor("هاي"), /^أهلاً بيك يا فندم/);
-  for (const message of ["صباح الخير", "هاي"]) assert.ok(greetingReplyFor(message).endsWith(GREETING_NEXT_STEP));
+test("other greetings: the matching greeting back, then the same offer", () => {
+  assert.deepEqual(greetingReplyParts("صباح الخير"), ["صباح النور", GREETING_OFFER]);
+  assert.deepEqual(greetingReplyParts("مساء الخير"), ["مساء النور", GREETING_OFFER]);
+  assert.deepEqual(greetingReplyParts("هاي"), ["أهلاً بيك يا فندم", GREETING_OFFER]);
+  assert.deepEqual(greetingReplyParts("عامل ايه"), ["الحمد لله يا فندم", GREETING_OFFER]);
 });
 
-test("thanks is answered as thanks, not as a welcome", () => {
-  assert.match(greetingReplyFor("شكرا"), /^العفو يا فندم/);
-  assert.doesNotMatch(greetingReplyFor("شكرا"), /نورتنا/);
+test("thanks get تحت أمر حضرتك with a heart, nothing more", () => {
+  assert.deepEqual(greetingReplyParts("شكرا"), ["تحت أمر حضرتك ❤️"]);
+  assert.deepEqual(greetingReplyParts("متشكر جدا"), ["تحت أمر حضرتك ❤️"]);
 });
 
-test("an opening that already offers help gets no second question", () => {
-  assert.equal(withGreetingNextStep("نورتنا، قولّي أساعدك في إيه."), "نورتنا، قولّي أساعدك في إيه.");
-  assert.equal(withGreetingNextStep("صباح الفل يا فندم، تحت أمرك."), `صباح الفل يا فندم، تحت أمرك.\n${GREETING_NEXT_STEP}`);
+test("none of the greetings carries the words the owner cut", () => {
+  for (const message of ["السلام عليكم", "صباح الخير", "مساء الخير", "هاي", "شكرا"]) {
+    const reply = greetingReplyFor(message);
+    assert.doesNotMatch(reply, /نورتنا|أساعدك|رجالي|حريمي|أطفال|موديل/, `${message}: ${reply}`);
+  }
 });
 
-test("the reply composer's greetings go through the same builder", async () => {
-  const fs = await import("node:fs");
-  const source = fs.readFileSync(new URL("../../server/services/aiSalesReplyComposerService.js", import.meta.url), "utf8");
-  assert.match(source, /const buildGreetingReply = \(message = "", seed = ""\) => \(greetingKind\(message\) === "islamic"\s*\? greetingReplyFor\(message\)\s*: withGreetingNextStep\(buildGreetingOpening\(message, seed\)\)\);/);
-  assert.doesNotMatch(source, /return "وعليكم السلام ورحمة الله، أهلاً بيك يا فندم\.";/);
+test("WhatsApp sends each part as its own message, unless a guard rewrote the text", () => {
+  const aiPayload = { reply_parts: ["وعليكم السلام ورحمة الله", "تحت أمر حضرتك؟"] };
+  assert.deepEqual(whatsappReplyParts({ aiPayload, finalText: "وعليكم السلام ورحمة الله\nتحت أمر حضرتك؟" }), aiPayload.reply_parts);
+  assert.deepEqual(whatsappReplyParts({ aiPayload, finalText: "وعليكم السلام ورحمة الله، أهلاً" }), [], "a rewritten reply goes as one message");
+  assert.deepEqual(whatsappReplyParts({ aiPayload: { reply_parts: ["تحت أمر حضرتك ❤️"] }, finalText: "تحت أمر حضرتك ❤️" }), [], "one part is one message anyway");
+  const gateway = read("../../server/services/whatsappGatewayService.js");
+  assert.match(gateway, /const replyParts = whatsappReplyParts\(\{ aiPayload: generated\.aiPayload, finalText: safeText \}\);\s*if \(replyParts\.length > 1\) \{\s*for \(const part of replyParts\) \{\s*result = await sendTextMessage\(\{ phone: sendTargetNumber, message: part,/);
+});
+
+test("Messenger and Instagram greet with the same parts, the second without a repeated salam", () => {
+  const meta = read("../../server/services/metaIntegrationService.js");
+  const handler = meta.slice(meta.indexOf("const greetingParts = greetingReplyParts("), meta.indexOf('return { handled: true, reason: "greeting_only" };'));
+  assert.match(handler, /for \(const \[partIndex, part\] of greetingParts\.entries\(\)\) \{\s*await sendAndLogMetaText\(\{/);
+  assert.match(handler, /text: part,/);
+  assert.match(handler, /skipGreetingGuard: partIndex > 0,/);
+  assert.match(meta, /if \(!skipGreetingGuard\) safeMessage = applyMetaGreetingGuard\(\{/);
+  assert.match(meta, /skipGreetingGuard: metadata\.skipGreetingGuard === true,/);
+});
+
+test("brain V2 hands the parts to the channels", async () => {
+  const brain = read("../../server/services/aiBrainV2Service.js");
+  assert.match(brain, /\.\.\.\(intent === "greeting" \? \{ reply_parts: greetingReplyParts\(originalMessage \|\| message\) \} : \{\}\),/);
+  const composer = read("../../server/services/aiSalesReplyComposerService.js");
+  assert.match(composer, /SHARED_GREETING_KINDS\.has\(greetingKind\(message\)\)\s*\? greetingReplyFor\(message\)/);
 });

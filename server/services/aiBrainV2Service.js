@@ -8,7 +8,7 @@ import { buildAliasAwareSearchHints } from "../utils/aliasAwareProductSearch.js"
 import { rankProductCandidates, scoreProductCandidate } from "../utils/productMatchConfidence.js";
 import { audienceStoredValues, firstAudience, resolveCatalogNavigation } from "./aiCatalogNavigationService.js";
 import { productNamingTerms } from "../utils/productNamingTerms.js";
-import { greetingReplyFor } from "../utils/greetingReply.js";
+import { greetingReplyFor, greetingReplyParts } from "../utils/greetingReply.js";
 import { GRADE_CARD_LIMIT, GRADED_CARDS_TOTAL_LIMIT, productGrade, productGradeRank } from "../config/productGrades.js";
 import {
   buildConversationMemoryV2,
@@ -1730,6 +1730,9 @@ export const generateAiBrainV2Decision = async (normalizedInbound = {}, options 
     handoff: { needs_human_support: false, reason: "", conversation_status: "" },
     active_product_id: activeProductId,
     channel_reply: normalizeOutgoingChannelReply({ channel, response: { text: responseText, product_cards: productCards, image_cards: images, suggested_actions: actions } }),
+    // A greeting leaves as separate messages ("وعليكم السلام ورحمة الله", then "تحت أمر حضرتك؟");
+    // `text` holds the same parts on two lines for senders that post one message.
+    ...(intent === "greeting" ? { reply_parts: greetingReplyParts(originalMessage || message) } : {}),
     // Graded runs can pass the channels' default 6 / 12; the Meta sender caps cards by this.
     ...(productCards.length > 6 ? { metadata: { product_card_limit: productCards.length } } : {}),
     debug: {

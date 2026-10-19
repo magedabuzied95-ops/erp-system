@@ -1,7 +1,7 @@
 ﻿import { resolveCustomerDisplayPrice, formatCustomerDisplayPrice } from "../utils/customerDisplayPrice.js";
 import { buildDynamicClarificationQuestion } from "./aiClassificationResolverService.js";
 import { applyHumanSalesPersonalityLayer } from "./aiHumanSalesPersonalityLayer.js";
-import { greetingReplyFor, withGreetingNextStep } from "../utils/greetingReply.js";
+import { greetingReplyFor } from "../utils/greetingReply.js";
 
 const text = (value = "", fallback = "") => String(value ?? fallback).trim();
 const asArray = (value) => (Array.isArray(value) ? value : []);
@@ -603,10 +603,12 @@ const buildGreetingOpening = (message = "", seed = "") => {
   ], `default|${seed}|${message}`);
 };
 
-// A bare greeting is answered the same on every path: welcome, then the next step.
-const buildGreetingReply = (message = "", seed = "") => (greetingKind(message) === "islamic"
+// A bare greeting is answered the same on every path, short (utils/greetingReply.js). "فيه حد
+// موجود؟" and "محتاج مساعدة" keep their own answers: those reply to the question itself.
+const SHARED_GREETING_KINDS = new Set(["islamic", "morning", "evening", "casual", "checkin"]);
+const buildGreetingReply = (message = "", seed = "") => (SHARED_GREETING_KINDS.has(greetingKind(message))
   ? greetingReplyFor(message)
-  : withGreetingNextStep(buildGreetingOpening(message, seed)));
+  : buildGreetingOpening(message, seed));
 
 const buildGreetingOnlyOutput =({ response = {}, message = "", context = {} } = {}) =>
   withAnswer(stripProductPayload(response, { preserveProductCards: false }), buildGreetingReply(message, text(context?.conversationId || context?.session_id || context?.id || "")), {
