@@ -1446,6 +1446,9 @@ export const generateWhatsappAiAutoReply = async ({ tenantId, phone, sessionId, 
       externalCustomerId: safePhone,
       customerName,
       text: body,
+      // The customer's own words: the intent-normalized body spells "ايرفورس" as "اير4س", and
+      // brain V2 reads product names from this, as it already does for Messenger and Instagram.
+      original_message: originalBody,
       attachments: message.attachments || [],
       metadata: {
         tenant_id: safeTenantId,

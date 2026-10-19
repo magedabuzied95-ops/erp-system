@@ -7,6 +7,7 @@ import { resolveProductAlias } from "../utils/productAliasResolver.js";
 import { buildAliasAwareSearchHints } from "../utils/aliasAwareProductSearch.js";
 import { rankProductCandidates, scoreProductCandidate } from "../utils/productMatchConfidence.js";
 import { resolveCatalogNavigation } from "./aiCatalogNavigationService.js";
+import { productNamingTerms } from "../utils/productNamingTerms.js";
 import {
   buildConversationMemoryV2,
   mergeConversationMemoryV2,
@@ -782,6 +783,18 @@ const classifyIntent = ({ message = "", attachments = [], explicitModel = null, 
   return "general";
 };
 
+const NAMED_PRODUCT_OVERRIDABLE_INTENTS = new Set(["size_followup", "price_objection", "color_followup", "general", "greeting", "buying_intent"]);
+
+export const shouldSearchNamedProduct = ({ intent = "", namedProductTerms = [], memory = {} } = {}) => {
+  if (!NAMED_PRODUCT_OVERRIDABLE_INTENTS.has(intent) || !asArray(namedProductTerms).length) return false;
+  // Asking about the product already on screen ("الاير فورس متاح 42؟" after its cards) stays a
+  // follow-up on it; only a name the active product does not carry starts a new search.
+  const activeCard = memoryCardsFromContext(memory)[0] || {};
+  const activeName = text(activeCard.name || activeCard.title || "").toLowerCase();
+  if (activeName && namedProductTerms.some((term) => activeName.includes(term))) return false;
+  return true;
+};
+
 const tableColumnCache = new Map();
 
 const tableColumns = async (tableName = "") => {
@@ -802,7 +815,9 @@ const column = (alias = "", columns = new Set(), names = [], fallback = "NULL") 
 const tenantClause = (alias = "", columns = new Set(), paramIndex = 2) =>
   columns.has("tenant_id") ? `AND ($${paramIndex}::bigint IS NULL OR ${alias}.tenant_id = $${paramIndex}::bigint OR ${alias}.tenant_id IS NULL)` : "";
 
-const searchTermsForMessage = ({ message = "", explicitModel = null } = {}) => {
+// namingTerms come from the customer's ORIGINAL wording: the intent-normalized text this runs on
+// spells "فورس" as "4س", which no transliteration can read back as "force".
+const searchTermsForMessage = ({ message = "", explicitModel = null, namingTerms = [] } = {}) => {
   const aliasResult = resolveProductAlias(message);
   const aliasHints = buildAliasAwareSearchHints({ text: message, aliasResult });
   if (explicitModel) {
@@ -813,6 +828,7 @@ const searchTermsForMessage = ({ message = "", explicitModel = null } = {}) => {
     ]);
   }
   return unique([
+    ...asArray(namingTerms),
     ...(aliasHints.hasAliasHint ? aliasHints.searchTerms : []),
     ...(aliasHints.hasAliasHint ? aliasHints.productQueryHints : []),
     ...normalizeArabic(message)
@@ -822,7 +838,7 @@ const searchTermsForMessage = ({ message = "", explicitModel = null } = {}) => {
   ]);
 };
 
-const scoreProduct = ({ product = {}, normalizedMessage = "", explicitModel = null } = {}) => {
+const scoreProduct = ({ product = {}, normalizedMessage = "", explicitModel = null, namingTerms = [] } = {}) => {
   const name = normalizeArabic(product.name || product.title || product.product_name || "");
   const sku = normalizeArabic(product.sku || "");
   let score = 0;
@@ -851,13 +867,18 @@ const scoreProduct = ({ product = {}, normalizedMessage = "", explicitModel = nu
   for (const token of normalizedMessage.split(/\s+/).filter((item) => item.length >= 2)) {
     if (name.includes(token) || sku.includes(token)) score += 5;
   }
+  // Tagged, not scored: the tag is what keeps a named product in the answer (selectedProducts).
+  const lowerName = name.toLowerCase();
+  for (const term of namingTerms) {
+    if (lowerName.includes(term)) reasons.push(`named:${term}`);
+  }
   const stock = Number(product.total_stock ?? product.stock ?? product.quantity ?? 0) || 0;
   if (stock > 0) score += 8;
   if (product.status && !["active", "published", "available"].includes(text(product.status).toLowerCase())) score -= 20;
   return { score, reasons };
 };
 
-const loadCandidateProducts = async ({ tenantId = null, message = "", explicitModel = null, limit = 80 } = {}) => {
+const loadCandidateProducts = async ({ tenantId = null, message = "", explicitModel = null, namingTerms = [], limit = 80 } = {}) => {
   const productColumns = await tableColumns("products");
   const tenantFilter = productColumns.has("tenant_id") ? "AND ($1::bigint IS NULL OR p.tenant_id = $1::bigint OR p.tenant_id IS NULL)" : "";
   const deletedFilter = productColumns.has("deleted_at") ? "AND p.deleted_at IS NULL" : "";
@@ -869,7 +890,7 @@ const loadCandidateProducts = async ({ tenantId = null, message = "", explicitMo
     column("p", productColumns, ["article_code"], "''"),
     column("p", productColumns, ["description"], "''"),
   ];
-  const terms = searchTermsForMessage({ message, explicitModel });
+  const terms = searchTermsForMessage({ message, explicitModel, namingTerms });
   const aliasResult = resolveProductAlias(message);
   const aliasHints = buildAliasAwareSearchHints({ text: message, aliasResult });
   const likeClauses = terms.map((_, index) => searchable.map((expr) => `${expr} ILIKE $${index + 2}`).join(" OR "));
@@ -882,7 +903,7 @@ const loadCandidateProducts = async ({ tenantId = null, message = "", explicitMo
       ${activeFilter}
       ${statusFilter}
       ${likeClauses.length ? `AND (${likeClauses.map((clause) => `(${clause})`).join(" OR ")})` : ""}
-    ORDER BY p.id DESC
+    ORDER BY ${terms.length ? `(${terms.map((_, index) => `CASE WHEN ${searchable[0]} ILIKE $${index + 2} THEN 1 ELSE 0 END`).join(" + ")}) DESC, ` : ""}p.id DESC
     LIMIT ${Math.max(1, Math.min(Number(limit) || 80, 200))}
   `;
   const params = [numberOrNull(tenantId), ...terms.map((term) => `%${term}%`)];
@@ -913,11 +934,11 @@ const loadCandidateProducts = async ({ tenantId = null, message = "", explicitMo
   return result.rows || [];
 };
 
-const rankProducts = ({ products = [], message = "", explicitModel = null, aliasResult = null, searchHints = null, intentPayload = null } = {}) => {
+const rankProducts = ({ products = [], message = "", explicitModel = null, namingTerms = [], aliasResult = null, searchHints = null, intentPayload = null } = {}) => {
   const normalizedMessage = normalizeArabic(message);
   const legacyRanked = asArray(products)
     .map((product) => {
-      const scored = scoreProduct({ product, normalizedMessage, explicitModel });
+      const scored = scoreProduct({ product, normalizedMessage, explicitModel, namingTerms });
       return {
         ...product,
         ai_brain_v2_score: scored.score,
@@ -1295,7 +1316,7 @@ export const generateAiBrainV2Decision = async (normalizedInbound = {}, options 
     attachments_count: asArray(normalizedInbound.attachments).length,
     explicit_model: explicitModel?.model || "",
   });
-  const intent = classifyIntent({
+  const classifiedIntent = classifyIntent({
     message,
     attachments: normalizedInbound.attachments,
     explicitModel,
@@ -1303,8 +1324,23 @@ export const generateAiBrainV2Decision = async (normalizedInbound = {}, options 
     productQuery: normalizedInbound.product_query || normalizedInbound.productQuery || normalizedInbound.metadata?.product_query || normalizedInbound.metadata?.productQuery || options.productQuery || "",
     productCards: normalizedInbound.product_cards || normalizedInbound.productCards || options.productCards || [],
   });
+  // "متاح ايرفورس ؟" / "بكام الاير فورس" / "السلام عليكم عندكم سامبا": the availability, price or
+  // greeting word classified it first, and none of those intents searches the catalog — so a
+  // model we stock was answered with "no information". A product the message NAMES (and that is
+  // not the one already being discussed) makes it a product search.
+  const namedProductTerms = explicitModel ? [] : productNamingTerms(originalMessage || message);
+  const intent = shouldSearchNamedProduct({ intent: classifiedIntent, namedProductTerms, memory })
+    ? "product_search"
+    : classifiedIntent;
+  if (intent !== classifiedIntent) {
+    console.info("AI_BRAIN_V2_NAMED_PRODUCT", { classified_intent: classifiedIntent, named_terms: namedProductTerms });
+  }
   const explicitCatalogFacet = /(رجالي|رجاله|حريمي|نسائي|نساء|اطفال|أطفال|kids?|women?|men|قسم|سكشن|فئ[هة]|نوع)/i.test(originalMessage);
-  const mayNavigateCatalog = !memoryActiveProductId || explicitCatalogFacet;
+  // Browsing filters by audience / type / category / brand / size only — never by model name — so
+  // "عايز ايرفورس" answered "found N items" with a link to the whole shop. A named product is a
+  // search, unless the customer also asked for a section.
+  const namesAProduct = Boolean(explicitModel) || namedProductTerms.length > 0;
+  const mayNavigateCatalog = (!memoryActiveProductId || explicitCatalogFacet) && (!namesAProduct || explicitCatalogFacet);
   const catalogNavigation = mayNavigateCatalog && !["human_takeover", "order_tracking", "order_follow_up"].includes(intent)
     ? await resolveCatalogNavigation({ tenantId, message: originalMessage }).catch((error) => {
         console.warn("[ai-catalog-navigation:skipped]", {
@@ -1448,12 +1484,18 @@ export const generateAiBrainV2Decision = async (normalizedInbound = {}, options 
     return postProductFsmDecision;
   }
   const shouldSearch = ["product_search", "more_images", "visual_search"].includes(intent) || Boolean(explicitModel);
-  const candidates = shouldSearch ? await loadCandidateProducts({ tenantId, message, explicitModel }) : [];
+  const candidates = shouldSearch ? await loadCandidateProducts({ tenantId, message, explicitModel, namingTerms: namedProductTerms }) : [];
   const normalizedPayload = normalizeArabicIntentPayload(message);
   const aliasResult = resolveProductAlias(message);
   const searchHints = buildAliasAwareSearchHints({ text: message, aliasResult });
-  const ranked = rankProducts({ products: candidates, message, explicitModel, aliasResult, searchHints, intentPayload: normalizedPayload });
-  const selectedProducts = ranked.filter((product) => Number(product.ai_brain_v2_score || 0) > 0).slice(0, 6);
+  const ranked = rankProducts({ products: candidates, message, explicitModel, namingTerms: namedProductTerms, aliasResult, searchHints, intentPayload: normalizedPayload });
+  const scoredProducts = ranked.filter((product) => Number(product.ai_brain_v2_score || 0) > 0);
+  const namedReasons = (product) => asArray(product.ai_brain_v2_reasons).map(String).filter((reason) => reason.startsWith("named:"));
+  const namedAny = namedProductTerms.length ? scoredProducts.filter((product) => namedReasons(product).length) : [];
+  // "نايك دانك": a product carrying the whole name beats one that only shares the brand.
+  const namedPhrase = namedAny.filter((product) => namedReasons(product).some((reason) => reason.includes(" ")));
+  const namedMatches = namedPhrase.length ? namedPhrase : namedAny;
+  const selectedProducts = (namedMatches.length ? namedMatches : scoredProducts).slice(0, 6);
   const presentationProducts = selectedProducts.length
     ? selectedProducts
     : (intent === "more_images" && memoryActiveProductId ? [{ id: memoryActiveProductId, product_id: memoryActiveProductId }] : []);
