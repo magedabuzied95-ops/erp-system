@@ -44,6 +44,12 @@ const ARABIC_WORD_ALIASES = [
   ["اديداس", "adidas"],
   ["اديستار", "adistar"],
   ["سوبرستار", "superstar"],
+  ["سوبراستار", "superstar"],
+  // "سوبر استار ميرور" named nothing: only the joined spelling was listed, so the brain asked
+  // which model. Word by word it is read as "super star", which finds "Superstar".
+  ["سوبر", "super"],
+  ["ستار", "star"],
+  ["استار", "star"],
   ["الترابوست", "ultraboost"],
   ["الترا", "ultra"],
   ["بوست", "boost"],
