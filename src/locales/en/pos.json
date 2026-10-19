@@ -287,6 +287,9 @@
     }
   },
   "cart": {
+    "refundCustomerCreditDue": "Refund due to the customer",
+    "selectRefundMethod": "How is the money going back?",
+    "selectRefundMethodFirst": "Choose how the money goes back first: cash, Vodafone Cash or InstaPay.",
     "exchangeNeedsReturnHint": "Exchange credit comes from a real return on the original invoice. Open the invoice in Recent Operations and do the exchange return; the credit is then applied to the cart automatically.",
     "openInvoiceForExchangeReturn": "Open invoice to do the return",
     "createOrder": "Create order",

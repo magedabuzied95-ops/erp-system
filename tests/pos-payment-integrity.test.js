@@ -106,3 +106,24 @@ test("POS invoice edit exposes the original payment methods and their amounts", 
   assert.ok(posEn.payment.methodHint, "en is missing payment.methodHint");
   assert.equal((cartSource.match(/<EditPaymentDifferenceCard/g) || []).length, 1);
 });
+
+// INV-2169 (2026-10-19): an edit refunded 200 to the customer, the cashier pressed
+// Vodafone Cash and the drawer recorded cash. The payment button lit up but the refund
+// followed a separate refund choice that was preselected to cash.
+test("POS edit refund is never silently cash: the cashier must choose, and the payment buttons choose it", () => {
+  assert.match(posSource, /const \[editRefundMethod, setEditRefundMethod\] = useState\(""\);/);
+  assert.doesNotMatch(posSource, /setEditRefundMethod\("cash"\)/);
+  assert.match(posSource, /if \(editActive && editRefundOrCreditDue > 0\.009 && !String\(editRefundMethod \|\| ""\)\.trim\(\)\) \{\s*toast\.error/);
+  assert.match(cartSource, /const editRefundMode = editActive && editRefundOrCreditDue > 0\.009;/);
+  assert.match(cartSource, /onClick=\{\(\) => \(editRefundMode \? setEditRefundMethod\?\.\(refundMethodForPaymentKey\(method\.key\)\) : selectFullPayment\(method\.key\)\)\}/);
+  assert.match(cartSource, /active=\{editRefundMode \? normalizedEditRefundMethod === refundMethodForPaymentKey\(method\.key\)/);
+  assert.ok(posAr.cart.selectRefundMethodFirst, "ar is missing cart.selectRefundMethodFirst");
+  assert.ok(posAr.cart.selectRefundMethod, "ar is missing cart.selectRefundMethod");
+});
+
+test("POS edit settlement books the ledger account the money moved through, not receivables", () => {
+  assert.match(ordersControllerSource, /const editSettlementAccountCode = \(method = ""\) => \(EDIT_MONEY_MOVING_METHODS\.has\(method\) && SALE_SETTLEMENT_ACCOUNT_CODES\[method\]\) \|\| "1100";/);
+  assert.match(ordersControllerSource, /accountCode: editSettlementAccountCode\(normalizedMethod\), debit: 0, credit: settlementAmount, notes: "POS invoice edit refund"/);
+  assert.doesNotMatch(ordersControllerSource, /accountCode: normalizedMethod === "cash" \? "1000" : "1100"/);
+  assert.doesNotMatch(ordersControllerSource, /accountCode: payment\.method === "cash" \? "1000" : "1100"/);
+});

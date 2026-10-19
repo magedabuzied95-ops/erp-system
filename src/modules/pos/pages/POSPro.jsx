@@ -1905,7 +1905,9 @@ function POSPro() {
   const [loyaltyRedeemPoints, setLoyaltyRedeemPoints] = useState(0);
   const [, setLoyaltyLoading] = useState(false);
   const [paymentMode, setPaymentMode] = useState(defaultState.paymentMode);
-  const [editRefundMethod, setEditRefundMethod] = useState("cash");
+  // No refund method until the cashier picks one: a preselected "cash" let an edit
+  // refund be saved as cash while the screen showed Vodafone Cash highlighted.
+  const [editRefundMethod, setEditRefundMethod] = useState("");
   const [activeSplitMethod, setActiveSplitMethod] = useState("cash");
   const [cashAmount, setCashAmount] = useState(defaultState.cashAmount);
   const [cardAmount, setCardAmount] = useState(defaultState.cardAmount);
@@ -5822,7 +5824,7 @@ function POSPro() {
         setCouponCode("");
         setCouponValidation(null);
       }
-      setEditRefundMethod("cash");
+      setEditRefundMethod("");
 
       const loadedCustomerId = loadedOrder.customer_id || loadedOrder.customer?.id || null;
       if (loadedCustomerId) {
@@ -5957,7 +5959,7 @@ function POSPro() {
         setCouponCode("");
         setCouponValidation(null);
       }
-      setEditRefundMethod("cash");
+      setEditRefundMethod("");
       const loadedCustomer = customerSnapshotFromOrder(loadedOrder);
       if (loadedCustomer?.id) {
         setCustomers((current) => {
@@ -6050,7 +6052,7 @@ function POSPro() {
   const clearEditMode = () => {
     setEditingOrder(null);
     setInvoiceNumber(generateInvoiceNumber());
-    setEditRefundMethod("cash");
+    setEditRefundMethod("");
     loadedRouteEditOrderIdRef.current = "";
     if (routeEditOrderId) {
       navigate("/pos", { replace: true });
@@ -6068,7 +6070,7 @@ function POSPro() {
     setWalletAmount(0);
     setVodafoneCashAmount(0);
     setCustomerWalletAmount(0);
-    setEditRefundMethod("cash");
+    setEditRefundMethod("");
     setExchangeState(null);
     setInvoiceDiscountType(defaultState.invoiceDiscountType);
     setInvoiceDiscountValue(defaultState.invoiceDiscountValue);
@@ -6838,6 +6840,11 @@ function POSPro() {
       return null;
     }
 
+    if (editActive && editRefundOrCreditDue > 0.009 && !String(editRefundMethod || "").trim()) {
+      toast.error(tt("pos.cart.selectRefundMethodFirst", { defaultValue: "Select a refund method before saving the invoice edit." }));
+      return null;
+    }
+
     if (!isShiftActive) {
       toast.error(tt("pos.posPro.toasts.openShiftBeforeSelling"));
       return null;
@@ -7510,7 +7517,7 @@ function POSPro() {
         setWalletAmount(0);
         setVodafoneCashAmount(0);
         setCustomerWalletAmount(0);
-        setEditRefundMethod("cash");
+        setEditRefundMethod("");
         setExchangeState(null);
         setInvoiceDiscountType(defaultState.invoiceDiscountType);
         setInvoiceDiscountValue(defaultState.invoiceDiscountValue);

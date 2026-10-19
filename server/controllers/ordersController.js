@@ -393,6 +393,12 @@ const ensureReturnRefundFunding = async (client, { routeName, orderId = null, te
 
 const normalizeEditSettlementMethod = (value = "") => normalizeMoneyPaymentMethod(value);
 
+// The ledger account the money actually moved through: an edit refunded by Vodafone
+// Cash leaves the Vodafone Cash account, the same one a Vodafone Cash sale lands in.
+// Every non-cash method used to fall to 1100 Accounts Receivable, as if nothing moved.
+const EDIT_MONEY_MOVING_METHODS = new Set(["cash", "card", "instapay", "vodafone_cash", "wallet"]);
+const editSettlementAccountCode = (method = "") => (EDIT_MONEY_MOVING_METHODS.has(method) && SALE_SETTLEMENT_ACCOUNT_CODES[method]) || "1100";
+
 const buildEditSettlementJournalLines = async (client, { tenantId, settlementMethod = "", settlementType = "", amount = 0, paymentBreakdown = [] }) => {
   const normalizedMethod = normalizeEditSettlementMethod(settlementMethod);
   const normalizedType = String(settlementType || "").trim().toLowerCase();
@@ -401,7 +407,7 @@ const buildEditSettlementJournalLines = async (client, { tenantId, settlementMet
   if (normalizedType === "refund") {
     return [
       { accountCode: "4020", debit: settlementAmount, credit: 0, notes: "POS invoice edit refund" },
-      { accountCode: normalizedMethod === "cash" ? "1000" : "1100", debit: 0, credit: settlementAmount, notes: "POS invoice edit refund" },
+      { accountCode: editSettlementAccountCode(normalizedMethod), debit: 0, credit: settlementAmount, notes: "POS invoice edit refund" },
     ];
   }
 
@@ -413,7 +419,7 @@ const buildEditSettlementJournalLines = async (client, { tenantId, settlementMet
       }))
       .filter((payment) => payment.amount > 0)
       .map((payment) => ({
-        accountCode: payment.method === "cash" ? "1000" : "1100",
+        accountCode: editSettlementAccountCode(payment.method),
         debit: payment.amount,
         credit: 0,
         notes: "POS invoice edit payment",
@@ -425,7 +431,7 @@ const buildEditSettlementJournalLines = async (client, { tenantId, settlementMet
   }
 
   return [
-    { accountCode: normalizedMethod === "cash" ? "1000" : "1100", debit: settlementAmount, credit: 0, notes: "POS invoice edit payment" },
+    { accountCode: editSettlementAccountCode(normalizedMethod), debit: settlementAmount, credit: 0, notes: "POS invoice edit payment" },
     { accountCode: "4000", debit: 0, credit: settlementAmount, notes: "POS invoice edit payment" },
   ];
 };

@@ -468,6 +468,12 @@ function CartSidebar({
   const showReturnCreditControl = !editActive && (hasSelectedCustomer || exchangeActive);
   const editRefundOrCreditDue = Math.max(0, Number(editPaymentSummary?.refundOrCreditDue || 0));
   const editRefundSelectionMissing = editActive && editRefundOrCreditDue > 0.009 && !String(editRefundMethod || "").trim();
+  // An edit that hands money back collects nothing, so the payment buttons ARE the
+  // refund method. They used to stay plain payment buttons: Vodafone Cash lit up when
+  // pressed while the refund went out under the separate (preselected) cash choice.
+  const editRefundMode = editActive && editRefundOrCreditDue > 0.009;
+  const refundMethodForPaymentKey = (key) => (key === "wallet" ? "instapay" : key);
+  const normalizedEditRefundMethod = String(editRefundMethod || "").trim().toLowerCase();
   const walletApplicable = Math.max(0, Math.min(customerWalletBalance, totalAmount));
   const customerCreditHelpText = POS_ARABIC_TEXT.customerCreditHelp;
   const appliedCredit = Math.min(Math.max(0, Number(customerWalletAmount || 0)), walletApplicable);
@@ -511,6 +517,9 @@ function CartSidebar({
       ? [{ key: "personal", label: "PERSONAL", fullLabel: "PERSONAL", tone: "amber", icon: <BadgePercent className="h-4 w-4" /> }]
       : []),
   ];
+  const gridPaymentMethods = editRefundMode
+    ? paymentMethods.filter((method) => ["cash", "wallet", "vodafone_cash"].includes(method.key))
+    : paymentMethods;
   const cartHasItems = cart.length > 0;
   const subtotalAmount = Math.max(0, Number(totals?.subtotal || 0));
   const totalDiscountAmount = Number(totals?.itemDiscountTotal || 0) + Number(totals?.invoiceDiscount || 0) + Number(totals?.loyaltyDiscount || 0) + Number(totals?.couponDiscount || 0);
@@ -976,7 +985,9 @@ function CartSidebar({
           <div className="rounded-xl border border-white/10 bg-white/[0.04] p-2">
             <div className="mb-1.5 flex items-center justify-between gap-2">
               <div className="text-[10px] font-black uppercase tracking-[0.16em] text-zinc-500">
-                {editActive ? posLabel("payment.selectRemainingMethod", "Choose how to collect the remaining amount") : posLabel("cart.paymentMethods", "Payment Methods")}
+                {editRefundMode
+                  ? posLabel("cart.selectRefundMethod", "Select refund method")
+                  : editActive ? posLabel("payment.selectRemainingMethod", "Choose how to collect the remaining amount") : posLabel("cart.paymentMethods", "Payment Methods")}
               </div>
               <div className="flex shrink-0 items-center gap-1.5">
                 {cartHasItems ? (
@@ -1000,25 +1011,27 @@ function CartSidebar({
             </div>
             <div
               className="pos-payment-method-grid grid w-full min-w-0 gap-2"
-              style={{ gridTemplateColumns: `repeat(${paymentMethods.length + 1}, minmax(0, 1fr))` }}
+              style={{ gridTemplateColumns: `repeat(${gridPaymentMethods.length + (editRefundMode ? 0 : 1)}, minmax(0, 1fr))` }}
             >
-              {paymentMethods.map((method) => (
+              {gridPaymentMethods.map((method) => (
                 <ModeButton
                   key={method.key}
-                  active={selectedMethod === method.key}
-                  onClick={() => selectFullPayment(method.key)}
+                  active={editRefundMode ? normalizedEditRefundMethod === refundMethodForPaymentKey(method.key) : selectedMethod === method.key}
+                  onClick={() => (editRefundMode ? setEditRefundMethod?.(refundMethodForPaymentKey(method.key)) : selectFullPayment(method.key))}
                   icon={method.icon}
                   label={method.fullLabel || method.label}
                   tone={method.tone}
                 />
               ))}
-              <ModeButton
-                active={splitPaymentOpen || String(paymentMode || "").toLowerCase() === "split"}
-                onClick={openSplitPayment}
-                icon={<ReceiptText className="h-4 w-4" />}
-                label={editActive ? posLabel("payment.split", "Split") : "SPLIT"}
-                tone="gold"
-              />
+              {editRefundMode ? null : (
+                <ModeButton
+                  active={splitPaymentOpen || String(paymentMode || "").toLowerCase() === "split"}
+                  onClick={openSplitPayment}
+                  icon={<ReceiptText className="h-4 w-4" />}
+                  label={editActive ? posLabel("payment.split", "Split") : "SPLIT"}
+                  tone="gold"
+                />
+              )}
             </div>
 
             {personalPaymentActive ? (
