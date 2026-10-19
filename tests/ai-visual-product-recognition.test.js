@@ -343,10 +343,11 @@ test("the inbox offers the shortlist as a pick-one choice, and holds only when t
   assert.match(recognition, /limit: 24,/);
 });
 
-test("what the photo was read as goes first in the capped candidate set", async () => {
+test("what the photo was read as goes first in the candidate set", async () => {
   // LIVE 2026-09-11: the visual scan returned `searched_indexed_images: 2500` — exactly its cap —
   // and the cap was filled by recency alone, so a product indexed long ago was never scored however
-  // well it matched. Rows naming the brand/model the photo was read as now go first.
+  // well it matched. Rows naming the brand/model the photo was read as now go first. (The cap itself
+  // is gone since 2026-10-19 — see ai-visual-search-scans-every-stocked-image.test.js.)
   const { visualCandidateLikeTerms } = await import("../server/services/aiVisualSearchProService.js");
   assert.deepEqual(visualCandidateLikeTerms({ brand: "Skechers", model: "Skechers Gorun Ride 7" }), ["%skechers%", "%skechers gorun ride 7%"]);
   assert.deepEqual(visualCandidateLikeTerms({ brand: "A_B", model: "50% off" }), ["%a\\_b%", "%50\\% off%"], "LIKE wildcards in a model name are literal");
@@ -354,7 +355,7 @@ test("what the photo was read as goes first in the capped candidate set", async 
   assert.deepEqual(visualCandidateLikeTerms({ brand: "Nike", model: "nike" }), ["%nike%"]);
   assert.deepEqual(visualCandidateLikeTerms({}), []);
   const pro = fs.readFileSync(new URL("../server/services/aiVisualSearchProService.js", import.meta.url), "utf8");
-  const query = pro.slice(pro.indexOf("FROM ai_product_image_visual_index idx"), pro.indexOf("LIMIT 2500") + 20);
+  const query = pro.slice(pro.indexOf("FROM ai_product_image_visual_index idx"), pro.indexOf("[tenant, visualCandidateLikeTerms(attributes)]"));
   assert.match(query, /LIKE ANY\(\$2::text\[\]\)\s*\r?\n\s*THEN 0 ELSE 1\s*\r?\n\s*END,\s*\r?\n\s*COALESCE\(idx\.last_indexed_at/, "attribute matches sort before recency");
   assert.match(pro, /\[tenant, visualCandidateLikeTerms\(attributes\)\]/);
 });

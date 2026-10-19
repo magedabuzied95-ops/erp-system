@@ -818,6 +818,25 @@ export const reindexAiVisualProducts = async ({ tenantId = null, clientOrPool = 
 };
 
 /**
+ * The photo scan's own sellability filter: an active product with at least one live variant in stock.
+ * It is what lets the scan drop its row cap — only images of shoes we can sell are scored, all of them.
+ */
+export const visualScanStockFilterSql = ({ productColumns = new Set(), variantColumns = new Set() } = {}) => {
+  const clauses = [];
+  if (productColumns.has("status")) clauses.push(`AND COALESCE(NULLIF(LOWER(TRIM(p.status::text)), ''), 'active') = 'active'`);
+  if (productColumns.has("is_active")) clauses.push(`AND p.is_active IS DISTINCT FROM FALSE`);
+  if (variantColumns.has("stock")) {
+    clauses.push(`AND EXISTS (
+        SELECT 1 FROM product_variants pv
+        WHERE pv.product_id = p.id
+          ${variantColumns.has("deleted_at") ? "AND pv.deleted_at IS NULL" : ""}
+          AND pv.stock > 0
+      )`);
+  }
+  return clauses.join("\n      ");
+};
+
+/**
  * Whether the chat's text relevance gate may filter the visual candidates.
  *
  * Only when the photo was read as a model family the gate knows (Jordan 4, Dunk, …): that is the
@@ -895,6 +914,7 @@ export const searchAiVisualProductsPro = async ({
   const productSlugExpr = productColumns.has("slug") ? "COALESCE(p.slug, '')" : productColumns.has("product_slug") ? "COALESCE(p.product_slug, '')" : "''";
   const canonicalSlugExpr = productColumns.has("canonical_slug") ? "COALESCE(p.canonical_slug, '')" : "''";
   const productEligibility = aiProductSqlExclusionClause("p", productColumns);
+  const variantColumns = await tableColumns("product_variants");
   const result = await db.query(
     `
     SELECT
@@ -908,17 +928,17 @@ export const searchAiVisualProductsPro = async ({
       AND p.tenant_id = idx.tenant_id
     WHERE idx.tenant_id = $1
       AND ${productEligibility}
+      ${visualScanStockFilterSql({ productColumns, variantColumns })}
     ORDER BY
-      -- The set is capped at 2500 and used to be filled by recency alone, so a product indexed long
-      -- ago was never scored however well it matched (live 2026-09-11: the scan hit exactly 2500).
-      -- Rows naming what the photo was read as go first; recency fills whatever is left.
+      -- Every image of a product we can sell is scored: the scan used to stop at 2,500 rows while the
+      -- index held 12,377 (11,071 of them stocked, live 2026-10-19), so a shoe we had came back "not
+      -- found". The order is now only the tie-break: rows naming what the photo was read as first.
       CASE
         WHEN cardinality($2::text[]) > 0
           AND lower(concat_ws(' ', idx.brand, ${productNameExpr}, idx.detected_brand, idx.detected_model, idx.text_aliases)) LIKE ANY($2::text[])
         THEN 0 ELSE 1
       END,
       COALESCE(idx.last_indexed_at, idx.updated_at) DESC, idx.id DESC
-    LIMIT 2500
     `,
     [tenant, visualCandidateLikeTerms(attributes)]
   );
