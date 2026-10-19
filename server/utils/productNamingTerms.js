@@ -20,6 +20,8 @@ const LATIN_STOPWORDS = new Set([
   // Who it is for is a filter, not part of the name ("skechers ultra women").
   "women", "woman", "womens", "ladies", "lady", "female", "girls", "girl", "men", "man", "mens",
   "male", "boys", "boy", "kids", "kid", "children", "child", "unisex",
+  // So is the grade ("ultraboost mirror"): products.grade, never a word of the name.
+  "mirror", "original", "orginal", "local", "egyptian", "imported", "vietnam", "vietnamese",
 ]);
 // Two-letter model words (Skechers Ultra Go / Go Walk / Go Run). Matched as whole words only.
 const SHORT_MODEL_WORDS = new Map([["جو", "go"], ["go", "go"]]);

@@ -12,6 +12,7 @@ import { sanitizeGroundedAiReply } from "./aiReplyQualityService.js";
 import { generateSupportAnswer } from "./openaiSupportService.js";
 import { PRODUCT_GRADES, productGrade, productGradeRank } from "../config/productGrades.js";
 import { resolveInvoiceTemplateForOrder } from "./invoiceTemplateService.js";
+import { detectCatalogBrowseSlots } from "../utils/catalogBrowseRequest.js";
 import { buildStoreFactsDecision, STORE_FACTS_INTENTS } from "./aiStoreFactsReplyService.js";
 import { buildCatalogBrowseDecision, CATALOG_BROWSE_INTENTS } from "./aiCatalogBrowseService.js";
 import {
@@ -113,6 +114,18 @@ export const multiGradeIntroText = (guide = [], cards = [], audienceReply = null
   return `أيوه يا فندم، ${model} متاح عندنا ${count} 👇`;
 };
 
+/*
+ * The grades a rewritten reply names that the cards do not carry. "كلهم مستوردين من فيتنام" is
+ * fine over Vietnamese cards and a lie over anything else, so a rewrite naming such a grade is
+ * dropped for the grounded answer. "ميرور اوريجينال" is one grade, not the original one too.
+ */
+export const gradesNamedOutsideGuide = (replyText = "", guide = []) => {
+  const mentioned = detectCatalogBrowseSlots(replyText).gradesMentioned;
+  const named = mentioned.includes("mirror_original") ? mentioned.filter((key) => key !== "original") : mentioned;
+  const allowed = new Set(asArray(guide).map((grade) => grade.grade));
+  return named.filter((key) => !allowed.has(key));
+};
+
 const withReplyText = (decision = {}, replyText = "", debugPatch = {}) => ({
   ...decision,
   text: replyText,
@@ -135,6 +148,9 @@ export const rewriteStructuredDecision = async ({ decision = {}, inbound = {}, t
   // The asked-for grade is not sold for this model: that sentence leads, word for word.
   if (text(decision.debug?.grade_missing_reply?.text)) {
     return withReplyText(decision, text(decision.debug.grade_missing_reply.text), { grade_intro: "requested_grade_missing" });
+  }
+  if (text(decision.debug?.grade_found_reply?.text)) {
+    return withReplyText(decision, text(decision.debug.grade_found_reply.text), { grade_intro: "requested_grade_found" });
   }
   const products = asArray(decision.product_cards?.length ? decision.product_cards : decision.suggested_products?.length ? decision.suggested_products : decision.products);
   const gradeGuide = gradeGuideFor(products);
@@ -178,6 +194,11 @@ export const rewriteStructuredDecision = async ({ decision = {}, inbound = {}, t
   const generated = text(result?.answer);
   const usable = Boolean(generated) && result?.needs_human_support !== true && Number(result?.confidence || 0) >= 0.35;
   if (!usable) return decision;
+  const strayGrades = gradesNamedOutsideGuide(generated, gradeGuide);
+  if (strayGrades.length) {
+    console.warn("[ai-grounded-rewrite:grade-not-on-cards]", { grades: strayGrades });
+    return decision;
+  }
   const finalText = catalogUrl && !generated.includes(catalogUrl) ? `${generated}\n${catalogUrl}` : generated;
   return {
     ...decision,

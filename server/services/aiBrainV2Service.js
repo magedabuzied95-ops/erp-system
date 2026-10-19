@@ -9,7 +9,7 @@ import { rankProductCandidates, scoreProductCandidate } from "../utils/productMa
 import { audienceStoredValues, firstAudience, resolveCatalogNavigation } from "./aiCatalogNavigationService.js";
 import { productNamingTerms } from "../utils/productNamingTerms.js";
 import { greetingReplyFor, greetingReplyParts } from "../utils/greetingReply.js";
-import { GRADE_CARD_LIMIT, GRADED_CARDS_TOTAL_LIMIT, productGrade, productGradeRank } from "../config/productGrades.js";
+import { GRADE_CARD_LIMIT, GRADED_CARDS_TOTAL_LIMIT, PRODUCT_GRADES, productGrade, productGradeRank } from "../config/productGrades.js";
 import { detectCatalogBrowseSlots } from "../utils/catalogBrowseRequest.js";
 import {
   buildConversationMemoryV2,
@@ -814,11 +814,14 @@ const nameHoldsTerm = (name = "", term = "") => term.length >= 3
   ? name.includes(term)
   : new RegExp(`(?<![\\p{L}\\p{N}])${term}(?![\\p{L}\\p{N}])`, "u").test(name);
 
+// "Ultra Boost" is the same name as "UltraBoost22": a phrase also matches written as one word.
+const compactName = (value = "") => String(value).replace(/\s+/g, "");
+
 export const namedProductTermsMatched = (product = {}, terms = []) => {
   const name = productNameForTerms(product);
   return {
     words: asArray(terms).filter((term) => !term.includes(" ") && nameHoldsTerm(name, term)).length,
-    phrase: asArray(terms).some((term) => term.includes(" ") && name.includes(term)),
+    phrase: asArray(terms).some((term) => term.includes(" ") && (name.includes(term) || compactName(name).includes(compactName(term)))),
   };
 };
 
@@ -898,6 +901,8 @@ const searchTermsForMessage = ({ message = "", explicitModel = null, namingTerms
   return unique([
     // "%go%" would pull every "Logo" / "Mango" row; the phrase ("ultra go") carries the short word.
     ...asArray(namingTerms).filter((term) => term.length >= 3),
+    // "ultra boost" also as "ultraboost", the way "Adidas UltraBoost22" is written.
+    ...asArray(namingTerms).filter((term) => term.includes(" ")).map(compactName),
     ...(aliasHints.hasAliasHint ? aliasHints.searchTerms : []),
     ...(aliasHints.hasAliasHint ? aliasHints.productQueryHints : []),
     ...normalizeArabic(message)
@@ -950,7 +955,7 @@ const scoreProduct = ({ product = {}, normalizedMessage = "", explicitModel = nu
 
 // 40, not 80: rows come back best name match first, at most 6 are shown, and ranking is CPU work
 // on the one thread every other request and webhook waits behind.
-const loadCandidateProducts = async ({ tenantId = null, message = "", explicitModel = null, namingTerms = [], audience = null, limit = 40 } = {}) => {
+const loadCandidateProducts = async ({ tenantId = null, message = "", explicitModel = null, namingTerms = [], audience = null, grade = "", limit = 40 } = {}) => {
   const productColumns = await tableColumns("products");
   const audienceValues = audienceStoredValues(audience);
   const tenantFilter = productColumns.has("tenant_id") ? "AND ($1::bigint IS NULL OR p.tenant_id = $1::bigint OR p.tenant_id IS NULL)" : "";
@@ -976,6 +981,10 @@ const loadCandidateProducts = async ({ tenantId = null, message = "", explicitMo
       : []),
   ] : [];
   const audienceFilter = audienceChecks.length ? `AND (${audienceChecks.join(" OR ")})` : "";
+  // "الترا بوست ميرور": the mirror rows, so the 40-row cut cannot drop the one mirror pair
+  // behind dozens of imported ones.
+  const gradeParam = audienceParam + (audienceFilter ? 1 : 0);
+  const gradeFilter = grade && productColumns.has("grade") ? `AND LOWER(COALESCE(p.grade, '')) = $${gradeParam}` : "";
   const sql = `
     SELECT p.*
     FROM products p
@@ -986,10 +995,11 @@ const loadCandidateProducts = async ({ tenantId = null, message = "", explicitMo
       ${statusFilter}
       ${likeClauses.length ? `AND (${likeClauses.map((clause) => `(${clause})`).join(" OR ")})` : ""}
       ${audienceFilter}
+      ${gradeFilter}
     ORDER BY ${terms.length ? `(${terms.map((_, index) => `CASE WHEN ${searchable[0]} ILIKE $${index + 2} THEN 1 ELSE 0 END`).join(" + ")}) DESC, ` : ""}p.id DESC
     LIMIT ${Math.max(1, Math.min(Number(limit) || 40, 200))}
   `;
-  const params = [numberOrNull(tenantId), ...terms.map((term) => `%${term}%`), ...(audienceFilter ? [audienceValues] : [])];
+  const params = [numberOrNull(tenantId), ...terms.map((term) => `%${term}%`), ...(audienceFilter ? [audienceValues] : []), ...(gradeFilter ? [text(grade).toLowerCase()] : [])];
   const result = await db.query(sql, params);
   console.info("AI_BRAIN_V2_SQL_TRACE", {
     tenant_id: tenantId || null,
@@ -998,6 +1008,7 @@ const loadCandidateProducts = async ({ tenantId = null, message = "", explicitMo
     explicit_model: explicitModel?.model || "",
     search_terms: terms,
     audience: audienceFilter ? audience.key : "",
+    grade: gradeFilter ? grade : "",
     alias_search_hints: aliasHints,
     rows_returned: result.rows.length,
     first_product_ids: result.rows.slice(0, 20).map((row) => row.id),
@@ -1389,8 +1400,23 @@ const presentationModelName = ({ explicitModel = null, cards = [] } = {}) => {
 };
 
 // The customer named a grade the model is not sold in: say so, then the grades it does come in.
+// The words every card's name starts with: "Adidas Ultra Boost 6" + "Adidas Ultra Boost Local" →
+// "Adidas Ultra Boost", the model rather than one of its rows.
+const sharedCardName = (cards = []) => {
+  const names = asArray(cards)
+    .map((card) => text(card?.base_name || card?.product_name || card?.name || card?.title).replace(/\s+-\s+.*$/, "").split(/\s+/))
+    .filter((words) => words[0]);
+  if (!names.length) return "";
+  const shared = [];
+  for (const [index, word] of names[0].entries()) {
+    if (!names.every((words) => text(words[index]).toLowerCase() === word.toLowerCase())) break;
+    shared.push(word);
+  }
+  return shared.join(" ");
+};
+
 export const missingGradeText = ({ requestedGrade = null, cards = [], explicitModel = null } = {}) => {
-  const model = presentationModelName({ explicitModel, cards });
+  const model = (explicitModel ? "" : sharedCardName(cards)) || presentationModelName({ explicitModel, cards });
   const labels = [...new Set(
     asArray(cards)
       .slice()
@@ -1403,6 +1429,10 @@ export const missingGradeText = ({ requestedGrade = null, cards = [], explicitMo
     ? `للأسف ${model} مش متاح عندنا ${asked} دلوقتي 🙏\nبس متاح ${labels.join(" و")} 👇`
     : `للأسف ${model} مش متاح عندنا ${asked} دلوقتي 🙏\nبس دي الاختيارات المتاحة منه 👇`;
 };
+
+// The customer named a grade and the model is sold in it: the grade is said as asked, never re-worded.
+export const requestedGradeText = ({ requestedGrade = null, cards = [], explicitModel = null } = {}) =>
+  `أيوه يا فندم، ${presentationModelName({ explicitModel, cards })} متاح عندنا ${text(requestedGrade?.label)} 👇`;
 
 // "تمام" / "ماشي" with nothing pending: a warm close, not "ابعت الموديل أو السؤال اللي محتاجه".
 export const BARE_CONFIRMATION_TEXT = "تمام يا فندم 🌷 لو محتاج أي حاجة تانية أنا موجود.";
@@ -1698,23 +1728,51 @@ export const generateAiBrainV2Decision = async (normalizedInbound = {}, options 
   const candidates = shouldSearch
     ? (requestedAudience && !audienceMissing ? audienceCandidates : await loadCandidateProducts({ tenantId, message, explicitModel, namingTerms: namedProductTerms }))
     : [];
+  // "الترا بوست ميرور": a named grade narrows the model to that grade. Every grade's rows are
+  // loaded on their own, so the one mirror pair is never cut by dozens of imported ones, and when
+  // the model is not sold in that grade the reply names every grade it does come in. It used to
+  // answer with the Vietnamese pairs as if they were what was asked for (production, 2026-10-19).
+  const requestedGrade = shouldSearch && namedProductTerms.length
+    ? productGrade(detectCatalogBrowseSlots(originalMessage || message).grade)
+    : null;
+  const gradeCandidates = requestedGrade
+    ? (await Promise.all(PRODUCT_GRADES.map((grade) => loadCandidateProducts({
+      tenantId,
+      message,
+      explicitModel,
+      namingTerms: namedProductTerms,
+      audience: requestedAudience && !audienceMissing ? requestedAudience : null,
+      grade: grade.key,
+      limit: 12,
+    })))).flat()
+    : [];
+  const candidateIds = new Set(candidates.map((product) => text(product.id)));
+  const searchPool = [...candidates];
+  for (const product of gradeCandidates) {
+    if (candidateIds.has(text(product.id))) continue;
+    candidateIds.add(text(product.id));
+    searchPool.push(product);
+  }
   const normalizedPayload = normalizeArabicIntentPayload(message);
   const aliasResult = resolveProductAlias(message);
   const searchHints = buildAliasAwareSearchHints({ text: message, aliasResult });
-  const ranked = rankProducts({ products: candidates, message, explicitModel, namingTerms: namedProductTerms, aliasResult, searchHints, intentPayload: normalizedPayload });
+  const ranked = rankProducts({ products: searchPool, message, explicitModel, namingTerms: namedProductTerms, aliasResult, searchHints, intentPayload: normalizedPayload });
   const scoredProducts = ranked.filter((product) => Number(product.ai_brain_v2_score || 0) > 0);
   const namedMatches = namedProductMatches(scoredProducts, namedProductTerms);
   const namedWords = namedProductTerms.filter((term) => !term.includes(" "));
   // "الترا جو حريمي" when only Ultra Light is in the women's: the closest pairs, said as such.
   const bestNamed = namedMatches.length ? namedProductTermsMatched(namedMatches[0], namedProductTerms) : null;
   const namedPartly = Boolean(bestNamed && !bestNamed.phrase && bestNamed.words < namedWords.length);
-  // "الترا بوست ميرور": a named grade narrows the model to that grade. When the model is not sold
-  // in it, the reply says so first and shows the grades it does come in — it used to answer with
-  // the Vietnamese pairs as if they were what was asked for (production, 2026-10-19).
-  const requestedGradeKey = namedMatches.length ? text(detectCatalogBrowseSlots(originalMessage || message).grade) : "";
-  const requestedGrade = productGrade(requestedGradeKey);
-  const inRequestedGrade = requestedGrade ? namedMatches.filter((product) => text(product.grade) === requestedGrade.key) : [];
-  const gradeMissing = Boolean(requestedGrade && !inRequestedGrade.length);
+  // The asked-for grade's own best match, kept when it names the model as fully as the best match
+  // overall does: "Ultra Boost" mirror counts, a mirror "Skechers Ultra" does not.
+  const gradedNamed = requestedGrade
+    ? namedProductMatches(scoredProducts.filter((product) => text(product.grade).toLowerCase() === requestedGrade.key), namedProductTerms)
+    : [];
+  const gradedBest = gradedNamed.length ? namedProductTermsMatched(gradedNamed[0], namedProductTerms) : null;
+  const inRequestedGrade = gradedBest && bestNamed && (gradedBest.phrase || (!bestNamed.phrase && gradedBest.words === bestNamed.words))
+    ? gradedNamed
+    : [];
+  const gradeMissing = Boolean(requestedGrade && namedMatches.length && !inRequestedGrade.length);
   const gradedMatches = inRequestedGrade.length ? inRequestedGrade : namedMatches;
   // A named model is picked across its grades, so a mirror pair is not cut by six local ones.
   const selectedProducts = gradedMatches.length ? pickAcrossGrades(gradedMatches, 6) : scoredProducts.slice(0, 6);
@@ -1736,6 +1794,9 @@ export const generateAiBrainV2Decision = async (normalizedInbound = {}, options 
   const gradeMissingText = gradeMissing && productCards.length
     ? missingGradeText({ requestedGrade, cards: productCards, explicitModel })
     : "";
+  const gradeFoundText = inRequestedGrade.length && productCards.length && !requestedAudience
+    ? requestedGradeText({ requestedGrade, cards: productCards, explicitModel })
+    : "";
   const images = productCards
     .map((card) => ({
       id: text(card.image_id || card.image_url || card.product_id || card.id),
@@ -1745,7 +1806,7 @@ export const generateAiBrainV2Decision = async (normalizedInbound = {}, options 
     }))
     .filter((image) => image.url);
   const activeProductId = text(productCards[0]?.product_id || productCards[0]?.id || activeProductFromMemory(memory));
-  const responseText = gradeMissingText || ((requestedAudience && productCards.length && namedMatches.length)
+  const responseText = gradeMissingText || gradeFoundText || ((requestedAudience && productCards.length && namedMatches.length)
     ? audienceSearchText({ audience: requestedAudience, terms: namedProductTerms, audienceMissing, namedPartly, products: selectedProducts })
     : buildBaseText({ intent, cards: productCards, explicitModel, activeProductId, message: originalMessage || message }));
   const memoryUpdates = {
@@ -1797,6 +1858,8 @@ export const generateAiBrainV2Decision = async (normalizedInbound = {}, options 
       explicit_model: explicitModel,
       // The asked-for grade is not sold for this model: the rewrite keeps this sentence as it is.
       ...(gradeMissingText ? { grade_missing_reply: { text: gradeMissingText, grade: requestedGrade.key } } : {}),
+      // The asked-for grade is what is on screen: said as it is, OpenAI never describes the grade.
+      ...(gradeFoundText ? { grade_found_reply: { text: gradeFoundText, grade: requestedGrade.key } } : {}),
       // What the gender-aware answer said, so a multi-grade introduction can keep it
       // ("للأسف مش لاقي … حريمي" must not be replaced by the grade lines).
       ...((requestedAudience && productCards.length && namedMatches.length) ? {

@@ -39,7 +39,7 @@ export const productTypeByKey = (key = "") => PRODUCT_TYPES.find((type) => type.
 
 const GRADE_WORDS = [
   { key: "local", pattern: wordsPattern(["مصري", "محلي", "local", "egyptian"]) },
-  { key: "imported_from_vietnam", pattern: wordsPattern(["فيتنامي", "فيتنام", "مستورد", "vietnam", "vietnamese", "imported"]) },
+  { key: "imported_from_vietnam", pattern: wordsPattern(["فيتنامي", "فيتنام", "مستورد", "مستورده", "مستوردين", "vietnam", "vietnamese", "imported"]) },
   { key: "mirror_original", pattern: wordsPattern(["ميرور", "مرور", "mirror"]) },
   { key: "original", pattern: wordsPattern(["اوريجينال", "اورجينال", "اوريجنال", "original"]) },
 ];
