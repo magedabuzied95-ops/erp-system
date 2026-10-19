@@ -117,6 +117,21 @@ test("a clearly read model finds the in-stock products that carry its name", asy
   assert.equal(unread, null);
 });
 
+test("the lookup uses columns products really has, and Ultraboost finds Ultra Boost", async () => {
+  // LIVE 2026-10-19: `p.deleted_at` does not exist on products, so this query threw on every photo
+  // and no photo ever named a model; and "Ultraboost" never matched "Adidas Ultra Boost".
+  const calls = [];
+  await withFakeDb((sql, params) => {
+    calls.push({ sql, params });
+    return { rows: [{ id: 129, name: "Adidas Ultra Boost" }] };
+  }, () => findStockedProductsNamingModel({ tenantId: 1, detected: { model_guess: "Adidas Ultraboost" } }));
+  const { sql, params } = calls[0];
+  assert.doesNotMatch(sql, /\bp\.deleted_at\b/, "products is archived by status, it has no deleted_at");
+  assert.match(sql, /LOWER\(TRIM\(p\.status\)\)/, "archived products stay out");
+  assert.match(sql, /regexp_replace\(lower\(p\.name\), '\[\^a-z0-9\]\+', '', 'g'\) LIKE/, "spacing-blind name match");
+  assert.equal(params[3], "ultraboost");
+});
+
 test("the recogniser hands the model read back on every miss", () => {
   const recognition = fs.readFileSync(new URL("../server/services/aiVisualProductRecognitionService.js", import.meta.url), "utf8");
   const missPaths = recognition.match(/\.\.\.\(await modelReadFor\(\{ tenantId, understanding \}\)\)/g) || [];

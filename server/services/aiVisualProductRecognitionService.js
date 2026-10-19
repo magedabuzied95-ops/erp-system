@@ -166,9 +166,17 @@ export const findStockedProductsNamingModel = async ({ tenantId, detected = {}, 
       `SELECT p.id, p.name
        FROM products p
        WHERE ($1::bigint IS NULL OR p.tenant_id = $1::bigint)
-         AND p.deleted_at IS NULL
+         -- products has no deleted_at (it is archived by status): the column made this query fail
+         -- on every photo in production, so no photo ever named a stocked model.
+         AND COALESCE(NULLIF(LOWER(TRIM(p.status)), ''), 'active') = 'active'
          AND COALESCE(p.is_active, TRUE) = TRUE
-         AND lower(p.name) ~ ('(^|[^a-z0-9])' || $2 || '([^a-z0-9]|$)')
+         AND (
+           lower(p.name) ~ ('(^|[^a-z0-9])' || $2 || '([^a-z0-9]|$)')
+           -- "Ultraboost" read from a photo is "Ultra Boost" / "UltraBoost22" in the catalogue
+           -- (LIVE 2026-10-19: a clear Ultraboost photo found nothing). Spacing-blind, but only
+           -- for a long model name, so "air" never matches inside another word.
+           OR (length($4) >= 6 AND regexp_replace(lower(p.name), '[^a-z0-9]+', '', 'g') LIKE '%' || $4 || '%')
+         )
          AND EXISTS (
            SELECT 1 FROM product_variants v
            WHERE v.product_id = p.id
@@ -178,7 +186,7 @@ export const findStockedProductsNamingModel = async ({ tenantId, detected = {}, 
          )
        ORDER BY p.id
        LIMIT $3`,
-      [tenantId || null, phrase, limit]
+      [tenantId || null, phrase, limit, phrase.replace(/[^a-z0-9]+/g, "")]
     );
     if (result.rows.length) return { phrase, products: result.rows };
   }
