@@ -4,6 +4,7 @@ import sharp from "sharp";
 
 import db from "../../database/db.js";
 import { requestCompatibleVisionJson, resolveVisionProvider } from "../../services/aiVisionProviderService.js";
+import { agentOpenAiApiKey } from "../../services/openaiCredentials.js";
 
 /*
  * Reading the transfer screenshot the customer uploads.
@@ -58,7 +59,10 @@ const envFlagDisabled = (value = "") => ["0", "false", "off", "no"].includes(cle
 const RECEIPT_TIMEOUT_MS = 30_000;
 
 export const openAiVisionProvider = (env = process.env, model = "") => {
-  const apiKey = cleanText(env.OPENAI_AGENT_API_KEY || env.OPENAI_API_KEY);
+  // The live process reads the same key the chat uses — the one saved in Settings → OpenAI
+  // Credentials wins over the env. Reading only the env, receipts went to the old OPENAI_API_KEY
+  // (revoked) while the chat ran fine on the new key (production, 2026-10-19).
+  const apiKey = env === process.env ? agentOpenAiApiKey() : cleanText(env.OPENAI_AGENT_API_KEY || env.OPENAI_API_KEY);
   const chosen = cleanText(model || env.OPENAI_VISION_MODEL || env.OPENAI_MODEL);
   if (!apiKey || !chosen) return null;
   return { kind: "openai", baseUrl: "https://api.openai.com/v1", apiKey, model: chosen, timeout: RECEIPT_TIMEOUT_MS };
