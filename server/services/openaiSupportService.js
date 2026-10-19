@@ -631,6 +631,78 @@ const normalizeAiPayload = (payload, knownSourceIds, fallbackExtras = {}) => {
 
 export const buildUnavailableSupportResponse = () => ({ ...FALLBACK_RESPONSE });
 
+const sameShoeSchema = {
+  type: "object",
+  additionalProperties: false,
+  required: ["match_index", "same_model", "same_color", "confidence"],
+  properties: {
+    match_index: { type: "integer" },
+    same_model: { type: "boolean" },
+    same_color: { type: "boolean" },
+    confidence: { type: "number", minimum: 0, maximum: 1 },
+  },
+};
+
+const SAME_SHOE_INSTRUCTIONS = [
+  "You compare a customer's shoe photo with numbered product photos from a shoe store.",
+  "Pick the candidate that is the SAME shoe model as the customer's photo: same silhouette, sole, panels, stripes or logo placement, toe and collar shape. Brand alone is not enough.",
+  "Among candidates of that model prefer the one in the same colourway.",
+  "same_model: true only when you are confident the chosen candidate is the same model line, not just the same brand or a similar style.",
+  "same_color: true only when the chosen candidate's colours match the customer's shoe.",
+  "If no candidate resembles the customer's shoe at all, return match_index -1.",
+  "match_index is the candidate's number as given (0-based).",
+].join("\n");
+
+/**
+ * The visual half the text search cannot do: the customer's photo next to the candidates' own
+ * product photos, and the model picks the same shoe (and colour), or says none is the same.
+ *
+ * The keyword search ranks by brand / model words / colour names only — LIVE 2026-10-19 a white
+ * Terrex photo went to a black-and-grey Terrex line and a white/black Superstar led with the
+ * burgundy one. Low-detail images keep each candidate at a fixed small token cost.
+ * Never throws: null means "could not compare", and the caller keeps its text ranking.
+ */
+export const pickSameShoeAmongCandidates = async ({ customerImage = "", candidateImages = [], requestId = "" } = {}) => {
+  syncAgentCredentialState();
+  const images = asArrayOf(candidateImages).filter(Boolean).slice(0, 8);
+  if (!toText(customerImage) || images.length < 1 || !visionEnabled() || textGenerationTemporarilyBlocked()) return null;
+  const model = toText(process.env.AI_VISUAL_RERANK_MODEL) || "gpt-4o";
+  try {
+    const response = await getClient().responses.create(
+      {
+        model,
+        instructions: SAME_SHOE_INSTRUCTIONS,
+        input: [{
+          role: "user",
+          content: [
+            { type: "input_text", text: "Customer's photo:" },
+            { type: "input_image", image_url: customerImage, detail: "low" },
+            ...images.flatMap((image, index) => [
+              { type: "input_text", text: `Candidate ${index}:` },
+              { type: "input_image", image_url: image, detail: "low" },
+            ]),
+          ],
+        }],
+        text: { format: { type: "json_schema", name: "same_shoe_pick", strict: true, schema: sameShoeSchema } },
+      },
+      { timeout: resolveSupportTimeoutMs(), maxRetries: 0 }
+    );
+    noteOpenAiSuccess();
+    const parsed = safeJsonParse(response.output_text);
+    if (!parsed || !Number.isInteger(parsed.match_index)) return null;
+    const index = parsed.match_index;
+    console.log("[ai-support] same-shoe pick", { requestId, model, candidates: images.length, ...parsed });
+    if (index < 0 || index >= images.length) return { index: -1, sameModel: false, sameColor: false, confidence: clampConfidence(parsed.confidence) };
+    return { index, sameModel: Boolean(parsed.same_model), sameColor: Boolean(parsed.same_color), confidence: clampConfidence(parsed.confidence) };
+  } catch (error) {
+    noteOpenAiFailure(error);
+    console.warn("[ai-support] same-shoe pick failed", { requestId, model, status: error?.status, message: error?.message });
+    return null;
+  }
+};
+
+const asArrayOf = (value) => (Array.isArray(value) ? value : []);
+
 /**
  * One tiny real call, so the admin who just pasted a key sees "works / wrong key / no
  * credit" at once instead of discovering it from customers. It reports into the shared

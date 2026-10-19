@@ -137,7 +137,8 @@ test("the recogniser hands the model read back on every miss", () => {
   const missPaths = recognition.match(/\.\.\.\(await modelReadFor\(\{ tenantId, understanding \}\)\)/g) || [];
   assert.equal(missPaths.length, 2, "index error and a match with no sendable card");
   // No confident match: the read is taken once, tried as a family pick, and handed back on a miss.
-  assert.match(recognition, /const modelRead = await modelReadFor\(\{ tenantId, understanding \}\);/);
+  assert.match(recognition, /const readForCompare = await modelReadFor\(\{ tenantId, understanding \}\);/);
+  assert.match(recognition, /const modelRead = readForCompare;/);
   assert.equal((recognition.match(/\.\.\.modelRead,?\s*\}/g) || []).length + (recognition.match(/\.\.\.modelRead \}/g) || []).length >= 2, true, "both the family pick and the miss carry the read");
   assert.match(recognition, /return read \? \{ modelQuery: read\.phrase, modelProductIds:/);
 });
@@ -194,4 +195,25 @@ test("a photo matched only to its family is told as the closest model, never as 
   assert.equal(buildVisualRecognitionPayload({ cards, recognition: { closest: true } }).channel_reply.text, VISUAL_CLOSEST_MODEL_TEXT);
   assert.equal(buildVisualRecognitionPayload({ cards, recognition: { closest: false } }).channel_reply.text, VISUAL_SAME_MODEL_TEXT);
   assert.match(VISUAL_CLOSEST_MODEL_TEXT, /أقرب/);
+});
+
+test("the photo comparison gets one candidate per product colour, from the right pool", async () => {
+  const { photoCandidatePool, photoMatchKind } = await import("../server/services/aiVisualProductRecognitionService.js");
+  const { buildVisualRecognitionPayload, VISUAL_OTHER_COLOR_TEXT, VISUAL_SAME_MODEL_TEXT, VISUAL_CLOSEST_MODEL_TEXT } = await import("../server/services/aiInboxService.js");
+  const rows = [
+    { product_id: "78", color: "Black & Gray", image_url: "/a.jpg", score_breakdown: { brandScore: 1 } },
+    { product_id: "78", color: "black & gray", image_url: "/a2.jpg", score_breakdown: { brandScore: 1 } },
+    { product_id: "44", color: "White", image_url: "/b.jpg", score_breakdown: { brandScore: 1 } },
+    { product_id: "999", color: "White", image_url: "/c.jpg", score_breakdown: { brandScore: 0 } },
+    { product_id: "45", color: "Navy", image_url: "", score_breakdown: { brandScore: 1 } },
+  ];
+  assert.deepEqual(photoCandidatePool(rows, { familyIds: ["78", "44"] }).map((row) => row.image_url), ["/a.jpg", "/b.jpg"], "family only, one per colour");
+  assert.deepEqual(photoCandidatePool(rows).map((row) => row.image_url), ["/a.jpg", "/b.jpg"], "no family: same brand only, photos only");
+  assert.equal(photoMatchKind({ sameModel: true, sameColor: true }), "same");
+  assert.equal(photoMatchKind({ sameModel: true, sameColor: false }), "same_model_other_color");
+  assert.equal(photoMatchKind({ sameModel: false, sameColor: true }), "closest");
+  const cards = [{ name: "x", color: "White" }];
+  assert.equal(buildVisualRecognitionPayload({ cards, recognition: { photoMatch: "same" } }).channel_reply.text, VISUAL_SAME_MODEL_TEXT);
+  assert.equal(buildVisualRecognitionPayload({ cards, recognition: { photoMatch: "same_model_other_color" } }).channel_reply.text, VISUAL_OTHER_COLOR_TEXT);
+  assert.equal(buildVisualRecognitionPayload({ cards, recognition: { photoMatch: "closest", closest: true } }).channel_reply.text, VISUAL_CLOSEST_MODEL_TEXT);
 });

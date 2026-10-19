@@ -4,7 +4,9 @@ import path from "node:path";
 import db from "../database/db.js";
 import { normalizeProductCards } from "./aiProductCards.js";
 import { expandProductCardsByColor } from "./aiProductColorCarouselService.js";
-import { understandProductImageForSearch } from "./openaiSupportService.js";
+import sharp from "sharp";
+
+import { pickSameShoeAmongCandidates, understandProductImageForSearch } from "./openaiSupportService.js";
 import { searchAiVisualProductsPro } from "./aiVisualSearchProService.js";
 
 const text = (value = "") => String(value ?? "").trim();
@@ -340,6 +342,101 @@ const pickModelFromFamily = async ({ tenantId, modelRead = {}, search = null, un
   };
 };
 
+// A small JPEG data URL of a picture, so a low-detail comparison sends little and never depends on
+// anyone fetching our own /uploads back through the CDN.
+const thumbnailDataUrl = async ({ buffer = null, url = "", edge = 384 } = {}) => {
+  try {
+    const source = buffer || (await readLocalUploadImage(url))?.buffer || null;
+    if (!source) return /^https?:\/\//i.test(text(url)) ? text(url) : "";
+    const jpeg = await sharp(source, { animated: false }).rotate().resize({ width: edge, height: edge, fit: "inside", withoutEnlargement: true }).jpeg({ quality: 72 }).toBuffer();
+    return `data:image/jpeg;base64,${jpeg.toString("base64")}`;
+  } catch {
+    return /^https?:\/\//i.test(text(url)) ? text(url) : "";
+  }
+};
+
+/**
+ * The candidate product photos to show next to the customer's: one per product + colour, at most 8.
+ * The family the photo was read as when there is one ("terrex": its own pairs, re-searched inside
+ * the family when the global list missed them), otherwise the same-brand look-alikes.
+ */
+export const photoCandidatePool = (rows = [], { familyIds = [], max = 8 } = {}) => {
+  const family = new Set(asArray(familyIds).map((id) => String(id)));
+  const seen = new Set();
+  const picked = [];
+  for (const row of asArray(rows)) {
+    const productId = text(row?.product_id || row?.productId);
+    const imageUrl = text(row?.image_url || row?.imageUrl);
+    if (!productId || !imageUrl) continue;
+    if (family.size ? !family.has(productId) : Number(row?.score_breakdown?.brandScore || 0) < 1) continue;
+    const key = `${productId}:${text(row?.color).toLowerCase()}`;
+    if (seen.has(key)) continue;
+    seen.add(key);
+    picked.push(row);
+    if (picked.length >= max) break;
+  }
+  return picked;
+};
+
+// What the reply may say about the pick: the same shoe in the same colour, the same model in other
+// colours, or only the closest we have.
+export const photoMatchKind = (pick = {}) =>
+  pick?.sameModel ? (pick?.sameColor ? "same" : "same_model_other_color") : "closest";
+
+/**
+ * The customer's photo next to the candidates' own product photos (OpenAI picks the same shoe, or
+ * the closest, or none). Null when the comparison could not run — the caller keeps the text ranking.
+ */
+const pickByComparingPhotos = async ({ tenantId, search = null, modelRead = {}, understanding = null, visualQuery = "", imageUrl = "", imageBuffer = null, requestId = "" }) => {
+  const familyIds = asArray(modelRead?.modelProductIds).map((id) => String(id));
+  let pool = photoCandidatePool(search?.topMatches, { familyIds });
+  if (familyIds.length && pool.length < 2) {
+    const scoped = await searchAiVisualProductsPro({
+      tenantId,
+      detected: understanding?.detected || {},
+      visualQuery,
+      uploadedImageUrl: imageUrl,
+      uploadedImageBuffer: imageBuffer,
+      limit: 24,
+      onlyProductIds: familyIds,
+    }).catch(() => null);
+    pool = photoCandidatePool(scoped?.topMatches, { familyIds });
+  }
+  if (!pool.length) return null;
+  const [customerImage, ...candidateImages] = await Promise.all([
+    thumbnailDataUrl({ buffer: imageBuffer, url: imageUrl, edge: 512 }),
+    ...pool.map((row) => thumbnailDataUrl({ url: row.image_url || row.imageUrl })),
+  ]);
+  const usable = pool.map((row, index) => ({ row, image: candidateImages[index] })).filter((item) => item.image);
+  if (!customerImage || !usable.length) return null;
+  const pick = await pickSameShoeAmongCandidates({ customerImage, candidateImages: usable.map((item) => item.image), requestId });
+  if (!pick) return null;
+  if (pick.index < 0) return { matched: false, reason: "photo_compare_no_match" };
+  const chosen = usable[pick.index].row;
+  const productCards = await cardsForRecognisedProduct({ tenantId, productId: chosen.product_id, leadColor: text(chosen.color) }).catch(() => []);
+  if (!productCards.length) return null;
+  const photoMatch = photoMatchKind(pick);
+  console.log("[ai-visual-recognition] photo comparison pick", {
+    tenant_id: tenantId || null,
+    candidates: usable.length,
+    family: modelRead?.modelQuery || "",
+    product_id: chosen.product_id,
+    color: text(chosen.color),
+    photo_match: photoMatch,
+    confidence: pick.confidence,
+  });
+  return {
+    matched: true,
+    reason: `photo_compare_${photoMatch}`,
+    photoMatch,
+    closest: photoMatch === "closest",
+    productId: chosen.product_id,
+    matchedColor: text(chosen.color),
+    score: pick.confidence,
+    productCards,
+  };
+};
+
 /**
  * Recognise the product in a customer's photo and return it as colour cards.
  *
@@ -438,8 +535,26 @@ export const recogniseProductFromImage = async ({
     decision: decision.reason,
     shortlist: decision.candidates.map((item) => ({ product_id: item.product_id, score: Math.round(item.score * 1000) / 1000 })),
   });
+  // The owner (2026-10-19): look at the candidates' own photos and pick the same model and colour,
+  // or the closest and say it is the closest. The keyword ranking above cannot see shape or colour
+  // — a white Terrex went to a black-and-grey line, a white/black Superstar led with burgundy.
+  const readForCompare = await modelReadFor({ tenantId, understanding });
+  const compared = await pickByComparingPhotos({
+    tenantId,
+    search,
+    modelRead: readForCompare,
+    understanding,
+    visualQuery,
+    imageUrl: safeImageUrl,
+    imageBuffer: effectiveBuffer,
+    requestId,
+  });
+  if (compared?.matched) return { ...compared, understanding, visualQuery, search, ...readForCompare };
+  // Compared and nothing in the shop looks like it: an honest no-match, never the whole family.
+  if (compared) return { matched: false, reason: compared.reason, score, candidates: [], understanding, visualQuery, search };
+
   if (!decision.accept) {
-    const modelRead = await modelReadFor({ tenantId, understanding });
+    const modelRead = readForCompare;
     // The photo was read as a model family we stock ("Terrex": seven pairs). The owner: show THE
     // model in the photo, and if it is not the same, the closest one — said as the closest — not
     // every Terrex in the shop (LIVE 2026-10-19, 18 cards for one photo).

@@ -346,11 +346,14 @@ const resolveAwaitingCustomerAction = (memory = null) => {
 // would just repeat the carousel the customer is about to swipe.
 export const VISUAL_SAME_MODEL_TEXT = "أيوه متاح إن شاء الله 👇";
 export const VISUAL_CLOSEST_MODEL_TEXT = "مش لاقي نفس الموديل اللي في الصورة بالظبط يا فندم، بس ده أقرب موديل ليه عندنا 👇";
+export const VISUAL_OTHER_COLOR_TEXT = "الموديل ده متاح إن شاء الله، بس مش باللون اللي في الصورة 🙏 دي الألوان المتاحة منه 👇";
 
 export const buildVisualRecognitionPayload = ({ cards = [], recognition = {} } = {}) => {
   // The owner's words (2026-10-19): one line, the cards do the rest. When the photo was only
   // matched to its family, the customer is told this is the closest model, never sold it as the same.
-  const answer = recognition.closest ? VISUAL_CLOSEST_MODEL_TEXT : VISUAL_SAME_MODEL_TEXT;
+  const answer = recognition.photoMatch === "same_model_other_color"
+    ? VISUAL_OTHER_COLOR_TEXT
+    : recognition.closest ? VISUAL_CLOSEST_MODEL_TEXT : VISUAL_SAME_MODEL_TEXT;
   const colorCount = cards.length;
   return {
     answer,
