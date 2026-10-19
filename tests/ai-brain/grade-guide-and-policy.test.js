@@ -26,8 +26,8 @@ const { gradeGuideFor, storeReturnPolicyFor } = await import("../../server/servi
 
 test("the grade guide carries the owner's notes, local first", () => {
   const guide = gradeGuideFor([{ grade: "mirror_original" }, { grade: "imported_from_vietnam" }, { grade: "local" }]);
-  assert.deepEqual(guide.map((entry) => entry.grade_label), ["محلي", "مستورد فيتنامي", "ميرور اوريجينال"]);
-  assert.match(guide[0].note, /مصري/);
+  assert.deepEqual(guide.map((entry) => entry.grade_label), ["مصري", "مستورد فيتنامي", "ميرور اوريجينال"]);
+  assert.match(guide[0].note, /خامة محترمة/);
   assert.match(guide[1].note, /تشطيب أنضف/);
   assert.match(guide[2].note, /طبق الأصل/);
 });

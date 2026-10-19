@@ -104,7 +104,7 @@ test("the confidence re-rank after brain V2 cannot undo local-first", async () =
   // A mirror card that matches the words best would be ranked first by confidence alone.
   const cards = [
     { id: 61, product_id: 61, name: "Nike Air Force 1", grade: "mirror_original", grade_label: "ميرور اوريجينال" },
-    { id: 25, product_id: 25, name: "Nike Air Force Sneakers", grade: "local", grade_label: "محلي" },
+    { id: 25, product_id: 25, name: "Nike Air Force Sneakers", grade: "local", grade_label: "مصري" },
   ];
   const output = normalizeUnifiedDecisionOutput({ text: "x", product_cards: cards, intent: "product_search" }, { originalText: "Nike Air Force 1" });
   assert.deepEqual(output.product_cards.map((card) => card.grade), ["local", "mirror_original"]);
@@ -130,25 +130,27 @@ test("inside a grade the models take turns before any shows a second colour", as
   assert.deepEqual(picked.map((item) => `${item.product_id}${item.color}`), ["1a", "2a", "3a"]);
 });
 
-test("the multi-grade introduction explains what differs, from the owner's notes, with no price or size", async () => {
+test("a multi-grade answer opens with one short line; each grade's line goes above its own cards", async () => {
+  // The owner, 2026-10-19: the long explanation was too much — "مصري" then its cards, "ميرور
+  // اوريجينال" then its cards, and never the word "محلي".
+  const { gradeHeaderLine } = await import("../../server/config/productGrades.js");
   const decision = await ask("متاح ايرفورس ؟");
-  const reply = decision.text;
-  assert.match(reply, /Nike Air Force/, "names the model");
-  assert.match(reply, /بدرجتين، والفرق بينهم في الخامة والتشطيب/);
-  assert.match(reply, /محلي — مصري، خامة محترمة\. اختيار اقتصادي/);
-  assert.match(reply, /ميرور اوريجينال — أعلى درجة: نسخة طبق الأصل .* مناسب لو عايز نفس شكل وخامة الأوريجينال/);
-  assert.ok(reply.indexOf("محلي —") < reply.indexOf("ميرور اوريجينال —"), "local first");
-  assert.match(reply, /والسعر بيختلف على حسب الدرجة/);
-  assert.match(reply, /كروت المحلي الأول وبعدها الميرور اوريجينال/);
-  assert.doesNotMatch(reply, /\d{3,}\s*جنيه|من\s*\d{2}\s*لحد/, "prices and sizes stay on the cards");
+  assert.equal(decision.text, "أيوه يا فندم، Nike Air Force متاح عندنا بدرجتين 👇");
   assert.equal(decision.debug?.grade_intro, "fixed");
+  assert.equal(gradeHeaderLine("local"), "🔹 مصري — خامة محترمة");
+  assert.equal(gradeHeaderLine("ميرور اوريجينال"), "🔹 ميرور اوريجينال — نسخة طبق الأصل من الأوريجينال في الشكل والخامة والنعل والتفاصيل");
+  assert.ok(decision.product_cards.every((card) => card.grade_label !== "محلي"), "no card says محلي");
+  assert.ok(decision.product_cards.some((card) => card.grade_label === "مصري"));
 });
 
-test("on Messenger and Instagram each grade goes out as its own carousel, named", async () => {
+test("on Messenger and Instagram each grade goes out as its own carousel, under its own line", async () => {
   const { metaCarouselChunks } = await import("../../server/services/metaIntegrationService.js");
   const items = (label, count) => Array.from({ length: count }, (_, index) => ({ card: { grade_label: label, id: `${label}${index}` } }));
-  const chunks = metaCarouselChunks([...items("محلي", 5), ...items("ميرور اوريجينال", 10)]);
-  assert.deepEqual(chunks.map((chunk) => [chunk.label, chunk.items.length]), [["محلي", 5], ["ميرور اوريجينال", 10]]);
+  const chunks = metaCarouselChunks([...items("مصري", 5), ...items("ميرور اوريجينال", 10)]);
+  assert.deepEqual(chunks.map((chunk) => [chunk.label, chunk.items.length]), [["مصري", 5], ["ميرور اوريجينال", 10]]);
+  const fs = await import("node:fs");
+  const meta = fs.readFileSync(new URL("../../server/services/metaIntegrationService.js", import.meta.url), "utf8");
+  assert.match(meta, /messageText: gradeHeaderLine\(chunk\.label\)/, "the line above each carousel is the shared grade line");
   assert.deepEqual(metaCarouselChunks(items("", 12)).map((chunk) => [chunk.label, chunk.items.length]), [["", 10], ["", 2]], "ungraded lists keep the plain 10-card split");
 });
 
@@ -171,7 +173,7 @@ test("a gender-aware answer survives the multi-grade introduction", async () => 
   const cards = [{ name: "Nike Air Force 1 - White", grade: "local" }, { name: "Nike Air Force 1 - Olive", grade: "mirror_original" }];
   const guide = gradeGuideFor(cards);
   const missed = multiGradeIntroText(guide, cards, { exact: false, label: "حريمي", text: "للأسف مش لاقي Air Force حريمي دلوقتي. ده المتاح منه رجالي:" });
-  assert.match(missed, /^للأسف مش لاقي Air Force حريمي دلوقتي\. ده المتاح منه رجالي\.\nوالمتاح بدرجتين/);
+  assert.equal(missed, "للأسف مش لاقي Air Force حريمي دلوقتي. ده المتاح منه رجالي، بدرجتين 👇");
   const exact = multiGradeIntroText(guide, cards, { exact: true, label: "رجالي", text: "أيوه يا فندم، Nike Air Force 1 رجالي متاح بالألوان دي:" });
-  assert.match(exact, /^أيوه يا فندم، Nike Air Force 1 رجالي متاح عندنا بدرجتين/);
+  assert.equal(exact, "أيوه يا فندم، Nike Air Force 1 رجالي متاح عندنا بدرجتين 👇");
 });

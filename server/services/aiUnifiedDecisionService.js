@@ -73,13 +73,12 @@ export const storeReturnPolicyFor = async (tenantId = null) => {
 };
 
 /*
- * A model on screen in more than one grade gets a fixed introduction built from the owner's
- * grade notes, not an OpenAI rewrite. Production, 2026-10-19: told to leave prices and sizes to
- * the cards, OpenAI listed every model with prices and size ranges — two of them wrong ("same
- * sizes" for a colour with only 40 and 42) — on every try, and never explained the grades; the
- * owner then found the one-line-per-grade version too thin to show what differs. This says
- * where the difference lies (material and finish), what each grade is and who it suits, that the
- * price follows the grade, and that the cards below carry each colour's price and sizes.
+ * A model on screen in more than one grade: one short line, then each grade's own header line
+ * ("🔹 مصري — خامة محترمة", productGrades.gradeHeaderLine) right above that grade's cards — the
+ * senders put it there (WhatsApp aiReplyCarouselChunks, Meta metaCarouselChunks). Not an OpenAI
+ * rewrite: told to leave prices and sizes to the cards, it listed every model with prices and
+ * size ranges, some wrong, on every try. The owner (2026-10-19) found the longer explanation too
+ * much: "مصري" then its cards, "ميرور اوريجينال" then its cards.
  */
 const GRADE_COUNT_WORDS = { 2: "بدرجتين", 3: "بـ3 درجات", 4: "بـ4 درجات" };
 
@@ -101,30 +100,16 @@ export const sharedModelName = (cards = []) => {
 };
 
 // audienceReply: brain V2's gender-aware answer (debug.audience_reply). An exact match adds the
-// gender to the model name; a miss ("للأسف مش لاقي … حريمي") leads, and the grades follow it.
+// gender to the model name; a miss ("للأسف مش لاقي … حريمي") is the line itself.
 export const multiGradeIntroText = (guide = [], cards = [], audienceReply = null) => {
   const grades = asArray(guide);
+  const count = GRADE_COUNT_WORDS[grades.length] || "بأكتر من درجة";
+  if (audienceReply && !audienceReply.exact) {
+    return `${text(audienceReply.text).replace(/[:：]\s*$/, "")}، ${count} 👇`;
+  }
   const audienceLabel = audienceReply?.exact ? text(audienceReply.label) : "";
   const model = [sharedModelName(cards) || "الموديل ده", audienceLabel].filter(Boolean).join(" ");
-  const count = GRADE_COUNT_WORDS[grades.length] || "بأكتر من درجة";
-  const definite = (label = "") => (label ? `ال${label}` : "");
-  const firstLabel = definite(grades[0]?.grade_label);
-  const otherLabels = grades.slice(1).map((grade) => definite(grade.grade_label)).join(" و");
-  const audienceLead = audienceReply && !audienceReply.exact ? text(audienceReply.text).replace(/[:：]\s*$/, ".") : "";
-  return [
-    audienceLead
-      ? `${audienceLead}\nوالمتاح ${count}، والفرق بينهم في الخامة والتشطيب:`
-      : `أيوه يا فندم، ${model} متاح عندنا ${count}، والفرق بينهم في الخامة والتشطيب:`,
-    "",
-    ...grades.map(({ grade, grade_label: label, note }) => {
-      const suits = productGrade(grade)?.suits || "";
-      return `🔹 ${label}${note ? ` — ${note}` : ""}${suits ? ` ${suits}` : ""}`;
-    }),
-    "",
-    "وكل ما الدرجة تعلى، الخامة والتشطيب بيقربوا أكتر من الأوريجينال، والسعر بيختلف على حسب الدرجة.",
-    `تحت هتلاقي كروت ${firstLabel} الأول وبعدها ${otherLabels}، وكل كارت عليه سعره والمقاسات المتاحة 👇`,
-    "تحب أنهي درجة أو أنهي لون؟",
-  ].join("\n");
+  return `أيوه يا فندم، ${model} متاح عندنا ${count} 👇`;
 };
 
 const withReplyText = (decision = {}, replyText = "", debugPatch = {}) => ({

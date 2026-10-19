@@ -8,12 +8,11 @@
  * it names the grade and says nothing about its material.
  */
 export const PRODUCT_GRADES = Object.freeze([
-  // note: the owner's words, 2026-10-19. suits: who the grade is for — it restates the note and
-  // the price order (local is the cheapest grade) and adds no material claim of its own.
-  Object.freeze({ key: "local", label: "محلي", note: "مصري، خامة محترمة.", suits: "اختيار اقتصادي ومريح للاستخدام اليومي." }),
-  Object.freeze({ key: "imported_from_vietnam", label: "مستورد فيتنامي", note: "خامة أعلى وتشطيب أنضف من المحلي، وعمره أطول.", suits: "مناسب لو عايز جودة أعلى من المحلي وعمر أطول." }),
-  Object.freeze({ key: "mirror_original", label: "ميرور اوريجينال", note: "أعلى درجة: نسخة طبق الأصل من الأوريجينال في الشكل والخامة والنعل والتفاصيل.", suits: "مناسب لو عايز نفس شكل وخامة الأوريجينال بالظبط." }),
-  Object.freeze({ key: "original", label: "أوريجينال", note: "", suits: "" }),
+  // The owner's words, 2026-10-19. The customer never reads "محلي": the local grade is "مصري".
+  Object.freeze({ key: "local", label: "مصري", note: "خامة محترمة" }),
+  Object.freeze({ key: "imported_from_vietnam", label: "مستورد فيتنامي", note: "خامة أعلى وتشطيب أنضف من المصري، وعمره أطول" }),
+  Object.freeze({ key: "mirror_original", label: "ميرور اوريجينال", note: "نسخة طبق الأصل من الأوريجينال في الشكل والخامة والنعل والتفاصيل" }),
+  Object.freeze({ key: "original", label: "أوريجينال", note: "" }),
 ]);
 
 // Cards for a model sold in several grades: every grade gets its own run of up to
@@ -31,3 +30,17 @@ export const productGrade = (key = "") => BY_KEY.get(String(key ?? "").trim().to
 export const productGradeRank = (key = "") => productGrade(key)?.rank ?? PRODUCT_GRADES.length;
 
 export default PRODUCT_GRADES;
+
+const BY_LABEL = new Map(PRODUCT_GRADES.map((grade) => [grade.label, grade]));
+
+/*
+ * The line that goes out right above a grade's cards, the same on WhatsApp, Messenger and
+ * Instagram: "🔹 مصري — خامة محترمة", then that grade's carousel. Takes the grade key or the
+ * label a card carries.
+ */
+export const gradeHeaderLine = (gradeOrLabel = "") => {
+  const value = String(gradeOrLabel ?? "").trim();
+  const grade = productGrade(value) || BY_LABEL.get(value) || null;
+  if (!grade) return value ? `🔹 ${value}` : "";
+  return `🔹 ${grade.label}${grade.note ? ` — ${grade.note}` : ""}`;
+};

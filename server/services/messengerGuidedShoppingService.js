@@ -39,7 +39,8 @@ const FALLBACK_OPTION_LABELS = {
   egyptian: "مصري",
   vietnamese_import: "مستورد فيتنامي",
   mirror_original: "ميرور أوريجنال",
-  local: "محلي",
+  // The owner, 2026-10-19: customers read the local grade as "مصري", never "محلي".
+  local: "مصري",
   premium: "بريميوم",
 };
 

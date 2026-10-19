@@ -10,6 +10,7 @@
 import test from "node:test";
 import assert from "node:assert/strict";
 import fs from "node:fs";
+import { gradeHeaderLine } from "../server/config/productGrades.js";
 
 process.env.WHATSAPP_GATEWAY_PROVIDER = "evolution";
 process.env.EVOLUTION_API_URL = "http://evolution.test";
@@ -143,7 +144,9 @@ test("the auto-reply sends through the carousel and skips the cards it delivered
 // Since 0488423 a named-model answer carries every grade (local first, up to 10 each). WhatsApp
 // splits like Messenger/Instagram (metaCarouselChunks): a new carousel at each grade change and at
 // 10 cards, with the "🔹 <grade>" line over each grade's first carousel.
-const LOCAL = "محلي";
+// The customer reads the local grade as "مصري" (2026-10-19); each grade's line carries its note
+// (productGrades.gradeHeaderLine), the same line Messenger and Instagram print.
+const LOCAL = "مصري";
 const MIRROR = "ميرور اوريجينال";
 const gradedCards = [
   ...Array.from({ length: 5 }, (_, i) => aiCard(`10${i}`, `Local ${i}`, 900, LOCAL)),
@@ -157,8 +160,8 @@ test("a multi-grade answer goes as one carousel per grade, split again at 10, ea
     assert.equal(outcome.sent_count, 17, "all 17 cards, no cap at 6");
     const sent = carouselCalls(calls);
     assert.deepEqual(sent.map((call) => call.body.cards.length), [5, 10, 2]);
-    assert.equal(sent[0].body.body, `الفرق بين الدرجات\n\n🔹 ${LOCAL}`, "the AI's words, then the first grade's label");
-    assert.equal(sent[1].body.body, `🔹 ${MIRROR}`, "the next grade opens with its own label");
+    assert.equal(sent[0].body.body, `الفرق بين الدرجات\n\n${gradeHeaderLine(LOCAL)}`, "the AI's words, then the first grade's label");
+    assert.equal(sent[1].body.body, gradeHeaderLine(MIRROR), "the next grade opens with its own label");
     assert.ok(!sent[2].body.body.includes("🔹"), "the same grade continued is not labelled again");
     assert.ok(sent[2].body.body.length > 0);
   });
@@ -181,7 +184,7 @@ test("AI words longer than a carousel body go first as their own text, whole", a
     assert.ok(textCall, "the long text was sent on its own");
     assert.equal(textCall.body.text, longText);
     const sent = carouselCalls(calls);
-    assert.deepEqual(sent.map((call) => call.body.body), [`🔹 ${LOCAL}`, `🔹 ${MIRROR}`]);
+    assert.deepEqual(sent.map((call) => call.body.body), [gradeHeaderLine(LOCAL), gradeHeaderLine(MIRROR)]);
   });
 });
 

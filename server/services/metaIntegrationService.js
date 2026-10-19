@@ -28,6 +28,7 @@ import {
 } from "./aiSupportLogService.js";
 import { getAISettings } from "./aiSettingsService.js";
 import { greetingReplyParts } from "../utils/greetingReply.js";
+import { gradeHeaderLine } from "../config/productGrades.js";
 import { getAIChannelSettings } from "./aiChannelSettingsService.js";
 import { aiModeSwitchBlock, recheckAutoReplyBeforeSend } from "../utils/aiAutoReplyGate.js";
 import { logAIPersistentEvent } from "./aiPersistentEventLogService.js";
@@ -27142,7 +27143,7 @@ export const sendMetaInboxOutboundMessage = async ({
         for (const chunk of carouselChunks) {
           const chunkElements = chunk.items.map(({ element }) => element);
           if (chunk.label) {
-            await postMetaMessage({ token, recipientId: safeRecipientId, messageText: `🔹 ${chunk.label}`, sendContext }).catch((labelError) => {
+            await postMetaMessage({ token, recipientId: safeRecipientId, messageText: gradeHeaderLine(chunk.label), sendContext }).catch((labelError) => {
               console.warn("[meta] carousel grade label failed", { tenant_id: scopedTenantId, channel: normalizedChannel, message: labelError?.message });
             });
           }

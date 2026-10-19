@@ -18,6 +18,7 @@ import {
   recheckWhatsappAutoReplyBeforeSend,
 } from "./aiInboxService.js";
 import { greetingReplyFor } from "../utils/greetingReply.js";
+import { gradeHeaderLine } from "../config/productGrades.js";
 import { handleInboundMarketingStopWord } from "./marketingConsentService.js";
 import { debugAiImagesLog, normalizeProductCards } from "./aiProductCards.js";
 import { ensureCarouselCardImageUrl } from "./productImageVariantService.js";
@@ -3956,7 +3957,7 @@ export const sendAiReplyProductCarousel = async ({ phone, instance = "", body = 
   for (const [chunkIndex, chunk] of aiReplyCarouselChunks(list.map((card, index) => ({ card, built: carouselCards[index] }))).entries()) {
     // Only the first carousel carries the AI's words; each grade's carousel is named by its
     // "🔹 <grade>" line, the same line Messenger and Instagram print above theirs.
-    const gradeLine = chunk.label ? `🔹 ${chunk.label}` : "";
+    const gradeLine = chunk.label ? gradeHeaderLine(chunk.label) : "";
     const chunkBody = [chunkIndex === 0 ? leadLine : "", gradeLine].filter(Boolean).join("\n\n").slice(0, 1024)
       || "اختار اللون اللي يعجبك 👇";
     try {
