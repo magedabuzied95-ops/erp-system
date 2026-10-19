@@ -43,10 +43,9 @@ reply that says "closest".
   The bars are still there; the words are not.
 - The 7 owner files are 4 distinct photos (pairs are byte-identical). Each photo is one case, and
   its twin is listed in `also_sent_as`.
-- The eval process reads the OpenAI key from the environment. Production keeps the working key in
-  Settings (`ai_channels.openai_agent_api_key`, loaded at server start), and the env key is stale
-  (401 on 2026-10-20). Until the eval loads that setting the same way, every case falls to the
-  Groq reader, which has a 200K tokens/day cap.
+- Production keeps the working OpenAI key in Settings (`ai_channels.openai_agent_api_key`, loaded at
+  server start); the env key is stale (401 on 2026-10-20). The eval loads the setting the same way
+  (`refreshOpenAiCredentialOverrides`) and prints only whether a key loaded.
 
 ## Running it (production data, never the live app)
 

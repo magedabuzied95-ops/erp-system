@@ -291,6 +291,11 @@ const main = async () => {
   // Imported only now: the fetch counter above must already be in place.
   const { default: db } = await import("../database/db.js");
   guardDbReadOnly(db);
+  // The live server loads the OpenAI key saved in Settings at startup; the env key may be stale.
+  // Only whether a key loaded is printed, never the key.
+  const { refreshOpenAiCredentialOverrides } = await import("../services/openaiCredentials.js");
+  const credentials = await refreshOpenAiCredentialOverrides();
+  console.log("[visual-eval] openai key loaded:", credentials.agent_key_loaded, "· from settings:", credentials.agent_uses_system_setting);
   const { recogniseProductFromImage } = await import("../services/aiVisualProductRecognitionService.js");
 
   if (args.dumpImages) fs.mkdirSync(args.dumpImages, { recursive: true });
