@@ -23,8 +23,10 @@
 import {
   getSharedOpenAiClient,
   isTextGenerationAvailable,
-  resolveSupportMaxRetries,
+  noteOpenAiFailure,
+  noteOpenAiSuccess,
   resolveSupportModel,
+  resolveSupportSamplingParams,
 } from "./openaiSupportService.js";
 import { buildToolRegistry } from "./aiToolRegistryService.js";
 
@@ -137,6 +139,7 @@ export const runAgentLoop = async ({
       return { ok: false, reason: "deadline_exceeded", tool_trace: toolTrace, iterations: iteration };
     }
 
+    const lastRound = iteration === MAX_ITERATIONS - 1;
     let response;
     try {
       response = await client.responses.create(
@@ -144,20 +147,25 @@ export const runAgentLoop = async ({
           model,
           instructions: [instructions, TOOL_DISCIPLINE].filter(Boolean).join("\n"),
           input,
-          tools: registry.definitions,
-          // The final turn must be the structured reply, so the schema is only
-          // attached once the model has stopped asking for tools.
-          ...(iteration === MAX_ITERATIONS - 1
-            ? { text: { format: { type: "json_schema", name: "agent_reply", strict: true, schema: replySchema } } }
-            : {}),
+          // The schema rides on EVERY round: attached only to the last one, a model that
+          // answered after one tool call replied in prose with facts_used empty, and the
+          // provenance check below then "verified" nothing.
+          text: { format: { type: "json_schema", name: "agent_reply", strict: true, schema: replySchema } },
+          // The last round must answer — a tool call there used to end in max_iterations.
+          ...(lastRound ? {} : { tools: registry.definitions }),
+          ...resolveSupportSamplingParams(model),
         },
-        { timeout: remainingMs, maxRetries: iteration === 0 ? resolveSupportMaxRetries() : 0 }
+        // One retry budget for the whole loop; the deadline is the real ceiling.
+        { timeout: remainingMs, maxRetries: 0 }
       );
+      noteOpenAiSuccess();
     } catch (error) {
+      noteOpenAiFailure(error);
       console.warn("[ai-agent-loop] model call failed", {
         tenant_id: tenantId,
         conversation_id: conversationId,
         iteration,
+        status: error?.status,
         message: error?.message,
       });
       return { ok: false, reason: "model_error", tool_trace: toolTrace, iterations: iteration };
@@ -190,7 +198,9 @@ export const runAgentLoop = async ({
       };
     }
 
-    input.push(...toolCalls);
+    // The whole output goes back, not only the function calls: reasoning models refuse a
+    // follow-up turn whose reasoning items were dropped.
+    input.push(...asArray(response.output));
 
     for (const call of toolCalls) {
       const signature = callSignature(call);

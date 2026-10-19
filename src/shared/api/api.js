@@ -450,6 +450,24 @@ export const api = {
       options
     ),
 
+  getOpenAiStatus: (options) =>
+
+    request(
+      "/ai-agent/openai-status",
+      "GET",
+      null,
+      options
+    ),
+
+  probeOpenAi: (options) =>
+
+    request(
+      "/ai-agent/openai-status/probe",
+      "POST",
+      {},
+      options
+    ),
+
   getAISuggestedReplies: (
     payload,
     options

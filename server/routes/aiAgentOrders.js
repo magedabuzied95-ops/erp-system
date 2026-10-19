@@ -5,6 +5,8 @@ import db from "../database/db.js";
 
 import { protect, requireAdmin } from "../middleware/authMiddleware.js";
 import permit from "../middleware/permissionMiddleware.js";
+import { generateUnifiedConversationDecision } from "../services/aiUnifiedDecisionService.js";
+import { getOpenAiSupportRuntimeConfig, probeOpenAiConnection } from "../services/openaiSupportService.js";
 import {
   decorateConversationsWithPrivacy,
   getConversationPrivacy,
@@ -1404,88 +1406,112 @@ router.put("/quick-replies/reorder", protect, permit("settings", "edit"), async 
   }
 });
 
+// The playground used to answer from the legacy template helpers (buildHumanizedReply),
+// a path no customer message goes through — so a reply that looked fine here said
+// nothing about WhatsApp, Messenger or Instagram. It now runs the SAME decision the
+// webhooks run (generateUnifiedConversationDecision: brain V2 + the OpenAI grounded
+// rewrite), read-only, and keeps a per-admin memory so follow-ups ("مقاس 42") work.
+const playgroundMemories = new Map();
+const PLAYGROUND_MEMORY_LIMIT = 200;
+
+const mergePlaygroundMemory = (memory = {}, output = {}) => {
+  const patch = output.ai_memory_patch || { preferences: output.memory_updates || output.memoryUpdates || {} };
+  const cards = Array.isArray(output.product_cards) && output.product_cards.length ? output.product_cards : null;
+  return {
+    ...memory,
+    ...patch,
+    preferences: { ...(memory.preferences || {}), ...(patch.preferences || {}) },
+    ...(cards ? { last_products: cards } : {}),
+  };
+};
+
 router.post("/test-reply", protect, permit("settings", "view"), async (req, res) => {
   try {
     const tenantId = toTenantId(req);
     const channelId = envText(req.body?.channelId || req.body?.channel_id || AI_AGENT_CHANNELS.FACEBOOK_MESSENGER);
     const platform = envText(req.body?.platform || channelId);
     const message = envText(req.body?.message);
-    const productId = Number(req.body?.productId || req.body?.product_id || 0);
     const globalSettings = await getAISettings();
     const channelSettings = await getAIChannelSettings(channelId, platform);
-    const intent = resolveIntent(message);
-    const detectedSize = extractShoeSize(message);
-    const escalation = detectEscalation(message);
     const effectiveMode = globalSettings.autoReplyMode !== "fully_automatic"
       ? globalSettings.autoReplyMode
       : channelSettings.aiMode || "suggest_only";
-    const effectiveTone = channelSettings.tone || globalSettings.tone || "casual";
-    const testConversationId = `test:${channelId}`;
-    const memory = getConversationMemory(testConversationId) || getConversationMemory(channelId);
-    let productContext = null;
-    if (productId > 0) {
-      const products = await searchAiOrderProducts({
-        tenantId,
-        message: "",
-        metadata: { product_id: productId, matched_product_id: productId },
-      }).catch((error) => {
-        console.warn("ai_test_playground_product_lookup_failed", {
-          tenant_id: tenantId,
-          product_id: productId,
-          message: error?.message || "Product lookup failed",
-        });
-        return [];
-      });
-      const product = products.find((item) => Number(item.id || item.product_id) === productId) || products[0] || null;
-      productContext = product ? buildProductContext({
-        ...product,
-        price: product.product_price || product.price,
-        total_stock: product.total_stock,
-      }) : null;
-    }
-    const replyProductContext = productContext || buildProductContext(memory?.lastProduct);
-    const humanizedTestReply = buildHumanizedReply({
-      intent,
-      productContext: replyProductContext,
-      detectedSize,
-      conversationId: testConversationId,
-      customerName: req.body?.customerName || req.body?.customer_name || "",
-    });
-    const simulatedReply = humanizedTestReply || commerceReplyForIntent(intent, replyProductContext, detectedSize) ||
-      "تمام  أقدر أساعدك، ممكن تبعتلي اسم المنتج أو صورته؟";
-    const guarded = guardAIReply({
-      reply: simulatedReply,
-      intent,
-      productContext,
-      conversationMemory: memory,
-      detectedSize,
-    });
-    logProductShareContext({
-      conversationId: testConversationId,
-      platform,
-      productContext: replyProductContext,
-      includeImage: Boolean(replyProductContext?.imageUrl),
-    });
+    const testConversationId = `test:${channelId}:${req.user?.id || "admin"}`;
+    if (req.body?.reset) playgroundMemories.delete(testConversationId);
+    const memory = playgroundMemories.get(testConversationId) || {};
+    const startedAt = Date.now();
+
+    const output = await generateUnifiedConversationDecision({
+      channel: channelId,
+      externalConversationId: testConversationId,
+      externalCustomerId: "playground",
+      customerName: envText(req.body?.customerName || req.body?.customer_name),
+      text: message,
+      metadata: {
+        tenant_id: tenantId,
+        channel: channelId,
+        source: "ai_playground",
+        ai_memory: memory,
+      },
+    }, { tenantId, memory });
+
+    if (playgroundMemories.size >= PLAYGROUND_MEMORY_LIMIT) playgroundMemories.clear();
+    playgroundMemories.set(testConversationId, mergePlaygroundMemory(memory, output));
+
+    const finalReply = envText(output.channel_reply?.text || output.text || output.answer);
+    const productCards = (Array.isArray(output.product_cards) ? output.product_cards : []).slice(0, 12).map((card) => ({
+      id: card?.id || card?.product_id || null,
+      name: envText(card?.name || card?.title || card?.product_name),
+      color: envText(card?.color || card?.matched_variant_color),
+      price: card?.display_price ?? card?.final_price ?? card?.price ?? null,
+      image_url: envText(card?.image_url || card?.image || card?.main_image),
+    }));
+    const runtime = getOpenAiSupportRuntimeConfig();
     const result = {
-      intent,
+      intent: envText(output.detected_intent || output.intent),
       effectiveMode,
-      effectiveTone,
-      productContext,
-      memory,
-      safetyReason: guarded.reason,
-      finalReply: ensureProductLinkInReply(guarded.reply, replyProductContext),
-      wouldSendAutomatically: effectiveMode === "fully_automatic" && guarded.allowed !== false,
+      finalReply,
+      productCards,
+      rewriteApplied: Boolean(output.debug?.grounded_rewrite_applied),
+      needsHuman: output.needs_human_support === true,
+      confidence: Number.isFinite(Number(output.confidence)) ? Number(output.confidence) : null,
+      elapsedMs: Date.now() - startedAt,
+      openai: {
+        text_generation_enabled: runtime.text_generation_enabled,
+        block_reason: runtime.text_generation_block_reason,
+        model: runtime.text_model,
+      },
+      safetyReason: output.debug?.grounded_rewrite_applied ? "" : (runtime.text_generation_block_reason || ""),
+      wouldSendAutomatically: effectiveMode === "fully_automatic" && Boolean(finalReply || productCards.length),
     };
     pushAIEvent({
       type: "AI_TEST_PLAYGROUND_RUN",
       status: "success",
       channelId,
-      intent,
-      safetyReason: guarded.reason,
+      intent: result.intent,
+      safetyReason: result.safetyReason,
     });
     return res.json({ success: true, result });
   } catch (error) {
     return sendError(res, error, "Failed to test AI reply");
+  }
+});
+
+// Is OpenAI actually answering? The breaker state plus the last error, so the admin
+// sees "wrong key" or "no credit" instead of finding out from customers.
+router.get("/openai-status", protect, permit("settings", "view"), async (_req, res) => {
+  try {
+    return res.json({ success: true, status: getOpenAiSupportRuntimeConfig() });
+  } catch (error) {
+    return sendError(res, error, "Failed to read OpenAI status");
+  }
+});
+
+router.post("/openai-status/probe", protect, permit("settings", "view"), async (_req, res) => {
+  try {
+    return res.json({ success: true, probe: await probeOpenAiConnection() });
+  } catch (error) {
+    return sendError(res, error, "Failed to test OpenAI");
   }
 });
 

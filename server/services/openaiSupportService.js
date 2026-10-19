@@ -113,6 +113,34 @@ const noteTextGenerationRateLimit = (error = null) => {
 };
 
 /**
+ * A wrong or revoked key (401/403) is as permanent as an empty balance: every customer
+ * message re-called OpenAI, failed, and quietly got the canned reply. Same long block as
+ * no-credits; saving a new key in Settings clears it (syncAgentCredentialState).
+ */
+const isInvalidCredential = (error) => [401, 403].includes(Number(error?.status ?? error?.response?.status ?? 0));
+
+const noteInvalidCredential = () => {
+  const waitMs = exhaustedQuotaBlockMs();
+  textGenerationBlockedUntil = Date.now() + waitMs;
+  textGenerationBlockReason = "openai_invalid_key";
+  return waitMs;
+};
+
+// What the admin screen shows: the last failure and the last success, so "the AI is
+// answering with templates" has a visible reason instead of living in container logs.
+let lastOpenAiError = null;
+let lastOpenAiSuccessAt = "";
+
+const rememberOpenAiError = (error) => {
+  lastOpenAiError = {
+    at: new Date().toISOString(),
+    status: Number(error?.status ?? error?.response?.status ?? 0) || null,
+    code: String(error?.code || error?.error?.code || error?.type || error?.error?.type || ""),
+    message: String(error?.message || error?.error?.message || "").slice(0, 300),
+  };
+};
+
+/**
  * Shared circuit breaker, exported so every AI service reports into ONE state.
  *
  * Without this the understanding pass caught its own 429s privately and never tripped
@@ -121,12 +149,17 @@ const noteTextGenerationRateLimit = (error = null) => {
  * backed off. One dead account, two different behaviours.
  */
 export const noteOpenAiFailure = (error) => {
+  rememberOpenAiError(error);
+  if (isInvalidCredential(error)) return noteInvalidCredential();
   const status = Number(error?.status ?? error?.response?.status ?? 0);
   if (status !== 429 && !isExhaustedQuota(error)) return 0;
   return noteTextGenerationRateLimit(error);
 };
 
-export const noteOpenAiSuccess = () => noteTextGenerationSuccess();
+export const noteOpenAiSuccess = () => {
+  lastOpenAiSuccessAt = new Date().toISOString();
+  noteTextGenerationSuccess();
+};
 
 const textGenerationTemporarilyBlocked = () => Date.now() < textGenerationBlockedUntil;
 
@@ -143,6 +176,7 @@ const syncAgentCredentialState = () => {
   if (apiKey !== openaiClientApiKey) {
     openaiClient = null;
     openaiClientApiKey = apiKey;
+    lastOpenAiError = null;
     noteTextGenerationSuccess();
   }
   return apiKey;
@@ -162,6 +196,16 @@ const textGenerationEnabled = () => envFlagEnabled(process.env.AI_SUPPORT_ENABLE
 export const resolveSupportModel = () => toText(process.env.AI_SUPPORT_MODEL) || DEFAULT_MODEL;
 export const resolveFastModel = () =>
   toText(process.env.AI_FAST_MODEL) || toText(process.env.AI_UNDERSTANDING_MODEL) || DEFAULT_FAST_MODEL;
+/**
+ * gpt-4o runs at temperature 1.0 unless told otherwise — too loose for a reply that must
+ * repeat prices and sizes exactly. Reasoning models (o-series, gpt-5) reject the
+ * parameter outright, so it is only sent where it is accepted or explicitly configured.
+ */
+export const resolveSupportSamplingParams = (model = "") => {
+  const configured = Number(process.env.AI_SUPPORT_TEMPERATURE);
+  if (toText(process.env.AI_SUPPORT_TEMPERATURE) && Number.isFinite(configured)) return { temperature: configured };
+  return /^gpt-4/i.test(toText(model)) ? { temperature: 0.4 } : {};
+};
 export const resolveSupportTimeoutMs = () => positiveNumber(process.env.AI_SUPPORT_TIMEOUT_MS, DEFAULT_TIMEOUT_MS);
 export const resolveSupportMaxRetries = () => {
   const parsed = Number(process.env.AI_SUPPORT_MAX_RETRIES);
@@ -189,6 +233,9 @@ export const getOpenAiSupportRuntimeConfig = () => ({
   text_model: process.env.AI_SUPPORT_MODEL || DEFAULT_MODEL,
   text_generation_temporarily_blocked: textGenerationTemporarilyBlocked(),
   text_generation_block_reason: textGenerationTemporarilyBlocked() ? textGenerationBlockReason : "",
+  text_generation_blocked_until: textGenerationTemporarilyBlocked() ? new Date(textGenerationBlockedUntil).toISOString() : "",
+  last_error: lastOpenAiError,
+  last_success_at: lastOpenAiSuccessAt,
 });
 
 const serializeOpenAiError = (error = {}) => ({
@@ -432,6 +479,23 @@ const normalizeSuggestedProducts = (items = []) =>
       })).filter((item) => item.name)
     : [];
 
+/**
+ * The schema lets the model write any id, name, price and stock into suggested_products,
+ * and that list was used as-is — a product that does not exist, at a price nobody set,
+ * could reach a customer card. The model may only CHOOSE and ORDER from what it was
+ * given; every field comes from our own row.
+ */
+export const pickModelSuggestedProducts = (modelItems = [], inputProducts = []) => {
+  if (!Array.isArray(modelItems) || !modelItems.length) return inputProducts;
+  const byId = new Map(inputProducts.map((product) => [String(product.id), product]));
+  const picked = [];
+  for (const item of modelItems) {
+    const match = byId.get(String(item?.id ?? ""));
+    if (match && !picked.includes(match)) picked.push(match);
+  }
+  return picked.length ? picked : inputProducts;
+};
+
 const formatSuggestedProductPriceAr = (product = {}) => {
   const resolved = resolveCustomerDisplayPrice(product);
   const rawPrice = Number(product.price || product.sale_price || product.product_price || 0);
@@ -535,7 +599,7 @@ const normalizeAiPayload = (payload, knownSourceIds, fallbackExtras = {}) => {
     : [];
   const sourcesUsed = parsedSourcesUsed.length || !answer ? parsedSourcesUsed : [...knownSourceIds];
   const needsHumanSupport = Boolean(payload.needs_human_support) || !answer || sourcesUsed.length === 0;
-  const suggested_products = normalizeSuggestedProducts(payload.suggested_products?.length ? payload.suggested_products : fallbackExtras.suggested_products);
+  const suggested_products = pickModelSuggestedProducts(payload.suggested_products, fallbackProducts);
   const suggested_actions = normalizeSuggestedActions([
     ...(Array.isArray(fallbackExtras.suggested_actions) ? fallbackExtras.suggested_actions : []),
     ...(Array.isArray(payload.suggested_actions) ? payload.suggested_actions : []),
@@ -564,6 +628,37 @@ const normalizeAiPayload = (payload, knownSourceIds, fallbackExtras = {}) => {
 };
 
 export const buildUnavailableSupportResponse = () => ({ ...FALLBACK_RESPONSE });
+
+/**
+ * One tiny real call, so the admin who just pasted a key sees "works / wrong key / no
+ * credit" at once instead of discovering it from customers. It reports into the shared
+ * breaker like any other call, so a success also lifts an old block.
+ */
+export const probeOpenAiConnection = async () => {
+  syncAgentCredentialState();
+  if (!openAiConfigured()) return { ok: false, reason: "missing_key", runtime: getOpenAiSupportRuntimeConfig() };
+  const model = resolveSupportModel();
+  try {
+    await getClient().responses.create(
+      { model, input: "Reply with the single word: ok", max_output_tokens: 16 },
+      { timeout: 15_000, maxRetries: 0 }
+    );
+    noteOpenAiSuccess();
+    return { ok: true, model, runtime: getOpenAiSupportRuntimeConfig() };
+  } catch (error) {
+    noteOpenAiFailure(error);
+    const reason = isInvalidCredential(error)
+      ? "invalid_key"
+      : isExhaustedQuota(error)
+        ? "no_credits"
+        : Number(error?.status) === 404
+          ? "model_not_found"
+          : Number(error?.status) === 429
+            ? "rate_limited"
+            : "request_failed";
+    return { ok: false, reason, model, runtime: getOpenAiSupportRuntimeConfig() };
+  }
+};
 
 const normalizeVisionList = (items = [], limit = 8) =>
   (Array.isArray(items) ? items : String(items || "").split(/[,\n/|]+/))
@@ -948,6 +1043,7 @@ export const generateSupportAnswer = async ({
             },
           verbosity: "medium",
         },
+        ...resolveSupportSamplingParams(resolveSupportModel()),
       },
       {
         timeout: resolveSupportTimeoutMs(),
@@ -958,7 +1054,15 @@ export const generateSupportAnswer = async ({
       }
     );
 
-    noteTextGenerationSuccess();
+    noteOpenAiSuccess();
+    if (response?.status && response.status !== "completed") {
+      // Truncated JSON parses to null and silently becomes the canned reply — say why.
+      console.warn("[ai-support] OpenAI response not completed", {
+        status: response.status,
+        reason: response.incomplete_details?.reason || "",
+        model: resolveSupportModel(),
+      });
+    }
     const parsed = safeJsonParse(response.output_text);
     return normalizeAiPayload(parsed, knownSourceIds, {
       message: customerMessage,

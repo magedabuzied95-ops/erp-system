@@ -147,6 +147,28 @@ const applyWhatsappGreetingGuard = ({ customerMessageText = "", replyText = "" }
   });
   return guardedReply;
 };
+/**
+ * The price guard below exists for ONE leak: a bare "السلام عليكم" answered with the
+ * price of the product from the previous chat. It used to fire on any reply that said
+ * "جنيه" unless the customer's words hit a short list — so "الشحن بكام لاسكندرية؟" or
+ * "الإجمالي كام؟" were answered with a greeting. Now it fires only when the customer's
+ * message is itself nothing but a greeting or a short acknowledgement.
+ */
+const BARE_GREETING_OR_ACK_WORDS = new Set([
+  // Spellings after normalizeArabicMessage too: ة→ه, ء dropped (ورحمه, مسا).
+  "السلام", "سلام", "عليكم", "ورحمة", "ورحمه", "مسا", "الله", "وبركاته", "اهلا", "أهلا", "اهلين", "مرحبا", "هاي", "هلو",
+  "hi", "hello", "hey", "صباح", "مساء", "الخير", "النور", "الفل", "تمام", "شكرا", "متشكر", "ميرسي",
+  "ok", "اوك", "اوكي", "حاضر", "ماشي", "يا", "فندم", "باشا", "يافندم",
+]);
+export const isBareGreetingOrAck = (customerMessageText = "") => {
+  const words = normalizedTraceMessage(customerMessageText)
+    .toLowerCase()
+    .replace(/[^\p{L}\p{N}\s]/gu, " ")
+    .split(/\s+/)
+    .filter(Boolean);
+  return words.length > 0 && words.length <= 6 && words.every((word) => BARE_GREETING_OR_ACK_WORDS.has(word));
+};
+
 const money = (value) => {
   const amount = Number(value || 0);
   return Number.isFinite(amount) ? amount.toLocaleString("en-US", { minimumFractionDigits: 2, maximumFractionDigits: 2 }) : "0.00";
@@ -6939,7 +6961,10 @@ export const triggerWhatsappAiAutoReply = async (message = {}) => {
       });
     }
     if (shouldSendTextOnly) {
-      const rawText = /(^|\s)(سعره|السعر|جنيه|egp|\d+\s*جنيه)/i.test(outboundPlan.text) && !explicitProductFollowup && !isImageFollowup
+      const rawText = /(^|\s)(سعره|السعر|جنيه|egp|\d+\s*جنيه)/i.test(outboundPlan.text) &&
+        !explicitProductFollowup &&
+        !isImageFollowup &&
+        isBareGreetingOrAck(message.message_text || message.text || "")
         ? "وعليكم السلام ورحمة الله، أهلاً بيك يا فندم "
         : outboundPlan.text;
       const safeText = applyWhatsappGreetingGuard({
