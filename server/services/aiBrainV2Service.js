@@ -8,6 +8,7 @@ import { buildAliasAwareSearchHints } from "../utils/aliasAwareProductSearch.js"
 import { rankProductCandidates, scoreProductCandidate } from "../utils/productMatchConfidence.js";
 import { resolveCatalogNavigation } from "./aiCatalogNavigationService.js";
 import { productNamingTerms } from "../utils/productNamingTerms.js";
+import { productGrade, productGradeRank } from "../config/productGrades.js";
 import {
   buildConversationMemoryV2,
   mergeConversationMemoryV2,
@@ -1193,6 +1194,34 @@ export const withShelfStock = (product = {}, fullProduct = null) => {
   };
 };
 
+/*
+ * A model sold in more than one grade (محلي / مستورد فيتنامي / ميرور اوريجينال) is shown grade by
+ * grade, local first, and every grade gets its share of the slots. Taken in score order, the
+ * colours of the first local pair filled all six cards and the mirror pair was never offered.
+ * Round-robin across grades, then grade order; inside a grade the original order is kept.
+ */
+export const pickAcrossGrades = (items = [], limit = 6, gradeOf = (item) => item?.grade) => {
+  const groups = new Map();
+  for (const item of asArray(items)) {
+    const rank = productGradeRank(gradeOf(item));
+    if (!groups.has(rank)) groups.set(rank, []);
+    groups.get(rank).push(item);
+  }
+  const ordered = [...groups.entries()].sort((left, right) => left[0] - right[0]).map(([, group]) => group);
+  const picked = [];
+  for (let index = 0; picked.length < limit && ordered.some((group) => group.length > index); index += 1) {
+    for (const group of ordered) {
+      if (group[index] && picked.length < limit) picked.push(group[index]);
+    }
+  }
+  return picked.sort((left, right) => productGradeRank(gradeOf(left)) - productGradeRank(gradeOf(right)));
+};
+
+const withGrade = (card = {}, product = {}) => {
+  const grade = text(product.grade || card.grade || "");
+  return { ...card, grade, grade_label: productGrade(grade)?.label || "" };
+};
+
 const buildPresentationProductCards = async ({ tenantId = null, selectedProducts = [], explicitModel = null, forceColorPresentation = false, withVariants = false } = {}) => {
   if (!selectedProducts.length) return [];
   if (!explicitModel && !forceColorPresentation) {
@@ -1200,9 +1229,15 @@ const buildPresentationProductCards = async ({ tenantId = null, selectedProducts
     const shelf = await Promise.all(selectedProducts.slice(0, 6).map(async (product) =>
       withShelfStock(product, await loadFullProductForPresentation({ tenantId, productId: product.id || product.product_id }))
     ));
-    const shelfCards = normalizeProductCards(shelf, { limit: 6 });
+    // One product at a time, so a product's colours stay tagged with its own grade.
+    const shelfCards = pickAcrossGrades(
+      shelf.flatMap((product) => normalizeProductCards([product], { limit: 6 }).map((card) => withGrade(card, product))),
+      6,
+    );
     // Variant cards need a photo per colour; never trade the plain cards for none at all.
-    return shelfCards.length ? shelfCards : normalizeProductCards(selectedProducts, { limit: 6 });
+    return shelfCards.length
+      ? shelfCards
+      : normalizeProductCards(selectedProducts, { limit: 6 }).map((card, index) => withGrade(card, selectedProducts[index] || {}));
   }
   const fullProducts = await Promise.all(
     selectedProducts.slice(0, 12).map(async (product) => {
@@ -1530,7 +1565,8 @@ export const generateAiBrainV2Decision = async (normalizedInbound = {}, options 
   // "نايك دانك": a product carrying the whole name beats one that only shares the brand.
   const namedPhrase = namedAny.filter((product) => namedReasons(product).some((reason) => reason.includes(" ")));
   const namedMatches = namedPhrase.length ? namedPhrase : namedAny;
-  const selectedProducts = (namedMatches.length ? namedMatches : scoredProducts).slice(0, 6);
+  // A named model is picked across its grades, so a mirror pair is not cut by six local ones.
+  const selectedProducts = namedMatches.length ? pickAcrossGrades(namedMatches, 6) : scoredProducts.slice(0, 6);
   const presentationProducts = selectedProducts.length
     ? selectedProducts
     : (intent === "more_images" && memoryActiveProductId ? [{ id: memoryActiveProductId, product_id: memoryActiveProductId }] : []);

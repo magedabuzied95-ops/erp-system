@@ -74,3 +74,25 @@ test("the grounded rewrite passes that budget", () => {
   const rewrite = source.slice(source.indexOf("const rewriteStructuredDecision"), source.indexOf("[ai-grounded-rewrite:skipped]"));
   assert.match(rewrite, /requestBudget: groundedRewriteBudget\(\),/);
 });
+
+test("OpenAI's Markdown is gone before the reply reaches a channel", async () => {
+  const client = getSharedOpenAiClient();
+  client.responses.create = async () => ({
+    status: "completed",
+    output_text: JSON.stringify({
+      answer: "أيوه يا فندم، متاح **Nike Air Force 1** بسعر 650 جنيه. اختار المقاس من [هنا](https://m1store-egy.com/shop/product/x).",
+      confidence: 0.9,
+      needs_human_support: false,
+      sources_used: ["live_store_context"],
+      suggested_products: [],
+      suggested_actions: [],
+    }),
+  });
+  const result = await generateSupportAnswer({
+    message: "متاح ايرفورس ؟",
+    trustedContext: { sources: [{ id: "live_store_context", title: "facts", content: "{}" }] },
+    metadata: { tenant_id: 1 },
+  });
+  assert.doesNotMatch(result.answer, /\*\*|\]\(/, result.answer);
+  assert.match(result.answer, /Nike Air Force 1 بسعر 650/);
+});

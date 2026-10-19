@@ -3,6 +3,7 @@ import OpenAI from 'openai';
 import { agentOpenAiApiKey } from './openaiCredentials.js';
 import { requestCompatibleVisionJson, resolveVisionProvider } from './aiVisionProviderService.js';
 import { DEFAULT_PERSONA, buildInstructions, loadPersona } from './aiPersonaService.js';
+import { toChatPlainText } from '../utils/chatPlainText.js';
 
 // Composition quality is the whole point of this call, so the floor is the full model
 // rather than the mini tier. Raise it per-deployment with AI_SUPPORT_MODEL — the mini
@@ -588,7 +589,8 @@ const normalizeAiPayload = (payload, knownSourceIds, fallbackExtras = {}) => {
     };
   }
 
-  const rawAnswer = toText(payload.answer);
+  // Plain chat text: the channels print Markdown symbols as they are.
+  const rawAnswer = toChatPlainText(toText(payload.answer));
   const answerNeedsArabic = shouldReplyInArabic(fallbackExtras.message);
   const answerLooksEnglish = /\b(sure|please|i found|contact support|not configured|out of stock|available ones|enough verified)\b/i.test(rawAnswer);
   const answer = answerNeedsArabic && (!isArabicText(rawAnswer) || answerLooksEnglish)
@@ -947,6 +949,8 @@ const PAYLOAD_CONTRACT_RULES = [
   "If the customer describes a visual model or says they have a photo, encourage them to upload the image so you can find the closest product.",
   "Use sources_used only for source ids that directly support the answer.",
   "Use suggested_actions only from: view_product, contact_support, show_similar_products, choose_size, choose_color.",
+  "Write plain chat text: the answer is shown in Messenger, Instagram and WhatsApp, which print Markdown symbols literally. No **bold**, no # headings, no [text](url) links — write a link as the bare URL.",
+  "When the products carry more than one grade_label, present them grouped by grade in the order of grade_guide (local first), name each group by its grade_label, and explain the difference between the grades only with the grade_guide notes. Never invent material, origin or quality claims that grade_guide does not state.",
 ];
 
 /**

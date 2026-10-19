@@ -10,6 +10,7 @@ import { buildAliasAwareSearchHints } from "../utils/aliasAwareProductSearch.js"
 import { rankProductCandidates } from "../utils/productMatchConfidence.js";
 import { sanitizeGroundedAiReply } from "./aiReplyQualityService.js";
 import { generateSupportAnswer } from "./openaiSupportService.js";
+import { PRODUCT_GRADES, productGrade, productGradeRank } from "../config/productGrades.js";
 import {
   buildConversationMemoryV2,
   mergeConversationMemoryV2,
@@ -45,7 +46,16 @@ export const safeProductFacts = (product = {}) => ({
   sizes: asArray(product.available_sizes || product.sizes).slice(0, 30),
   colors: asArray(product.available_colors || product.colors).slice(0, 20),
   product_url: text(product.product_url || product.url),
+  grade: text(product.grade),
+  grade_label: productGrade(product.grade)?.label || "",
 });
+
+// The grades on screen, in presentation order, with the owner's note on each — the only words
+// the rewrite may use to explain how one grade differs from another.
+export const gradeGuideFor = (products = []) => {
+  const present = new Set(asArray(products).map((product) => text(product?.grade).toLowerCase()).filter(Boolean));
+  return PRODUCT_GRADES.filter((grade) => present.has(grade.key)).map(({ key, label, note }) => ({ grade: key, grade_label: label, note }));
+};
 
 const rewriteStructuredDecision = async ({ decision = {}, inbound = {}, tenantId = null } = {}) => {
   if (!groundedRewriteEnabled()) return decision;
@@ -66,6 +76,7 @@ const rewriteStructuredDecision = async ({ decision = {}, inbound = {}, tenantId
           catalog_filters: decision.catalog_filters || {},
           catalog_url: catalogUrl,
           products: products.map(safeProductFacts),
+          grade_guide: gradeGuideFor(products),
         }),
       }],
     },
@@ -743,7 +754,12 @@ export const normalizeUnifiedDecisionOutput = (decision = {}, context = {}) => {
       })
     : { bestMatch: null, rankedCandidates: [], confidence: 0, fallbackRecommended: true };
   const finalProducts = rankedProducts.bestMatch ? rankedProducts.rankedCandidates : products;
-  const finalProductCards = rankedProductCards.bestMatch ? rankedProductCards.rankedCandidates : productCards;
+  const confidenceOrderedCards = rankedProductCards.bestMatch ? rankedProductCards.rankedCandidates : productCards;
+  // Cards brain V2 laid out grade by grade (local first) keep that order through the re-rank.
+  const gradedCards = confidenceOrderedCards.some((card) => card?.grade_label);
+  const finalProductCards = gradedCards
+    ? [...confidenceOrderedCards].sort((left, right) => productGradeRank(left?.grade) - productGradeRank(right?.grade))
+    : confidenceOrderedCards;
   console.log("[product-match-confidence]", {
     original: normalizedPayload.originalText || "",
     normalizedText: normalizedPayload.normalizedText || "",
