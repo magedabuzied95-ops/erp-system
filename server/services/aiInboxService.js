@@ -1101,12 +1101,13 @@ const shouldAutoReplyToWhatsapp = async ({ tenantId, conversationId, phone = "",
 
   if (status === "human_takeover") return { ok: false, reason: "human_takeover", ...base };
   if (status === "closed" || payload?.auto_response_paused === true) return { ok: false, reason: "paused", ...base };
-  if (agentSettings.ai_assistant_global_enabled === false) return { ok: false, reason: "AI_ASSISTANT_GLOBAL_PAUSED", ...base };
-  // A test number gets the automatic reply whatever the modes — and the chat's own AI switch —
-  // say: the owner's own chat had ai_enabled=false from an old order flow and the first test
-  // message went unanswered. Takeover, closed and the global pause above still stop it.
+  // A test number gets the automatic reply whatever the modes, the chat's own AI switch and the
+  // global pause say — production keeps the AI paused for customers while the owner tries the
+  // bot from their own phone, and each of those stopped the owner's test messages in turn.
+  // Human takeover and closed (above) still stop it.
   const testContacts = parseAiTestContacts(await getSetting("ai_channels.ai_test_contacts", "").catch(() => ""));
   const isTestContact = isAiTestContact(testContacts, phone);
+  if (!isTestContact && agentSettings.ai_assistant_global_enabled === false) return { ok: false, reason: "AI_ASSISTANT_GLOBAL_PAUSED", ...base };
   // Switching the AI off for one conversation was logged here and never obeyed; Meta obeys it.
   if (!isTestContact && conversationAutoReplyBlock(state) === "conversation_ai_disabled") return { ok: false, reason: "conversation_ai_disabled", ...base };
   if (isTestContact) {
