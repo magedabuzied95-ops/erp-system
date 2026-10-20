@@ -25,6 +25,7 @@ import { addressRulesFor, inferCustomerGender } from "../utils/customerGender.js
 import { buildToolRegistry } from "./aiToolRegistryService.js";
 import { findCustomerOrders } from "./aiBusinessToolsService.js";
 import { expandSearchAliasTerms } from "./productAliasEngine.js";
+import { PRODUCT_GRADES } from "../config/productGrades.js";
 import { buildOrderTrackingUrl } from "../utils/whatsapp.js";
 import { loadPersona, DEFAULT_PERSONA } from "./aiPersonaService.js";
 import { loadSupportKnowledgeBase } from "./aiSupportKnowledgeBaseService.js";
@@ -733,6 +734,7 @@ export const runClaudeSalesAgent = async ({
     const cardPool = new Map(preparedCards.map((card) => [cardKey(card), card]));
     // get_order_status's answer, for the tracking button under the reply.
     let trackedOrders = null;
+    let lastSearchQuery = "";
     let chosenCards = null; // null = the prepared cards
     let escalation = null;
 
@@ -746,6 +748,7 @@ export const runClaudeSalesAgent = async ({
       switch (name) {
         case "search_products": {
           if (typeof searchCards !== "function") return { error: "search_unavailable" };
+          lastSearchQuery = text(input.query) || lastSearchQuery;
           const cards = asArray(await searchCards(text(input.query)));
           for (const card of cards) cardPool.set(cardKey(card), card);
           return { query: text(input.query), count: cards.length, products: cards.slice(0, 8).map((card) => cardSummary(card, safeProductFacts)) };
@@ -775,6 +778,15 @@ export const runClaudeSalesAgent = async ({
             const words = tellingWords(customerMessage);
             const numbers = modelNumbers(customerMessage);
             const sameModel = (card) => (words.size ? namesAny(card, words, numbers) && picked.some((shown) => namesAny(shown, words, numbers)) : bases.has(baseOf(card)));
+            // The search behind the cards stops at a limit, so a grade can be missing from the pool
+            // altogether (NB 530 Vietnamese, Jordan 4 Egyptian). Ask for each other grade by name,
+            // the way a customer would («New Balance 530 فيتنامي»), in parallel.
+            if (typeof searchCards === "function") {
+              const modelQuery = lastSearchQuery || baseOf(picked[0]);
+              const missing = PRODUCT_GRADES.filter((grade) => grade.key !== "original" && !shownGrades.has(grade.key));
+              const found = await Promise.all(missing.map((grade) => searchCards(`${modelQuery} ${grade.label}`).catch(() => [])));
+              for (const card of found.flat()) if (!cardPool.has(cardKey(card))) cardPool.set(cardKey(card), card);
+            }
             const perGrade = new Map();
             for (const card of cardPool.values()) {
               const grade = gradeOf(card);
