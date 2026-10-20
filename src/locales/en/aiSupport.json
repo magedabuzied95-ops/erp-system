@@ -3481,5 +3481,83 @@
         "notMapped": "Not linked to an ERP product"
       }
     }
+  },
+  "campaigns": {
+    "new": "New campaign",
+    "count": "{{count}} campaigns",
+    "edit": "Edit",
+    "sendNow": "Send now",
+    "cancelSchedule": "Cancel schedule",
+    "log": "Log",
+    "logEmpty": "No recipients for this campaign yet.",
+    "backToList": "Back to campaigns",
+    "preview": "What the customer sees",
+    "pickTemplateForPreview": "Pick a template to preview the message.",
+    "saveDraft": "Save draft",
+    "saveAndSchedule": "Save and schedule",
+    "savedNotice": "Campaign saved as a draft.",
+    "scheduledNotice": "Campaign scheduled for {{when}}.",
+    "scheduleCancelled": "Schedule cancelled; the campaign is a draft again.",
+    "confirmSendNow": "Send this campaign now to everyone in its audience?",
+    "scheduleHint": "Cairo time. Inside quiet hours (10 pm to 9 am) it waits until 9 am.",
+    "whenNow": "Now",
+    "whenSchedule": "At a set time",
+    "sentCount": "{{count}} sent",
+    "failedCount": "{{count}} failed",
+    "skippedCount": "{{count}} skipped",
+    "pendingCount": "{{count}} pending",
+    "columns": {
+      "name": "Name",
+      "status": "Status",
+      "group": "Group",
+      "template": "Template",
+      "scheduledAt": "Scheduled at",
+      "lastRun": "Last run",
+      "results": "Results",
+      "actions": "Actions"
+    },
+    "status": {
+      "draft": "Draft",
+      "scheduled": "Scheduled",
+      "sending": "Sending",
+      "completed": "Completed",
+      "stopped": "Stopped",
+      "failed": "Failed"
+    },
+    "type": {
+      "template": "Template (official WhatsApp)",
+      "text": "Text (WhatsApp Web)"
+    },
+    "fields": {
+      "name": "Campaign name",
+      "messageType": "Message type",
+      "template": "Template",
+      "templatePlaceholder": "Pick an approved template",
+      "templateHint": "Only templates Meta has approved are listed.",
+      "noApprovedTemplates": "No approved templates yet. Create one and submit it to Meta from the Templates page.",
+      "group": "Customer group",
+      "groupHint": "Only customers in this group receive it; opted-out customers are always excluded.",
+      "allCustomers": "All customers",
+      "moreFilters": "More filters",
+      "when": "When to send"
+    },
+    "variables": {
+      "title": "Template variables",
+      "customerName": "Customer name",
+      "customerPhone": "Customer phone",
+      "static": "Fixed text",
+      "staticPlaceholder": "Text to show",
+      "fallbackPlaceholder": "Fallback when empty (optional)",
+      "sampleName": "Ahmed"
+    },
+    "errors": {
+      "nameRequired": "Give the campaign a name.",
+      "templateRequired": "Pick a template.",
+      "messageRequired": "Write the message.",
+      "variableRequired": "Every fixed-text variable needs a value.",
+      "scheduleRequired": "Pick the send time.",
+      "headerMediaMissing": "This template has an image or video header with no media link saved. Upload the media on the Templates page first.",
+      "countFirst": "Count the audience before sending."
+    }
   }
 }

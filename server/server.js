@@ -2469,6 +2469,8 @@ const runDeferredStartupSyncs = async ({ skipStartupSyncs = false } = {}) => {
       startSocialCommentJobWorker();
       startAmazonScheduler({ register: (interval) => backgroundIntervals.add(interval) });
       startMetaAdsScheduler({ register: (interval) => backgroundIntervals.add(interval) });
+      // WhatsApp template campaigns: launches scheduled campaigns when they fall due.
+      void import("./services/marketingBroadcastService.js").then((m) => m.startMarketingCampaignScheduler({ register: (interval) => backgroundIntervals.add(interval) })).catch((error) => console.error("[server] campaign scheduler failed to start", error?.message));
 
       const safeRunDueStoryPublishes = () => {
         void runDueStoryPublishes().catch((error) => {

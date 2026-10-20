@@ -3489,5 +3489,83 @@
         "notMapped": "مش مربوط بمنتج في السيستم"
       }
     }
+  },
+  "campaigns": {
+    "new": "حملة جديدة",
+    "count": "{{count}} حملة",
+    "edit": "تعديل",
+    "sendNow": "ابعت دلوقتي",
+    "cancelSchedule": "الغي الجدولة",
+    "log": "السجل",
+    "logEmpty": "لسه مفيش مستلمين في الحملة دي.",
+    "backToList": "رجوع للحملات",
+    "preview": "شكل الرسالة عند العميل",
+    "pickTemplateForPreview": "اختار قالب علشان تشوف شكل الرسالة.",
+    "saveDraft": "احفظ مسودة",
+    "saveAndSchedule": "احفظ وجدول",
+    "savedNotice": "الحملة اتحفظت كمسودة.",
+    "scheduledNotice": "الحملة اتجدولت: هتتبعت {{when}}.",
+    "scheduleCancelled": "الجدولة اتلغت والحملة رجعت مسودة.",
+    "confirmSendNow": "هتبعت الحملة دي دلوقتي لكل العملاء اللي فيها. متأكد؟",
+    "scheduleHint": "الوقت بتوقيت القاهرة. لو جه في ساعات الهدوء (10 بالليل لـ 9 الصبح) هتستنى لحد 9 الصبح.",
+    "whenNow": "دلوقتي",
+    "whenSchedule": "في ميعاد محدد",
+    "sentCount": "اتبعت {{count}}",
+    "failedCount": "فشل {{count}}",
+    "skippedCount": "اتعدّى {{count}}",
+    "pendingCount": "مستني {{count}}",
+    "columns": {
+      "name": "الاسم",
+      "status": "الحالة",
+      "group": "المجموعة",
+      "template": "القالب",
+      "scheduledAt": "ميعاد الإرسال",
+      "lastRun": "آخر تشغيل",
+      "results": "النتيجة",
+      "actions": "إجراءات"
+    },
+    "status": {
+      "draft": "مسودة",
+      "scheduled": "متجدولة",
+      "sending": "بتتبعت",
+      "completed": "خلصت",
+      "stopped": "اتوقفت",
+      "failed": "فشلت"
+    },
+    "type": {
+      "template": "قالب (واتساب الرسمي)",
+      "text": "نص (واتساب ويب)"
+    },
+    "fields": {
+      "name": "اسم الحملة",
+      "messageType": "نوع الرسالة",
+      "template": "القالب",
+      "templatePlaceholder": "اختار قالب متوافق عليه",
+      "templateHint": "بيظهر هنا القوالب اللي ميتا وافقت عليها بس.",
+      "noApprovedTemplates": "مفيش قوالب متوافق عليها لسه. اعمل قالب وابعته لميتا من صفحة القوالب.",
+      "group": "مجموعة العملاء",
+      "groupHint": "الحملة هتروح لعملاء المجموعة دي بس، ومن غير اللي لغوا الاشتراك.",
+      "allCustomers": "كل العملاء",
+      "moreFilters": "فلاتر زيادة",
+      "when": "إمتى تتبعت"
+    },
+    "variables": {
+      "title": "متغيرات القالب",
+      "customerName": "اسم العميل",
+      "customerPhone": "رقم العميل",
+      "static": "نص ثابت",
+      "staticPlaceholder": "اكتب النص اللي هيظهر",
+      "fallbackPlaceholder": "بديل لو الخانة فاضية (اختياري)",
+      "sampleName": "أحمد"
+    },
+    "errors": {
+      "nameRequired": "اكتب اسم للحملة.",
+      "templateRequired": "اختار قالب.",
+      "messageRequired": "اكتب نص الرسالة.",
+      "variableRequired": "كل متغير نوعه نص ثابت لازم يتكتب له قيمة.",
+      "scheduleRequired": "اختار ميعاد الإرسال.",
+      "headerMediaMissing": "القالب ده فيه صورة أو فيديو في الهيدر ومفيش لينك محفوظ ليه. ارفع الميديا من صفحة القوالب الأول.",
+      "countFirst": "احسب عدد العملاء الأول قبل الإرسال."
+    }
   }
 }
