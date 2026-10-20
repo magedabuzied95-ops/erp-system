@@ -320,6 +320,8 @@ const sendChain = async ({ ctx, nodes, sessionId, waitAll = false }) => {
         vars: ctx.vars,
         messageId: outcome.message_id,
         flowName: ctx.flowName,
+        // What actually left (header, footer, buttons, filled template body), read off the payload.
+        transcript: outcome.transcript,
       });
       if (node.data?.notify_team === true) {
         void notifyTeam({ tenantId: ctx.tenantId, conversationKey: ctx.conversationKey, flowName: ctx.flowName, nodeLabel: node.data?.label || node.type, customerName: ctx.vars?.name });

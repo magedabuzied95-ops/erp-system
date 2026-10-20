@@ -180,8 +180,15 @@ export const processWhatsappCloudWebhook = async (body = {}) => {
             deliveryError: String(status?.errors?.[0]?.title || status?.errors?.[0]?.message || ""),
             errorCode: String(status?.errors?.[0]?.code ?? ""),
             resolvedPhone: recipient,
-            sourcePath: "whatsapp_cloud_status_webhook",
-            insertSource: "whatsapp_cloud_status_webhook",
+            /*
+             * Empty on purpose: the update keeps the row's own source_path / insert_source when
+             * these are blank. They name the WRITER of the message (wa_chatbot_flow, the away
+             * auto-reply, ...), which is what the inbox's author chip reads; stamping
+             * "whatsapp_cloud_status_webhook" over them on every tick turned the chatbot's
+             * messages into anonymous system rows the moment they were delivered.
+             */
+            sourcePath: "",
+            insertSource: "",
           }).catch((error) => {
             console.warn("[whatsapp:cloud-status-update-failed]", { message_id: wamid, status: name, message: error?.message || String(error) });
             return null;

@@ -1024,6 +1024,39 @@ const legacyCtaRow = (row = {}) => {
 };
 
 /*
+ * The messages some rows replied to, by provider id, as the quote the bubble draws above them:
+ * who wrote it, its bold header line when it had one (an interactive / template message from the
+ * official number), and the first lines of its text. Scoped to the thread. Used by the thread
+ * read and by the Cloud webhook, whose socket event would otherwise arrive without the quote.
+ */
+export const loadQuotedInboxMessages = async ({ tenantId, sessionId, replyIds = [] } = {}) => {
+  const byProviderId = new Map();
+  const wanted = [...new Set(asArray(replyIds).map((value) => text(value)).filter(Boolean))];
+  if (!tenantId || !text(sessionId) || !wanted.length) return byProviderId;
+  const quoted = await db.query(
+    `
+    SELECT DISTINCT ON (provider_message_id) provider_message_id, sender_type, message_text, customer_message, ai_answer, staff_message, suggested_actions
+    FROM ai_support_messages
+    WHERE tenant_id = $1 AND session_id = $2 AND provider_message_id = ANY($3::text[])
+    ORDER BY provider_message_id, id ASC
+    `,
+    [tenantId, text(sessionId), wanted]
+  );
+  for (const row of quoted.rows) {
+    const quotedText = text(row.customer_message || row.ai_answer || row.staff_message || row.message_text);
+    const title = text(asArray(row.suggested_actions).find((action) => action?.type === "whatsapp_header")?.title);
+    if (!quotedText && !title) continue;
+    byProviderId.set(text(row.provider_message_id), {
+      provider_message_id: text(row.provider_message_id),
+      from_me: lower(row.sender_type) !== "customer",
+      ...(title ? { title: title.slice(0, 120) } : {}),
+      text: quotedText.slice(0, 300),
+    });
+  }
+  return byProviderId;
+};
+
+/*
  * Who wrote an outbound row, as the inbox labels it. sender_type alone cannot say: the chatbot
  * flows, the away auto-reply and every other automation all write sender_type 'system', and the
  * bubble used to call all of them "AI". The writer's own marker (source_path / insert_source)
@@ -1035,7 +1068,9 @@ export const inboxMessageAuthorKind = (row = {}) => {
   if (["customer", "user", "client"].includes(senderType)) return "customer";
   if (lower(row.message_type) === "internal_note" || senderType === "note") return "note";
   const marker = `${lower(row.source_path)} ${lower(row.insert_source)}`;
-  if (marker.includes("wa_chatbot_flow")) return "chatbot";
+  // detected_intent too: rows a Cloud status tick re-stamped (source_path became
+  // whatsapp_cloud_status_webhook) still say the chatbot wrote them there.
+  if (marker.includes("wa_chatbot_flow") || lower(row.detected_intent) === "wa_chatbot_flow") return "chatbot";
   // The away message only — "whatsapp_ai_auto_reply" / "meta_ai_auto_reply" are the AI's own replies.
   if (marker.includes("wa_official_auto_reply")) return "auto_reply";
   if (["staff", "agent", "human"].includes(senderType)) return "staff";
@@ -2337,31 +2372,15 @@ export const loadAiInboxMessages = async ({ tenantId, conversationId, limit = 30
   // The message a customer replied to, quoted above their bubble as WhatsApp does. Looked up by
   // provider id within the thread, so the quote resolves even when the original is older than
   // this page. Reactions also use external_reply_id (for their target) and are left alone.
-  const quotedByProviderId = new Map();
+  let quotedByProviderId = new Map();
   try {
-    const wantedQuoteIds = [...new Set(result.rows
-      .filter((row) => text(row.external_reply_id) && lower(row.message_type) !== "reaction")
-      .map((row) => text(row.external_reply_id)))];
-    if (wantedQuoteIds.length) {
-      const quoted = await db.query(
-        `
-        SELECT DISTINCT ON (provider_message_id) provider_message_id, sender_type, message_text, customer_message, ai_answer, staff_message
-        FROM ai_support_messages
-        WHERE tenant_id = $1 AND session_id = $2 AND provider_message_id = ANY($3::text[])
-        ORDER BY provider_message_id, id ASC
-        `,
-        [tenantId, safeConversationId, wantedQuoteIds]
-      );
-      for (const row of quoted.rows) {
-        const quotedText = text(row.customer_message || row.ai_answer || row.staff_message || row.message_text);
-        if (!quotedText) continue;
-        quotedByProviderId.set(text(row.provider_message_id), {
-          provider_message_id: text(row.provider_message_id),
-          from_me: lower(row.sender_type) !== "customer",
-          text: quotedText.slice(0, 300),
-        });
-      }
-    }
+    quotedByProviderId = await loadQuotedInboxMessages({
+      tenantId,
+      sessionId: safeConversationId,
+      replyIds: result.rows
+        .filter((row) => lower(row.message_type) !== "reaction")
+        .map((row) => row.external_reply_id),
+    });
   } catch (quoteError) {
     console.warn("[ai-inbox] quoted-message lookup failed", { conversation_id: safeConversationId, message: quoteError?.message });
   }

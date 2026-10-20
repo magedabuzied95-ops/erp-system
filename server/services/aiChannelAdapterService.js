@@ -632,6 +632,9 @@ export const extractWhatsAppWebhookMessages = ({ body = {}, tenantId = null } = 
           attachments: extractWhatsAppAttachments(message),
           timestamp: message.timestamp ? new Date(Number(message.timestamp) * 1000).toISOString() : new Date().toISOString(),
           externalMessageId: message.id || "",
+          // The wamid this one answers: a tap on a reply / list / template button, or a swipe-reply.
+          // The inbox quotes that message above the customer's bubble, as their phone does.
+          replyToMessageId: message.context?.id || "",
           raw: { message, metadata: value.metadata || {}, field: change.field || "" },
         }));
       });

@@ -17,7 +17,9 @@ export const messageAuthorKind = (message = {}) => {
   if (["customer", "user", "client"].includes(senderType)) return "customer";
   if (lower(message.message_type) === "internal_note" || senderType === "note") return "note";
   const marker = `${lower(message.source_path)} ${lower(message.insert_source)}`;
-  if (marker.includes("wa_chatbot_flow")) return "chatbot";
+  // detected_intent too: rows a Cloud status tick re-stamped (source_path became
+  // whatsapp_cloud_status_webhook) still say the chatbot wrote them there.
+  if (marker.includes("wa_chatbot_flow") || lower(message.detected_intent) === "wa_chatbot_flow") return "chatbot";
   // The away message only — "whatsapp_ai_auto_reply" / "meta_ai_auto_reply" are the AI's own replies.
   if (marker.includes("wa_official_auto_reply")) return "auto_reply";
   if (["staff", "agent", "human"].includes(senderType)) return "staff";

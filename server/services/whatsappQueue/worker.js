@@ -1,5 +1,5 @@
 import db from "../../database/db.js";
-import { hasTemplate, resolveTemplateValues } from "../whatsappTemplates.js";
+import { buildTemplateComponents, hasTemplate, resolveTemplateValues, templateDefinition } from "../whatsappTemplates.js";
 import { isWithinServiceWindow } from "../whatsappCloudProvider.js";
 import { ensureWhatsappQueueSchema } from "./schema.js";
 import { loadWhatsappQueueSettings, rulesForAutomation } from "./config.js";
@@ -19,7 +19,7 @@ import {
   setQueueState,
 } from "./queueService.js";
 import { appendWhatsappOutboundSupportReply } from "../aiSupportLogService.js";
-import { transcriptButtonsForSend } from "../../utils/whatsappCtaTranscript.js";
+import { templateTranscript, transcriptButtonsForSend } from "../../utils/whatsappCtaTranscript.js";
 import { emitToRooms } from "../../utils/socket.js";
 
 /*
@@ -105,6 +105,22 @@ export const lastCustomerInboundAt = async (phone = "") => {
 };
 
 /*
+ * A registry template as the customer's phone shows it. The body values are read off the same
+ * components the send was built from, so the transcript can never show a value that did not go.
+ * Null when it cannot be built — the transcript then falls back to the row's own text.
+ */
+export const registryTemplateTranscript = (automationType = "", values = {}) => {
+  try {
+    const definition = templateDefinition(automationType);
+    if (!definition) return null;
+    const bodyValues = (buildTemplateComponents(automationType, values)[0]?.parameters || []).map((parameter) => parameter.text);
+    return templateTranscript({ template: { body_text: definition.body, buttons: definition.buttons || [] }, bodyValues });
+  } catch {
+    return null;
+  }
+};
+
+/*
  * Perform the send. The queue stores WHAT to send declaratively so the worker never has to
  * import the automation services back — which would be a cycle, since they import the queue.
  */
@@ -139,19 +155,21 @@ export const performSend = async (row, gateway, { lastInboundAt } = {}) => {
         );
       }
       logLifecycle("cloud-template-send", { id: row.id, automation_type: row.automation_type, reason: "outside_service_window" });
+      const templateValues = resolveTemplateValues(row.automation_type, {
+        values: payload.values || {},
+        templateValues: send.templateValues || null,
+      });
       const templateResult = await gateway.sendWhatsappTemplate({
         automationType: row.automation_type,
         phone,
-        values: resolveTemplateValues(row.automation_type, {
-          values: payload.values || {},
-          templateValues: send.templateValues || null,
-        }),
+        values: templateValues,
         instance,
       });
-      // Marked so the transcript does not draw the CTA's buttons under a template that never had them.
-      return templateResult && typeof templateResult === "object"
-        ? { ...templateResult, delivery_mode: "template" }
-        : { delivery_mode: "template" };
+      // Marked so the transcript does not draw the CTA's buttons under a template that never had
+      // them — and carrying what the template itself showed: its body filled with the values that
+      // went out, and its own quick replies.
+      const marks = { delivery_mode: "template", template_transcript: registryTemplateTranscript(row.automation_type, templateValues) };
+      return templateResult && typeof templateResult === "object" ? { ...templateResult, ...marks } : marks;
     }
   }
 
@@ -261,6 +279,14 @@ export const transcriptForSentRow = (row = {}, sendResult = null) => {
    */
   const deliveryMode = text(sendResult?.delivery_mode);
   const fellBackToText = deliveryMode === "link_text";
+  // A Cloud template is its own message: the approved body (filled), with the template's own
+  // quick replies under it — not the free-form text the row would have sent inside the window.
+  const sentTemplate = deliveryMode === "template" && sendResult?.template_transcript && text(sendResult.template_transcript.message)
+    ? sendResult.template_transcript
+    : null;
+  if (sentTemplate) {
+    return { message: text(sentTemplate.message), buttons: Array.isArray(sentTemplate.actions) ? sentTemplate.actions : [], messageType: "template" };
+  }
   const message = row.message_variant_id || fellBackToText
     ? (text(send.fallbackText) || text(row.rendered_body))
     : (text(transcript.message) || text(row.rendered_body));
@@ -352,12 +378,12 @@ export const runOnSent = async (row, sendResult) => {
   if (!transcript) return;
   const tenantId = number(row.tenant_id, 0) || null;
   const sessionId = text(transcript.session_id) || `whatsapp:${text(row.recipient_phone)}`;
-  const { message: transcriptMessage, buttons: transcriptButtons } = transcriptForSentRow(row, sendResult);
+  const { message: transcriptMessage, buttons: transcriptButtons, messageType: transcriptType } = transcriptForSentRow(row, sendResult);
   const saved = await appendWhatsappOutboundSupportReply({
     tenantId,
     sessionId,
     message: transcriptMessage,
-    messageType: "text",
+    messageType: transcriptType || "text",
     senderType: "system",
     suggestedActions: transcriptButtons,
     source: text(transcript.source) || `whatsapp_${row.automation_type}`,

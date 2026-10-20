@@ -140,6 +140,7 @@ import {
   generateAiSuggestedReplies,
   listAiFollowups,
   loadAiInboxMessages,
+  loadQuotedInboxMessages,
   loadAiInboxRecommendations,
   loadAiInbox,
   loadAiSalesAnalytics,
@@ -1881,16 +1882,25 @@ export const handleWhatsappCloudWebhookRequest = async (req, res) => {
         // Which of our numbers this arrived on. Without it the reply falls back to the global
         // default transport, which is Evolution — a different, and currently dead, number.
         whatsappInstance: metadata?.phone_number_id ? `cloud:${metadata.phone_number_id}` : "",
+        // A button tap (or swipe-reply) names the message it answers; the bubble quotes it.
+        externalReplyId: message.reply_to_message_id || "",
       }).catch((error) => {
         console.warn("[ai-agent:whatsapp] inbound persistence failed", { tenantId, conversationId: message.external_conversation_id, message: error?.message });
         return null;
       });
       if (inboundRow) {
+        // The thread read resolves the quote itself; the live event has to carry it, or an open
+        // inbox shows the tap without the message it answered until the next reload.
+        const quotedMessage = inboundRow.external_reply_id
+          ? await loadQuotedInboxMessages({ tenantId, sessionId: inboundRow.session_id, replyIds: [inboundRow.external_reply_id] })
+            .then((found) => found.get(String(inboundRow.external_reply_id)) || null)
+            .catch(() => null)
+          : null;
         emitToRooms([`tenant:${tenantId}`], "ai_inbox:message", {
           tenant_id: tenantId,
           session_id: message.external_conversation_id,
           channel: AI_AGENT_CHANNELS.WHATSAPP,
-          message: { ...inboundRow, from_me: false, direction: "inbound" },
+          message: { ...inboundRow, from_me: false, direction: "inbound", ...(quotedMessage ? { quoted_message: quotedMessage } : {}) },
         });
       }
       await logChannelEvent({

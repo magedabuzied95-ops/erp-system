@@ -38,7 +38,7 @@ test("the queue writes the buttons only when they went out", () => {
   const worker = read("server/services/whatsappQueue/worker.js");
   assert.match(worker, /delivery_mode: "link_text"/, "a text fallback is marked");
   assert.match(worker, /suggestedActions: transcriptButtons/);
-  assert.match(worker, /buttons: transcriptButtons \} = transcriptForSentRow\(row, sendResult\)/);
+  assert.match(worker, /buttons: transcriptButtons, messageType: transcriptType \} = transcriptForSentRow\(row, sendResult\)/);
   const service = read("server/services/whatsappOrderConfirmationService.js");
   assert.match(service, /buttons: orderConfirmationTranscriptButtons\(\)/);
 });
@@ -61,7 +61,7 @@ test("both inboxes refetch a loaded thread the server says changed", () => {
 
 test("the bubble draws the reply buttons", () => {
   const bubble = read("src/modules/aiSupport/components/TranscriptMessage.jsx");
-  assert.match(bubble, /WHATSAPP_BUBBLE_BUTTON_TYPES = new Set\(\["whatsapp_reply_button", "whatsapp_url_button", "whatsapp_copy_button"\]\)/);
+  assert.match(bubble, /WHATSAPP_BUBBLE_BUTTON_TYPES = new Set\(\["whatsapp_reply_button", "whatsapp_url_button", "whatsapp_copy_button", "whatsapp_call_button", "whatsapp_list_button", "whatsapp_list_row"\]\)/);
   assert.match(bubble, /WHATSAPP_BUBBLE_BUTTON_TYPES\.has\(action\?\.type\)/);
   assert.match(bubble, /<ReplyButtons buttons=\{replyButtons\} skin=\{skin\} \/>/);
 });

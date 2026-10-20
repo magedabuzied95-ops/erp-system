@@ -1929,6 +1929,8 @@
       "deleting": "جارٍ الحذف...",
       "deleted": "تم حذف هذه الرسالة",
       "deletedInboxOnly": "اتحذفت من الإنبوكس بس",
+      "copyCode": "نسخ الكود",
+      "listOptions": "عرض الاختيارات",
       "deletedAt": "اتحذفت {{time}}",
       "playVoice": "تشغيل الرسالة الصوتية",
       "pauseVoice": "إيقاف مؤقت",

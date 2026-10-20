@@ -1,6 +1,6 @@
 ﻿import { memo, useContext, useMemo } from "react";
 import { useEffect, useRef, useState } from "react";
-import { Ban, Bot, Camera, Check, CheckSquare, Clock3, Cog, Copy, ExternalLink, History, Info, MessageSquareText, Pencil, Pin, PinOff, Reply as ReplyIcon, Smartphone, Smile, Sparkles, Star, Trash2, UserCheck, Workflow, X } from "lucide-react";
+import { Ban, Bot, Camera, Check, CheckSquare, Clock3, Cog, Copy, ExternalLink, History, Info, List, MessageSquareText, Pencil, Phone, Pin, PinOff, Reply as ReplyIcon, Smartphone, Smile, Sparkles, Star, Trash2, UserCheck, Workflow, X } from "lucide-react";
 
 import { useTranslation } from "react-i18next";
 
@@ -859,9 +859,12 @@ function LinkifiedText({ text = "", className = "", linkColor = "" }) {
 // whole colour families with `!important`. Inline survives both.
 // The message this one replied to, framed above the body the way WhatsApp frames it: a tinted box
 // with a coloured bar on the leading edge, who wrote it, and the first lines of what they wrote.
+// A quoted interactive / template message also carries its bold header line (`title`), as the
+// customer's phone shows it inside the quote above their button tap.
 function QuotedMessage({ quoted = null, skin, customerName = "" }) {
   const quotedText = clean(quoted?.text);
-  if (!quotedText) return null;
+  const quotedTitle = clean(quoted?.title);
+  if (!quotedText && !quotedTitle) return null;
   const author = quoted.from_me ? "أنت" : clean(customerName) || "العميل";
   return (
     <div
@@ -870,7 +873,12 @@ function QuotedMessage({ quoted = null, skin, customerName = "" }) {
       className="mb-1 overflow-hidden rounded-md px-2 py-1"
     >
       <div style={{ color: quoted.from_me ? "#53bdeb" : "#06cf9c" }} className="text-[12.5px] font-semibold leading-4">{author}</div>
-      <div style={{ color: skin.meta }} className="mt-0.5 line-clamp-3 whitespace-pre-wrap break-words text-[13px] leading-[17px]">{quotedText}</div>
+      {quotedTitle ? (
+        <div style={{ color: skin.ink }} className="mt-0.5 truncate text-[13px] font-bold leading-[17px]">{quotedTitle}</div>
+      ) : null}
+      {quotedText ? (
+        <div style={{ color: skin.meta }} className="mt-0.5 line-clamp-3 whitespace-pre-wrap break-words text-[13px] leading-[17px]">{quotedText}</div>
+      ) : null}
     </div>
   );
 }
@@ -879,11 +887,34 @@ function QuotedMessage({ quoted = null, skin, customerName = "" }) {
 // full-width rows under the body, split by hairlines. They behave as they do in WhatsApp for the
 // sender too: a link button opens its link, a copy button copies its value, and a reply button is
 // inert — only the customer's tap on it means anything.
-const WHATSAPP_BUBBLE_BUTTON_TYPES = new Set(["whatsapp_reply_button", "whatsapp_url_button", "whatsapp_copy_button"]);
-const WHATSAPP_BUTTON_ICONS = { whatsapp_url_button: ExternalLink, whatsapp_copy_button: Copy };
+// The official number's interactive and template messages add a call button, and a list message's
+// single "menu" row with the options it opens listed under it (on the phone they open in a sheet).
+const WHATSAPP_BUBBLE_BUTTON_TYPES = new Set(["whatsapp_reply_button", "whatsapp_url_button", "whatsapp_copy_button", "whatsapp_call_button", "whatsapp_list_button", "whatsapp_list_row"]);
+const WHATSAPP_BUTTON_ICONS = { whatsapp_reply_button: ReplyIcon, whatsapp_url_button: ExternalLink, whatsapp_copy_button: Copy, whatsapp_call_button: Phone, whatsapp_list_button: List };
 const isWebLink = (value = "") => /^https?:\/\/\S+$/i.test(clean(value));
 
+/*
+ * What goes under (and over) an outbound WhatsApp bubble: the bold header line, the grey footer
+ * and the button rows, read off the row's typed suggested_actions. A chatbot-flow row written
+ * before those were typed stored its button titles as bare strings; they are the same reply
+ * buttons, so they draw as such. Bare strings on any other row are the AI's internal hints
+ * ("ask_size"), never something the customer saw.
+ */
+export const whatsappBubbleParts = (message = {}, authorKind = "") => {
+  const actions = asArray(message.suggested_actions);
+  const legacyChatbot = authorKind === "chatbot" && actions.length > 0 && actions.every((action) => typeof action === "string");
+  const buttons = legacyChatbot
+    ? actions.map((title) => ({ type: "whatsapp_reply_button", title: clean(title) })).filter((button) => button.title)
+    : actions.filter((action) => WHATSAPP_BUBBLE_BUTTON_TYPES.has(action?.type) && (clean(action.title) || action.type === "whatsapp_copy_button" || action.type === "whatsapp_list_button"));
+  return {
+    header: clean(actions.find((action) => action?.type === "whatsapp_header")?.title),
+    footer: clean(actions.find((action) => action?.type === "whatsapp_footer")?.title),
+    buttons,
+  };
+};
+
 function ReplyButtons({ buttons = [], skin }) {
+  const { t } = useTranslation();
   const [copiedIndex, setCopiedIndex] = useState(-1);
   if (!buttons.length) return null;
   const copyValue = async (value, index) => {
@@ -899,8 +930,29 @@ function ReplyButtons({ buttons = [], skin }) {
     <div className="-mx-2.5 -mb-1.5 mt-1.5">
       {buttons.map((button, index) => {
         const value = clean(button.value);
-        const Icon = copiedIndex === index ? Check : WHATSAPP_BUTTON_ICONS[button.type];
         const rowKey = `${button.id || value}:${index}`;
+        // A list's options: smaller, muted, start-aligned lines under its menu row — the sheet the
+        // customer opens, laid flat so the team can see what was offered.
+        if (button.type === "whatsapp_list_row") {
+          const section = clean(button.section);
+          const showSection = section && clean(buttons[index - 1]?.section) !== section;
+          return (
+            <div key={rowKey} dir="auto" style={{ color: skin.meta, borderTop: showSection ? `1px solid ${skin.meta}` : undefined }} className="px-2.5 py-0.5 text-[12.5px] leading-[17px] first:pt-1 last:pb-1.5">
+              {showSection ? <div className="pb-0.5 pt-1 text-[11.5px] font-bold">{section}</div> : null}
+              <div className="flex min-w-0 items-baseline gap-1.5">
+                <span aria-hidden="true">•</span>
+                <span className="min-w-0 break-words">
+                  <span style={{ color: skin.ink }} className="font-semibold">{button.title}</span>
+                  {clean(button.description) ? <span> — {clean(button.description)}</span> : null}
+                </span>
+              </div>
+            </div>
+          );
+        }
+        const Icon = copiedIndex === index ? Check : WHATSAPP_BUTTON_ICONS[button.type];
+        const title = clean(button.title)
+          || (button.type === "whatsapp_copy_button" ? t("aiSupport.inbox.message.copyCode") : "")
+          || (button.type === "whatsapp_list_button" ? t("aiSupport.inbox.message.listOptions") : "");
         const rowProps = {
           dir: "auto",
           title: value || undefined,
@@ -910,7 +962,7 @@ function ReplyButtons({ buttons = [], skin }) {
         const content = (
           <>
             {Icon ? <Icon className="h-3.5 w-3.5 shrink-0" aria-hidden="true" /> : null}
-            {button.title}
+            {title}
           </>
         );
         if (button.type === "whatsapp_url_button" && isWebLink(value)) {
@@ -1377,10 +1429,10 @@ function TranscriptMessage({
       : outboundAuthorLabel(message, t);
   const AuthorIcon = isInternalNote ? Info : AUTHOR_ICONS[authorKind] || Cog;
   const numberChip = safeRow.numberLabel ? <NumberChip label={safeRow.numberLabel} skin={skin} /> : null;
-  const replyButtons = asArray(message.suggested_actions).filter(
-    (action) => WHATSAPP_BUBBLE_BUTTON_TYPES.has(action?.type) && clean(action.title)
-  );
-  const footerText = clean(asArray(message.suggested_actions).find((action) => action?.type === "whatsapp_footer")?.title);
+  const { header: headerText, footer: footerText, buttons: replyButtons } = whatsappBubbleParts(message, authorKind);
+  // An interactive / template message opens with its media header, as on the phone; any other
+  // row keeps its attachments under the text.
+  const mediaFirst = ["interactive", "template"].includes(clean(message.message_type).toLowerCase()) && !flush;
   // A chatbot flow or the away auto-reply is not the AI's answer, so there is nothing to teach it.
   const correctReply = isAi && authorKind !== "chatbot" && authorKind !== "auto_reply" && onOpenCorrection && message.message_type !== "comment_suggestion" ? (
     <button
@@ -1413,7 +1465,11 @@ function TranscriptMessage({
         ) : null}
         {sourceComment ? <div className={authorLabel || numberChip ? "mt-1" : ""}><SourceCommentContext context={sourceComment} variant={variant} /></div> : null}
         <QuotedMessage quoted={message.quoted_message} skin={skin} customerName={customerName} />
-        <LinkifiedText text={text} className={`${textClass} ${authorLabel || numberChip || sourceComment ? "mt-0.5" : ""}`} linkColor={skin.link} />
+        {mediaFirst ? attachments(authorLabel || numberChip || sourceComment ? "mt-1 mb-1" : "mb-1") : null}
+        {headerText ? (
+          <div dir="auto" className={`break-words font-bold ${textClass} ${authorLabel || numberChip || sourceComment ? "mt-0.5" : ""}`}>{headerText}</div>
+        ) : null}
+        <LinkifiedText text={text} className={`${textClass} ${authorLabel || numberChip || sourceComment || headerText ? "mt-0.5" : ""}`} linkColor={skin.link} />
         {footerText ? (
           <div dir="auto" style={{ color: skin.meta }} className="mt-1 text-[13px] leading-4">{footerText}</div>
         ) : null}
@@ -1422,7 +1478,7 @@ function TranscriptMessage({
             branch and never reach this one. */}
         {/* visual_attachments already feed messageMediaGroups — rendering them
             separately here painted every AI image twice. */}
-        {attachments(flush ? "" : "mt-1.5")}
+        {mediaFirst ? null : attachments(flush ? "" : "mt-1.5")}
         {failed && message.delivery_error ? (
           <p style={{ color: dangerColor }} className="mt-1 text-[11px] font-bold leading-4">{message.delivery_error}</p>
         ) : null}

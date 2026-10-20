@@ -10,6 +10,7 @@ import {
   toGraphRecipient,
 } from "../../../services/whatsappCloudProvider.js";
 import { absolutePublicUploadUrl } from "../../../utils/publicUrl.js";
+import { interactiveTranscript, templateTranscript } from "../../../utils/whatsappCtaTranscript.js";
 import { LIMITS, renderVars } from "./flowGraph.js";
 
 const str = (value) => String(value ?? "").trim();
@@ -81,6 +82,19 @@ export const buildTemplatePayload = (template, data = {}, vars = {}) => {
     type: "template",
     template: { name: str(template.name), language: { code: str(template.language) || "ar" }, ...(components.length ? { components } : {}) },
   };
+};
+
+// The template as the customer reads it, filled with the same values buildTemplatePayload sends.
+export const buildTemplateTranscript = (template, data = {}, vars = {}) => {
+  const values = arr(data.variables);
+  const buttonVariables = data.button_variables && typeof data.button_variables === "object" ? data.button_variables : {};
+  return templateTranscript({
+    template,
+    bodyValues: Array.from({ length: variableCount(template.body_text) }, (unused, index) => renderVars(values[index], vars) || "-"),
+    headerValue: renderVars(data.header_variable, vars) || "-",
+    headerMediaUrl: mediaLink(data.header_media_url || template.header_media_url),
+    buttonValues: Object.fromEntries(Object.entries(buttonVariables).map(([index, value]) => [index, renderVars(value, vars) || "-"])),
+  });
 };
 
 /* ------------------------------------------------------------------ interactive payloads */
@@ -211,22 +225,27 @@ const transcriptMedia = (node) => {
   return [];
 };
 
-export const recordTranscript = async ({ tenantId, conversationKey, phone, phoneNumberId, node, vars, messageId, flowName = "" }) => {
+export const recordTranscript = async ({ tenantId, conversationKey, phone, phoneNumberId, node, vars, messageId, flowName = "", transcript = null }) => {
   try {
-    const message = transcriptSummary(node, vars);
+    // An interactive or template send hands over its own transcript (built from the payload, so
+    // header, footer and every button are what the phone shows); the rest summarise the node.
+    const structured = transcript && typeof transcript === "object" && str(transcript.message) ? transcript : null;
+    const message = structured ? str(structured.message) : transcriptSummary(node, vars);
     if (!message) return;
     const { appendWhatsappOutboundSupportReply } = await import("../../../services/aiSupportLogService.js");
     const saved = await appendWhatsappOutboundSupportReply({
       tenantId,
       sessionId: conversationKey,
       message,
-      messageType: "text",
+      // 'interactive' / 'template' tell the inbox the actions are the phone's header, footer and
+      // buttons; message_text stays the body alone so search and previews read as before.
+      messageType: structured ? str(structured.messageType) || "interactive" : "text",
       senderType: "system",
       // source_path/insert_source "wa_chatbot_flow" mark the row as a chatbot reply; the flow's
       // name rides in staff_user_name (staff_user_id stays NULL) so the inbox can name the flow.
       staffUserName: str(flowName).slice(0, 120),
-      suggestedActions: transcriptButtons(node, vars).filter(Boolean),
-      visualAttachments: transcriptMedia(node),
+      suggestedActions: structured ? arr(structured.actions) : transcriptButtons(node, vars).filter(Boolean),
+      visualAttachments: structured ? arr(structured.attachments) : transcriptMedia(node),
       source: "wa_chatbot_flow",
       channel: "whatsapp",
       deliveryStatus: "sent",
@@ -270,6 +289,7 @@ export const sendFlowNode = async ({ tenantId, phoneNumberId, phone, node, vars 
   const data = node?.data || {};
   try {
     let result = null;
+    let transcript = null;
     switch (node?.type) {
       case "text":
         result = await sendText({ phone: to, message: cut(renderVars(data.body, vars), LIMITS.text), phoneNumberId, previewUrl: true });
@@ -290,15 +310,17 @@ export const sendFlowNode = async ({ tenantId, phoneNumberId, phone, node, vars 
         const template = await loadTemplate(tenantId, data.template_id);
         if (!template) throw Object.assign(new Error("Template not found"), { code: "WA_FLOW_TEMPLATE_MISSING" });
         result = await sendCloudPayload({ phoneNumberId, message: { to, ...buildTemplatePayload(template, data, vars) } });
+        transcript = buildTemplateTranscript(template, data, vars);
         break;
       }
       default: {
         const payload = buildInteractivePayload(node, vars);
         if (!payload) throw Object.assign(new Error(`Unknown node type ${node?.type}`), { code: "WA_FLOW_NODE_UNKNOWN" });
         result = await sendCloudPayload({ phoneNumberId, message: { to, ...payload } });
+        transcript = interactiveTranscript(payload.interactive);
       }
     }
-    return { ok: true, message_id: str(result?.message_id) };
+    return { ok: true, message_id: str(result?.message_id), transcript };
   } catch (error) {
     console.warn("[wa-flows] send failed", {
       node: node?.id,

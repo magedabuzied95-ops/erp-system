@@ -1921,6 +1921,8 @@
       "deleting": "Deleting...",
       "deleted": "This message was deleted",
       "deletedInboxOnly": "deleted from the inbox only",
+      "copyCode": "Copy code",
+      "listOptions": "View options",
       "deletedAt": "Deleted {{time}}",
       "playVoice": "Play voice message",
       "pauseVoice": "Pause",

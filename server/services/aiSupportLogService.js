@@ -425,7 +425,9 @@ const persistOutboundTranscriptRow = async ({
   const safeSuggestedActions = Array.isArray(suggestedActions) ? suggestedActions : [];
   const safeExternalMessageId = toText(externalMessageId || providerMessageId);
   const safeProviderMessageId = toText(providerMessageId || externalMessageId);
-  const safeClientRequestId = toText(clientRequestId || idempotencyKey || externalReplyId);
+  // On an inbound row external_reply_id is the message the customer QUOTED, which two of their
+  // replies can share — it must never become their identity, or the second would overwrite the first.
+  const safeClientRequestId = toText(clientRequestId || idempotencyKey || (isInbound ? "" : externalReplyId));
   const safeIdempotencyKey = toText(idempotencyKey || clientRequestId);
   const safeExternalReplyId = toText(externalReplyId);
   const safeSourcePath = toText(sourcePath, "manual_message_insert");
@@ -2638,11 +2640,15 @@ export const appendInboundAiSupportMessage = async ({
   remoteJid = "",
   resolvedReplyJid = "",
   resolvedPhone = "",
+  // The provider id of the message this one replies to (WhatsApp Cloud's context.id); the inbox
+  // reads it back as quoted_message.
+  externalReplyId = "",
 } = {}) => persistOutboundTranscriptRow({
   tenantId,
   sessionId,
   message,
   messageType,
+  externalReplyId,
   senderType: "customer",
   manualMessage: false,
   source,
