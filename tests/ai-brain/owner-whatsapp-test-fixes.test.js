@@ -19,7 +19,7 @@ test("«الاوردر بتاعي وصل لفين» reaches the agent and its ph
   assert.equal(SKIP_INTENTS.includes("order_tracking"), false, "it used to get «ابعت الموديل» from the template");
   assert.equal(SKIP_INTENTS.includes("order_follow_up"), false);
   const agent = read("../../server/services/aiClaudeSalesAgentService.js");
-  assert.match(agent, /case "get_order_status":\s*return findCustomerOrders\(\{ tenantId, orderNumber: text\(input\.order_number\), phone: text\(input\.phone\) \|\| customerPhone \}\);/);
+  assert.match(agent, /case "get_order_status": \{\s*const phone = text\(input\.phone\) \|\| customerPhone;\s*const found = await findCustomerOrders\(\{ tenantId, orderNumber: text\(input\.order_number\), phone \}\);/);
 });
 
 test("an order is only found for the phone it was placed with, inside this shop", () => {
@@ -29,4 +29,19 @@ test("an order is only found for the phone it was placed with, inside this shop"
   assert.match(lookup, /WHERE o\.tenant_id = \$1\s*AND \$\{phoneSqlDigits\("o\.customer_phone"\)\} = ANY\(\$2::text\[\]\)/);
   // The old lookup's OR escaped the tenant filter.
   assert.match(tools, /clauses\.push\(`\(public_order_number = \$\$\{params\.length\} OR display_order_number = \$\$\{params\.length\}\)`\);/);
+});
+
+test("every colour of a model is its own card; a bare product id picks them all", async () => {
+  const agent = await import("../../server/services/aiClaudeSalesAgentService.js");
+  const source = read("../../server/services/aiClaudeSalesAgentService.js");
+  assert.match(source, /const matches = cardPool\.has\(id\) \? \[cardPool\.get\(id\)\] : \[\.\.\.cardPool\.values\(\)\]\.filter\(\(card\) => cardId\(card\) === id\);/);
+  assert.ok(agent.__testing.cardSummary);
+});
+
+test("a reply carrying cards is sent as a product reply; an order answer gets a tracking button", () => {
+  const agent = read("../../server/services/aiClaudeSalesAgentService.js");
+  assert.match(agent, /const intentPatch = cardsChanged && cards\.length && !productIntent \? \{ intent: "product_search", detected_intent: "product_search" \} : \{\};/);
+  assert.match(agent, /order_tracking_cta: \{ url: trackingUrl,/);
+  const gateway = read("../../server/services/whatsappGatewayService.js");
+  assert.match(gateway, /const trackingCta = generated\.aiPayload\?\.order_tracking_cta;\s*if \(text\(trackingCta\?\.url\) && replyParts\.length <= 1\) \{\s*try \{\s*result = await sendCtaUrlMessage\(\{/);
 });

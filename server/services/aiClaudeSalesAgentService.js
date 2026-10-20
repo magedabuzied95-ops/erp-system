@@ -24,6 +24,7 @@ import db from "../database/db.js";
 import { addressRulesFor, inferCustomerGender } from "../utils/customerGender.js";
 import { buildToolRegistry } from "./aiToolRegistryService.js";
 import { findCustomerOrders } from "./aiBusinessToolsService.js";
+import { buildOrderTrackingUrl } from "../utils/whatsapp.js";
 import { loadPersona, DEFAULT_PERSONA } from "./aiPersonaService.js";
 import { loadSupportKnowledgeBase } from "./aiSupportKnowledgeBaseService.js";
 import { markAiSupportConversationEscalated } from "./aiSupportLogService.js";
@@ -192,6 +193,7 @@ ${companyInfo.length ? companyInfo.join("\n") : "مفيش معلومات مسج�
 ${knowledge.length ? `\n<owner_knowledge>\nمعلومات صاحب المحل بنفسه. اعتمدها مرجع، وقولها بأسلوبك:\n${knowledge.join("\n")}\n</owner_knowledge>\n` : ""}
 <products_and_cards>
 - الكروت هي اللي بتعرض الصورة والألوان والسعر وزراير الاختيار. لما فيه كروت هتتبعت، رسالتك سطر واحد قصير فوقها، زي «أيوه متاح إن شاء الله 👇» أو «دي الموديلات المتاحة من الإير فورس 👇». متعيدش كتابة الألوان والأسعار اللي على الكروت.
+- لما العميل يسأل عن موديل، ابعت كروت بتغطي كل الدرجات المتاحة منه (مصري / مستورد فيتنامي / ميرور اوريجينال — من grade_label) وألوان مختلفة، لحد 6 كروت؛ متبعتش كارت واحد غير لو العميل حدد لون أو درجة. في show_products ابعت card_id لكل كارت (product_id لوحده = كل ألوان الموديل ده).
 - system_findings فيها الكروت الجاهزة للرسالة دي، وهتتبعت زي ما هي. لو مش هي اللي العميل عايزها، استدعي search_products باسم الموديل، وبعدين show_products بالـ product_id اللي تختارها. show_products بقايمة فاضية = متبعتش كروت.
 - النظام ساعات بيفهم الرسالة غلط ويجهّز كروت ملهاش علاقة (مثلًا العميل بيسأل عن أوردر أو بيدردش). لو الكروت الجاهزة مش ليها علاقة بكلام العميل، لازم تستدعي show_products بقايمة فاضية قبل ما ترد.
 - نفس الكلام على draft_answer: لو مش رد على كلام العميل (مثلًا العميل سأل سؤال تاني في نص البحث)، جاوب على اللي سأله هو، وبعدين رجّعه لخطوة البحث في سطر لو مناسب.
@@ -421,7 +423,7 @@ const AGENT_TOOLS = [
   },
   {
     name: "show_products",
-    description: "اختار الكروت اللي هتتبعت تحت رسالتك بدل الكروت الجاهزة. ابعت product_id من system_findings أو من نتيجة search_products. قايمة فاضية = متبعتش كروت.",
+    description: "اختار الكروت اللي هتتبعت تحت رسالتك بدل الكروت الجاهزة. ابعت card_id من system_findings أو من نتيجة search_products (product_id لوحده = كل ألوانه). لحد 6 كروت بيغطوا الدرجات والألوان. قايمة فاضية = متبعتش كروت.",
     input_schema: {
       type: "object",
       additionalProperties: false,
@@ -487,9 +489,18 @@ const AGENT_TOOLS = [
   },
 ];
 
+// One key per CARD, not per product: every colour of New Balance 530 is product 180, so keying by
+// product id kept one colour and dropped the rest (owner's WhatsApp test, 2026-10-20).
+const cardKey = (card = {}) => {
+  const productId = text(card.product_id || card.id);
+  const variant = text(card.variant_id || card.selected_variant_id || card.matched_variant_id || card.color || card.matched_variant_color);
+  return variant ? `${productId}:${variant}` : productId;
+};
+
 const cardSummary = (card = {}, safeProductFacts) => {
   const facts = safeProductFacts(card);
   return {
+    card_id: cardKey(card),
     product_id: text(facts.id),
     name: facts.name,
     price: facts.price,
@@ -682,7 +693,9 @@ export const runClaudeSalesAgent = async ({
     ]);
 
     const preparedCards = asArray(decision.product_cards);
-    const cardPool = new Map(preparedCards.map((card) => [cardId(card), card]));
+    const cardPool = new Map(preparedCards.map((card) => [cardKey(card), card]));
+    // get_order_status's answer, for the tracking button under the reply.
+    let trackedOrders = null;
     let chosenCards = null; // null = the prepared cards
     let escalation = null;
 
@@ -697,14 +710,20 @@ export const runClaudeSalesAgent = async ({
         case "search_products": {
           if (typeof searchCards !== "function") return { error: "search_unavailable" };
           const cards = asArray(await searchCards(text(input.query)));
-          for (const card of cards) cardPool.set(cardId(card), card);
+          for (const card of cards) cardPool.set(cardKey(card), card);
           return { query: text(input.query), count: cards.length, products: cards.slice(0, 8).map((card) => cardSummary(card, safeProductFacts)) };
         }
         case "show_products": {
           const ids = asArray(input.product_ids).map(text).filter(Boolean);
-          const picked = ids.map((id) => cardPool.get(id)).filter(Boolean);
-          const unknown = ids.filter((id) => !cardPool.has(id));
-          chosenCards = picked;
+          // A card_id picks that card; a bare product_id picks every colour of that model.
+          const picked = [];
+          const unknown = [];
+          for (const id of ids) {
+            const matches = cardPool.has(id) ? [cardPool.get(id)] : [...cardPool.values()].filter((card) => cardId(card) === id);
+            if (!matches.length) unknown.push(id);
+            for (const card of matches) if (!picked.includes(card)) picked.push(card);
+          }
+          chosenCards = picked.slice(0, 10);
           return { ok: true, will_send: picked.length, unknown_ids: unknown.length ? unknown : undefined };
         }
         case "escalate_to_human":
@@ -714,8 +733,15 @@ export const runClaudeSalesAgent = async ({
           return registry.execute("get_inventory", { product_id: input.product_id, size: input.size || null, color: input.color || null });
         case "get_shipping_quote":
           return registry.execute("get_shipping_quote", { governorate: input.governorate, city: input.city || null, area: null });
-        case "get_order_status":
-          return findCustomerOrders({ tenantId, orderNumber: text(input.order_number), phone: text(input.phone) || customerPhone });
+        case "get_order_status": {
+          const phone = text(input.phone) || customerPhone;
+          const found = await findCustomerOrders({ tenantId, orderNumber: text(input.order_number), phone });
+          if (found?.found) {
+            trackedOrders = { phone, orders: found.orders };
+            found.orders = found.orders.map((order) => ({ ...order, tracking_page: "هيتبعت للعميل زرار «تتبع الأوردر» تحت ردك" }));
+          }
+          return found;
+        }
         case "get_policy":
         case "get_customer_history":
           return registry.execute(name, input);
@@ -800,8 +826,22 @@ export const runClaudeSalesAgent = async ({
     });
 
     const memoryUpdates = { ...(decision.memoryUpdates || decision.memory_updates || {}), ...memoryPatch };
+    // WhatsApp sends cards only for product intents; a «general» reply carrying cards went out as a
+    // website link instead (owner's test, «فيه نيوبالانس 530»).
+    const productIntent = /product|color|size|image|catalog|grade/i.test(intent);
+    const intentPatch = cardsChanged && cards.length && !productIntent ? { intent: "product_search", detected_intent: "product_search" } : {};
+    // The order the reply is about — the one asked for, or the latest — gets a tracking button.
+    const trackedOrder = trackedOrders?.orders?.[0] || null;
+    const trackingUrl = trackedOrder ? buildOrderTrackingUrl(trackedOrder.order_number, trackedOrders.phone) : "";
+    const isWhatsapp = /whatsapp/i.test(text(inbound.channel));
+    // Messenger and Instagram have no button here: the link rides in the text.
+    if (trackingUrl && !isWhatsapp && !reply.includes(trackingUrl)) reply = `${reply}\n\nتتبع الأوردر من هنا: ${trackingUrl}`;
     return {
       ...decision,
+      ...intentPatch,
+      ...(trackingUrl && isWhatsapp
+        ? { order_tracking_cta: { url: trackingUrl, order_number: trackedOrder.order_number, title: "📦 تتبع أوردرك", button: "تتبع الأوردر" } }
+        : {}),
       text: reply,
       answer: reply,
       ...(cardsChanged

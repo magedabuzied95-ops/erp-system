@@ -42,7 +42,9 @@ test("WhatsApp sends each part as its own message, unless a guard rewrote the te
   assert.deepEqual(whatsappReplyParts({ aiPayload, finalText: "وعليكم السلام ورحمة الله، أهلاً" }), [], "a rewritten reply goes as one message");
   assert.deepEqual(whatsappReplyParts({ aiPayload: { reply_parts: ["تحت أمر حضرتك ❤️"] }, finalText: "تحت أمر حضرتك ❤️" }), [], "one part is one message anyway");
   const gateway = read("../../server/services/whatsappGatewayService.js");
-  assert.match(gateway, /const replyParts = whatsappReplyParts\(\{ aiPayload: generated\.aiPayload, finalText: safeText \}\);\s*if \(replyParts\.length > 1\) \{\s*for \(const part of replyParts\) \{\s*result = await sendTextMessage\(\{ phone: sendTargetNumber, message: part,/);
+  assert.match(gateway, /const replyParts = whatsappReplyParts\(\{ aiPayload: generated\.aiPayload, finalText: safeText \}\);/);
+  // An order answer with a tracking button is sent first; a greeting's parts still go one by one.
+  assert.match(gateway, /\} else if \(replyParts\.length > 1\) \{\s*for \(const part of replyParts\) \{\s*result = await sendTextMessage\(\{ phone: sendTargetNumber, message: part,/);
 });
 
 test("Messenger and Instagram greet with the same parts, the second without a repeated salam", () => {

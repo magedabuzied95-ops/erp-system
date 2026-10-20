@@ -7185,7 +7185,26 @@ export const triggerWhatsappAiAutoReply = async (message = {}) => {
       // A reply made of parts (a greeting: "وعليكم السلام ورحمة الله", then "تحت أمر حضرتك؟")
       // leaves as one message per part — but only while no guard above rewrote the text.
       const replyParts = whatsappReplyParts({ aiPayload: generated.aiPayload, finalText: safeText });
-      if (replyParts.length > 1) {
+      // An answer about an order goes out with a "تتبع الأوردر" button that opens /track on that order
+      // (owner, 2026-10-20). Evolution does not always render a button, so the link is the fallback.
+      const trackingCta = generated.aiPayload?.order_tracking_cta;
+      if (text(trackingCta?.url) && replyParts.length <= 1) {
+        try {
+          result = await sendCtaUrlMessage({
+            phone: sendTargetNumber,
+            title: text(trackingCta.title) || "📦 تتبع أوردرك",
+            text: safeText,
+            footer: "M1 Store",
+            displayText: text(trackingCta.button) || "تتبع الأوردر",
+            url: trackingCta.url,
+            fallbackText: `${safeText}\n\n${trackingCta.url}`,
+          });
+          console.info("[whatsapp:order-tracking-cta-sent]", { conversation_id: outboundPlan.conversation_id, order_number: text(trackingCta.order_number) });
+        } catch (error) {
+          console.warn("[whatsapp:order-tracking-cta-failed]", { conversation_id: outboundPlan.conversation_id, message: error?.message || String(error) });
+          result = await sendTextMessage({ phone: sendTargetNumber, message: `${safeText}\n\n${trackingCta.url}`, instance: text(message.instance || "") });
+        }
+      } else if (replyParts.length > 1) {
         for (const part of replyParts) {
           result = await sendTextMessage({ phone: sendTargetNumber, message: part, instance: text(message.instance || "") });
         }
