@@ -28,6 +28,7 @@ import {
 } from "./aiSupportLogService.js";
 import { getAISettings } from "./aiSettingsService.js";
 import { greetingReplyParts } from "../utils/greetingReply.js";
+import { genderizeReply, inferCustomerGender } from "../utils/customerGender.js";
 import { gradeHeaderLine } from "../config/productGrades.js";
 import { getAIChannelSettings } from "./aiChannelSettingsService.js";
 import { aiModeSwitchBlock, recheckAutoReplyBeforeSend } from "../utils/aiAutoReplyGate.js";
@@ -26225,7 +26226,9 @@ const handleGreetingIfMatched = async ({ config, message } = {}) => {
   });
   // The owner's short greeting, the same as WhatsApp's (utils/greetingReply.js): one message per
   // part — "وعليكم السلام ورحمة الله", then "تحت أمر حضرتك؟".
-  const greetingParts = greetingReplyParts(message.message_text || "");
+  // "أهلاً بيك" goes to a woman as "أهلاً بيكي" — the same gender read as every other reply.
+  const greetingGender = inferCustomerGender(message.customer_name || message.display_name || "").gender;
+  const greetingParts = greetingReplyParts(message.message_text || "").map((part) => genderizeReply(part, greetingGender));
   for (const [partIndex, part] of greetingParts.entries()) {
     await sendAndLogMetaText({
       config,

@@ -14,6 +14,7 @@ import { generateSupportAnswer } from "./openaiSupportService.js";
 import { PRODUCT_GRADES, productGrade, productGradeRank } from "../config/productGrades.js";
 import { resolveInvoiceTemplateForOrder } from "./invoiceTemplateService.js";
 import { detectCatalogBrowseSlots } from "../utils/catalogBrowseRequest.js";
+import { genderizeDecision, resolveCustomerGender } from "../utils/customerGender.js";
 import { buildStoreFactsDecision, STORE_FACTS_INTENTS } from "./aiStoreFactsReplyService.js";
 import { buildCatalogBrowseDecision, CATALOG_BROWSE_INTENTS } from "./aiCatalogBrowseService.js";
 import {
@@ -141,7 +142,7 @@ const withReplyText = (decision = {}, replyText = "", debugPatch = {}) => ({
   debug: { ...(decision.debug || {}), ...debugPatch },
 });
 
-export const rewriteStructuredDecision = async ({ decision = {}, inbound = {}, tenantId = null } = {}) => {
+export const rewriteStructuredDecision = async ({ decision = {}, inbound = {}, tenantId = null, customerGender = null } = {}) => {
   const intent = text(decision.detected_intent || decision.intent);
   // A bare greeting is answered from utils/greetingReply.js as it stands: re-worded, it lost the
   // next step that keeps the customer talking.
@@ -202,6 +203,7 @@ export const rewriteStructuredDecision = async ({ decision = {}, inbound = {}, t
     },
     suggestedProducts: products.map(safeProductFacts),
     suggestedActions: asArray(decision.suggested_actions || decision.actions),
+    customerGender,
     // The grounded answer is already in hand; OpenAI only re-words it. Capped so a slow OpenAI
     // falls back to that answer instead of the whole reply dying at the 60s request limit
     // (25s × 3 attempts by default).
@@ -1196,7 +1198,15 @@ export const generateUnifiedConversationDecision = async (normalizedInbound = {}
     }
   }
 
-  decision = await rewriteStructuredDecision({ decision, inbound, tenantId });
+  // Decided once from the name (or a staff override), before any wording: the model is told it,
+  // and a template written to a man goes out in the feminine to a woman.
+  const genderRead = resolveCustomerGender({
+    name: inbound.customerName,
+    override: inbound.metadata.customer_gender || inbound.metadata.customerGender,
+  });
+  decision = await rewriteStructuredDecision({ decision, inbound, tenantId, customerGender: genderRead.gender });
+  decision = genderizeDecision(decision, genderRead.gender);
+  decision = { ...decision, debug: { ...(decision.debug || {}), customer_gender: genderRead.gender, customer_gender_reason: genderRead.reason } };
   const output = normalizeUnifiedDecisionOutput(applySharedShortcutMetadata({ decision, inbound }), inbound);
   console.info("AI_UNIFIED_DECISION_OUTPUT", {
     channel: inbound.channel,

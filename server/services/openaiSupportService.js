@@ -1080,10 +1080,10 @@ const PAYLOAD_CONTRACT_RULES = [
  * Persona block first, payload contract second. Loading the persona must never be able
  * to fail the reply, so a lookup error falls back to the built-in default voice.
  */
-const buildSupportInstructions = async ({ tenantId, understanding, customerCard, salesHint }) => {
+const buildSupportInstructions = async ({ tenantId, understanding, customerCard, salesHint, customerGender }) => {
   const persona = await loadPersona({ tenantId }).catch(() => DEFAULT_PERSONA);
   return [
-    buildInstructions({ persona, understanding, customerCard, salesHint }),
+    buildInstructions({ persona, understanding, customerCard, salesHint, customerGender }),
     "",
     "# Response contract:",
     ...PAYLOAD_CONTRACT_RULES,
@@ -1101,6 +1101,7 @@ export const generateSupportAnswer = async ({
   understanding = null,
   customerCard = "",
   salesHint = "",
+  customerGender = null,
   // A caller that already holds a usable answer (the grounded rewrite) caps how long OpenAI may
   // take. The defaults — 25s × 3 attempts — run past the server's 60s request limit.
   requestBudget = null,
@@ -1142,6 +1143,7 @@ export const generateSupportAnswer = async ({
           understanding,
           customerCard,
           salesHint,
+          customerGender,
         }),
         input: [
           {

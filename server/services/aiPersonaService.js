@@ -17,6 +17,7 @@
 import db from "../database/db.js";
 import { agentActionGuidanceLines } from "./aiAgentActionPolicy.js";
 import { loadKnowledgeLines } from "./aiAgentKnowledgeService.js";
+import { addressRulesFor } from "../utils/customerGender.js";
 
 const text = (value = "") => String(value ?? "").trim();
 const asArray = (value) => (Array.isArray(value) ? value : []);
@@ -197,6 +198,9 @@ export const buildInstructions = ({
   understanding = null,
   customerCard = "",
   salesHint = "",
+  // "male" | "female" | "unknown" from utils/customerGender.js. Left out, no address block is
+  // written — the callers that never computed it keep the prompt they always had.
+  customerGender = null,
 } = {}) => {
   const sales = persona.sales || DEFAULT_PERSONA.sales;
   const lines = [
@@ -215,6 +219,7 @@ export const buildInstructions = ({
     persona.preferred_phrases?.length ? `عبارات تناسب صوت المتجر: ${persona.preferred_phrases.join("، ")}` : "",
     persona.forbidden_phrases?.length ? `عبارات ممنوعة نهائيًا: ${persona.forbidden_phrases.join("، ")}` : "",
     "متخلطش عربي وإنجليزي في نفس الجملة. أسماء المنتجات والبراندات تفضل زي ما هي.",
+    ...(customerGender ? ["", "# مخاطبة العميل:", ...addressRulesFor(customerGender)] : []),
     "",
     "# البيع:",
     sales.answer_before_collecting
