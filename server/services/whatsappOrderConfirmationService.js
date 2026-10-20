@@ -72,6 +72,15 @@ const ORDER_CONFIRMATION_ACTIONABLE_STATUSES = new Set([
   "edit_requested",
 ]);
 const ORDER_CONFIRMATION_SINGLE_USE_ACTIONS = new Set(["confirm", "edit", "cancel"]);
+// A staff member pressing تأكيد on the shipping board has already spoken to the customer, so the
+// customer-tap set above is too narrow for them: the board files EVERY not-yet-confirmed status
+// under "new" (pending_review from an AI checkout stock conflict, a legacy status, an empty one)
+// and offers the button on it, which the engine then refused (INV-2186). Only an order that is
+// finished with stays out; past dispatch is still the protected set's job.
+const STAFF_CONFIRM_REFUSED_STATUSES = new Set([
+  "cancelled", "canceled", "cancelled_by_customer", "customer_cancelled", "rejected", "payment_rejected",
+  "returned", "refunded", "fully_refunded", "return_completed", "delivered", "completed", "complete", "ai_draft",
+]);
 const ORDER_CONFIRMATION_ACTION_META = {
   confirm: {
     action: "customer_confirmed_order",
@@ -1836,7 +1845,8 @@ async function applyConfirmationAction({
     if (normalizedAction === "confirm") {
       // edit_requested is allowed back: the customer asks for a change, we fix it, and the same
       // buttons are still sitting in their chat for them to confirm the corrected order.
-      if (!ORDER_CONFIRMATION_ACTIONABLE_STATUSES.has(currentStatus)) {
+      const staffMayConfirm = actorType === "staff" && !STAFF_CONFIRM_REFUSED_STATUSES.has(currentStatus);
+      if (!ORDER_CONFIRMATION_ACTIONABLE_STATUSES.has(currentStatus) && !staffMayConfirm) {
         if (shouldManageTransaction) {
           await timedOrderConfirmationQuery({
             client,
