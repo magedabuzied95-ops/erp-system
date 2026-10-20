@@ -1215,8 +1215,10 @@ export const generateUnifiedConversationDecision = async (normalizedInbound = {}
     memory: effectiveMemoryWithV2 || {},
     helpers: {
       safeProductFacts,
-      skipIntents: CATALOG_BROWSE_INTENTS,
+      // The catalog-browse questions reach the agent too (live test 2026-10-20: «انت بوت؟» mid-browse
+      // got the browse template back), with their counts and link kept word for word.
       mustKeepFacts: STORE_FACTS_INTENTS.includes(text(decision.detected_intent || decision.intent)) ||
+        CATALOG_BROWSE_INTENTS.includes(text(decision.detected_intent || decision.intent)) ||
         Boolean(text(decision.debug?.colorway_missing_reply?.text) || text(decision.debug?.grade_missing_reply?.text) || text(decision.debug?.grade_found_reply?.text)),
       // The same search brain V2 runs for a customer's message, on the model's query, so the cards
       // it picks are built exactly like every other card.
