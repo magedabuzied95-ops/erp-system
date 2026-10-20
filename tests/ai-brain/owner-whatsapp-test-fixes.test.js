@@ -123,3 +123,33 @@ test("«فيه نيوبالانس 530 ميرور؟» searches the mirror grade a
     agent.__setAgentClientForTests(null);
   }
 });
+
+test("«الاسود» sends the black card, even when the model picked the range without it", async () => {
+  const agent = await import("../../server/services/aiClaudeSalesAgentService.js");
+  const { safeProductFacts } = await import("../../server/services/aiUnifiedDecisionService.js");
+  const saved = { enabled: process.env.AI_CLAUDE_AGENT_ENABLED, key: process.env.ANTHROPIC_API_KEY, scope: process.env.AI_SALES_AGENT_SCOPE, provider: process.env.AI_SALES_AGENT_PROVIDER };
+  Object.assign(process.env, { AI_CLAUDE_AGENT_ENABLED: "true", ANTHROPIC_API_KEY: "k", AI_SALES_AGENT_SCOPE: "all", AI_SALES_AGENT_PROVIDER: "anthropic" });
+  const card = (id, color, grade) => ({ product_id: id, id, color, title: `New Balance 530 - ${color}`, grade, price: 800, image_url: `https://x/${id}${color}.jpg` });
+  const pool = [card("180", "Navy", "local"), card("180", "Beige", "local"), card("144", "Black", "imported_from_vietnam")];
+  const run = async (productIds) => {
+    const replies = [
+      { stop_reason: "tool_use", content: [{ type: "tool_use", id: "s", name: "search_products", input: { query: "New Balance 530 Black" } }], usage: {} },
+      { stop_reason: "tool_use", content: [{ type: "tool_use", id: "p", name: "show_products", input: { product_ids: productIds } }], usage: {} },
+      { stop_reason: "end_turn", content: [{ type: "text", text: "ده الأسود 👇" }], usage: {} },
+    ];
+    agent.__setAgentClientForTests({ beta: { messages: { create: async () => replies.shift() } } });
+    return agent.runClaudeSalesAgent({
+      decision: { intent: "general", detected_intent: "general", text: "x", product_cards: [] },
+      inbound: { channel: "whatsapp", text: "الاسود", originalText: "الاسود", customerName: "Maged", externalConversationId: "", metadata: {} },
+      helpers: { safeProductFacts, searchCards: async () => pool },
+      loaders: { persona: async () => ({}), knowledgeBase: async () => ({}), history: async () => [], customerCard: async () => "" },
+    });
+  };
+  try {
+    assert.deepEqual((await run(["180"])).product_cards.map((c) => `${c.product_id}:${c.color}`), ["144:Black"], "the pick had no black: the same model's black comes instead");
+    assert.deepEqual((await run(["180", "144"])).product_cards.map((c) => `${c.product_id}:${c.color}`), ["144:Black"], "a mixed pick narrows to the black");
+  } finally {
+    Object.assign(process.env, { AI_CLAUDE_AGENT_ENABLED: saved.enabled ?? "", ANTHROPIC_API_KEY: saved.key ?? "", AI_SALES_AGENT_SCOPE: saved.scope ?? "", AI_SALES_AGENT_PROVIDER: saved.provider ?? "" });
+    agent.__setAgentClientForTests(null);
+  }
+});

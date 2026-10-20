@@ -565,6 +565,23 @@ export const cardsNamingTheModel = (cards = [], message = "") => {
   const kept = cards.filter((card) => namesAny(card, words, numbers));
   return kept.length ? kept : cards;
 };
+// «الاسود» → black. The customer names a colour in Arabic or Franco; card colours are in English.
+const COLOUR_WORDS = [
+  [/(اسود|أسود|سودا|بلاك|black)/i, ["black"]],
+  [/(ابيض|أبيض|بيضا|وايت|white)/i, ["white"]],
+  [/(بيج|beige|biege)/i, ["beige", "biege"]],
+  [/(كحلي|نيفي|navy)/i, ["navy"]],
+  [/(رمادي|رصاصي|جراي|جري|grey|gray)/i, ["grey", "gray"]],
+  [/(احمر|أحمر|ريد|red)/i, ["red"]],
+  [/(اخضر|أخضر|جرين|green)/i, ["green"]],
+  [/(بني|براون|brown)/i, ["brown"]],
+  [/(بينك|وردي|روز|pink|rose)/i, ["pink", "rose"]],
+  [/(ازرق|أزرق|بلو|blue)/i, ["blue"]],
+  [/(نبيتي|برجندي|burgundy)/i, ["burgundy"]],
+];
+const coloursNamedIn = (message = "") => COLOUR_WORDS.filter(([pattern]) => pattern.test(text(message))).flatMap(([, names]) => names);
+const cardColourText = (card = {}) => text(`${card.color || card.matched_variant_color || ""} ${(text(card.title || card.name).split(" - ")[1] || "")}`).toLowerCase();
+
 // The customer asked for one grade by name — then only that grade is shown.
 const NAMED_GRADE = /(ميرور|مرور|فيتنام|مستورد|مصري|اوريجينال|أوريجينال|اورجينال|أصلي|اصلي|mirror|original|vietnam|egypt)/i;
 const gradeNamedIn = (message = "") => {
@@ -834,11 +851,31 @@ export const runClaudeSalesAgent = async ({
               if (!gradesAdded.includes(grade)) gradesAdded.push(grade);
             }
           }
+          // «الاسود» with the model's whole colour range picked: the black cards go, not Navy/Beige/…
+          // (playground re-test, 2026-10-20). Only when a card in that colour exists.
+          const askedColours = coloursNamedIn(customerMessage);
+          let colourFiltered = false;
+          if (askedColours.length) {
+            const hasColour = (card) => askedColours.some((colour) => cardColourText(card).includes(colour));
+            let inColour = picked.filter(hasColour);
+            // None of the picked cards is that colour (the black is the Vietnamese pair, the pick was
+            // the Egyptian range): the same model's cards in that colour from the pool.
+            if (!inColour.length) {
+              const modelOf = (card) => text(safeProductFacts(card).name).toLowerCase().split(" - ")[0].replace(/\s+/g, " ").trim();
+              const models = new Set(picked.map(modelOf));
+              inColour = [...cardPool.values()].filter((card) => hasColour(card) && models.has(modelOf(card)));
+            }
+            if (inColour.length && !inColour.every((card) => picked.includes(card) && picked.length === inColour.length)) {
+              picked.splice(0, picked.length, ...inColour);
+              colourFiltered = true;
+            }
+          }
           chosenCards = picked.slice(0, 12);
           return {
             ok: true,
             will_send: chosenCards.length,
             unknown_ids: unknown.length ? unknown : undefined,
+            ...(colourFiltered ? { colour_note: `اتبعت بس الكروت باللون اللي العميل طلبه (${askedColours.join("/")})` } : {}),
             ...(swappedToGrade ? { note: `العميل طلب ${swappedToGrade} — الكروت اتغيرت للدرجة دي وهي متاحة` } : {}),
             other_grades_added: gradesAdded.length ? gradesAdded.map((grade) => chosenCards.map((card) => safeProductFacts(card)).find((facts) => text(facts.grade).toLowerCase() === grade)?.grade_label || grade) : undefined,
           };
