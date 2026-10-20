@@ -1,5 +1,6 @@
 import { codFaqAnswer, codPolicyFacts, shippingFeeAdvanceNoticeFor } from "./codPolicyReplyService.js";
 import db from "../database/db.js";
+import { getPhoneSearchVariants, phoneSqlDigits } from "../utils/phoneSearch.js";
 import { getSetting } from "./settingsService.js";
 import { getAiAgentSettings } from "./aiSalesAgentService.js";
 import { getWebsiteSettings } from "./liveActivityService.js";
@@ -310,7 +311,7 @@ export const getOrderFacts = async ({ tenantId, orderId = null, conversationId =
     }
     if (text(orderNumber)) {
       params.push(text(orderNumber));
-      clauses.push(`public_order_number = $${params.length} OR display_order_number = $${params.length}`);
+      clauses.push(`(public_order_number = $${params.length} OR display_order_number = $${params.length})`);
     }
   }
 
@@ -340,6 +341,62 @@ export const getOrderFacts = async ({ tenantId, orderId = null, conversationId =
       delivery_status: pickFirst(row.delivery_status, row.shipping_status),
       eta: pickFirst(row.estimated_delivery_text, row.delivery_eta, row.estimated_delivery),
     },
+  };
+};
+
+/*
+ * "الاوردر بتاعي وصل لفين" / "الاوردر 2203 وصل فين" from a chat. Same rule as the storefront's /track:
+ * an order is shown only to the phone it was placed with — the chat's own number on WhatsApp, or the
+ * number the customer types. No number given: their latest orders.
+ */
+export const findCustomerOrders = async ({ tenantId, orderNumber = "", phone = "", limit = 3 } = {}) => {
+  const safeTenantId = Number(tenantId);
+  if (!Number.isFinite(safeTenantId) || safeTenantId <= 0) return { found: false, reason: "no_tenant" };
+  const variants = getPhoneSearchVariants(phone);
+  if (!variants.length) return { found: false, reason: "phone_needed" };
+  const number = text(orderNumber).replace(/^#/, "");
+  const params = [safeTenantId, variants];
+  let numberClause = "";
+  if (number) {
+    params.push(number);
+    numberClause = `AND (o.invoice_number = $3 OR o.public_order_number = $3 OR o.display_order_number = $3 OR o.id::text = $3 OR $3 = ('WEB-' || o.id::text))`;
+  }
+  params.push(Math.max(1, Math.min(5, Number(limit) || 3)));
+  const result = await db.query(
+    `
+    SELECT to_jsonb(o) AS row,
+      (SELECT string_agg(
+         concat_ws(' ', NULLIF(to_jsonb(oi)->>'product_name', ''), NULLIF(to_jsonb(oi)->>'color', ''), NULLIF(to_jsonb(oi)->>'size', '')),
+         ' + ')
+       FROM order_items oi WHERE oi.order_id = o.id) AS items
+    FROM orders o
+    WHERE o.tenant_id = $1
+      AND ${phoneSqlDigits("o.customer_phone")} = ANY($2::text[])
+      ${numberClause}
+    ORDER BY o.created_at DESC NULLS LAST, o.id DESC
+    LIMIT $${params.length}
+    `,
+    params
+  ).catch((error) => {
+    console.warn("[ai-tools] order lookup failed", { message: error?.message });
+    return { rows: [] };
+  });
+  if (!result.rows.length) return { found: false, reason: number ? "no_order_with_this_number_for_this_phone" : "no_orders_for_this_phone" };
+  return {
+    found: true,
+    orders: result.rows.map(({ row = {}, items }) => ({
+      order_number: pickFirst(row.public_order_number, row.display_order_number, row.invoice_number, row.id),
+      placed_at: row.created_at || null,
+      status: pickFirst(row.status, row.order_status),
+      payment_status: pickFirst(row.payment_status),
+      shipping_provider: pickFirst(row.shipping_provider, row.shipping_company),
+      shipping_status: pickFirst(row.shipping_status, row.delivery_status, row.bosta_state, row.shipment_status),
+      tracking_number: pickFirst(row.tracking_number, row.shipment_tracking_number, row.shipping_provider_delivery_id, row.bosta_tracking_number),
+      shipped_at: pickFirst(row.shipped_at),
+      delivered_at: pickFirst(row.delivered_at),
+      total: pickFirst(row.total, row.total_amount, row.grand_total),
+      items: text(items).slice(0, 300),
+    })),
   };
 };
 

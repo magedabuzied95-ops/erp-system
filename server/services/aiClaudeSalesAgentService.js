@@ -23,6 +23,7 @@ import Anthropic from "@anthropic-ai/sdk";
 import db from "../database/db.js";
 import { addressRulesFor, inferCustomerGender } from "../utils/customerGender.js";
 import { buildToolRegistry } from "./aiToolRegistryService.js";
+import { findCustomerOrders } from "./aiBusinessToolsService.js";
 import { loadPersona, DEFAULT_PERSONA } from "./aiPersonaService.js";
 import { loadSupportKnowledgeBase } from "./aiSupportKnowledgeBaseService.js";
 import { markAiSupportConversationEscalated } from "./aiSupportLogService.js";
@@ -57,8 +58,6 @@ const ESCALATION_MARK_DELAY_MS = 20_000;
 export const SKIP_INTENTS = Object.freeze([
   "greeting",
   "human_takeover",
-  "order_tracking",
-  "order_follow_up",
   "post_product_order_confirmation",
   "post_product_color_selected",
   "post_product_size_selected",
@@ -206,7 +205,8 @@ ${knowledge.length ? `\n<owner_knowledge>\nمعلومات صاحب المحل ب
 - السعر والتوفر والمقاس واللون: من الكروت أو من نتيجة أداة في المحادثة دي بس. get_inventory هي الطريقة الوحيدة تتأكد إن مقاس ولون معين متاح.
 - المقاسات: متقولش إن موديل «مقاسه مظبوط» أو «بيطلع كبير/صغير» أو «خد مقاس أكبر» إلا لو ده مكتوب في owner_knowledge. لو مش مكتوب، اسأل العميل بيلبس مقاس كام عادةً في الكوتشيات. ونفس الكلام على تحويل السنتي لمقاس (27 سم = كام): من owner_knowledge بس، مش من معلوماتك العامة.
 - الدرجات (grade_label) حقيقية ومتسجلة: قولها زي ما هي من غير مبالغة، ومتقولش «أصلي» على حاجة مش متسجلة كده.
-- لو العميل سأل عن الشحن لمحافظة معينة استدعي get_shipping_quote. لو سأل عن أوردر عمله، get_order_status برقم الأوردر.
+- لو العميل سأل عن الشحن لمحافظة معينة استدعي get_shipping_quote.
+- لو سأل عن أوردر عمله («الأوردر بتاعي وصل لفين»، «الأوردر 2203»): استدعي get_order_status — برقم الأوردر لو قاله، ومن غير رقم لو مقالش. قول الحالة بكلام بسيط (اتأكد وبيتجهز / اتشحن مع شركة الشحن ورقم التتبع / اتسلم) من النتيجة بس، ومتخترعش ميعاد وصول. لو مفيش أوردر على رقمه قول كده واسأله عن رقم الأوردر أو الموبايل اللي طلب بيه. لو الأوردر متأخر أو فيه مشكلة، حوّل لزميل.
 </products_and_cards>
 
 <faq>
@@ -416,7 +416,7 @@ const AGENT_TOOLS = [
       type: "object",
       additionalProperties: false,
       required: ["query"],
-      properties: { query: { type: "string", description: "اسم الموديل أو البراند أو النوع — مش جملة العميل كلها." } },
+      properties: { query: { type: "string", description: "اسم الموديل أو البراند بالإنجليزي زي ما مكتوب في الكتالوج (New Balance 530، Air Force 1، Skechers) — مش جملة العميل كلها. لو رجعت صفر جرّب تاني باسم أقصر (البراند لوحده) قبل ما تقول مش موجود." } },
     },
   },
   {
@@ -460,12 +460,14 @@ const AGENT_TOOLS = [
   },
   {
     name: "get_order_status",
-    description: "حالة أوردر برقمه. بس لما العميل يسأل عن أوردر عمله قبل كده.",
+    description: "أوردرات العميل وحالتها (اتأكد/اتشحن مع مين ورقم التتبع/اتسلم). استخدمها لما العميل يسأل عن أوردر عمله. لو قال رقم الأوردر ابعته، ولو مقالش ابعتها من غير رقم وهترجع آخر أوردراته. الأوردر بيظهر بس لرقم الموبايل اللي اتعمل بيه: على واتساب رقمه معروف، وفي الماسنجر والإنستجرام لو رجعت phone_needed اطلب منه رقم الموبايل اللي طلب بيه وابعته في phone.",
     input_schema: {
       type: "object",
       additionalProperties: false,
-      required: ["order_number"],
-      properties: { order_number: { type: "string" } },
+      properties: {
+        order_number: { type: "string", description: "رقم الأوردر لو العميل قاله (زي 2203 أو WEB-2203)." },
+        phone: { type: "string", description: "رقم الموبايل اللي العميل كتبه في الشات، لو مش على واتساب." },
+      },
     },
   },
   {
@@ -712,8 +714,9 @@ export const runClaudeSalesAgent = async ({
           return registry.execute("get_inventory", { product_id: input.product_id, size: input.size || null, color: input.color || null });
         case "get_shipping_quote":
           return registry.execute("get_shipping_quote", { governorate: input.governorate, city: input.city || null, area: null });
-        case "get_policy":
         case "get_order_status":
+          return findCustomerOrders({ tenantId, orderNumber: text(input.order_number), phone: text(input.phone) || customerPhone });
+        case "get_policy":
         case "get_customer_history":
           return registry.execute(name, input);
         default:

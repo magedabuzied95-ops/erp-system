@@ -75,6 +75,26 @@ const ARABIC_WORD_ALIASES = [
   ["فانس", "vans"],
   ["لايت", "light"],
   ["فليكس", "flex"],
+  // "عايز نيوبالانس 530" found nothing while New Balance 530 sits in the catalog in eight colours:
+  // the brand had no Arabic spelling here at all (owner's WhatsApp test, 2026-10-20).
+  ["نيوبالانس", "new balance"],
+  ["نيوبلانس", "new balance"],
+  ["نيوبالنس", "new balance"],
+  ["نيوبلنس", "new balance"],
+  ["نيو", "new"],
+  ["بالانس", "balance"],
+  ["بلانس", "balance"],
+  ["بالنس", "balance"],
+  ["ريبوك", "reebok"],
+  ["ريبوخ", "reebok"],
+  ["اسيكس", "asics"],
+  ["اسكس", "asics"],
+  ["فيلا", "fila"],
+  ["لاكوست", "lacoste"],
+  ["تمبرلاند", "timberland"],
+  ["تيمبرلاند", "timberland"],
+  ["اندر", "under"],
+  ["ارمور", "armour"],
 ];
 
 const ENGLISH_WORD_ALIASES = [
