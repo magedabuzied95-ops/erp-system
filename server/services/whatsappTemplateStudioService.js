@@ -400,8 +400,8 @@ export const syncTemplates = async ({ tenantId }) => {
     const quality = text(item.quality_score?.score);
     const touched = await db.query(
       `UPDATE whatsapp_message_templates
-          SET status = $4, meta_template_id = $5, waba_id = $6, rejection_reason = $7, quality_score = $8,
-              category = $9, last_synced_at = NOW(), updated_at = CASE WHEN status <> $4 THEN NOW() ELSE updated_at END
+          SET status = $4::text, meta_template_id = $5, waba_id = $6, rejection_reason = $7, quality_score = $8,
+              category = $9, last_synced_at = NOW(), updated_at = CASE WHEN status <> $4::text THEN NOW() ELSE updated_at END
         WHERE tenant_id = $1 AND name = $2 AND language = $3
         RETURNING id`,
       [tenantOf(tenantId), text(item.name), text(item.language), status, text(item.id), credentials.wabaId, reason, quality, text(item.category) || "MARKETING"]
