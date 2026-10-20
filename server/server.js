@@ -745,6 +745,7 @@ const { default: whatsappUsageRoutes } = await import("./routes/whatsappUsage.js
 const { default: whatsappApiAccessRoutes } = await import("./routes/whatsappApiAccess.js");
 const { default: whatsappPublicApiRoutes } = await import("./routes/whatsappPublicApi.js");
 const { default: inboxTeamsRoutes } = await import("./routes/inboxTeams.js");
+const { default: whatsappCommerceRoutes } = await import("./routes/whatsappCommerce.js");
 const { default: inboxTagsRoutes } = await import("./routes/inboxTags.js");
 const { default: inboxPresenceRoutes } = await import("./routes/inboxPresence.js");
 const { default: chatBackupsRoutes } = await import("./routes/chatBackups.js");
@@ -2103,6 +2104,7 @@ app.use("/api/whatsapp/automations", whatsappAutomationsRoutes);
 app.use("/api/whatsapp/templates", whatsappTemplatesRoutes);
 app.use("/api/whatsapp/usage", whatsappUsageRoutes);
 app.use("/api/whatsapp/developer", whatsappApiAccessRoutes);
+app.use("/api/whatsapp/commerce", whatsappCommerceRoutes);
 app.use("/api/public/whatsapp", whatsappPublicApiRoutes);
 app.use("/api/inbox-config/org", inboxTeamsRoutes);
 app.use("/api/inbox-config/tags", inboxTagsRoutes);

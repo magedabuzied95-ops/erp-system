@@ -2009,7 +2009,9 @@
         "shifts": "Shifts",
         "tags": "Tags",
         "presence": "Presence log",
-        "backups": "Chat backups"
+        "backups": "Chat backups",
+        "waCatalogs": "Catalogs",
+        "waProducts": "Products"
       }
     }
   },
@@ -3378,6 +3380,106 @@
       "limit": "Messaging limit",
       "wabaId": "WhatsApp Business ID",
       "coexistence": "Coexistence"
+    }
+  },
+  "waCommerce": {
+    "catalogs": {
+      "subtitle": "The catalogs you sell from on WhatsApp: the one in Settings and the ones Meta links to your official number.",
+      "sync": "Sync from Meta",
+      "synced": "Synced {{count}} catalog(s) from Meta",
+      "loadFailed": "Couldn't load catalogs",
+      "actionFailed": "Meta rejected the request",
+      "settingsSaved": "Saved on WhatsApp",
+      "empty": "No catalogs yet. Put the catalog ID in Settings or link one to a WhatsApp number in Commerce Manager, then sync from Meta.",
+      "unnamed": "Unnamed catalog",
+      "uploadErrors": "{{count}} error(s) in the last upload",
+      "columns": {
+        "name": "Name",
+        "account": "Account",
+        "catalogId": "Catalog ID",
+        "status": "Status",
+        "products": "Products",
+        "lastSynced": "Last synced"
+      },
+      "status": {
+        "active": "Active",
+        "warning": "Warnings",
+        "error": "Unreadable",
+        "unknown": "Unknown"
+      },
+      "source": {
+        "settings": "From settings",
+        "waba": "Linked to a WhatsApp number"
+      },
+      "commerceTitle": "Shopping in WhatsApp",
+      "showCatalog": "Show catalog in WhatsApp",
+      "showCatalogHint": "The shop button appears in the chat and on the number's profile.",
+      "enableCart": "Enable cart",
+      "enableCartHint": "Customers can add several items and send them as one order, which lands on the Orders page.",
+      "noNumber": "No official WhatsApp number is connected, so these settings can't be changed from here.",
+      "feedUrl": "Product feed URL",
+      "feedHint": "Paste this URL in Commerce Manager → Data sources → Scheduled feed so the shop's products update in the catalog on their own.",
+      "copy": "Copy"
+    },
+    "products": {
+      "search": "Search by name or SKU",
+      "loadFailed": "Couldn't load products from Meta",
+      "noCatalog": "No catalog. Sync from the Catalogs page first.",
+      "empty": "No products",
+      "notMapped": "Not linked",
+      "previous": "Previous",
+      "next": "Next",
+      "page": "Page {{page}}",
+      "columns": {
+        "name": "Product",
+        "retailerId": "Retailer ID / SKU",
+        "price": "Price",
+        "availability": "Availability",
+        "erp": "In ERP"
+      },
+      "availability": {
+        "inStock": "In stock",
+        "outOfStock": "Out of stock",
+        "preorder": "Preorder",
+        "availableForOrder": "Available for order"
+      }
+    },
+    "orders": {
+      "subtitle": "Carts customers sent from the WhatsApp catalog. Open the conversation, create the order, then mark it converted.",
+      "loadFailed": "Couldn't load orders",
+      "actionFailed": "Couldn't change the status",
+      "statusSaved": "Status updated",
+      "empty": "No WhatsApp orders yet",
+      "all": "All",
+      "search": "Search by name or phone",
+      "loadMore": "Load more",
+      "backToList": "Orders",
+      "openConversation": "Open conversation",
+      "markConverted": "Mark converted",
+      "markCancelled": "Mark cancelled",
+      "reopen": "Reopen as new",
+      "erpOrder": "ERP order",
+      "itemCount": "{{count}} item(s)",
+      "columns": {
+        "customer": "Customer",
+        "catalog": "Catalog",
+        "status": "Status",
+        "total": "Total",
+        "currency": "Currency",
+        "date": "Date"
+      },
+      "status": {
+        "new": "New",
+        "converted": "Converted",
+        "cancelled": "Cancelled"
+      },
+      "items": {
+        "product": "Product",
+        "quantity": "Qty",
+        "price": "Unit price",
+        "lineTotal": "Line total",
+        "notMapped": "Not linked to an ERP product"
+      }
     }
   }
 }

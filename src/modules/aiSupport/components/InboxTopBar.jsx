@@ -30,8 +30,9 @@ const MENUS = [
       { key: "waCampaigns", section: "broadcasts" },
       { key: "waUsage", section: "wa_usage" },
       { key: "flows", to: "/ai-studio/workflows" },
-      { key: "waCatalog", to: "/settings" },
-      { key: "waOrders", to: "/orders" },
+      { key: "waCatalogs", section: "wa_catalogs" },
+      { key: "waProducts", section: "wa_products" },
+      { key: "waOrders", section: "wa_orders" },
       { key: "waApiKeys", section: "wa_api_keys" },
       { key: "waWebhooks", section: "wa_webhooks" },
     ],
@@ -121,7 +122,8 @@ const itemLabel = (t, key) => {
     case "waCampaigns": return t("aiSupport.inbox.topbar.items.waCampaigns");
     case "waSequences": return t("aiSupport.inbox.topbar.items.waSequences");
     case "waInvoiceMessages": return t("aiSupport.inbox.topbar.items.waInvoiceMessages");
-    case "waCatalog": return t("aiSupport.inbox.topbar.items.waCatalog");
+    case "waCatalogs": return t("aiSupport.inbox.topbar.items.waCatalogs");
+    case "waProducts": return t("aiSupport.inbox.topbar.items.waProducts");
     case "waOrders": return t("aiSupport.inbox.topbar.items.waOrders");
     case "waUsage": return t("aiSupport.inbox.topbar.items.waUsage");
     case "waApiKeys": return t("aiSupport.inbox.topbar.items.waApiKeys");
