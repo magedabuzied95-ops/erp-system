@@ -593,6 +593,11 @@ const buildPostProductFsmDecision = ({ message = "", memory = {}, intent = "" } 
   if (!rememberedCards.length || !activeProductId) return null;
   // "متاح بلاك كات ؟" asks for a colourway by name: a new search, not the shoe on screen.
   if (detectNamedColorway(message)) return null;
+  // "متاح نيوبالانس 530 ميرور" names a grade and a model number: a new search in that grade, not a
+  // colour question about the shoe on screen in the size picked before (playground re-test,
+  // 2026-10-20 — it listed the Navy's colours in 42 and ignored «ميرور»).
+  if (/(ميرور|مرور|فيتنام|مستورد|مصري|اوريجينال|أوريجينال|mirror|vietnam)/i.test(message)) return null;
+  if ((text(message).replace(/[٠-٩]/g, (digit) => String(digit.charCodeAt(0) - 0x0660)).match(/[0-9]{2,4}/g) || []).some((number) => Number(number) > 50)) return null;
 
   const confirmation = buildPostProductOrderConfirmationFromMemoryV2({ message, memory });
   if (confirmation) return confirmation;
