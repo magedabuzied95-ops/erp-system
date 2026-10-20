@@ -64,10 +64,13 @@ const normalizeSizeToken = (value = "") =>
 const extractRequestedSize = (message = "") => {
   const raw = text(message);
   const normalized = normalizeArabic(raw);
-  const match = raw.match(/(?:مقاس|size|sizes?)\s*([0-9\u0660-\u0669\u06f0-\u06f9]{1,3})/i)
-    || normalized.match(/(?:مقاس|size|sizes?)\s*([0-9]{1,3})/i)
-    || raw.match(/\b([0-9\u0660-\u0669\u06f0-\u06f9]{2,3})\b/);
-  return normalizeSizeToken(match?.[1] || "");
+  const named = raw.match(/(?:مقاس|size|sizes?)\s*([0-9\u0660-\u0669\u06f0-\u06f9]{1,3})/i)
+    || normalized.match(/(?:مقاس|size|sizes?)\s*([0-9]{1,3})/i);
+  if (named?.[1]) return normalizeSizeToken(named[1]);
+  // A bare number is a size only when it can be one (16–50): «متاح نيوبالانس 530 ميرور» named a
+  // model, and the shoe on screen got «مقاس 530 مش متوفر» (owner's WhatsApp test, 2026-10-20).
+  const bare = raw.match(/(?<![0-9\u0660-\u0669\u06f0-\u06f9])[0-9\u0660-\u0669\u06f0-\u06f9]{2,3}(?![0-9\u0660-\u0669\u06f0-\u06f9])/g) || [];
+  return bare.map((token) => normalizeSizeToken(token)).find((token) => Number(token) >= 16 && Number(token) <= 50) || "";
 };
 
 const memoryCardsFromContext = (memory = {}) => normalizeProductCards([

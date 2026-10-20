@@ -97,10 +97,17 @@ const normalizeCompact = (value = "") =>
     .replace(/\s+/g, " ")
     .trim();
 
+// A shoe size is 16–50. «متاح نيوبالانس 530 ميرور» read 530 as the size of the shoe on screen and
+// answered «مقاس 530 مش متوفر» (owner's WhatsApp test, 2026-10-20): a model number is not a size.
+export const isShoeSizeNumber = (value) => {
+  const number = Number(value);
+  return Number.isFinite(number) && number >= 16 && number <= 50;
+};
+
 const normalizeSize = (value = "") => {
   const normalized = normalizeCompact(value);
-  const match = normalized.match(/\b([0-9]{1,3})\b/);
-  return match?.[1] ? String(Number(match[1])) : "";
+  const found = (normalized.match(/\b[0-9]{1,3}\b/g) || []).find(isShoeSizeNumber);
+  return found ? String(Number(found)) : "";
 };
 
 const compactCard = (product = {}) => {
