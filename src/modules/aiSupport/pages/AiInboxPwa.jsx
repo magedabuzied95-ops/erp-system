@@ -169,6 +169,7 @@ import {
   transcriptDayKey,
   transcriptDayLabel,
   transcriptRowTime,
+  EMPTY_CONVERSATION_METADATA,
 } from "../lib/conversationHelpers";
 
 // Heavy and rarely opened: kept out of the inbox's critical path, exactly as the
@@ -546,7 +547,6 @@ const sameNormalizedValue = (left, right) => {
   return false;
 };
 
-const EMPTY_CONVERSATION_METADATA = Object.freeze({});
 
 const normalizeInboxMessage = (message = {}) => {
   if (!message || typeof message !== "object") return {};
@@ -2299,7 +2299,10 @@ const reportDeadAvatar = (conversation, url) => {
   api.post(aiInboxConversationEndpoint(target, "/refresh-avatar"), { channel }).catch(() => {});
 };
 
-function ConversationListItem({ conversation, active, accountLabel = "", staffViewers = [], onSelect, onToggleFavorite, onToggleRead, onDelete, onEditPrivacy }) {
+// Memoised: the list renders every loaded thread, and without this each page render (a
+// keystroke in search, a socket tick, opening a thread) re-rendered all of them. Its
+// callbacks are useCallbacks and staffViewers keeps its identity (useStaffPresence).
+const PwaConversationListItem = memo(function ConversationListItem({ conversation, active, accountLabel = "", staffViewers = [], onSelect, onToggleFavorite, onToggleRead, onDelete, onEditPrivacy }) {
   const { t, i18n } = useTranslation();
   const [, forceAvatarFallback] = useState(0);
   const isSocialComment = isSocialCommentThread(conversation);
@@ -2528,7 +2531,7 @@ function ConversationListItem({ conversation, active, accountLabel = "", staffVi
       </div>
     </div>
   );
-}
+});
 
 /* Legacy transcript renderer retained only for history; the live PWA uses OptimizedTranscript.
 const Transcript = memo(function Transcript({ conversation, loadingOlder, onLoadOlder }) {
@@ -6306,21 +6309,21 @@ export default function AiInboxPwa({ portal = null } = {}) {
     }
   }, [headers, olderLoading, patchConversation, selectedConversation, selectedConversationRouteId, tenantId]);
 
+  // Opening a thread fetches its NEWEST page once per session — cache-primed or not, summary of
+  // 0, 1 or more messages. This used to call loadOlderMessages without forceHydrate for an
+  // unhydrated summary: with one message on screen that asked for the page BEFORE it, got
+  // nothing, and the "never loaded" effect below then made the real request 250ms later — two
+  // /messages calls per open (the "0KB then 48KB" pair). Marked up-front so neither an empty
+  // page nor a failure can loop. The reconcile inside the full-page hydrate still drops any
+  // cached message the server deleted.
   useEffect(() => {
     if (!selectedConversation?.session_id || tab !== "conversations") return;
     if (isHydratingConversationRef.current || isLoadingOlderRef.current || isAppendingNewMessageRef.current) return;
     const key = conversationKey(selectedConversation || {});
-    // A cache-primed window passes the count-based hydration check without ever
-    // consulting the server, so revalidate it exactly ONCE per session (marked
-    // up-front so a failing fetch can't retry-loop). The reconcile inside the
-    // full-page hydrate then drops any cached message the server deleted.
-    const primedNeedsRevalidate = Boolean(key) &&
-      cachePrimedThreadsRef.current.has(key) &&
-      !revalidatedThreadsRef.current.has(key);
-    if (selectedConversation.conversationHydrated !== false && !primedNeedsRevalidate) return;
-    if (primedNeedsRevalidate) revalidatedThreadsRef.current.add(key);
-    void loadOlderMessages({ forceHydrate: primedNeedsRevalidate });
-  }, [loadOlderMessages, selectedConversation?.conversationHydrated, selectedConversation?.session_id, selectedConversation, tab]);
+    if (!key || revalidatedThreadsRef.current.has(key)) return;
+    revalidatedThreadsRef.current.add(key);
+    void loadOlderMessages({ forceHydrate: true });
+  }, [loadOlderMessages, selectedConversation?.session_id, tab]);
 
   // A loaded thread marked behind by an ai_inbox:refresh refetches its newest page, once per mark.
   const loadOlderMessagesRef = useRef(loadOlderMessages);
@@ -9020,8 +9023,8 @@ export default function AiInboxPwa({ portal = null } = {}) {
                   const identifiers = conversationIdentifiers(conversation);
                   const itemKey = clean(identifiers.conversationKey || identifiers.sessionId || identifiers.conversationId || messageKey(conversation));
                   return (
-                    <div key={itemKey} className="py-0.5">
-                      <ConversationListItem
+                    <div key={itemKey} className="ai-inbox-pwa-list-row py-0.5">
+                      <PwaConversationListItem
                         conversation={conversation}
                         active={false}
                         accountLabel={conversationAccountLabel(conversation)}

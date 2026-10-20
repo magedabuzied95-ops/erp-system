@@ -2,6 +2,7 @@ import express from "express";
 import { unlink } from "node:fs/promises";
 
 import db from "../database/db.js";
+import { slimTranscriptMessage } from "../lib/inboxTranscriptProjection.js";
 
 import { protect, requireAdmin } from "../middleware/authMiddleware.js";
 import permit from "../middleware/permissionMiddleware.js";
@@ -3395,7 +3396,11 @@ router.get("/conversations/:conversationId/messages", protect, inboxView(), asyn
         resolveWhatsappConversationInstance({ tenantId, conversationId }).catch(() => ""),
       ]).then(([labels, instance]) => ({ whatsapp_numbers: labels || {}, reply_whatsapp_instance: envText(instance) }))
       : {};
-    return res.json({ success: true, conversation_id: conversationId, ...payload, ...whatsappContext });
+    // The transcript projection: same messages, without the copies and empty defaults no
+    // bubble reads (see inboxTranscriptProjection.js). Other loadAiInboxMessages callers keep
+    // the full shape.
+    const messages = Array.isArray(payload.messages) ? payload.messages.map(slimTranscriptMessage) : payload.messages;
+    return res.json({ success: true, conversation_id: conversationId, ...payload, messages, ...whatsappContext });
   } catch (error) {
     return sendError(res, error, "Failed to load AI inbox messages");
   }

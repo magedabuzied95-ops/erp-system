@@ -35,6 +35,16 @@
     0 16px 42px rgba(0, 0, 0, 0.2) !important;
 }
 
+/* The conversation list renders every loaded thread (250 rows ≈ 10.7k nodes), and a
+   restyle of all of them cost ~250ms whenever something above them invalidated style
+   — measured on every conversation switch. Off-screen rows skip style, layout and
+   paint until they scroll near the viewport; `auto` remembers each row's real height
+   so the scrollbar does not jump. */
+.ai-inbox-desktop .ai-inbox-conversation-card {
+  content-visibility: auto;
+  contain-intrinsic-size: auto 104px;
+}
+
 .ai-inbox-desktop .ai-omni-list-panel > div:last-child {
   padding-inline: 0.25rem 0.375rem;
   scrollbar-gutter: stable;

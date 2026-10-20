@@ -20,6 +20,7 @@ const HEARTBEAT_MS = 30 * 1000;
 const STALE_MS = 2 * 60 * 1000;
 
 const text = (value = "") => String(value ?? "").trim();
+const NO_VIEWERS = Object.freeze([]);
 
 export const useStaffPresence = ({ sessionId = "", enabled = true } = {}) => {
   const realtime = useRealtimeStatus();
@@ -114,8 +115,18 @@ export const useStaffPresence = ({ sessionId = "", enabled = true } = {}) => {
     return () => window.clearInterval(timer);
   }, [viewersBySession]);
 
-  // Colleagues only: the viewer's own row is noise.
-  const othersOn = useCallback((key) => (viewersBySession[text(key)] || []).filter((viewer) => viewer.user_id !== myId), [myId, viewersBySession]);
+  // Colleagues only: the viewer's own row is noise. Filtered once per presence update and
+  // handed out by reference: the inbox list passes this to every memoised row, and a fresh
+  // array per call re-rendered all of them on every page render.
+  const othersBySession = useMemo(() => {
+    const out = {};
+    for (const [key, viewers] of Object.entries(viewersBySession)) {
+      const others = (viewers || []).filter((viewer) => viewer.user_id !== myId);
+      if (others.length) out[key] = others;
+    }
+    return out;
+  }, [myId, viewersBySession]);
+  const othersOn = useCallback((key) => othersBySession[text(key)] || NO_VIEWERS, [othersBySession]);
 
   return { viewersBySession, othersOn, myId, myName };
 };

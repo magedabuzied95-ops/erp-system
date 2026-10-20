@@ -149,7 +149,7 @@ export const buildReplyCorrectionDraft = ({ conversation = {}, message = {} } = 
       ""
   );
   const aiWrongAnswer = clean(message.ai_answer || message.staff_message || "");
-  const productId = clean(message.clicked_product_id || normalizeProductCardsValue(message.suggested_products)[0]?.id || message.product_id || message.current_product_id || "");
+  const productId = clean(message.clicked_product_id || normalizeProductCardsValue(message.suggested_products || message.product_cards)[0]?.id || message.product_id || message.current_product_id || "");
   return {
     conversationId: clean(conversation.session_id || conversation.conversation_id || ""),
     messageId: clean(message.id || message.external_message_id || message.external_reply_id || ""),

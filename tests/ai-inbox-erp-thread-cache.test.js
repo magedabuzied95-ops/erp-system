@@ -23,16 +23,19 @@ test("the thread window is persisted through the shared cache, not inline storag
 });
 
 test("a cache-primed thread is still revalidated against the server (server stays authoritative)", () => {
-  // the ">1 message" shortcut must not swallow revalidation of a primed thread
-  assert.match(src, /const primedNeedsRevalidation = cachePrimedThreadsRef\.current\.has\(key\) && !hydratedThreadsRef\.current\.has\(key\)/);
-  assert.match(src, /if \(asArray\(selectedConversation\.messages\)\.length > 1 && !primedNeedsRevalidation\) return;/);
-  assert.match(src, /loadOlderMessages\(\{ forceHydrate: primedNeedsRevalidation \}\)/);
+  // opening any thread fetches its newest page once, whatever the cache already shows
+  const lf = src.replace(/\r\n/g, "\n");
+  assert.ok(lf.includes("if (hydratedThreadsRef.current.has(key) || openHydrateAttemptedRef.current.has(key)) return;"));
+  assert.ok(lf.includes("void loadOlderMessages({ forceHydrate: true });\n  }, [loadOlderMessages, selectedConversation?.session_id]);"));
   // forceHydrate fetches the NEWEST page (no `before` cursor)
   assert.match(src, /const shouldHydrateFullPage = forceHydrate === true/);
 });
 
-test("revalidation is attempted at most once per thread (no retry loop on failure)", () => {
-  assert.match(src, /if \(primedNeedsRevalidation\) hydratedThreadsRef\.current\.add\(key\);/);
+test("the open hydrate is attempted at most once per thread (no retry loop on an empty page or a failure)", () => {
+  const lf = src.replace(/\r\n/g, "\n");
+  // marked BEFORE the request, and the effect no longer re-runs on the message count
+  assert.ok(lf.includes("openHydrateAttemptedRef.current.add(key);\n    void loadOlderMessages({ forceHydrate: true });"));
+  assert.ok(!lf.includes("}, [loadOlderMessages, selectedConversation?.messages?.length, selectedConversation?.session_id]);"));
 });
 
 test("hydrating over a cached window orders messages chronologically with a safe fallback", () => {
@@ -95,7 +98,12 @@ test("social comments cannot hold the refresh state open", () => {
 
 test("recommendations and sales-closer wait for idle instead of racing the thread fetch", () => {
   assert.match(src, /window\.requestIdleCallback\s*\n?\s*\? window\.requestIdleCallback\(run, \{ timeout: 2000 \}\)/);
-  assert.match(src, /void loadRecommendations\(\);\s*\n\s*void loadSalesCloser\(\);/);
+  assert.match(src, /if \(recommendationsSessionId !== sessionId\) void loadRecommendations\(\);\s*\n\s*if \(salesCloserSessionId !== sessionId\) void loadSalesCloser\(\);/);
+});
+
+test("recommendations and sales-closer load only while a surface that shows them is open", () => {
+  assert.match(src, /const salesPanelsVisible = isAutomationMode\s*\n\s*\|\| orderComposerOpen\s*\n\s*\|\| \(showLegacyProfileOverlay && profileOpen && \(toolsTab === "orders" \|\| toolsTab === "notes"\)\);/);
+  assert.match(src, /if \(!sessionId \|\| !salesPanelsVisible\) return undefined;/);
 });
 
 test("the dead message_limit param is no longer sent on the summary-only list endpoint", () => {

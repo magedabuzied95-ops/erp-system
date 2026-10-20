@@ -44,7 +44,8 @@ test("opening an unread recovered chat imports its transcript even when the summ
   // ai_support_messages rows exist. message_count is then zero, so comparing the
   // count alone used to return before /messages was ever called.
   assert.match(inboxSource, /const shouldHydrateFullPage = forceHydrate === true\s*\n\s*\/\/[\s\S]*?\|\| currentMessages\.length === 0/);
-  assert.match(inboxSource, /void loadOlderMessages\(\{ forceHydrate: primedNeedsRevalidation \}\)/);
+  // Every first open fetches the newest page, whatever the count says.
+  assert.match(inboxSource, /openHydrateAttemptedRef\.current\.add\(key\);\r?\n\s*void loadOlderMessages\(\{ forceHydrate: true \}\);/);
 });
 
 test("both inbox queries expose unread for a conversation with no imported messages", () => {

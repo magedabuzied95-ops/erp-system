@@ -746,3 +746,11 @@ html[data-ai-pwa-kb="open"] .ai-pwa-nav {
 html[data-ai-pwa-kb="open"] .ai-pwa-conversation-header {
   transform: translateY(var(--ai-pwa-vv-top, 0px));
 }
+
+/* Every loaded thread is a row in the list (hundreds of them). Off-screen rows skip style,
+   layout and paint until they scroll near the viewport; `auto` remembers each row's real
+   height so the scrollbar does not jump. Same as the desktop list (AiInboxDesktop.css). */
+.ai-inbox-pwa .ai-inbox-pwa-list-row {
+  content-visibility: auto;
+  contain-intrinsic-size: auto 80px;
+}

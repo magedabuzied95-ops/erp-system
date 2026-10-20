@@ -312,6 +312,10 @@ export const transcriptDayLabel = (value) => {
   }
 };
 
+// One frozen object for "this thread has no channel metadata", so a transcript row's
+// conversationMetadata keeps its identity across renders (both surfaces cache rows on it).
+export const EMPTY_CONVERSATION_METADATA = Object.freeze({});
+
 export const transcriptRowTime = (row = {}) =>
   row.created_at || row.createdAt || row.timestamp || row.sent_at || row.message_created_at || row.created || row.time || "";
 

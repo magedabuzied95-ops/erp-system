@@ -1,6 +1,6 @@
 import { applyInboxMessageDelete, applyInboxMessageEdit, isSameInboxMessage, messageDeleteToast, messageEditToast } from "../services/messageActions.js";
 import { dateKeyInAppTimezone } from "../../../shared/lib/appTimezone";
-import { Fragment, Suspense, lazy, memo, useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { Fragment, Suspense, lazy, memo, useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
 import { useTranslation } from "react-i18next";
 import { createPortal } from "react-dom";
 import { useNavigate, useSearchParams } from "react-router-dom";
@@ -199,6 +199,7 @@ import {
   transcriptDayKey,
   transcriptDayLabel,
   transcriptRowTime,
+  EMPTY_CONVERSATION_METADATA,
 } from "../lib/conversationHelpers";
 import { attachmentFilesFromTransfer, attachmentKindOf, attachmentProblem, prepareOutboundImage } from "../utils/outboundAttachment.js";
 import { isScrollerNearBottom, pinScrollerToBottom } from "../utils/transcriptScroll.js";
@@ -2262,7 +2263,7 @@ const InboxConversationCard = memo(function InboxConversationCard({ item, active
           onSelect(item);
         }
       }}
-      className={`w-full rounded-2xl border px-3 py-2.5 text-left transition duration-200 ${containerTone}`}
+      className={`ai-inbox-conversation-card w-full rounded-2xl border px-3 py-2.5 text-left transition duration-200 ${containerTone}`}
     >
       <div className="flex items-start gap-3">
         <div className="relative shrink-0">
@@ -2635,6 +2636,8 @@ function InboxChatHeader({
 
 // Day separators for the chat transcript ("اليوم" / "أمس" / "12 ديسمبر 2026"), matching
 // the portal chat. Styled for the AI Inbox dark theme so it stays consistent.
+const TRANSCRIPT_FIRST_PAINT_ROWS = 10;
+
 const Transcript = memo(function Transcript({
   conversation = null,
   rows = [],
@@ -2666,6 +2669,19 @@ const Transcript = memo(function Transcript({
   // where "which post is this about" has to be readable. The comment thread keeps its own card
   // below, which also carries the reply/private-message actions this one has no business showing.
   const originPost = isCommentThread ? null : conversationOriginPost(conversation || {});
+  // Newest bubbles first. Opening a thread rendered all ~30 bubbles in the click's task; the
+  // operator reads the bottom, so the last few render now and the rest one task later, above
+  // them, while pinScrollerToBottom (see the scroll effect in the page) holds the bottom.
+  const threadKey = clean(conversation?.conversation_key || conversation?.session_id || "");
+  const [fullThreadKey, setFullThreadKey] = useState("");
+  const renderAllRows = fullThreadKey === threadKey || rows.length <= TRANSCRIPT_FIRST_PAINT_ROWS;
+  useEffect(() => {
+    if (renderAllRows) return undefined;
+    const timer = window.setTimeout(() => setFullThreadKey(threadKey), 0);
+    return () => window.clearTimeout(timer);
+  }, [renderAllRows, threadKey]);
+  const firstRowIndex = renderAllRows ? 0 : rows.length - TRANSCRIPT_FIRST_PAINT_ROWS;
+  const visibleRows = firstRowIndex ? rows.slice(firstRowIndex) : rows;
   if (!rows.length && !events.length && !isCommentThread) {
     return <div className="rounded-3xl border border-dashed border-white/10 bg-white/[0.03] p-8 text-center text-sm text-slate-500">{t("aiSupport.inbox.panel.noTranscript")}</div>;
   }
@@ -2713,7 +2729,8 @@ const Transcript = memo(function Transcript({
           </div>
         </div>
       ) : null}
-      {rows.map((row, index) => {
+      {visibleRows.map((row, visibleIndex) => {
+        const index = firstRowIndex + visibleIndex;
         const rowTime = transcriptRowTime(row);
         const rowKey = transcriptDayKey(rowTime);
         const prevKey = index > 0 ? transcriptDayKey(transcriptRowTime(rows[index - 1])) : "";
@@ -5812,6 +5829,13 @@ export default function AiInbox({ reviewerMode = false }) {
       ? (selectedSessionId ? selectedConversationThread : null)
       : null;
   const selectedConversation = isConversationMode ? activeMainItem : null;
+  // The message-bubble handlers read the open conversation off this mirror instead of listing it
+  // as a dependency: every patch (send, socket tick, hydrate) replaces the object, which reborn
+  // all of them and made TranscriptMessage — memoised on prop identity — re-render every bubble.
+  const selectedConversationRef = useRef(null);
+  useLayoutEffect(() => {
+    selectedConversationRef.current = selectedConversation;
+  }, [selectedConversation]);
   // The orbit shown while no conversation is open: the customers in the
   // current channel/account view who are waiting for a reply, by the same
   // rule as the unread filter.
@@ -6862,12 +6886,21 @@ export default function AiInbox({ reviewerMode = false }) {
   const autoReplyShadowTone = activeAiReplyShadow?.evaluated
     ? (activeAiReplyShadow.eligible ? "emerald" : "amber")
     : "zinc";
+  // Rows are cached per message. TranscriptMessage bails out on `prev.row === next.row`, and
+  // this memo used to mint a fresh row for every message on every patch (cache prime, hydrate,
+  // send, socket tick), so each one re-rendered the whole thread. A row is reused while its
+  // source message object, its cascaded delivery status, its reactions and the per-thread
+  // values it carries are unchanged. Same scheme as the PWA.
+  const transcriptRowCacheRef = useRef(new Map());
   const selectedTranscriptRows = useMemo(() => {
-    const messages = cascadeDeliveryStatuses(
-      uniqueMessages(selectedConversation?.messages)
-        .filter((message) => !isHiddenAiReplyTranscriptMessage(message))
-        .map((message) => normalizeTranscriptMessage(message))
-    );
+    const previousRows = transcriptRowCacheRef.current;
+    const nextRows = new Map();
+    const conversationMetadata = selectedConversation?.channel_metadata || selectedConversation?.metadata || EMPTY_CONVERSATION_METADATA;
+    const threadPostUrl = commentConversationPostUrl(selectedConversation || {});
+    const sourceMessages = uniqueMessages(selectedConversation?.messages)
+      .filter((message) => !isHiddenAiReplyTranscriptMessage(message));
+    const messages = cascadeDeliveryStatuses(sourceMessages.map((message) => normalizeTranscriptMessage(message)));
+    const sourceByNormalized = new Map(messages.map((message, index) => [message, sourceMessages[index]]));
     // Which of our WhatsApp numbers each message went through — "" unless the thread spans two.
     const numberLabelFor = isWhatsappChannel(selectedConversation?.channel || selectedConversation?.source)
       ? whatsappNumberLabeler(messages, selectedConversation?.whatsapp_numbers, (name) => t("aiSupport.inbox.number.web", { name }))
@@ -6890,7 +6923,7 @@ export default function AiInbox({ reviewerMode = false }) {
       const nextAt = new Date(message.created_at || 0).getTime() || 0;
       if (!existing || nextAt >= existingAt) reactionsByActor.set(actorKey, message);
     });
-    return messages
+    const rows = messages
       .filter((message) => clean(message.message_type).toLowerCase() !== "reaction")
       .map((normalizedMessage) => {
         const productCards = messageProductCards(normalizedMessage);
@@ -6922,18 +6955,38 @@ export default function AiInbox({ reviewerMode = false }) {
           normalizedMessage.id,
         ].map(clean).filter(Boolean))];
         const reactions = providerIds.flatMap((id) => [...(reactionsByTarget.get(id)?.values() || [])]);
-        return {
-          key: messageKey(normalizedMessage),
+        const rowKey = messageKey(normalizedMessage);
+        const source = sourceByNormalized.get(normalizedMessage);
+        const numberLabel = numberLabelFor(normalizedMessage);
+        const rowChannelLabel = channelLabel(normalizedMessage.channel || selectedConversation?.channel);
+        const postUrl = selectedConversation ? threadPostUrl : commentConversationPostUrl(normalizedMessage);
+        const reactionsSignature = reactions.map((reaction) => `${messageKey(reaction)}:${clean(reaction.message_text || reaction.customer_message || reaction.staff_message)}`).join("|");
+        const cached = previousRows.get(rowKey);
+        if (
+          cached
+          && cached.source === source
+          && cached.deliveryStatus === normalizedMessage.delivery_status
+          && cached.reactionsSignature === reactionsSignature
+          && cached.row.numberLabel === numberLabel
+          && cached.row.channelLabel === rowChannelLabel
+          && cached.row.postUrl === postUrl
+          && cached.row.conversationMetadata === conversationMetadata
+        ) {
+          nextRows.set(rowKey, cached);
+          return cached.row;
+        }
+        const row = {
+          key: rowKey,
           message: normalizedMessage,
           reactions,
           cards: productCards,
           kind: isProductCardMessage ? "product_card" : isCommentMessage ? "comment" : isCustomer ? "customer" : isStaff ? "staff" : "ai",
           visible: true,
           createdAt: absoluteTime(normalizedMessage.created_at),
-          channelLabel: channelLabel(normalizedMessage.channel || selectedConversation?.channel),
-          numberLabel: numberLabelFor(normalizedMessage),
-          postUrl: commentConversationPostUrl(selectedConversation || normalizedMessage),
-          conversationMetadata: selectedConversation?.channel_metadata || selectedConversation?.metadata || {},
+          channelLabel: rowChannelLabel,
+          numberLabel,
+          postUrl,
+          conversationMetadata,
           mediaUrls: [
             normalizedMessage.image_url,
             normalizedMessage.media_url,
@@ -6943,9 +6996,13 @@ export default function AiInbox({ reviewerMode = false }) {
             normalizedMessage.thumbnail_url,
           ].map(clean).filter(Boolean),
         };
+        nextRows.set(rowKey, { source, deliveryStatus: normalizedMessage.delivery_status, reactionsSignature, row });
+        return row;
       })
       .filter(Boolean);
-  }, [selectedConversation?.channel, selectedConversation?.source, selectedConversation?.messages, selectedConversation?.whatsapp_numbers]);
+    transcriptRowCacheRef.current = nextRows;
+    return rows;
+  }, [selectedConversation?.channel, selectedConversation?.source, selectedConversation?.messages, selectedConversation?.whatsapp_numbers, selectedConversation?.channel_metadata, selectedConversation?.metadata]);
   const selectedTranscriptEvents = useMemo(() => asArray(selectedConversation?.system_events), [selectedConversation?.system_events]);
   const lastCustomerMessage = useMemo(
     () => latestCustomerText(selectedConversation?.messages),
@@ -7059,6 +7116,14 @@ export default function AiInbox({ reviewerMode = false }) {
   const closeProductCardPicker = useCallback(() => {
     setProductCardPickerConfig({ open: false, orderMode: false, sizeMode: false, allowMultiple: false, selectMode: false, restockMode: false, exchangeMode: false });
   }, []);
+  // The picker is keyed per conversation (its search and picks belong to one chat) and is a
+  // 2.4k-line component that runs all its hooks even while closed. Mount it the first time it
+  // opens in a conversation and keep it while that conversation stays open, instead of
+  // remounting a closed picker on every switch and re-rendering it with every page render.
+  const productCardPickerKey = selectedConversation?.session_id || selectedConversation?.conversation_key || "product-picker";
+  const productCardPickerMountedKeyRef = useRef("");
+  if (productCardPickerConfig.open) productCardPickerMountedKeyRef.current = productCardPickerKey;
+  const productCardPickerMounted = productCardPickerMountedKeyRef.current === productCardPickerKey;
   // Phase 11.2 — "Change Product": pick a real catalog product to attach to the suggestion (does NOT send).
   const normalizeChosenSuggestionCard = (c = {}) => ({
     product_id: c.product_id || c.id || null, id: c.product_id || c.id || null, variant_id: c.variant_id || null,
@@ -7112,12 +7177,13 @@ export default function AiInbox({ reviewerMode = false }) {
     return sendProductCards(cards);
   };
   const openReplyCorrection = useCallback((message = {}) => {
+    const selectedConversation = selectedConversationRef.current;
     if (!selectedConversation?.session_id) return;
     setCorrectionModal({
       open: true,
       draft: buildReplyCorrectionDraft({ conversation: selectedConversation, message }),
     });
-  }, [selectedConversation]);
+  }, []);
   const closeReplyCorrection = useCallback(() => {
     setCorrectionModal({ open: false, draft: buildReplyCorrectionDraft() });
   }, []);
@@ -7369,18 +7435,22 @@ export default function AiInbox({ reviewerMode = false }) {
     if (key && messages.length) inboxCache.saveThread(key, messages, mergeMessagesByIdentity);
   }, [selectedConversation]);
 
+  // Opening a thread fetches its NEWEST page once — the same request the "never loaded"
+  // effect below would make 250ms later, made now so it is the only one. This used to key off
+  // the message count and call loadOlderMessages without forceHydrate: a thread showing 0-1
+  // messages then asked for the page BEFORE its one message, got nothing back, still showed
+  // 0-1 messages, and because loadOlderMessages is reborn on every patch the effect fired again
+  // — measured on production at 13-23 empty /messages calls per open, each one re-rendering the
+  // page. Marked up-front, per thread, so neither an empty answer nor a failure can loop.
+  const openHydrateAttemptedRef = useRef(new Set());
   useEffect(() => {
     if (!selectedConversation?.session_id) return;
     if (isHydratingConversationRef.current || isLoadingOlderRef.current || isAppendingNewMessageRef.current || isRefreshingRef.current) return;
     const key = clean(selectedConversation.conversation_key || selectedConversation.session_id);
-    // A cache-primed thread already shows messages, so the ">1 message" shortcut
-    // would skip revalidation entirely and leave it stale. Revalidate it exactly
-    // once per session (marked up-front so a failing fetch can't retry-loop).
-    const primedNeedsRevalidation = cachePrimedThreadsRef.current.has(key) && !hydratedThreadsRef.current.has(key);
-    if (asArray(selectedConversation.messages).length > 1 && !primedNeedsRevalidation) return;
-    if (primedNeedsRevalidation) hydratedThreadsRef.current.add(key);
-    void loadOlderMessages({ forceHydrate: primedNeedsRevalidation });
-  }, [loadOlderMessages, selectedConversation?.messages?.length, selectedConversation?.session_id]);
+    if (hydratedThreadsRef.current.has(key) || openHydrateAttemptedRef.current.has(key)) return;
+    openHydrateAttemptedRef.current.add(key);
+    void loadOlderMessages({ forceHydrate: true });
+  }, [loadOlderMessages, selectedConversation?.session_id]);
 
   // A loaded thread marked behind (see the list merge and the ai_inbox:refresh handler) refetches
   // its newest page. Waits out an in-flight load rather than racing it; the stamp comparison makes
@@ -8781,14 +8851,26 @@ export default function AiInbox({ reviewerMode = false }) {
     }
   };
 
+  // Recommendations + sales-closer feed only the order composer, the automation view (which
+  // shows them inline) and the legacy side panel's Orders/Notes tabs — that panel is switched
+  // off in the chat layout (showLegacyProfileOverlay). Fetching them on every open cost two
+  // requests (27-58KB on production) and two whole-page re-renders while the thread was still
+  // settling, for nothing on screen — so they load when one of those surfaces is showing, once
+  // per conversation.
+  const salesPanelsVisible = isAutomationMode
+    || orderComposerOpen
+    || (showLegacyProfileOverlay && profileOpen && (toolsTab === "orders" || toolsTab === "notes"));
+  const recommendationsSessionId = recommendations.sessionId;
+  const salesCloserSessionId = salesCloser.sessionId;
   useEffect(() => {
-    if (!selectedConversation?.session_id) return undefined;
-    // Recommendations + sales-closer feed secondary side panels only. They must
-    // not compete with the thread hydration for the connection, so they wait for
+    const sessionId = selectedConversation?.session_id;
+    if (!sessionId || !salesPanelsVisible) return undefined;
+    if (recommendationsSessionId === sessionId && salesCloserSessionId === sessionId) return undefined;
+    // They must not compete with the thread hydration for the connection, so they wait for
     // an idle moment after the messages/composer are usable.
     const run = () => {
-      void loadRecommendations();
-      void loadSalesCloser();
+      if (recommendationsSessionId !== sessionId) void loadRecommendations();
+      if (salesCloserSessionId !== sessionId) void loadSalesCloser();
     };
     const idle = window.requestIdleCallback
       ? window.requestIdleCallback(run, { timeout: 2000 })
@@ -8797,7 +8879,10 @@ export default function AiInbox({ reviewerMode = false }) {
       if (window.requestIdleCallback && window.cancelIdleCallback) window.cancelIdleCallback(idle);
       else window.clearTimeout(idle);
     };
-  }, [selectedConversation?.session_id]);
+    // loadRecommendations/loadSalesCloser are recreated every render and read the current
+    // conversation themselves; the session and visibility are what decide a fetch.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [selectedConversation?.session_id, salesPanelsVisible, recommendationsSessionId, salesCloserSessionId]);
 
   const generateAiReply = async ({ persist = false } = {}) => {
     if (!selectedConversation?.session_id) return;
@@ -8926,6 +9011,7 @@ export default function AiInbox({ reviewerMode = false }) {
   };
 
   const reactToMessage = useCallback(async ({ emoji = "", targetMessageId = "", remoteJid = "", targetFromMe = false } = {}) => {
+    const selectedConversation = selectedConversationRef.current;
     if (!selectedConversation?.session_id || !targetMessageId) return null;
     try {
       const payload = await api.post(aiInboxConversationEndpoint(selectedConversationRouteId || selectedConversation.session_id, "/reaction"), {
@@ -8941,13 +9027,14 @@ export default function AiInbox({ reviewerMode = false }) {
       setToast({ tone: "rose", text: reactionError?.message || "تعذر إرسال التفاعل" });
       throw reactionError;
     }
-  }, [headers, selectedConversation, selectedConversationRouteId, tenantId]);
+  }, [headers, selectedConversationRouteId, tenantId]);
 
   // Edits a message we sent. The server decides where the edit lands: on the
   // customer's phone when WhatsApp still allows it (15 minutes), otherwise in the
   // inbox only — and every replaced text stays on the message's edit history. The
   // local thread is rewritten only after the server confirms.
   const editMessage = useCallback(async ({ message = {}, text = "", targetMessageId = "", remoteJid = "" } = {}) => {
+    const selectedConversation = selectedConversationRef.current;
     if (!selectedConversation?.session_id || !targetMessageId) return null;
     const conversationIdentifier = clean(selectedConversation.conversation_key || selectedConversation.session_id);
     try {
@@ -8969,12 +9056,13 @@ export default function AiInbox({ reviewerMode = false }) {
       setToast({ tone: "rose", text: editError?.message || "تعذر تعديل الرسالة" });
       throw editError;
     }
-  }, [headers, patchConversation, selectedConversation, selectedConversationRouteId, tenantId]);
+  }, [headers, patchConversation, selectedConversationRouteId, tenantId]);
 
   // Deletes one message: "everyone" recalls our WhatsApp message from the customer's
   // phone too, "inbox" removes it from the inbox only. The row stays in the thread
   // as a "deleted" placeholder.
   const deleteMessage = useCallback(async ({ message = {}, scope = "inbox", targetMessageId = "", remoteJid = "" } = {}) => {
+    const selectedConversation = selectedConversationRef.current;
     if (!selectedConversation?.session_id || !targetMessageId) return null;
     const conversationIdentifier = clean(selectedConversation.conversation_key || selectedConversation.session_id);
     try {
@@ -8996,7 +9084,7 @@ export default function AiInbox({ reviewerMode = false }) {
       setToast({ tone: "rose", text: deleteError?.message || "تعذر حذف الرسالة" });
       throw deleteError;
     }
-  }, [headers, patchConversation, selectedConversation, selectedConversationRouteId, tenantId]);
+  }, [headers, patchConversation, selectedConversationRouteId, tenantId]);
 
   // Order composer submit. `confirm: false` writes a draft; `confirm: true` sells it
   // like the POS does (stock out now) and then sends the invoice link to the
@@ -9674,8 +9762,9 @@ export default function AiInbox({ reviewerMode = false }) {
         onRefresh={loadAiTrace}
         onClose={() => setAiTrace((current) => ({ ...current, open: false }))}
       />
+      {productCardPickerMounted ? (
       <ProductCardPicker
-        key={selectedConversation?.session_id || selectedConversation?.conversation_key || "product-picker"}
+        key={productCardPickerKey}
         open={productCardPickerConfig.open}
         onClose={closeProductCardPicker}
         onSubmit={handleProductCardPickerSubmit}
@@ -9687,6 +9776,7 @@ export default function AiInbox({ reviewerMode = false }) {
         mode="desktopInbox"
         portalTarget={fullscreenOverlayTarget}
       />
+      ) : null}
       <ConversationPrivacyModal
         open={Boolean(privacyTarget)}
         conversationId={clean(privacyTarget?.session_id || privacyTarget?.conversation_id)}

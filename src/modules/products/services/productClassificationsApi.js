@@ -83,18 +83,60 @@ export const getProductClassifications = async (options = {}) => {
   return normalizeProductClassificationGroups(unwrapArray(response));
 };
 
+// One answer for the whole tab. useProductClassifications mounts inside per-conversation
+// components (the AI Inbox product picker is keyed by conversation), so without this every
+// conversation switch re-fetched the same list — 450-1100ms on production, each time. Kept
+// for a few minutes, shared in flight, and dropped by every mutation below; refresh() in the
+// hook bypasses it.
+const CLASSIFICATIONS_TTL_MS = 5 * 60 * 1000;
+const classificationsCache = new Map();
+
+export const peekCachedProductClassifications = (options = {}) => {
+  const entry = classificationsCache.get(options.includeInactive ? "all" : "active");
+  return entry?.groups && Date.now() - entry.at < CLASSIFICATIONS_TTL_MS ? entry.groups : null;
+};
+
+export const loadProductClassificationsShared = (options = {}, { force = false } = {}) => {
+  const key = options.includeInactive ? "all" : "active";
+  const entry = classificationsCache.get(key);
+  if (!force && entry?.promise) return entry.promise;
+  if (!force && entry?.groups && Date.now() - entry.at < CLASSIFICATIONS_TTL_MS) return Promise.resolve(entry.groups);
+  const promise = api.get("/product-classifications", { params: getClassificationParams(options) })
+    .then((response) => {
+      const groups = normalizeProductClassificationGroups(response?.groups);
+      if (classificationsCache.get(key)?.promise === promise) classificationsCache.set(key, { groups, at: Date.now() });
+      return groups;
+    })
+    .catch((error) => {
+      if (classificationsCache.get(key)?.promise === promise) classificationsCache.delete(key);
+      throw error;
+    });
+  classificationsCache.set(key, { ...entry, promise });
+  return promise;
+};
+
+export const invalidateProductClassificationsCache = () => classificationsCache.clear();
+
+const invalidatingClassifications = (request) => async (...args) => {
+  try {
+    return await request(...args);
+  } finally {
+    invalidateProductClassificationsCache();
+  }
+};
+
 export const getProductClassificationOptions = async (groupKey, options = {}) => {
   const response = await api.get(`/product-classifications/${encodeURIComponent(groupKey)}/options`, { params: getClassificationParams(options) });
   return unwrapArray(response, "options").map(normalizeProductClassificationOption);
 };
 
-export const createProductClassificationGroup = async (body) => unwrapItem(await api.post("/product-classifications/groups", body));
-export const updateProductClassificationGroup = async (id, body) => unwrapItem(await api.patch(`/product-classifications/groups/${id}`, body));
-export const deleteProductClassificationGroup = async (id) => api.delete(`/product-classifications/groups/${id}`);
+export const createProductClassificationGroup = invalidatingClassifications(async (body) => unwrapItem(await api.post("/product-classifications/groups", body)));
+export const updateProductClassificationGroup = invalidatingClassifications(async (id, body) => unwrapItem(await api.patch(`/product-classifications/groups/${id}`, body)));
+export const deleteProductClassificationGroup = invalidatingClassifications(async (id) => api.delete(`/product-classifications/groups/${id}`));
 
-export const createProductClassificationOption = async (body) =>
-  unwrapItem(await api.post("/product-classifications/options", body, { suppressErrorStatuses: [400] }), "option");
-export const updateProductClassificationOption = async (id, body) => unwrapItem(await api.patch(`/product-classifications/options/${id}`, body));
-export const deactivateProductClassificationOption = async (id, body = {}) =>
-  unwrapItem(await api.patch(`/product-classifications/options/${id}`, { ...body, is_active: false }));
-export const deleteProductClassificationOption = async (id) => api.delete(`/product-classifications/options/${id}`);
+export const createProductClassificationOption = invalidatingClassifications(async (body) =>
+  unwrapItem(await api.post("/product-classifications/options", body, { suppressErrorStatuses: [400] }), "option"));
+export const updateProductClassificationOption = invalidatingClassifications(async (id, body) => unwrapItem(await api.patch(`/product-classifications/options/${id}`, body)));
+export const deactivateProductClassificationOption = invalidatingClassifications(async (id, body = {}) =>
+  unwrapItem(await api.patch(`/product-classifications/options/${id}`, { ...body, is_active: false })));
+export const deleteProductClassificationOption = invalidatingClassifications(async (id) => api.delete(`/product-classifications/options/${id}`));
