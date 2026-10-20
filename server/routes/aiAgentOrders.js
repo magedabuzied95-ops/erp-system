@@ -1551,6 +1551,8 @@ router.post("/test-reply", protect, permit("settings", "view"), async (req, res)
       // Who wrote the words: the sales agent (provider, model, tools it called) or brain V2's template.
       agent: output.debug?.claude_agent || null,
       customerGender: output.debug?.customer_gender || "",
+      // The "تتبع الأوردر" button WhatsApp would send under the reply, if any.
+      orderTrackingCta: output.order_tracking_cta || null,
       decisionReason: envText(output.debug?.reason || output.replyDecisionReason || output.debug?.shared_shortcut_handler || output.debug?.source),
       needsHuman: output.needs_human_support === true,
       confidence: Number.isFinite(Number(output.confidence)) ? Number(output.confidence) : null,
