@@ -24,6 +24,7 @@ import metaAds from "../../locales/en/metaAds.json";
 import metaAdsConnect from "../../locales/en/metaAdsConnect.json";
 import metaAdsManager from "../../locales/en/metaAdsManager.json";
 import metaAdsRecords from "../../locales/en/metaAdsRecords.json";
+import metaAdsWizard from "../../locales/en/metaAdsWizard.json";
 import orders from "../../locales/en/orders.json";
 import overview from "../../locales/en/overview.json";
 import pos from "../../locales/en/pos.json";
@@ -64,6 +65,7 @@ export default {
   "metaAdsConnect": metaAdsConnect,
   "metaAdsManager": metaAdsManager,
   "metaAdsRecords": metaAdsRecords,
+  "metaAdsWizard": metaAdsWizard,
   "orders": orders,
   "overview": overview,
   "pos": pos,

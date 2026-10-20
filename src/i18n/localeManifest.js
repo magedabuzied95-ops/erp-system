@@ -80,6 +80,7 @@ export const RESOURCE_BRANCHES = [
   { branch: "amazon", file: "amazon" },
   { branch: "metaAds", file: "metaAds" },
   { branch: "metaAdsManager", file: "metaAdsManager" },
+  { branch: "metaAdsWizard", file: "metaAdsWizard" },
   { branch: "metaAdsRecords", file: "metaAdsRecords" },
   { branch: "metaAdsConnect", file: "metaAdsConnect" },
 ];
