@@ -198,6 +198,7 @@ import { normalizeArabicForIntent, normalizeArabicIntentPayload, normalizeArabic
 import { sendWhatsappVoiceNote } from "../services/whatsappCapabilitiesService.js";
 import { WHATSAPP_EDIT_WINDOW_MS, editWhatsappTextMessage, getStatus as getWhatsappGatewayStatus, resolveWhatsappConversationInstance, sendImageMessage, sendWhatsappMediaMessage, sendWhatsappReaction, syncEvolutionChatsToAiInbox, syncEvolutionConversationMessagesToAiInbox, syncWhatsappCustomerProfilePictures, refreshWhatsappConversationAvatar } from "../services/whatsappGatewayService.js";
 import { autoRegisterWhatsappCustomer } from "../services/whatsappCustomerAutoRegistrationService.js";
+import { dispatchWhatsappCloudWebhookEvents } from "../services/whatsappApiAccessService.js";
 import { normalizeWhatsappLid, normalizeWhatsappPhone, normalizeWhatsappRemoteJid } from "../utils/whatsappIdentity.js";
 import { normalizeAiInboxConversationLabels } from "../../shared/aiInboxConversationLabels.js";
 import {
@@ -1791,6 +1792,8 @@ export const handleWhatsappCloudWebhookRequest = async (req, res) => {
       });
       return res.status(200).json({ success: true, ignored: cloudIngestAllowed.reason });
     }
+    // Developer webhooks (message.received + message.status): signature already verified; detached.
+    void dispatchWhatsappCloudWebhookEvents({ tenantId, body: req.body }).catch(() => {});
     const messages = extractWhatsAppWebhookMessages({ body: req.body, tenantId });
     if (!messages.length) {
       return res.status(200).json({ success: true, ignored: hasStatuses ? "status_update" : "no_messages" });
