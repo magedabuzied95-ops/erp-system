@@ -105,6 +105,7 @@ services/
 .codex-monitoring*.log
 !server/services/
 server/services/*
+!server/services/whatsappTemplateStudioService.js
 !server/services/managerPortalReportsService.js
 !server/services/managerPortalEmployeePerformanceService.js
 !server/services/managerPortalInventoryCoverageService.js

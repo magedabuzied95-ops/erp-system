@@ -312,3 +312,72 @@ html.dark .ai-inbox-desktop .ai-omni-chat-panel [class*="bg-[#eefaf8]"] {
     max-width: none !important;
   }
 }
+
+/* Inbox top bar (InboxTopBar.jsx): channel menus + Config, Genie-style. */
+.ai-inbox-topbar {
+  position: relative;
+  z-index: 40;
+  display: flex;
+  flex: none;
+  align-items: center;
+  gap: 0.25rem;
+  min-height: 44px;
+  padding: 0.25rem 0.375rem;
+  border: 1px solid #e3d6b4;
+  border-radius: 0.875rem;
+  background: #fffaf0;
+  overflow-x: auto;
+  overflow-y: visible;
+  scrollbar-width: none;
+}
+.ai-inbox-topbar::-webkit-scrollbar { display: none; }
+.dark .ai-inbox-topbar { border-color: rgba(255, 255, 255, 0.1); background: rgba(255, 255, 255, 0.035); }
+.ai-inbox-topbar__menu { position: relative; flex: none; }
+.ai-inbox-topbar__tab {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.4rem;
+  height: 34px;
+  padding: 0 0.75rem;
+  border-radius: 0.625rem;
+  color: #5c4a1f;
+  font-size: 13px;
+  font-weight: 800;
+  white-space: nowrap;
+  transition: background 0.15s, color 0.15s;
+}
+.dark .ai-inbox-topbar__tab { color: rgba(255, 255, 255, 0.78); }
+.ai-inbox-topbar__tab:hover,
+.ai-inbox-topbar__tab.is-open { background: #f5ead0; color: #3d2f0e; }
+.dark .ai-inbox-topbar__tab:hover,
+.dark .ai-inbox-topbar__tab.is-open { background: rgba(255, 255, 255, 0.07); color: #fff; }
+.ai-inbox-topbar__tab.is-active { background: #f2dfad; color: #6b4a00; }
+.dark .ai-inbox-topbar__tab.is-active { background: rgba(34, 211, 238, 0.12); color: #cffafe; }
+/* Fixed with auto offsets, not absolute: it keeps its static spot under the
+   trigger but escapes the bar's horizontal overflow, which would clip it. */
+.ai-inbox-topbar__dropdown {
+  position: fixed;
+  z-index: 300;
+  margin-top: 0.375rem;
+  display: flex;
+  min-width: 220px;
+  flex-direction: column;
+  padding: 0.375rem;
+  border: 1px solid #e3d6b4;
+  border-radius: 0.875rem;
+  background: #fffdf7;
+  box-shadow: 0 18px 44px rgba(31, 29, 25, 0.18);
+}
+.dark .ai-inbox-topbar__dropdown { border-color: rgba(255, 255, 255, 0.1); background: #0f1626; box-shadow: 0 18px 48px rgba(0, 0, 0, 0.55); }
+.ai-inbox-topbar__item {
+  padding: 0.55rem 0.75rem;
+  border-radius: 0.5rem;
+  color: #3d2f0e;
+  font-size: 13px;
+  font-weight: 700;
+  text-align: start;
+  white-space: nowrap;
+}
+.dark .ai-inbox-topbar__item { color: rgba(255, 255, 255, 0.85); }
+.ai-inbox-topbar__item:hover { background: #f5ead0; }
+.dark .ai-inbox-topbar__item:hover { background: rgba(34, 211, 238, 0.1); color: #fff; }

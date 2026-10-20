@@ -20,6 +20,7 @@ import { useTranslation } from "react-i18next";
 import {
   BarChart3,
   Bot,
+  FileText,
   Gauge,
   GraduationCap,
   LayoutGrid,
@@ -29,6 +30,7 @@ import {
   PlayCircle,
   Power,
   Receipt,
+  Smartphone,
   SlidersHorizontal,
   Workflow,
   X,
@@ -54,6 +56,7 @@ const WhatsAppQueuePanel = lazy(() => import("../integrations/WhatsAppQueuePanel
 const TikTokIntegrationPanel = lazy(() => import("../integrations/TikTokIntegrationPanel.jsx"));
 const IntegrationsOverviewPanel = lazy(() => import("./IntegrationsOverviewPanel.jsx"));
 const SequencesPanel = lazy(() => import("./SequencesPanel.jsx"));
+const WhatsAppTemplatesPanel = lazy(() => import("./WhatsAppTemplatesPanel.jsx"));
 
 const MetaGlyph = () => (
   <span className="relative inline-flex h-4 w-5 items-center" aria-hidden="true">
@@ -65,9 +68,9 @@ const MetaGlyph = () => (
 export const CONTROL_CENTER_GROUPS = [
   { key: "agent", sections: ["agent", "teach", "actions", "playground"] },
   { key: "workspace", sections: ["quick_replies", "comments", "invoice_messages"] },
-  { key: "growth", sections: ["broadcasts", "sequences"] },
+  { key: "growth", sections: ["wa_templates", "broadcasts", "sequences"] },
   { key: "insight", sections: ["performance"] },
-  { key: "connections", sections: ["overview", "meta", "whatsapp", "automations", "queue", "tiktok"] },
+  { key: "connections", sections: ["overview", "meta", "whatsapp", "whatsapp_web", "automations", "queue", "tiktok"] },
 ];
 
 export const CONTROL_CENTER_SECTIONS = CONTROL_CENTER_GROUPS.flatMap((group) => group.sections);
@@ -89,12 +92,14 @@ const SECTION_ICON = {
   quick_replies: Zap,
   comments: MessageSquareText,
   invoice_messages: Receipt,
+  wa_templates: FileText,
   broadcasts: Megaphone,
   sequences: Workflow,
   performance: BarChart3,
   overview: LayoutGrid,
   meta: MetaGlyph,
   whatsapp: () => <FaWhatsapp className="h-4 w-4 text-emerald-300" aria-hidden="true" />,
+  whatsapp_web: Smartphone,
   automations: Power,
   queue: Gauge,
   tiktok: () => <Music2 className="h-4 w-4 text-slate-200" aria-hidden="true" />,
@@ -109,12 +114,14 @@ const sectionLabel = (t, key) => {
   if (key === "quick_replies") return t("aiSupport.quickReplies.title");
   if (key === "comments") return t("aiSupport.commentsSettings.title");
   if (key === "invoice_messages") return t("aiSupport.aiSettings.variants.menuTitle");
+  if (key === "wa_templates") return t("aiSupport.waTemplates.title");
   if (key === "broadcasts") return t("aiSupport.controlCenter.nav.broadcasts");
   if (key === "sequences") return t("aiSupport.controlCenter.nav.sequences");
   if (key === "performance") return t("aiSupport.controlCenter.nav.performance");
   if (key === "overview") return t("aiSupport.integrations.nav.overview");
   if (key === "meta") return t("aiSupport.integrations.nav.meta");
   if (key === "whatsapp") return t("aiSupport.integrations.nav.whatsapp");
+  if (key === "whatsapp_web") return t("aiSupport.integrations.nav.whatsappWeb");
   if (key === "automations") return t("aiSupport.integrations.nav.automations");
   if (key === "queue") return t("aiSupport.integrations.nav.queue");
   if (key === "tiktok") return t("aiSupport.integrations.nav.tiktok");
@@ -247,12 +254,14 @@ export default function InboxControlCenter({
               ) : null}
               {section === "comments" ? <CommentsSettingsPanel {...(commentsProps || {})} light={false} /> : null}
               {section === "invoice_messages" ? <WhatsappMessageVariantsEditor initialType="invoice_receipt" /> : null}
+              {section === "wa_templates" ? <WhatsAppTemplatesPanel headers={headers} /> : null}
               {section === "broadcasts" ? <BroadcastsPanel {...panelProps} /> : null}
               {section === "sequences" ? <SequencesPanel {...panelProps} /> : null}
               {section === "performance" ? <TeamPerformancePanel {...panelProps} /> : null}
               {section === "overview" ? <IntegrationsOverviewPanel headers={headers} onOpenSection={goTo} /> : null}
               {section === "meta" ? <MetaIntegrationPanel /> : null}
-              {section === "whatsapp" ? <WhatsAppIntegrationPanel headers={headers} /> : null}
+              {section === "whatsapp" ? <WhatsAppIntegrationPanel headers={headers} mode="cloud" /> : null}
+              {section === "whatsapp_web" ? <WhatsAppIntegrationPanel headers={headers} mode="web" /> : null}
               {section === "automations" ? <WhatsAppAutomationsPanel headers={headers} /> : null}
               {section === "queue" ? <WhatsAppQueuePanel headers={headers} /> : null}
               {section === "tiktok" ? <TikTokIntegrationPanel /> : null}

@@ -104,7 +104,7 @@ export const CLOUD_ERROR_MEANINGS = Object.freeze({
 
 export const cloudErrorMeaning = (code) => CLOUD_ERROR_MEANINGS[Number(code)] || "";
 
-const graphRequest = async ({ path = "", method = "GET", body = null, accessToken = "", timeoutMs = 15000 } = {}) => {
+export const graphRequest = async ({ path = "", method = "GET", body = null, accessToken = "", timeoutMs = 15000 } = {}) => {
   const controller = new AbortController();
   const timer = setTimeout(() => controller.abort(), timeoutMs);
   let response;

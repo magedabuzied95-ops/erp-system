@@ -1955,6 +1955,45 @@
       "days": "{{count}} ي",
       "greetMorningPlain": "صباح الخير",
       "greetEveningPlain": "مساء الخير"
+    },
+    "topbar": {
+      "label": "قائمة الإنبوكس",
+      "chats": "المحادثات",
+      "menus": {
+        "whatsapp": "واتساب",
+        "whatsappWeb": "واتساب ويب",
+        "messenger": "ماسنجر",
+        "instagram": "إنستجرام",
+        "tiktok": "تيك توك",
+        "config": "الإعدادات"
+      },
+      "items": {
+        "waAccount": "الحساب الرسمي وربط الرقم",
+        "waTemplates": "القوالب (Templates)",
+        "waCampaigns": "الحملات",
+        "waSequences": "الرسائل المتسلسلة",
+        "waInvoiceMessages": "رسائل الفواتير",
+        "waCatalog": "كتالوج ميتا",
+        "waOrders": "الطلبات",
+        "webConnection": "الربط والأرقام",
+        "webQueue": "طابور الإرسال",
+        "webAutomations": "الرسائل التلقائية",
+        "metaConnect": "ربط الصفحات والحسابات",
+        "comments": "التعليقات",
+        "posts": "البوستات",
+        "publisher": "النشر والجدولة",
+        "stories": "الاستوريز",
+        "autoReplies": "الردود التلقائية",
+        "flows": "مسارات البوت",
+        "tiktokConnect": "ربط تيك توك",
+        "agent": "سلوك الوكيل",
+        "teach": "تعليم الوكيل",
+        "actions": "صلاحيات الوكيل",
+        "playground": "تجربة الوكيل",
+        "quickReplies": "الردود السريعة",
+        "performance": "أداء الفريق",
+        "connections": "كل الربطات"
+      }
     }
   },
   "integrations": {
@@ -1988,10 +2027,11 @@
     "nav": {
       "overview": "نظرة عامة",
       "meta": "فيسبوك وإنستجرام",
-      "whatsapp": "واتساب",
+      "whatsapp": "واتساب الرسمي",
       "tiktok": "تيك توك",
       "queue": "طابور واتساب",
-      "automations": "الرسائل التلقائية"
+      "automations": "الرسائل التلقائية",
+      "whatsappWeb": "واتساب ويب"
     },
     "overview": {
       "title": "حالة الاتصالات",
@@ -2691,6 +2731,97 @@
       "saveError": "تعذر حفظ التاجات",
       "audienceLabel": "التاجات (أي واحد منهم)",
       "audienceHint": "افصل بينهم بفاصلة: VIP، جملة"
+    }
+  },
+  "waTemplates": {
+    "title": "قوالب واتساب",
+    "subtitle": "القوالب اللي ميتا بتوافق عليها قبل ما تبعت رسايل للعميل بعد 24 ساعة، أو حملات.",
+    "sync": "مزامنة من ميتا",
+    "new": "قالب جديد",
+    "all": "الكل",
+    "search": "دور باسم القالب أو النص…",
+    "empty": "مفيش قوالب لسه — اعمل قالب جديد أو اعمل مزامنة من ميتا.",
+    "loadFailed": "تعذر تحميل القوالب",
+    "actionFailed": "العملية فشلت",
+    "synced": "تمت المزامنة: {{remote}} قالب على ميتا، اتضاف منهم {{imported}} جديد.",
+    "saved": "اتحفظ كمسودة",
+    "submitted": "اتبعت لميتا للمراجعة",
+    "deleted": "اتحذف القالب",
+    "confirmDelete": "تحذف المسودة دي؟",
+    "confirmDeleteMeta": "القالب ده متسجل على ميتا — هيتحذف من ميتا كمان. متأكد؟",
+    "sampleUploaded": "اترفع ملف المثال لميتا",
+    "backToList": "كل القوالب",
+    "delete": "حذف",
+    "saveDraft": "حفظ مسودة",
+    "submit": "إرسال للمراجعة",
+    "rejectionReason": "سبب الرفض",
+    "lockedPending": "القالب تحت مراجعة ميتا دلوقتي ومينفعش يتعدل لحد ما يتقبل أو يترفض.",
+    "quality": "الجودة",
+    "status": {
+      "draft": "مسودة",
+      "pending": "تحت المراجعة",
+      "approved": "مقبول",
+      "rejected": "مرفوض",
+      "paused": "متوقف مؤقتًا",
+      "disabled": "معطل"
+    },
+    "category": {
+      "marketing": "تسويق",
+      "utility": "خدمي (Utility)",
+      "authentication": "تحقق (OTP)"
+    },
+    "header": {
+      "none": "بدون",
+      "text": "نص",
+      "image": "صورة",
+      "video": "فيديو",
+      "document": "ملف PDF"
+    },
+    "columns": {
+      "name": "اسم القالب",
+      "language": "اللغة",
+      "category": "النوع",
+      "status": "الحالة",
+      "metaId": "رقم القالب على ميتا",
+      "synced": "آخر مزامنة"
+    },
+    "fields": {
+      "name": "اسم القالب",
+      "nameHint": "حروف إنجليزي صغيرة وأرقام و _ بس — مثال: order_update",
+      "language": "اللغة",
+      "category": "النوع",
+      "categoryHint": "ميتا ممكن تغير النوع لو شافت إن المحتوى تسويقي. التسويق بيتحاسب بسعر أعلى.",
+      "headerFormat": "شكل العنوان",
+      "headerText": "نص العنوان",
+      "headerTextHint": "لحد 60 حرف، ومتغير واحد بس {{1}}",
+      "headerExample": "مثال للمتغير في العنوان",
+      "headerSample": "ملف مثال للعنوان (ميتا بتطلبه للمراجعة)",
+      "uploadSample": "رفع ملف المثال",
+      "sampleReady": "ملف المثال جاهز",
+      "sampleMissing": "لسه مفيش ملف مثال",
+      "body": "نص الرسالة",
+      "bodyHint": "استخدم {{1}} و {{2}}… للبيانات اللي بتتغير (الاسم، رقم الطلب). متبدأش ولا تخلص الرسالة بمتغير.",
+      "addVariable": "متغير",
+      "example": "مثال",
+      "footer": "التذييل (اختياري، لحد 60 حرف)"
+    },
+    "buttons": {
+      "title": "الأزرار",
+      "add": "زر",
+      "quickReply": "رد سريع",
+      "url": "رابط",
+      "phone": "اتصال",
+      "copyCode": "نسخ كود",
+      "copyCodeLabel": "نسخ الكود",
+      "text": "نص الزر (لحد 25 حرف)",
+      "codeExample": "مثال للكود",
+      "urlExample": "مثال للجزء المتغير من الرابط"
+    },
+    "preview": {
+      "business": "متجرك",
+      "online": "متصل",
+      "encrypted": "الرسائل مشفرة من طرف لطرف",
+      "bodyPlaceholder": "نص الرسالة هيظهر هنا"
     }
   }
 }

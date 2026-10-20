@@ -126,6 +126,7 @@ import Customer360Drawer from "../components/Customer360Drawer.jsx";
 import AvatarZoom from "../components/AvatarZoom.jsx";
 import CustomerAvatar from "../components/CustomerAvatar.jsx";
 import WaitingOrbit from "../components/WaitingOrbit.jsx";
+import InboxTopBar from "../components/InboxTopBar.jsx";
 import { chromeModeFor, platformCanvas, resolveMessagePlatform } from "../components/messagePlatform.js";
 import { useTheme } from "../../../theme/useTheme";
 import { isMetaDmConversation, metaCustomerDisplayName } from "../lib/customerIdentity.js";
@@ -9406,6 +9407,31 @@ export default function AiInbox({ reviewerMode = false }) {
     ) : null
   );
 
+  // Channel menus + Config across the top of the inbox (moved up from the
+  // rail's bottom CONFIG button). Every entry opens something that already
+  // exists — see InboxTopBar.jsx.
+  const renderTopBar = () => (
+    <InboxTopBar
+      chatsActive={isConversationMode && !controlCenterOpen}
+      availableSections={CONTROL_CENTER_SECTIONS}
+      onChats={() => {
+        setInboxSection("conversations");
+        setChannelFilter("all");
+        setSelectedSocialCommentId("");
+        setSelectedSessionId("");
+        setMobileView("list");
+      }}
+      onOpenSection={openControlCenter}
+      onNavigate={(path) => navigate(path)}
+      onComments={(platform) => {
+        setInboxSection("social_comments");
+        setSocialPostsPlatformFilter(platform);
+        setSocialThreadPlatformFilter(platform);
+        setSelectedSessionId("");
+      }}
+    />
+  );
+
   const renderSocialCommentsWorkspaceFrame = () => (
     <SocialCommentsWorkspace
         drawerRequest={socialDrawerRequest}
@@ -9520,7 +9546,9 @@ export default function AiInbox({ reviewerMode = false }) {
             </div>
           </div>
         ) : null}
-        <div className="flex h-full w-full min-w-0 gap-2 overflow-hidden p-2">
+        <div className="flex h-full w-full min-w-0 flex-col gap-2 overflow-hidden p-2">
+          {renderTopBar()}
+        <div className="flex min-h-0 w-full min-w-0 flex-1 gap-2 overflow-hidden">
           {renderControlCenter()}
           <InboxChannelSidebar
             channels={[]}
@@ -9541,12 +9569,11 @@ export default function AiInbox({ reviewerMode = false }) {
               setMobileView("list");
             }}
             onSelectSocialComments={() => setInboxSection("social_comments")}
-            onOpenControlCenter={openControlCenter}
-            configActive={controlCenterOpen}
           />
           <div className="min-h-0 min-w-0 flex-1 overflow-hidden">
             {renderSocialCommentsWorkspaceFrame()}
           </div>
+        </div>
         </div>
       </div>
     );
@@ -9719,6 +9746,7 @@ export default function AiInbox({ reviewerMode = false }) {
             the time. With the rail visible that override collapsed the columns —
             the list stretched edge to edge and the chat disappeared. Fullscreen
             is purely the outer wrapper's job now. */}
+        {conversationExpanded ? null : renderTopBar()}
         <section className="ai-omni-workspace relative">
           {/* Expanding scales up the WHOLE workspace — channel rail, conversation
               list and chat. It used to hide the rail, which turned "expand" into
@@ -9731,8 +9759,6 @@ export default function AiInbox({ reviewerMode = false }) {
               activeChannel={channelFilter}
               socialCommentsCount={socialCommentsPanelCount}
               socialCommentsActive={false}
-              onOpenControlCenter={openControlCenter}
-              configActive={controlCenterOpen}
               onSelectSocialComments={() => {
                 setInboxSection("social_comments");
                 setSelectedSocialCommentId(socialCommentIdentity(visibleSocialComments[0] || {}));

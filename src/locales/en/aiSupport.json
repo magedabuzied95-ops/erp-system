@@ -1947,6 +1947,45 @@
       "days": "{{count}}d",
       "greetMorningPlain": "Good morning",
       "greetEveningPlain": "Good evening"
+    },
+    "topbar": {
+      "label": "Inbox menu",
+      "chats": "Chats",
+      "menus": {
+        "whatsapp": "WhatsApp",
+        "whatsappWeb": "WhatsApp Web",
+        "messenger": "Messenger",
+        "instagram": "Instagram",
+        "tiktok": "TikTok",
+        "config": "Config"
+      },
+      "items": {
+        "waAccount": "Official account & number",
+        "waTemplates": "Templates",
+        "waCampaigns": "Campaigns",
+        "waSequences": "Sequences",
+        "waInvoiceMessages": "Invoice messages",
+        "waCatalog": "Meta catalog",
+        "waOrders": "Orders",
+        "webConnection": "Connection & numbers",
+        "webQueue": "Send queue",
+        "webAutomations": "Automatic messages",
+        "metaConnect": "Connect pages & accounts",
+        "comments": "Comments",
+        "posts": "Posts",
+        "publisher": "Publish & schedule",
+        "stories": "Stories",
+        "autoReplies": "Auto replies",
+        "flows": "Chatbot flows",
+        "tiktokConnect": "Connect TikTok",
+        "agent": "Agent behaviour",
+        "teach": "Teach the agent",
+        "actions": "Agent permissions",
+        "playground": "Agent playground",
+        "quickReplies": "Quick replies",
+        "performance": "Team performance",
+        "connections": "All connections"
+      }
     }
   },
   "integrations": {
@@ -1980,10 +2019,11 @@
     "nav": {
       "overview": "Overview",
       "meta": "Facebook & Instagram",
-      "whatsapp": "WhatsApp",
+      "whatsapp": "WhatsApp (official)",
       "tiktok": "TikTok",
       "queue": "WhatsApp queue",
-      "automations": "Automatic messages"
+      "automations": "Automatic messages",
+      "whatsappWeb": "WhatsApp Web"
     },
     "overview": {
       "title": "Connection overview",
@@ -2683,6 +2723,97 @@
       "saveError": "Could not save the tags",
       "audienceLabel": "Tags (any of them)",
       "audienceHint": "Separate with commas: VIP, wholesale"
+    }
+  },
+  "waTemplates": {
+    "title": "WhatsApp templates",
+    "subtitle": "Meta-approved messages for anything sent after the 24-hour window, and for campaigns.",
+    "sync": "Sync from Meta",
+    "new": "New template",
+    "all": "All",
+    "search": "Search name or text…",
+    "empty": "No templates yet — create one or sync from Meta.",
+    "loadFailed": "Failed to load templates",
+    "actionFailed": "The action failed",
+    "synced": "Synced: {{remote}} templates on Meta, {{imported}} new imported.",
+    "saved": "Saved as draft",
+    "submitted": "Submitted to Meta for review",
+    "deleted": "Template deleted",
+    "confirmDelete": "Delete this draft?",
+    "confirmDeleteMeta": "This template exists on Meta — it will be deleted there too. Continue?",
+    "sampleUploaded": "Sample uploaded to Meta",
+    "backToList": "All templates",
+    "delete": "Delete",
+    "saveDraft": "Save draft",
+    "submit": "Submit for review",
+    "rejectionReason": "Rejection reason",
+    "lockedPending": "Meta is reviewing this template; it cannot be edited until it is approved or rejected.",
+    "quality": "Quality",
+    "status": {
+      "draft": "Draft",
+      "pending": "Pending approval",
+      "approved": "Approved",
+      "rejected": "Rejected",
+      "paused": "Paused",
+      "disabled": "Disabled"
+    },
+    "category": {
+      "marketing": "Marketing",
+      "utility": "Utility",
+      "authentication": "Authentication"
+    },
+    "header": {
+      "none": "None",
+      "text": "Text",
+      "image": "Image",
+      "video": "Video",
+      "document": "Document"
+    },
+    "columns": {
+      "name": "Template name",
+      "language": "Language",
+      "category": "Category",
+      "status": "Status",
+      "metaId": "Meta template ID",
+      "synced": "Last synced"
+    },
+    "fields": {
+      "name": "Template name",
+      "nameHint": "Lowercase English letters, digits and _ only — e.g. order_update",
+      "language": "Language",
+      "category": "Category",
+      "categoryHint": "Meta may re-categorise content it reads as marketing; marketing is priced higher.",
+      "headerFormat": "Header format",
+      "headerText": "Header text",
+      "headerTextHint": "Up to 60 characters, one {{1}} variable at most",
+      "headerExample": "Header variable example",
+      "headerSample": "Header sample file (Meta needs it for review)",
+      "uploadSample": "Upload sample",
+      "sampleReady": "Sample ready",
+      "sampleMissing": "No sample yet",
+      "body": "Body text",
+      "bodyHint": "Use {{1}}, {{2}}… for values that change (name, order number). Don't start or end with a variable.",
+      "addVariable": "variable",
+      "example": "Example",
+      "footer": "Footer (optional, up to 60 characters)"
+    },
+    "buttons": {
+      "title": "Buttons",
+      "add": "Button",
+      "quickReply": "Quick reply",
+      "url": "Link",
+      "phone": "Call",
+      "copyCode": "Copy code",
+      "copyCodeLabel": "Copy code",
+      "text": "Button text (up to 25)",
+      "codeExample": "Example code",
+      "urlExample": "Example for the link variable"
+    },
+    "preview": {
+      "business": "M1 Store",
+      "online": "online",
+      "encrypted": "Messages are end-to-end encrypted",
+      "bodyPlaceholder": "Your message body will appear here"
     }
   }
 }

@@ -30,7 +30,12 @@ import {
 
 const SUPPRESSED = { suppressErrorStatuses: [400, 403, 404, 409, 500] };
 
-export default function WhatsAppIntegrationPanel({ headers, onStatusChange }) {
+// `mode` splits the two transports for the inbox top bar: "cloud" is the
+// official account (WhatsApp menu), "web" is the Evolution gateway (WhatsApp
+// Web menu). Without it both render, as before.
+export default function WhatsAppIntegrationPanel({ headers, onStatusChange, mode = "all" }) {
+  const showCloud = mode !== "web";
+  const showWeb = mode !== "cloud";
   const { t } = useTranslation();
 
   const [loading, setLoading] = useState(true);
@@ -143,8 +148,9 @@ export default function WhatsAppIntegrationPanel({ headers, onStatusChange }) {
 
   return (
     <div className="space-y-4">
-      <WhatsAppEmbeddedSignupCard onConnected={() => load({ silent: true })} />
+      {showCloud ? <WhatsAppEmbeddedSignupCard onConnected={() => load({ silent: true })} /> : null}
 
+      {showCloud ? (
       <PanelSection
         icon={MessageCircle}
         title={t("aiSupport.integrations.whatsapp.cloud.title")}
@@ -174,7 +180,10 @@ export default function WhatsAppIntegrationPanel({ headers, onStatusChange }) {
         ) : null}
         <p className="mt-3 text-[11px] leading-5 text-slate-500">{t("aiSupport.integrations.whatsapp.cloud.envNote")}</p>
       </PanelSection>
+      ) : null}
 
+      {showWeb ? (
+      <>
       <PanelSection
         icon={ShieldCheck}
         title={t("aiSupport.integrations.whatsapp.gateway.title")}
@@ -326,6 +335,8 @@ export default function WhatsAppIntegrationPanel({ headers, onStatusChange }) {
         ) : null}
         <p className="mt-3 text-[11px] leading-5 text-slate-500">{t("aiSupport.integrations.whatsapp.instances.note")}</p>
       </PanelSection>
+      </>
+      ) : null}
     </div>
   );
 }
