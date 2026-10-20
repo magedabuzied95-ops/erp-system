@@ -21,6 +21,7 @@ import {
   BarChart3,
   Bot,
   FileText,
+  KeyRound,
   Gauge,
   GraduationCap,
   LayoutGrid,
@@ -32,6 +33,7 @@ import {
   Receipt,
   Smartphone,
   SlidersHorizontal,
+  Webhook,
   Workflow,
   X,
   Zap,
@@ -57,6 +59,8 @@ const TikTokIntegrationPanel = lazy(() => import("../integrations/TikTokIntegrat
 const IntegrationsOverviewPanel = lazy(() => import("./IntegrationsOverviewPanel.jsx"));
 const SequencesPanel = lazy(() => import("./SequencesPanel.jsx"));
 const WhatsAppTemplatesPanel = lazy(() => import("./WhatsAppTemplatesPanel.jsx"));
+const WhatsAppUsagePanel = lazy(() => import("./WhatsAppUsagePanel.jsx"));
+const WhatsAppDeveloperPanel = lazy(() => import("./WhatsAppDeveloperPanel.jsx"));
 
 const MetaGlyph = () => (
   <span className="relative inline-flex h-4 w-5 items-center" aria-hidden="true">
@@ -68,7 +72,8 @@ const MetaGlyph = () => (
 export const CONTROL_CENTER_GROUPS = [
   { key: "agent", sections: ["agent", "teach", "actions", "playground"] },
   { key: "workspace", sections: ["quick_replies", "comments", "invoice_messages"] },
-  { key: "growth", sections: ["wa_templates", "broadcasts", "sequences"] },
+  { key: "whatsapp_official", sections: ["wa_templates", "wa_usage", "wa_api_keys", "wa_webhooks"] },
+  { key: "growth", sections: ["broadcasts", "sequences"] },
   { key: "insight", sections: ["performance"] },
   { key: "connections", sections: ["overview", "meta", "whatsapp", "whatsapp_web", "automations", "queue", "tiktok"] },
 ];
@@ -93,6 +98,9 @@ const SECTION_ICON = {
   comments: MessageSquareText,
   invoice_messages: Receipt,
   wa_templates: FileText,
+  wa_usage: Receipt,
+  wa_api_keys: KeyRound,
+  wa_webhooks: Webhook,
   broadcasts: Megaphone,
   sequences: Workflow,
   performance: BarChart3,
@@ -115,6 +123,9 @@ const sectionLabel = (t, key) => {
   if (key === "comments") return t("aiSupport.commentsSettings.title");
   if (key === "invoice_messages") return t("aiSupport.aiSettings.variants.menuTitle");
   if (key === "wa_templates") return t("aiSupport.waTemplates.title");
+  if (key === "wa_usage") return t("aiSupport.inbox.topbar.items.waUsage");
+  if (key === "wa_api_keys") return t("aiSupport.inbox.topbar.items.waApiKeys");
+  if (key === "wa_webhooks") return t("aiSupport.inbox.topbar.items.waWebhooks");
   if (key === "broadcasts") return t("aiSupport.controlCenter.nav.broadcasts");
   if (key === "sequences") return t("aiSupport.controlCenter.nav.sequences");
   if (key === "performance") return t("aiSupport.controlCenter.nav.performance");
@@ -131,6 +142,7 @@ const sectionLabel = (t, key) => {
 const groupLabel = (t, key) => {
   if (key === "agent") return t("aiSupport.controlCenter.groups.agent");
   if (key === "workspace") return t("aiSupport.controlCenter.groups.workspace");
+  if (key === "whatsapp_official") return t("aiSupport.inbox.topbar.menus.whatsapp");
   if (key === "growth") return t("aiSupport.controlCenter.groups.growth");
   if (key === "insight") return t("aiSupport.controlCenter.groups.insight");
   return t("aiSupport.controlCenter.groups.connections");
@@ -203,6 +215,9 @@ export default function InboxControlCenter({
       {section === "comments" ? <CommentsSettingsPanel {...(commentsProps || {})} light={false} /> : null}
       {section === "invoice_messages" ? <WhatsappMessageVariantsEditor initialType="invoice_receipt" /> : null}
       {section === "wa_templates" ? <WhatsAppTemplatesPanel headers={headers} /> : null}
+      {section === "wa_usage" ? <WhatsAppUsagePanel headers={headers} /> : null}
+      {section === "wa_api_keys" ? <WhatsAppDeveloperPanel headers={headers} mode="keys" /> : null}
+      {section === "wa_webhooks" ? <WhatsAppDeveloperPanel headers={headers} mode="webhooks" /> : null}
       {section === "broadcasts" ? <BroadcastsPanel {...panelProps} /> : null}
       {section === "sequences" ? <SequencesPanel {...panelProps} /> : null}
       {section === "performance" ? <TeamPerformancePanel {...panelProps} /> : null}

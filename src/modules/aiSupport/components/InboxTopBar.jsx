@@ -32,6 +32,9 @@ const MENUS = [
       { key: "flows", to: "/ai-studio/workflows" },
       { key: "waCatalog", to: "/settings" },
       { key: "waOrders", to: "/orders" },
+      { key: "waUsage", section: "wa_usage" },
+      { key: "waApiKeys", section: "wa_api_keys" },
+      { key: "waWebhooks", section: "wa_webhooks" },
     ],
   },
   {
@@ -113,6 +116,9 @@ const itemLabel = (t, key) => {
     case "waInvoiceMessages": return t("aiSupport.inbox.topbar.items.waInvoiceMessages");
     case "waCatalog": return t("aiSupport.inbox.topbar.items.waCatalog");
     case "waOrders": return t("aiSupport.inbox.topbar.items.waOrders");
+    case "waUsage": return t("aiSupport.inbox.topbar.items.waUsage");
+    case "waApiKeys": return t("aiSupport.inbox.topbar.items.waApiKeys");
+    case "waWebhooks": return t("aiSupport.inbox.topbar.items.waWebhooks");
     case "webConnection": return t("aiSupport.inbox.topbar.items.webConnection");
     case "webQueue": return t("aiSupport.inbox.topbar.items.webQueue");
     case "webAutomations": return t("aiSupport.inbox.topbar.items.webAutomations");
