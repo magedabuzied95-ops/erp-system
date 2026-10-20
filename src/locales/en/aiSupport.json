@@ -2017,6 +2017,20 @@
         "waChatbotFlows": "Chatbot Flows",
         "waApiGuide": "API Guide"
       }
+    },
+    "author": {
+      "chatbot": "Chatbot",
+      "chatbotFlow": "Chatbot: {{flow}}",
+      "autoReply": "Auto-reply",
+      "ai": "AI",
+      "staff": "Staff",
+      "staffNamed": "Staff: {{name}}",
+      "system": "System"
+    },
+    "number": {
+      "replyFrom": "Replying from: {{label}}",
+      "replyFromDefault": "Default number",
+      "chipTitle": "Our number this message went through"
     }
   },
   "integrations": {

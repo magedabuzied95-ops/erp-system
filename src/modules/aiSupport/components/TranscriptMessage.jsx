@@ -1,6 +1,6 @@
 ﻿import { memo, useContext, useMemo } from "react";
 import { useEffect, useRef, useState } from "react";
-import { Ban, Bot, Camera, Check, CheckSquare, Copy, ExternalLink, History, Info, MessageSquareText, Pencil, Pin, PinOff, Reply as ReplyIcon, Smile, Sparkles, Star, Trash2, UserCheck, X } from "lucide-react";
+import { Ban, Bot, Camera, Check, CheckSquare, Clock3, Cog, Copy, ExternalLink, History, Info, MessageSquareText, Pencil, Pin, PinOff, Reply as ReplyIcon, Smartphone, Smile, Sparkles, Star, Trash2, UserCheck, Workflow, X } from "lucide-react";
 
 import { useTranslation } from "react-i18next";
 
@@ -14,6 +14,7 @@ import { bubbleClock, bubbleSkin, chromeModeFor, mirrorsCustomerCarousel, platfo
 import { ThemeContext } from "../../../theme/themeContext";
 import { AppleEmoji, AppleEmojiPicker } from "./AppleEmojiPicker.jsx";
 import MessageActionOverlay from "./MessageActionOverlay.jsx";
+import { messageAuthorKind } from "../services/messageAuthor.js";
 
 const asArray = (value) => (Array.isArray(value) ? value : []);
 const clean = (value = "") => String(value || "").trim();
@@ -49,6 +50,63 @@ const staffSenderLabel = (message = {}) => {
   if (source.includes("automation") || source.includes("system")) return "النظام";
   return "أنا";
 };
+
+// Who wrote an outbound row (see messageAuthor.js). A staff row stamped by an automation path
+// was always labelled as the system, and still is.
+const outboundAuthorKind = (message = {}) => {
+  const kind = messageAuthorKind(message);
+  if (kind === "staff" && staffSenderLabel(message) === "النظام" && !clean(message.staff_user_id)) return "system";
+  return kind || "system";
+};
+// Placeholder names the optimistic bubbles and phone echoes carry; they name nobody.
+const PLACEHOLDER_STAFF_NAMES = new Set(["", "أنا", "staff", "me"]);
+const outboundAuthorLabel = (message = {}, t) => {
+  const kind = outboundAuthorKind(message);
+  const name = clean(message.staff_user_name);
+  if (kind === "chatbot") return name ? t("aiSupport.inbox.author.chatbotFlow", { flow: name }) : t("aiSupport.inbox.author.chatbot");
+  if (kind === "auto_reply") return t("aiSupport.inbox.author.autoReply");
+  if (kind === "ai") return t("aiSupport.inbox.author.ai");
+  if (kind === "staff") {
+    return PLACEHOLDER_STAFF_NAMES.has(name.toLowerCase()) ? t("aiSupport.inbox.author.staff") : t("aiSupport.inbox.author.staffNamed", { name });
+  }
+  return t("aiSupport.inbox.author.system");
+};
+const AUTHOR_ICONS = { ai: Bot, staff: UserCheck, chatbot: Workflow, auto_reply: Clock3, system: Cog };
+
+// Which of our WhatsApp numbers the message went through. Only rendered when the thread spans
+// more than one of them (the row carries numberLabel only then).
+function NumberChip({ label = "", skin = {} }) {
+  const { t } = useTranslation();
+  if (!clean(label)) return null;
+  return (
+    <span
+      data-ai-message-number="true"
+      title={t("aiSupport.inbox.number.chipTitle")}
+      style={{ color: skin.meta, borderColor: "currentColor" }}
+      className="inline-flex min-w-0 max-w-[12rem] items-center gap-1 rounded-full border border-solid px-1.5 text-[10.5px] font-bold leading-4 opacity-80"
+    >
+      <Smartphone className="h-2.5 w-2.5 shrink-0" />
+      <span dir="auto" className="truncate">{label}</span>
+    </span>
+  );
+}
+
+// The author chip (and number chip) line at the top of an outbound bubble.
+function OutboundAuthorLine({ message = {}, skin = {}, numberLabel = "", className = "" }) {
+  const { t } = useTranslation();
+  const kind = outboundAuthorKind(message);
+  const label = outboundAuthorLabel(message, t);
+  const Icon = AUTHOR_ICONS[kind] || Cog;
+  return (
+    <div style={{ color: skin.meta }} className={`flex min-w-0 flex-wrap items-center gap-x-1.5 gap-y-0.5 text-[11.5px] font-bold leading-4 ${className}`}>
+      <span data-ai-message-author={kind} className="inline-flex min-w-0 max-w-full items-center gap-1">
+        <Icon className="h-3 w-3 shrink-0" />
+        <span dir="auto" className="truncate">{label}</span>
+      </span>
+      <NumberChip label={numberLabel} skin={skin} />
+    </div>
+  );
+}
 
 // The moment of an edit: the time alone today, the date with it otherwise.
 const actionStamp = (value) => {
@@ -178,10 +236,10 @@ export function PinnedMessagesBar({ rows = [], variant = "desktop" }) {
         return {
           key: messageIdentity(row, message),
           text: messageBodyText(message) || "رسالة منتجات أو مرفقات",
-          sender: row?.kind === "customer" ? "العميل" : row?.kind === "ai" ? "AI" : row?.kind === "staff" ? staffSenderLabel(message) : "رسالة",
+          sender: row?.kind === "customer" ? "العميل" : row?.kind === "ai" || row?.kind === "staff" ? outboundAuthorLabel(message, t) : "رسالة",
         };
       });
-  }, [rows, revision]);
+  }, [rows, revision, t]);
 
   if (!pinnedRows.length) return null;
 
@@ -297,7 +355,7 @@ function MessageActionShell({ row, message, variant, mode = "dark", align = "lef
     ...reactions.filter((reaction) => reaction !== ownReaction),
     ...(effectiveOwnReaction ? [{ id: `local-reaction:${key}`, message_text: effectiveOwnReaction, from_me: true, direction: "outbound", sender_type: "staff" }] : []),
   ];
-  const sender = row.kind === "customer" ? "العميل" : row.kind === "ai" ? "AI" : row.kind === "staff" ? staffSenderLabel(message) : "الرسالة";
+  const sender = row.kind === "customer" ? "العميل" : row.kind === "ai" || row.kind === "staff" || row.kind === "product_card" ? outboundAuthorLabel(message, t) : "الرسالة";
 
   useEffect(() => {
     setPinned(readStoredMessageSet(MESSAGE_PIN_STORAGE_KEY).has(key));
@@ -1224,16 +1282,17 @@ function TranscriptMessage({
       <ChatRow side="out" align="right" variant={variant} wide>
         {standalone ? (
           <div data-ai-message-bubble="true" className="flex max-w-full flex-col items-end gap-1.5">
-            {clean(caption) ? (
-              <ChatBubble skin={skin} radius={chrome.radius} side="out">
-                <LinkifiedText text={caption} className={textClass} linkColor={skin.link} />
-              </ChatBubble>
-            ) : null}
+            {/* The lead bubble carries the author chip; with no sentence it carries the chip alone. */}
+            <ChatBubble skin={skin} radius={chrome.radius} side="out">
+              <OutboundAuthorLine message={message} skin={skin} numberLabel={safeRow.numberLabel} />
+              {clean(caption) ? <LinkifiedText text={caption} className={`${textClass} mt-0.5`} linkColor={skin.link} /> : null}
+            </ChatBubble>
             <ProductCardMessage message={message} cards={cards} compact={compact} platform={platform} variant={variant} chrome={chrome} />
             <BubbleStamp skin={skin} time={clock} status={message.delivery_status} showTicks={showTicks} />
           </div>
         ) : (
           <ChatBubble skin={skin} radius={chrome.radius} side="out" style={{ width: chrome.cardWidth }}>
+            <OutboundAuthorLine message={message} skin={skin} numberLabel={safeRow.numberLabel} className="mb-1" />
             <ProductCardMessage message={message} cards={cards} compact={compact} platform={platform} variant={variant} chrome={chrome} />
             {clean(caption) ? <LinkifiedText text={caption} className={`${textClass} mt-1.5`} linkColor={skin.link} /> : null}
             {stampFor()}
@@ -1250,6 +1309,9 @@ function TranscriptMessage({
     return shell(
       <ChatRow side="in" align="left" variant={variant} avatarUrl={avatarUrl} customerName={customerName} showAvatar={showAvatar}>
         <ChatBubble skin={skin} radius={chrome.radius} side="in" flush={flush}>
+          {safeRow.numberLabel ? (
+            <div className={flush ? "px-2 pt-1.5" : "mb-0.5"}><NumberChip label={safeRow.numberLabel} skin={skin} /></div>
+          ) : null}
           {story ? <StoryContext story={story} variant={variant} /> : null}
           <QuotedMessage quoted={message.quoted_message} skin={skin} customerName={customerName} />
           <LinkifiedText text={text} className={textClass} linkColor={skin.link} />
@@ -1305,22 +1367,22 @@ function TranscriptMessage({
   const isAi = safeRow.kind === "ai";
   const text = bodyText(isAi ? message.ai_answer : message.staff_message);
   const flush = visualOnly(text);
-  const staffName = clean(message.staff_user_name);
+  // The chip names who actually wrote the row — a chatbot flow, the away auto-reply, the AI, an
+  // employee, or another automation. Every 'system' row used to be called "AI".
+  const authorKind = outboundAuthorKind(message);
   const authorLabel = isInternalNote
     ? "ملاحظة داخلية"
-    : isAi
-      ? (message.message_type === "comment_suggestion" ? t("aiSupport.inbox.message.draftReply") : "AI")
-      : staffName && staffName !== "أنا"
-        ? staffName
-        : staffSenderLabel(message) === "النظام"
-          ? "النظام"
-          : "";
-  const AuthorIcon = isAi ? Bot : isInternalNote ? Info : UserCheck;
+    : message.message_type === "comment_suggestion"
+      ? t("aiSupport.inbox.message.draftReply")
+      : outboundAuthorLabel(message, t);
+  const AuthorIcon = isInternalNote ? Info : AUTHOR_ICONS[authorKind] || Cog;
+  const numberChip = safeRow.numberLabel ? <NumberChip label={safeRow.numberLabel} skin={skin} /> : null;
   const replyButtons = asArray(message.suggested_actions).filter(
     (action) => WHATSAPP_BUBBLE_BUTTON_TYPES.has(action?.type) && clean(action.title)
   );
   const footerText = clean(asArray(message.suggested_actions).find((action) => action?.type === "whatsapp_footer")?.title);
-  const correctReply = isAi && onOpenCorrection && message.message_type !== "comment_suggestion" ? (
+  // A chatbot flow or the away auto-reply is not the AI's answer, so there is nothing to teach it.
+  const correctReply = isAi && authorKind !== "chatbot" && authorKind !== "auto_reply" && onOpenCorrection && message.message_type !== "comment_suggestion" ? (
     <button
       type="button"
       title={t("aiSupport.inbox.message.correctReply")}
@@ -1338,15 +1400,20 @@ function TranscriptMessage({
   return shell(
     <ChatRow side="out" align="right" variant={variant}>
       <ChatBubble skin={skin} radius={chrome.radius} side="out" flush={flush} className={failed ? "ring-1 ring-rose-400/70" : ""}>
-        {authorLabel ? (
-          <div style={{ color: skin.meta }} className="flex items-center gap-1 text-[11.5px] font-bold leading-4">
-            <AuthorIcon className="h-3 w-3" />
-            {authorLabel}
+        {authorLabel || numberChip ? (
+          <div style={{ color: skin.meta }} className="flex min-w-0 flex-wrap items-center gap-x-1.5 gap-y-0.5 text-[11.5px] font-bold leading-4">
+            {authorLabel ? (
+              <span data-ai-message-author={authorKind || "note"} className="inline-flex min-w-0 max-w-full items-center gap-1">
+                <AuthorIcon className="h-3 w-3 shrink-0" />
+                <span dir="auto" className="truncate">{authorLabel}</span>
+              </span>
+            ) : null}
+            {numberChip}
           </div>
         ) : null}
-        {sourceComment ? <div className={authorLabel ? "mt-1" : ""}><SourceCommentContext context={sourceComment} variant={variant} /></div> : null}
+        {sourceComment ? <div className={authorLabel || numberChip ? "mt-1" : ""}><SourceCommentContext context={sourceComment} variant={variant} /></div> : null}
         <QuotedMessage quoted={message.quoted_message} skin={skin} customerName={customerName} />
-        <LinkifiedText text={text} className={`${textClass} ${authorLabel || sourceComment ? "mt-0.5" : ""}`} linkColor={skin.link} />
+        <LinkifiedText text={text} className={`${textClass} ${authorLabel || numberChip || sourceComment ? "mt-0.5" : ""}`} linkColor={skin.link} />
         {footerText ? (
           <div dir="auto" style={{ color: skin.meta }} className="mt-1 text-[13px] leading-4">{footerText}</div>
         ) : null}

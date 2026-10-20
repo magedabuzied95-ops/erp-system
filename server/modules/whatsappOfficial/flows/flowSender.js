@@ -211,7 +211,7 @@ const transcriptMedia = (node) => {
   return [];
 };
 
-export const recordTranscript = async ({ tenantId, conversationKey, phone, phoneNumberId, node, vars, messageId }) => {
+export const recordTranscript = async ({ tenantId, conversationKey, phone, phoneNumberId, node, vars, messageId, flowName = "" }) => {
   try {
     const message = transcriptSummary(node, vars);
     if (!message) return;
@@ -222,6 +222,9 @@ export const recordTranscript = async ({ tenantId, conversationKey, phone, phone
       message,
       messageType: "text",
       senderType: "system",
+      // source_path/insert_source "wa_chatbot_flow" mark the row as a chatbot reply; the flow's
+      // name rides in staff_user_name (staff_user_id stays NULL) so the inbox can name the flow.
+      staffUserName: str(flowName).slice(0, 120),
       suggestedActions: transcriptButtons(node, vars).filter(Boolean),
       visualAttachments: transcriptMedia(node),
       source: "wa_chatbot_flow",

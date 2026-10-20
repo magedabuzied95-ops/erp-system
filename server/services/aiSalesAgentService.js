@@ -1023,6 +1023,29 @@ const legacyCtaRow = (row = {}) => {
   };
 };
 
+/*
+ * Who wrote an outbound row, as the inbox labels it. sender_type alone cannot say: the chatbot
+ * flows, the away auto-reply and every other automation all write sender_type 'system', and the
+ * bubble used to call all of them "AI". The writer's own marker (source_path / insert_source)
+ * names it. Mirrored by messageAuthorKind in src/modules/aiSupport/components/TranscriptMessage.jsx,
+ * which also handles the raw rows a socket event carries.
+ */
+export const inboxMessageAuthorKind = (row = {}) => {
+  const senderType = lower(row.sender_type);
+  if (["customer", "user", "client"].includes(senderType)) return "customer";
+  if (lower(row.message_type) === "internal_note" || senderType === "note") return "note";
+  const marker = `${lower(row.source_path)} ${lower(row.insert_source)}`;
+  if (marker.includes("wa_chatbot_flow")) return "chatbot";
+  // The away message only — "whatsapp_ai_auto_reply" / "meta_ai_auto_reply" are the AI's own replies.
+  if (marker.includes("wa_official_auto_reply")) return "auto_reply";
+  if (["staff", "agent", "human"].includes(senderType)) return "staff";
+  if (["ai", "assistant", "bot"].includes(senderType)) return "ai";
+  // An AI reply some writers stored as 'system' still names the AI in its marker
+  // (whatsapp_ai_auto_reply, meta_ai_auto_reply, ai_send_success, ...).
+  if (/(^|[\s_])ai_/.test(marker)) return "ai";
+  return senderType === "system" ? "system" : "";
+};
+
 export const normalizeInboxMessage = (sourceRow = {}) => {
   const rawRow = (!sourceRow.deleted_at && legacyCtaRow(sourceRow)) || sourceRow;
   const row = rawRow.deleted_at
@@ -1064,6 +1087,12 @@ export const normalizeInboxMessage = (sourceRow = {}) => {
     manual_message: row.manual_message === true,
     staff_user_id: row.staff_user_id || null,
     staff_user_name: row.staff_user_name || "",
+    // Which writer produced the row and which of our WhatsApp numbers it went through: the
+    // bubble's author chip and number chip read these.
+    source_path: row.source_path || "",
+    insert_source: row.insert_source || "",
+    author_kind: inboxMessageAuthorKind(row),
+    whatsapp_instance: row.whatsapp_instance || "",
     delivery_status: row.delivery_status || "",
     delivery_error: row.delivery_error || "",
     error_code: row.error_code || "",

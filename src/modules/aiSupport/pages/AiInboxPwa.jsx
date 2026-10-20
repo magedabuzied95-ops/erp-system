@@ -35,6 +35,7 @@ import {
   ShoppingBag,
   ShoppingCart,
   SlidersHorizontal,
+  Smartphone,
   Sparkles,
   Star,
   Tag,
@@ -130,6 +131,7 @@ import {
   conversationAccountKey,
   mergeConversationPages,
 } from "../services/inboxChannels";
+import { whatsappNumberLabel, whatsappNumberLabeler, whatsappReplyInstance } from "../services/messageAuthor.js";
 import "./AiInboxPwa.css";
 import { isScrollerNearBottom, pinScrollerToBottom } from "../utils/transcriptScroll.js";
 import JumpToLatestButton from "../components/JumpToLatestButton.jsx";
@@ -5822,6 +5824,10 @@ export default function AiInboxPwa({ portal = null } = {}) {
     const messages = cascadeDeliveryStatuses(
       uniqueMessages(selectedConversation?.messages || []).filter((message) => !isHiddenAiReplyDraftMessage(message))
     );
+    // Which of our WhatsApp numbers each message went through — "" unless the thread spans two.
+    const numberLabelFor = isWhatsappChannel(selectedConversation?.channel || selectedConversation?.source)
+      ? whatsappNumberLabeler(messages, selectedConversation?.whatsapp_numbers)
+      : () => "";
     // A reaction is a row of its own in the log, but it belongs ON the message it
     // targets. Without this fold the phone drew a customer's ❤️ as a standalone
     // bubble at the bottom of the thread. Same fold as AiInbox.jsx: the latest
@@ -5872,10 +5878,11 @@ export default function AiInboxPwa({ portal = null } = {}) {
         if (!isCustomer && !isAi && !isStaff && !hasProductCards) return null;
         const rowKey = messageKey(normalizedMessage);
         const cached = previousRows.get(rowKey);
+        const numberLabel = numberLabelFor(normalizedMessage);
         // A new reaction leaves its target message untouched, so the cached row
         // must also be keyed on the reactions it carries.
         const reactionsSignature = reactions.map((reaction) => `${messageKey(reaction)}:${clean(reaction.message_text || reaction.customer_message || reaction.staff_message)}`).join("|");
-        if (cached && cached.source === normalizedMessage && cached.reactionsSignature === reactionsSignature && cached.row.conversationMetadata === conversationMetadata) {
+        if (cached && cached.source === normalizedMessage && cached.reactionsSignature === reactionsSignature && cached.row.conversationMetadata === conversationMetadata && cached.row.numberLabel === numberLabel) {
           nextRows.set(rowKey, cached);
           return cached.row;
         }
@@ -5894,6 +5901,7 @@ export default function AiInboxPwa({ portal = null } = {}) {
           created_at: normalizedMessage.created_at,
           dayKey: transcriptDayKey(normalizedMessage.created_at),
           conversationMetadata,
+          numberLabel,
         };
         nextRows.set(rowKey, { source: normalizedMessage, reactionsSignature, row });
         return row;
@@ -5901,7 +5909,14 @@ export default function AiInboxPwa({ portal = null } = {}) {
       .filter(Boolean);
     transcriptRowCacheRef.current = nextRows;
     return rows;
-  }, [selectedConversation?.messages, selectedConversation?.channel_metadata, selectedConversation?.metadata]);
+  }, [selectedConversation?.messages, selectedConversation?.channel_metadata, selectedConversation?.metadata, selectedConversation?.channel, selectedConversation?.source, selectedConversation?.whatsapp_numbers]);
+
+  // WhatsApp: the number a hand reply leaves from, resolved the way the server resolves it (the
+  // customer's newest message decides). Shown read-only above the composer.
+  const replyFromLabel = useMemo(() => {
+    if (!selectedConversation || !isWhatsappChannel(selectedConversation.channel || selectedConversation.source)) return "";
+    return whatsappNumberLabel(whatsappReplyInstance(selectedConversation), selectedConversation.whatsapp_numbers) || t("aiSupport.inbox.number.replyFromDefault");
+  }, [selectedConversation, t]);
 
   useEffect(() => {
     const draftText = clean(activeAiReplyDraft?.text || "");
@@ -6271,6 +6286,9 @@ export default function AiInboxPwa({ portal = null } = {}) {
           next_messages_before: payload.next_before || mergedMessages[0]?.created_at || "",
           next_messages_before_id: payload.next_before_id || mergedMessages[0]?.id || "",
           conversationHydrated: true,
+          // WhatsApp: our numbers' labels and the number a hand reply leaves from.
+          ...(payload.whatsapp_numbers ? { whatsapp_numbers: payload.whatsapp_numbers } : {}),
+          ...(typeof payload.reply_whatsapp_instance === "string" ? { reply_whatsapp_instance: payload.reply_whatsapp_instance } : {}),
           // Only the newest page answers "is this thread current?". A mark that arrived while the
           // request was in flight is newer than this stamp, so it still triggers a refetch.
           ...(shouldHydrateFullPage ? { thread_hydrated_at: requestStartedAt } : {}),
@@ -9147,6 +9165,12 @@ export default function AiInboxPwa({ portal = null } = {}) {
                 className="hidden"
                 aria-hidden="true"
               />
+              {replyFromLabel && composerMode !== "note" ? (
+                <div data-ai-inbox-reply-from="true" className={`flex min-w-0 items-center gap-1 px-2 pb-0.5 text-[11px] font-bold leading-4 ${isDarkTheme ? "text-slate-400" : "text-slate-500"}`}>
+                  <Smartphone className="h-3 w-3 shrink-0" />
+                  <span className="truncate">{t("aiSupport.inbox.number.replyFrom", { label: replyFromLabel })}</span>
+                </div>
+              ) : null}
               {/* sendTone: the warning colour belongs to an AI DRAFT under review.
                   With no draft the confidence engine scores 0 and reads "high risk",
                   so every send button in the app wore the amber warning colour. */}

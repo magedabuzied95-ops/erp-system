@@ -319,6 +319,7 @@ const sendChain = async ({ ctx, nodes, sessionId, waitAll = false }) => {
         node,
         vars: ctx.vars,
         messageId: outcome.message_id,
+        flowName: ctx.flowName,
       });
       if (node.data?.notify_team === true) {
         void notifyTeam({ tenantId: ctx.tenantId, conversationKey: ctx.conversationKey, flowName: ctx.flowName, nodeLabel: node.data?.label || node.type, customerName: ctx.vars?.name });

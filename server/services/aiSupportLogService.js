@@ -2573,12 +2573,16 @@ export const appendWhatsappOutboundSupportReply = async ({
   visualAttachments = [],
   suggestedActions = [],
   staffMessage = "",
+  // The name behind an automated row, when it has one: a chatbot reply carries its flow's name
+  // here so the inbox can say which flow wrote it. Not a staff user (staff_user_id stays NULL).
+  staffUserName = "",
 } = {}) => persistOutboundTranscriptRow({
   tenantId,
   sessionId,
   message,
   messageType,
   senderType,
+  staffUserName,
   manualMessage: false,
   source,
   channel,

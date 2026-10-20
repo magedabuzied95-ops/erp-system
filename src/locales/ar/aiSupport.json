@@ -2025,6 +2025,20 @@
         "waChatbotFlows": "مسارات الشات بوت",
         "waApiGuide": "دليل الـ API"
       }
+    },
+    "author": {
+      "chatbot": "شات بوت",
+      "chatbotFlow": "شات بوت: {{flow}}",
+      "autoReply": "رد تلقائي",
+      "ai": "AI",
+      "staff": "موظف",
+      "staffNamed": "موظف: {{name}}",
+      "system": "السيستم"
+    },
+    "number": {
+      "replyFrom": "هترد من: {{label}}",
+      "replyFromDefault": "الرقم الافتراضي",
+      "chipTitle": "رقمنا اللي الرسالة عدت عليه"
     }
   },
   "integrations": {

@@ -568,6 +568,51 @@ export const resolveWhatsappConversationInstance = async ({ tenantId, conversati
   return text(message.rows[0]?.whatsapp_instance);
 };
 
+/*
+ * Our WhatsApp numbers, keyed the way message rows store them in whatsapp_instance:
+ * "cloud:<phone_number_id>" for an official Cloud number (its verified name and display number),
+ * the bare instance name for an Evolution line (its channel_accounts display name). The inbox
+ * transcript uses it to say which number each message went through and which one a reply will
+ * leave from. One small lookup per tenant, cached briefly; a missing table just yields {}.
+ */
+const WHATSAPP_NUMBER_LABELS_TTL_MS = 60 * 1000;
+const whatsappNumberLabelsCache = new Map();
+export const loadWhatsappNumberLabels = async ({ tenantId } = {}) => {
+  const safeTenantId = Number(tenantId);
+  if (!Number.isInteger(safeTenantId) || safeTenantId <= 0) return {};
+  const cached = whatsappNumberLabelsCache.get(safeTenantId);
+  if (cached && Date.now() - cached.at < WHATSAPP_NUMBER_LABELS_TTL_MS) return cached.labels;
+  const labels = {};
+  const evolution = await db.query(
+    `SELECT external_account_id, display_name FROM channel_accounts WHERE tenant_id = $1 AND platform = 'whatsapp'`,
+    [safeTenantId]
+  ).catch(() => ({ rows: [] }));
+  for (const row of evolution.rows) {
+    const key = text(row.external_account_id);
+    const label = text(row.display_name);
+    if (key && label && key !== label) labels[key] = label;
+  }
+  const cloud = await db.query(
+    `
+    SELECT phone_number_id, display_phone_number, verified_name
+    FROM whatsapp_cloud_integrations
+    WHERE tenant_id = $1 AND COALESCE(phone_number_id, '') <> ''
+    ORDER BY updated_at DESC NULLS LAST, id DESC
+    `,
+    [safeTenantId]
+  ).catch(() => ({ rows: [] }));
+  for (const row of cloud.rows) {
+    const key = `cloud:${text(row.phone_number_id)}`;
+    if (labels[key]) continue;
+    const name = text(row.verified_name);
+    const phone = text(row.display_phone_number);
+    const label = name && phone ? `${name} · ${phone}` : name || phone;
+    if (label) labels[key] = label;
+  }
+  whatsappNumberLabelsCache.set(safeTenantId, { at: Date.now(), labels });
+  return labels;
+};
+
 export const syncEvolutionConversationMessagesToAiInbox = async ({ tenantId, conversationId, limit = 50 } = {}) => {
   const safeTenantId = Number(tenantId);
   const sessionId = normalizeWhatsappSessionId(conversationId);

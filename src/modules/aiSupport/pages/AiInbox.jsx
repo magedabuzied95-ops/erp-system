@@ -57,6 +57,7 @@ import {
   ShieldBan,
   ShoppingBag,
   ShoppingCart,
+  Smartphone,
   Snowflake,
   Sparkles,
   Tag,
@@ -158,6 +159,7 @@ import inboxCache from "../services/inboxCache/inboxCache";
 import { loadCustomerProductCatalogWarm } from "../services/customerProductCatalog";
 import { WEAK_CONVERSATION_CHANNELS, backendChannelFilter, channelFromConversationSessionId, channelWindow, channelsForFilter, conversationAccountKey, mergeConversationPages } from "../services/inboxChannels";
 import { findDeepLinkedConversation, normalizeInboxDeepLinkChannel } from "../services/inboxDeepLink.js";
+import { whatsappNumberLabel, whatsappNumberLabeler, whatsappReplyInstance } from "../services/messageAuthor.js";
 import "./AiInboxDesktop.css";
 import { QuickRepliesPicker, useQuickReplies } from "../components/QuickReplies.jsx";
 import ConversationTeamTools, { useInboxStaff, useMessageSequences } from "../components/ConversationTeamTools.jsx";
@@ -3013,6 +3015,11 @@ function ManualReplyComposer({
   // A note never touches the channel, so channel availability is irrelevant to
   // it — an operator can record one on a conversation they cannot reply to.
   const noteMode = composerMode === "note" && !isCommentConversation;
+  // WhatsApp: the number this reply will leave from, resolved the way the server resolves it
+  // (the customer's newest message decides). Read-only.
+  const replyFromLabel = !isCommentConversation && isWhatsappChannel(conversation?.channel || conversation?.source)
+    ? whatsappNumberLabel(whatsappReplyInstance(conversation), conversation?.whatsapp_numbers) || t("aiSupport.inbox.number.replyFromDefault")
+    : "";
   /*
    * Copy a photo, click the composer, Ctrl+V. Until now that did nothing at all:
    * the only way in was the file picker, so an operator with an image on the
@@ -3222,6 +3229,12 @@ function ManualReplyComposer({
           ))}
         </div>
       )}
+      {replyFromLabel && !noteMode ? (
+        <div data-ai-inbox-reply-from="true" className="mb-1 flex min-w-0 items-center gap-1 px-1 text-[11px] font-bold leading-4 text-slate-500 dark:text-slate-400">
+          <Smartphone className="h-3 w-3 shrink-0" />
+          <span className="truncate">{t("aiSupport.inbox.number.replyFrom", { label: replyFromLabel })}</span>
+        </div>
+      ) : null}
       <div
         dir="ltr"
         data-ai-inbox-composer-shell="true"
@@ -6840,6 +6853,10 @@ export default function AiInbox({ reviewerMode = false }) {
         .filter((message) => !isHiddenAiReplyTranscriptMessage(message))
         .map((message) => normalizeTranscriptMessage(message))
     );
+    // Which of our WhatsApp numbers each message went through — "" unless the thread spans two.
+    const numberLabelFor = isWhatsappChannel(selectedConversation?.channel || selectedConversation?.source)
+      ? whatsappNumberLabeler(messages, selectedConversation?.whatsapp_numbers)
+      : () => "";
     const reactionsByTarget = new Map();
     messages.forEach((message) => {
       if (clean(message.message_type).toLowerCase() !== "reaction") return;
@@ -6899,6 +6916,7 @@ export default function AiInbox({ reviewerMode = false }) {
           visible: true,
           createdAt: absoluteTime(normalizedMessage.created_at),
           channelLabel: channelLabel(normalizedMessage.channel || selectedConversation?.channel),
+          numberLabel: numberLabelFor(normalizedMessage),
           postUrl: commentConversationPostUrl(selectedConversation || normalizedMessage),
           conversationMetadata: selectedConversation?.channel_metadata || selectedConversation?.metadata || {},
           mediaUrls: [
@@ -6912,7 +6930,7 @@ export default function AiInbox({ reviewerMode = false }) {
         };
       })
       .filter(Boolean);
-  }, [selectedConversation?.channel, selectedConversation?.messages]);
+  }, [selectedConversation?.channel, selectedConversation?.source, selectedConversation?.messages, selectedConversation?.whatsapp_numbers]);
   const selectedTranscriptEvents = useMemo(() => asArray(selectedConversation?.system_events), [selectedConversation?.system_events]);
   const lastCustomerMessage = useMemo(
     () => latestCustomerText(selectedConversation?.messages),
@@ -7291,6 +7309,9 @@ export default function AiInbox({ reviewerMode = false }) {
           next_messages_before: payload.next_before || mergedMessages[0]?.created_at || "",
           next_messages_before_id: payload.next_before_id || mergedMessages[0]?.id || "",
           conversationHydrated: true,
+          // WhatsApp: our numbers' labels and the number a hand reply leaves from.
+          ...(payload.whatsapp_numbers ? { whatsapp_numbers: payload.whatsapp_numbers } : {}),
+          ...(typeof payload.reply_whatsapp_instance === "string" ? { reply_whatsapp_instance: payload.reply_whatsapp_instance } : {}),
           // Only the newest page answers "is this thread current?". A mark that arrived while the
           // request was in flight is newer than this stamp, so it still triggers a refetch.
           ...(shouldHydrateFullPage ? { thread_hydrated_at: requestStartedAt } : {}),

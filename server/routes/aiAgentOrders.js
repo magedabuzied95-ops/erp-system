@@ -199,7 +199,7 @@ import { loadAiReplyTraces } from "../services/aiReplyTraceService.js";
 import { buildReplyHarness, getLastReplyHarnessDebug } from "../services/aiReplyHarnessService.js";
 import { normalizeArabicForIntent, normalizeArabicIntentPayload, normalizeArabicMessage } from "../utils/arabicTextNormalizer.js";
 import { sendWhatsappVoiceNote } from "../services/whatsappCapabilitiesService.js";
-import { WHATSAPP_EDIT_WINDOW_MS, editWhatsappTextMessage, getStatus as getWhatsappGatewayStatus, resolveWhatsappConversationInstance, sendImageMessage, sendWhatsappMediaMessage, sendWhatsappReaction, syncEvolutionChatsToAiInbox, syncEvolutionConversationMessagesToAiInbox, syncWhatsappCustomerProfilePictures, refreshWhatsappConversationAvatar } from "../services/whatsappGatewayService.js";
+import { WHATSAPP_EDIT_WINDOW_MS, editWhatsappTextMessage, getStatus as getWhatsappGatewayStatus, loadWhatsappNumberLabels, resolveWhatsappConversationInstance, sendImageMessage, sendWhatsappMediaMessage, sendWhatsappReaction, syncEvolutionChatsToAiInbox, syncEvolutionConversationMessagesToAiInbox, syncWhatsappCustomerProfilePictures, refreshWhatsappConversationAvatar } from "../services/whatsappGatewayService.js";
 import { autoRegisterWhatsappCustomer } from "../services/whatsappCustomerAutoRegistrationService.js";
 import { dispatchWhatsappCloudWebhookEvents } from "../services/whatsappApiAccessService.js";
 import { recordWhatsappOrders } from "../services/whatsappCatalogService.js";
@@ -3369,7 +3369,16 @@ router.get("/conversations/:conversationId/messages", protect, inboxView(), asyn
       before: req.query?.before || "",
       beforeId: req.query?.before_id || req.query?.beforeId || "",
     });
-    return res.json({ success: true, conversation_id: conversationId, ...payload });
+    // WhatsApp: the labels of our numbers (for the per-message number chip) and the number a
+    // hand reply will leave from, resolved exactly as the manual send resolves it ("" = the
+    // environment default).
+    const whatsappContext = String(conversationId).toLowerCase().startsWith("whatsapp:")
+      ? await Promise.all([
+        loadWhatsappNumberLabels({ tenantId }).catch(() => ({})),
+        resolveWhatsappConversationInstance({ tenantId, conversationId }).catch(() => ""),
+      ]).then(([labels, instance]) => ({ whatsapp_numbers: labels || {}, reply_whatsapp_instance: envText(instance) }))
+      : {};
+    return res.json({ success: true, conversation_id: conversationId, ...payload, ...whatsappContext });
   } catch (error) {
     return sendError(res, error, "Failed to load AI inbox messages");
   }
