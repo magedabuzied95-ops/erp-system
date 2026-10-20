@@ -538,17 +538,29 @@ const GENERIC_MODEL_WORDS = new Set(["air", "new", "nike", "adidas", "puma", "fo
  * word in the message (a generic «عايز كوتشي») → the cards stay as they were; nothing would remain
  * → they stay too.
  */
+const tellingWords = (message = "") => new Set(
+  expandSearchAliasTerms(message)
+    .flatMap((term) => String(term).toLowerCase().split(/[^a-z]+/))
+    .filter((word) => word.length >= 3 && !GENERIC_MODEL_WORDS.has(word))
+);
+// «جوردن 4» is not «Jordan 1», «530» is not «9060»: a model number the customer gave must be in the name.
+const modelNumbers = (message = "") => new Set(
+  (text(message).replace(/[٠-٩]/g, (digit) => String("٠١٢٣٤٥٦٧٨٩".indexOf(digit))).match(/[0-9]{1,4}/g) || [])
+    // Sizes (36–48) are not model numbers.
+    .filter((number) => !(Number(number) >= 35 && Number(number) <= 48))
+);
+const namesAny = (card = {}, words = new Set(), numbers = new Set()) => {
+  const name = text(card.title || card.name || card.product_name).toLowerCase();
+  if (![...words].some((word) => name.includes(word))) return false;
+  if (!numbers.size) return true;
+  const nameNumbers = new Set(name.match(/[0-9]{1,4}/g) || []);
+  return [...numbers].some((number) => nameNumbers.has(number));
+};
 export const cardsNamingTheModel = (cards = [], message = "") => {
-  const words = new Set(
-    expandSearchAliasTerms(message)
-      .flatMap((term) => String(term).toLowerCase().split(/[^a-z]+/))
-      .filter((word) => word.length >= 3 && !GENERIC_MODEL_WORDS.has(word))
-  );
+  const words = tellingWords(message);
   if (!words.size || !asArray(cards).length) return cards;
-  const kept = cards.filter((card) => {
-    const name = text(card.title || card.name || card.product_name).toLowerCase();
-    return [...words].some((word) => name.includes(word));
-  });
+  const numbers = modelNumbers(message);
+  const kept = cards.filter((card) => namesAny(card, words, numbers));
   return kept.length ? kept : cards;
 };
 // The customer asked for one grade by name — then only that grade is shown.
@@ -757,10 +769,16 @@ export const runClaudeSalesAgent = async ({
             const baseOf = (card) => text(safeProductFacts(card).name).toLowerCase().split(" - ")[0].replace(/\s+/g, " ").trim();
             const shownGrades = new Set(picked.map(gradeOf).filter(Boolean));
             const bases = new Set(picked.map(baseOf).filter(Boolean));
+            // Same model: the word the customer named («jordan», «balance») — the catalog spells one
+            // model «Air Jordan 4 Sneakers for Men» in one grade and «Jordan 4» in another. Without
+            // such a word, the name before " - <colour>" has to match.
+            const words = tellingWords(customerMessage);
+            const numbers = modelNumbers(customerMessage);
+            const sameModel = (card) => (words.size ? namesAny(card, words, numbers) && picked.some((shown) => namesAny(shown, words, numbers)) : bases.has(baseOf(card)));
             const perGrade = new Map();
             for (const card of cardPool.values()) {
               const grade = gradeOf(card);
-              if (!grade || shownGrades.has(grade) || picked.includes(card) || !bases.has(baseOf(card))) continue;
+              if (!grade || shownGrades.has(grade) || picked.includes(card) || !sameModel(card)) continue;
               if ((perGrade.get(grade) || 0) >= 3) continue;
               perGrade.set(grade, (perGrade.get(grade) || 0) + 1);
               picked.push(card);
