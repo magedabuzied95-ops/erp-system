@@ -22,7 +22,7 @@ import "./AiMarketing.m1.css";
 
 const NotificationBell = lazy(() => import("../notifications/NotificationBell.jsx"));
 const SIDEBAR_GROUPS_STORAGE_KEY = "erp.sidebar.openGroups.v2";
-const SIDEBAR_COLLAPSED_STORAGE_KEY = "erp.sidebar.collapsed";
+const SIDEBAR_AUTO_HIDE_STORAGE_KEY = "erp.sidebar.autoHide";
 
 const ENTERPRISE_GROUPS = [
   "Main",
@@ -317,15 +317,13 @@ const buildEnterpriseSidebarGroups = (sections) => {
   return groups.filter((group) => group.items.length > 0);
 };
 
-function SidebarNavItem({ item, location, collapsed = false, onNavigate }) {
+function SidebarNavItem({ item, location, onNavigate }) {
   const { t } = useTranslation();
   const Icon = item.icon;
   const active = sidebarItemActive(item, location);
   const displayLabel = item.sidebarLabelKey ? t(item.sidebarLabelKey) : item.label;
   const className = [
-    "group/nav relative flex min-h-9 items-center rounded-xl border text-sm font-semibold transition duration-200",
-    collapsed ? "m1-sidebar-nav-item--compact" : "",
-    collapsed ? "justify-center px-2 py-2" : "gap-2.5 px-3 py-2",
+    "group/nav relative flex min-h-9 items-center gap-2.5 rounded-xl border px-3 py-2 text-sm font-semibold transition duration-200",
     active
       ? "border-[var(--primary)]/45 bg-[var(--primary-soft)] text-[var(--primary)] shadow-sm"
       : "border-transparent text-[var(--muted)] hover:border-[var(--border)] hover:bg-[var(--card)] hover:text-[var(--text)]",
@@ -337,14 +335,13 @@ function SidebarNavItem({ item, location, collapsed = false, onNavigate }) {
         href={item.to}
         target="_blank"
         rel="noreferrer"
-        title={collapsed ? displayLabel : undefined}
         aria-label={displayLabel}
         onClick={onNavigate}
         className={className}
       >
         {Icon ? <Icon className="h-4 w-4 shrink-0" /> : null}
-        {collapsed ? null : <span className="min-w-0 flex-1 truncate text-start">{displayLabel}</span>}
-        <span className={collapsed ? "absolute end-1 top-1" : "ms-auto flex items-center gap-1.5"}>
+        <span className="min-w-0 flex-1 truncate text-start">{displayLabel}</span>
+        <span className="ms-auto flex items-center gap-1.5">
           <SidebarNotificationBadge item={item} />
           <SidebarPulseIndicator item={item} />
         </span>
@@ -356,14 +353,13 @@ function SidebarNavItem({ item, location, collapsed = false, onNavigate }) {
       key={item.to}
       to={item.to}
       aria-current={active ? "page" : "false"}
-      title={collapsed ? displayLabel : undefined}
       aria-label={displayLabel}
       onClick={onNavigate}
       className={className}
     >
       {Icon ? <Icon className="h-4 w-4 shrink-0" /> : null}
-      {collapsed ? null : <span className="min-w-0 flex-1 truncate text-start">{displayLabel}</span>}
-      <span className={collapsed ? "absolute end-1 top-1" : "ms-auto flex items-center gap-1.5"}>
+      <span className="min-w-0 flex-1 truncate text-start">{displayLabel}</span>
+      <span className="ms-auto flex items-center gap-1.5">
         <SidebarNotificationBadge item={item} />
         <SidebarPulseIndicator item={item} />
       </span>
@@ -493,7 +489,12 @@ function MainLayout() {
   usePageTitle(resolveErpRoutePageTitle(location.pathname));
   const [user, setUser] = useState(() => getCurrentUser() || { name: "Admin", role: "Admin", permissions: ["*"] });
   const [mobileDrawerOpen, setMobileDrawerOpen] = useState(false);
-  const [sidebarCollapsed, setSidebarCollapsed] = useState(() => Boolean(readSidebarJson(SIDEBAR_COLLAPSED_STORAGE_KEY, false)));
+  // Desktop only: the sidebar folds into a thin edge strip and slides over the
+  // page while the pointer rests on it. Pinning brings back the fixed column.
+  const [sidebarAutoHide, setSidebarAutoHide] = useState(() => Boolean(readSidebarJson(SIDEBAR_AUTO_HIDE_STORAGE_KEY, true)));
+  const [sidebarPeek, setSidebarPeek] = useState(false);
+  const sidebarPeekTimerRef = useRef(0);
+  const sidebarRef = useRef(null);
   const [openGroups, setOpenGroups] = useState(() => readSidebarJson(SIDEBAR_GROUPS_STORAGE_KEY, {}));
   const [sidebarSearch, setSidebarSearch] = useState("");
   const sidebarSearchInputRef = useRef(null);
@@ -574,29 +575,34 @@ function MainLayout() {
       }))
       .filter((group) => group.items.length > 0);
   }, [groupedSections, searchQuery]);
-  const compactSidebarItems = useMemo(() => {
-    const seen = new Set();
-    return visibleGroupedSections
-      .flatMap((group) => group.items)
-      .filter((item) => {
-        const key = String(item?.to || item?.label || "");
-        if (!key || seen.has(key)) return false;
-        seen.add(key);
-        return true;
-      });
-  }, [visibleGroupedSections]);
-  const sidebarCompact = sidebarCollapsed && !mobileDrawerOpen;
-  const CollapseIcon = isRtl
-    ? sidebarCollapsed ? PanelRightOpen : PanelRightClose
-    : sidebarCollapsed ? PanelLeftOpen : PanelLeftClose;
+  const sidebarHidden = sidebarAutoHide && !sidebarPeek;
+  const PinIcon = isRtl
+    ? sidebarAutoHide ? PanelRightOpen : PanelRightClose
+    : sidebarAutoHide ? PanelLeftOpen : PanelLeftClose;
 
   useEffect(() => {
-    writeSidebarJson(SIDEBAR_COLLAPSED_STORAGE_KEY, sidebarCollapsed);
-  }, [sidebarCollapsed]);
+    writeSidebarJson(SIDEBAR_AUTO_HIDE_STORAGE_KEY, sidebarAutoHide);
+  }, [sidebarAutoHide]);
 
-  const openSidebarSearch = () => {
-    setSidebarCollapsed(false);
-    window.requestAnimationFrame(() => sidebarSearchInputRef.current?.focus());
+  useEffect(() => () => window.clearTimeout(sidebarPeekTimerRef.current), []);
+
+  const scheduleSidebarPeek = (open, delay) => {
+    window.clearTimeout(sidebarPeekTimerRef.current);
+    sidebarPeekTimerRef.current = window.setTimeout(() => setSidebarPeek(open), delay);
+  };
+
+  const closeSidebarPeek = () => {
+    if (!sidebarAutoHide) return;
+    // Typing in the module search must not fold the panel away under the cursor.
+    const focused = typeof document !== "undefined" ? document.activeElement : null;
+    if (focused && focused === sidebarSearchInputRef.current) return;
+    scheduleSidebarPeek(false, 280);
+  };
+
+  const toggleSidebarAutoHide = () => {
+    window.clearTimeout(sidebarPeekTimerRef.current);
+    setSidebarPeek(false);
+    setSidebarAutoHide((value) => !value);
   };
 
   useEffect(() => {
@@ -612,6 +618,7 @@ function MainLayout() {
     const handleKeyDown = (event) => {
       if (event.key === "Escape") {
         setMobileDrawerOpen(false);
+        setSidebarPeek(false);
         return;
       }
       if (event.defaultPrevented || !event.altKey || event.ctrlKey || event.metaKey || event.shiftKey) return;
@@ -673,12 +680,9 @@ function MainLayout() {
       dir={dir}
       className={[
         "m1-shell-root min-h-screen w-full max-w-none overflow-x-hidden bg-[var(--bg)] text-[var(--text)] transition-all duration-300",
-        sidebarCompact ? "m1-shell-root--sidebar-compact" : "",
+        sidebarAutoHide ? "m1-shell-root--sidebar-autohide" : "",
         isAiMarketingWorkspace ? "m1-ai-marketing-scope" : "",
         "lg:grid",
-        sidebarCollapsed
-          ? "lg:grid-cols-[clamp(80px,5vw,96px)_minmax(0,1fr)]"
-          : "lg:grid-cols-[clamp(260px,18vw,340px)_minmax(0,1fr)]",
       ].join(" ")}
     >
       {mobileDrawerOpen ? (
@@ -690,11 +694,34 @@ function MainLayout() {
         />
       ) : null}
 
+      {sidebarAutoHide ? (
+        <button
+          type="button"
+          data-sidebar-edge-strip="true"
+          onMouseEnter={() => scheduleSidebarPeek(true, 120)}
+          onMouseLeave={closeSidebarPeek}
+          onClick={() => scheduleSidebarPeek(true, 0)}
+          aria-label={t("sidebar.reveal")}
+          title={t("sidebar.reveal")}
+          className="m1-shell-sidebar-strip group/strip sticky top-0 hidden h-screen w-full place-items-center border-[var(--border)] bg-[var(--sidebar)] text-[var(--muted)] transition-colors hover:text-[var(--primary)] lg:grid border-e"
+        >
+          <span className="h-14 w-1 rounded-full bg-current opacity-50 transition-opacity group-hover/strip:opacity-100" aria-hidden="true" />
+        </button>
+      ) : null}
+
       <aside
+        ref={sidebarRef}
+        onMouseEnter={sidebarAutoHide ? () => scheduleSidebarPeek(true, 0) : undefined}
+        onMouseLeave={sidebarAutoHide ? closeSidebarPeek : undefined}
+        onFocus={sidebarAutoHide ? () => scheduleSidebarPeek(true, 0) : undefined}
+        onBlur={sidebarAutoHide ? (event) => {
+          if (!sidebarRef.current?.contains(event.relatedTarget) && !sidebarRef.current?.matches(":hover")) scheduleSidebarPeek(false, 0);
+        } : undefined}
         className={[
-          "m1-shell-sidebar sidebar-scroll fixed bottom-0 top-0 z-50 flex w-[min(85vw,340px)] flex-col overflow-hidden bg-[var(--surface)] shadow-2xl transition-all duration-300 lg:sticky lg:top-0 lg:z-30 lg:h-screen lg:w-full lg:translate-x-0",
-          sidebarCompact ? "m1-shell-sidebar--compact" : "",
-          sidebarCollapsed ? "p-3 lg:p-3" : "p-4 lg:p-4",
+          "m1-shell-sidebar sidebar-scroll fixed bottom-0 top-0 z-50 flex w-[min(85vw,340px)] flex-col overflow-hidden bg-[var(--surface)] p-4 shadow-2xl transition-all duration-300",
+          sidebarAutoHide
+            ? ["m1-shell-sidebar--autohide lg:fixed lg:z-50 lg:h-screen", sidebarHidden ? (isRtl ? "lg:translate-x-full" : "lg:-translate-x-full") : "m1-shell-sidebar--peek lg:translate-x-0"].join(" ")
+            : "lg:sticky lg:top-0 lg:z-30 lg:h-screen lg:w-full lg:translate-x-0",
           mobileDrawerOpen ? "translate-x-0" : isRtl ? "translate-x-full" : "-translate-x-full",
           isRtl
             ? "left-auto right-0 border-l border-[var(--border)]"
@@ -720,70 +747,44 @@ function MainLayout() {
         </div>
 
         <div className="flex min-h-0 flex-1 flex-col">
-          <div className={["mb-3 rounded-2xl border border-[var(--border)] bg-[var(--card)] shadow-sm", sidebarCompact ? "hidden p-2 lg:block" : "p-3"].join(" ")}>
-            <div className={["flex items-center gap-2", sidebarCompact ? "flex-col justify-center" : "justify-between"].join(" ")}>
-              <div className={["flex min-w-0 items-center gap-3", sidebarCompact ? "justify-center" : ""].join(" ")}>
+          <div className="mb-3 rounded-2xl border border-[var(--border)] bg-[var(--card)] p-3 shadow-sm">
+            <div className="flex items-center justify-between gap-2">
+              <div className="flex min-w-0 items-center gap-3">
                 <WorkspaceBrandMark name={workspaceName} logoUrl={workspaceLogoUrl} className="h-11 w-11 rounded-2xl bg-[var(--surface-soft)]" />
-                {sidebarCompact ? null : <div className="min-w-0">
-                  <h1 className={["truncate font-black tracking-tight text-[var(--text)]", sidebarCompact ? "text-center text-lg" : "text-2xl"].join(" ")}>{workspaceName}</h1>
-                  {sidebarCompact ? null : <p className="mt-0.5 truncate text-xs text-[var(--muted)]">{t("sidebar.workspace")}</p>}
-                </div>}
+                <div className="min-w-0">
+                  <h1 className="truncate text-2xl font-black tracking-tight text-[var(--text)]">{workspaceName}</h1>
+                  <p className="mt-0.5 truncate text-xs text-[var(--muted)]">{t("sidebar.workspace")}</p>
+                </div>
               </div>
               <button
                 type="button"
-                onClick={() => setSidebarCollapsed((value) => !value)}
+                onClick={toggleSidebarAutoHide}
+                aria-pressed={!sidebarAutoHide}
                 className="hidden h-[var(--control-height-sm)] w-8 shrink-0 place-items-center rounded-[var(--radius-control)] border border-[var(--border)] text-[var(--muted)] transition hover:bg-[var(--surface-soft)] hover:text-[var(--text)] lg:grid"
-                title={sidebarCollapsed ? t("sidebar.expand") : t("sidebar.collapse")}
-                aria-label={sidebarCollapsed ? t("sidebar.expand") : t("sidebar.collapse")}
+                title={sidebarAutoHide ? t("sidebar.pin") : t("sidebar.autoHide")}
+                aria-label={sidebarAutoHide ? t("sidebar.pin") : t("sidebar.autoHide")}
               >
-                <CollapseIcon className="h-4 w-4" />
+                <PinIcon className="h-4 w-4" />
               </button>
             </div>
           </div>
 
-          <div className={sidebarCompact ? "hidden lg:block" : ""}>
-            {sidebarCompact ? (
-              <button
-                type="button"
-                onClick={openSidebarSearch}
-                title={t("sidebar.searchModules")}
-                aria-label={t("sidebar.searchModules")}
-                className="mb-3 grid h-[var(--control-height-lg)] w-full place-items-center rounded-[var(--radius-control)] border border-[var(--border)] bg-[var(--card)] text-[var(--muted)] transition hover:border-[var(--primary)] hover:bg-[var(--surface-soft)] hover:text-[var(--text)]"
-              >
-                <Search className="h-5 w-5" />
-              </button>
-            ) : <label className="relative mb-3 block">
-              <Search className="pointer-events-none absolute start-3 top-1/2 h-4 w-4 -translate-y-1/2 text-[var(--muted)]" />
-              <input
-                ref={sidebarSearchInputRef}
-                value={sidebarSearch}
-                onChange={(event) => setSidebarSearch(event.target.value)}
-                placeholder={t("sidebar.searchModules")}
-                className="h-[var(--control-height-md)] w-full rounded-[var(--radius-control)] border border-[var(--border)] bg-[var(--card)] ps-9 pe-3 text-sm font-semibold text-[var(--text)] outline-none transition placeholder:text-[var(--muted)] focus:border-[var(--primary)] focus:bg-[var(--surface-soft)]"
-              />
-            </label>}
-          </div>
+          <label className="relative mb-3 block">
+            <Search className="pointer-events-none absolute start-3 top-1/2 h-4 w-4 -translate-y-1/2 text-[var(--muted)]" />
+            <input
+              ref={sidebarSearchInputRef}
+              value={sidebarSearch}
+              onChange={(event) => setSidebarSearch(event.target.value)}
+              placeholder={t("sidebar.searchModules")}
+              className="h-[var(--control-height-md)] w-full rounded-[var(--radius-control)] border border-[var(--border)] bg-[var(--card)] ps-9 pe-3 text-sm font-semibold text-[var(--text)] outline-none transition placeholder:text-[var(--muted)] focus:border-[var(--primary)] focus:bg-[var(--surface-soft)]"
+            />
+          </label>
 
           <nav
-            className={[
-              "min-h-0 flex-1 overflow-y-auto",
-              sidebarCompact ? "m1-shell-sidebar__compact-nav space-y-1" : "space-y-1.5 pe-1",
-            ].join(" ")}
+            className="min-h-0 flex-1 space-y-1.5 overflow-y-auto pe-1"
             aria-label={t("common.mainNavigation", "التنقل الرئيسي")}
           >
-            {sidebarCompact ? (
-              <div className="space-y-1 py-0.5">
-                {compactSidebarItems.map((item) => (
-                  <SidebarNavItem
-                    key={item.to}
-                    item={item}
-                    location={location}
-                    collapsed
-                    onNavigate={() => setMobileDrawerOpen(false)}
-                  />
-                ))}
-              </div>
-            ) : visibleGroupedSections.length ? visibleGroupedSections.map((group) => {
+            {visibleGroupedSections.length ? visibleGroupedSections.map((group) => {
               const isOpen = Boolean(searchQuery || openGroups[group.title] || activeGroupTitle === group.title);
               const groupLabel = t(GROUP_TITLE_KEYS[group.title] || group.title, { defaultValue: group.title });
               const activeInGroup = group.items.some((item) => sidebarItemActive(item, location));
@@ -809,20 +810,19 @@ function MainLayout() {
                     onClick={() => setOpenGroups((current) => ({ ...current, [group.title]: !current?.[group.title] }))}
                     className={[
                       "flex w-full items-center rounded-[var(--radius-control)] text-xs font-black uppercase tracking-[0.16em] transition",
-                      sidebarCompact ? "justify-center px-2 py-2" : "gap-2 px-2 py-2",
+                      "gap-2 px-2 py-2",
                       activeInGroup ? "text-[var(--primary)]" : "text-[var(--muted)] hover:bg-[var(--card)] hover:text-[var(--text)]",
                     ].join(" ")}
-                    title={sidebarCompact ? groupLabel : undefined}
                     aria-expanded={isOpen}
                   >
-                    {sidebarCompact ? <span className="h-1.5 w-1.5 rounded-full bg-current" /> : <span className="min-w-0 flex-1 truncate text-start">{groupLabel}</span>}
-                    {sidebarCompact ? null : <ChevronDown className={`h-3.5 w-3.5 transition-transform duration-200 ${isOpen ? "rotate-180" : ""}`} />}
+                    <span className="min-w-0 flex-1 truncate text-start">{groupLabel}</span>
+                    <ChevronDown className={`h-3.5 w-3.5 transition-transform duration-200 ${isOpen ? "rotate-180" : ""}`} />
                   </button>
                   <div className={`grid transition-[grid-template-rows,opacity] duration-200 ease-out ${isOpen ? "grid-rows-[1fr] opacity-100" : "grid-rows-[0fr] opacity-0"}`}>
                     <div className="min-h-0 overflow-hidden">
                       <div className="space-y-1 py-0.5">
                         {rootItems.map((item) => (
-                          <SidebarNavItem key={item.to} item={item} location={location} collapsed={sidebarCompact} onNavigate={() => setMobileDrawerOpen(false)} />
+                          <SidebarNavItem key={item.to} item={item} location={location} onNavigate={() => setMobileDrawerOpen(false)} />
                         ))}
                         {nestedSections.map((nestedSection) => {
                           const nestedKey = `nested:${group.title}:${nestedSection.title}`;
@@ -830,24 +830,23 @@ function MainLayout() {
                           const nestedOpen = Boolean(searchQuery || (openGroups[nestedKey] ?? true));
                           const nestedActive = nestedSection.items.some((item) => sidebarItemActive(item, location));
                           return (
-                            <div key={nestedKey} className={sidebarCompact ? "space-y-1" : "rounded-xl border border-[var(--border)]/70 bg-[var(--card)]/45 p-1"}>
+                            <div key={nestedKey} className="rounded-xl border border-[var(--border)]/70 bg-[var(--card)]/45 p-1">
                               <button
                                 type="button"
                                 onClick={() => setOpenGroups((current) => ({ ...current, [nestedKey]: !nestedOpen }))}
                                 className={[
                                   "flex w-full items-center rounded-[var(--radius-control)] text-[11px] font-black uppercase tracking-[0.14em] transition",
-                                  sidebarCompact ? "justify-center px-2 py-2" : "gap-2 px-2 py-1.5",
+                                  "gap-2 px-2 py-1.5",
                                   nestedActive ? "text-[var(--primary)]" : "text-[var(--muted)] hover:bg-[var(--surface-soft)] hover:text-[var(--text)]",
                                 ].join(" ")}
-                                title={sidebarCompact ? nestedTitle : undefined}
                                 aria-expanded={nestedOpen}
                               >
-                                {sidebarCompact ? <span className="h-1 w-1 rounded-full bg-current" /> : <span className="min-w-0 flex-1 truncate text-start">{nestedTitle}</span>}
-                                {sidebarCompact ? null : <ChevronDown className={`h-3 w-3 transition-transform duration-200 ${nestedOpen ? "rotate-180" : ""}`} />}
+                                <span className="min-w-0 flex-1 truncate text-start">{nestedTitle}</span>
+                                <ChevronDown className={`h-3 w-3 transition-transform duration-200 ${nestedOpen ? "rotate-180" : ""}`} />
                               </button>
                               <div className={`grid transition-[grid-template-rows,opacity] duration-200 ease-out ${nestedOpen ? "grid-rows-[1fr] opacity-100" : "grid-rows-[0fr] opacity-0"}`}>
                                 <div className="min-h-0 overflow-hidden">
-                                  {nestedSection.title === "System Settings" && !sidebarCompact ? (
+                                  {nestedSection.title === "System Settings" ? (
                                     <div className="mx-1 mb-1 rounded-[var(--radius-card)] border border-[var(--border)]/70 bg-[var(--surface)]/70 px-2 py-1.5">
                                       <div className="flex min-w-0 items-center gap-2">
                                         <span className="grid h-7 w-7 shrink-0 place-items-center rounded-lg bg-[var(--primary-soft)] text-[var(--primary)]">
@@ -862,7 +861,7 @@ function MainLayout() {
                                   ) : null}
                                   <div className="space-y-1 py-1">
                                     {nestedSection.items.map((item) => (
-                                      <SidebarNavItem key={item.to} item={item} location={location} collapsed={sidebarCompact} onNavigate={() => setMobileDrawerOpen(false)} />
+                                      <SidebarNavItem key={item.to} item={item} location={location} onNavigate={() => setMobileDrawerOpen(false)} />
                                     ))}
                                   </div>
                                 </div>
@@ -886,20 +885,18 @@ function MainLayout() {
         <div className="mt-2 space-y-2 border-t border-[var(--border)] pt-2">
           <NavLink
             to="/settings/account-security"
-            title={sidebarCompact ? t("access.security.navLink") : undefined}
-            className={["flex w-full items-center justify-center rounded-[var(--radius-control)] border border-[var(--border)] bg-[var(--card)] text-sm font-bold text-[var(--text)]", sidebarCompact ? "h-[var(--control-height-md)] px-2" : "gap-2 px-3 py-2"].join(" ")}
+            className="flex w-full items-center justify-center gap-2 rounded-[var(--radius-control)] border border-[var(--border)] bg-[var(--card)] px-3 py-2 text-sm font-bold text-[var(--text)]"
           >
             <ShieldCheck className="h-4 w-4" />
-            {sidebarCompact ? null : t("access.security.navLink")}
+            {t("access.security.navLink")}
           </NavLink>
           <button
             type="button"
             onClick={handleLogout}
-            title={sidebarCompact ? t("common.logout") : undefined}
-            className={["flex w-full items-center justify-center rounded-[var(--radius-control)] bg-[var(--danger)] text-sm font-black text-white shadow-lg", sidebarCompact ? "h-[var(--control-height-md)] px-2" : "gap-2 px-3 py-2"].join(" ")}
+            className="flex w-full items-center justify-center gap-2 rounded-[var(--radius-control)] bg-[var(--danger)] px-3 py-2 text-sm font-black text-white shadow-lg"
           >
             <LogOut className="h-4 w-4" />
-            {sidebarCompact ? null : t("common.logout")}
+            {t("common.logout")}
           </button>
         </div>
       </aside>
