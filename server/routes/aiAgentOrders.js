@@ -2083,6 +2083,8 @@ export const handleWhatsappCloudWebhookRequest = async (req, res) => {
           visualAttachments: whatsappReply.visual_attachments || [],
           productCards: reply.product_cards || aiPayload.suggested_products || [],
           resolvedPhone: message.external_customer_id,
+          // The number the reply left from, for the inbox's number chip and the next reply's routing.
+          whatsappInstance: metadata?.phone_number_id ? `cloud:${metadata.phone_number_id}` : "",
         }).catch((error) => {
           console.warn("[ai-agent:whatsapp] AI reply persistence failed", { tenantId, conversationId: message.external_conversation_id, message: error?.message });
           return null;
