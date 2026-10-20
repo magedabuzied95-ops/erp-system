@@ -88,3 +88,35 @@ test("prepared cards that don't name the asked model are dropped; a generic requ
   assert.equal(cardsNamingTheModel([c("A"), c("B")], "عايز كوتشي رجالي").length, 2);
   assert.equal(cardsNamingTheModel([c("Puma Suede")], "عندكم جوردن").length, 1, "nothing would remain → unchanged");
 });
+
+test("«فيه نيوبالانس 530 ميرور؟» searches the mirror grade and shows it, even if the model picked another", async () => {
+  const agent = await import("../../server/services/aiClaudeSalesAgentService.js");
+  const { safeProductFacts } = await import("../../server/services/aiUnifiedDecisionService.js");
+  const saved = { enabled: process.env.AI_CLAUDE_AGENT_ENABLED, key: process.env.ANTHROPIC_API_KEY, scope: process.env.AI_SALES_AGENT_SCOPE, provider: process.env.AI_SALES_AGENT_PROVIDER };
+  Object.assign(process.env, { AI_CLAUDE_AGENT_ENABLED: "true", ANTHROPIC_API_KEY: "k", AI_SALES_AGENT_SCOPE: "all", AI_SALES_AGENT_PROVIDER: "anthropic" });
+  const card = (id, color, grade) => ({ product_id: id, id, color, title: `New Balance 530 - ${color}`, grade, price: 800, image_url: `https://x/${id}${color}.jpg` });
+  const queries = [];
+  const searchCards = async (query) => {
+    queries.push(query);
+    return /ميرور/.test(query) ? [card("140", "White & Navy", "mirror_original")] : [card("180", "Navy", "local")];
+  };
+  const replies = [
+    { stop_reason: "tool_use", content: [{ type: "tool_use", id: "s", name: "search_products", input: { query: "New Balance 530" } }], usage: {} },
+    { stop_reason: "tool_use", content: [{ type: "tool_use", id: "p", name: "show_products", input: { product_ids: ["180"] } }], usage: {} },
+    { stop_reason: "end_turn", content: [{ type: "text", text: "أيوه متاح الميرور 👇" }], usage: {} },
+  ];
+  agent.__setAgentClientForTests({ beta: { messages: { create: async () => replies.shift() } } });
+  try {
+    const out = await agent.runClaudeSalesAgent({
+      decision: { intent: "catalog_navigation", detected_intent: "catalog_navigation", text: "x", product_cards: [] },
+      inbound: { channel: "whatsapp", text: "فيه نيوبالانس 530 ميرور؟", originalText: "فيه نيوبالانس 530 ميرور؟", customerName: "Maged", externalConversationId: "", metadata: {} },
+      helpers: { safeProductFacts, searchCards },
+      loaders: { persona: async () => ({}), knowledgeBase: async () => ({}), history: async () => [], customerCard: async () => "" },
+    });
+    assert.ok(queries.some((query) => /ميرور/.test(query)), "the named grade is searched by name");
+    assert.deepEqual(out.product_cards.map((c) => c.product_id), ["140"], "the mirror pair replaces the Egyptian pick");
+  } finally {
+    Object.assign(process.env, { AI_CLAUDE_AGENT_ENABLED: saved.enabled ?? "", ANTHROPIC_API_KEY: saved.key ?? "", AI_SALES_AGENT_SCOPE: saved.scope ?? "", AI_SALES_AGENT_PROVIDER: saved.provider ?? "" });
+    agent.__setAgentClientForTests(null);
+  }
+});

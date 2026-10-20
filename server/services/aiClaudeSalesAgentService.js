@@ -566,6 +566,13 @@ export const cardsNamingTheModel = (cards = [], message = "") => {
 };
 // The customer asked for one grade by name — then only that grade is shown.
 const NAMED_GRADE = /(ميرور|مرور|فيتنام|مستورد|مصري|اوريجينال|أوريجينال|اورجينال|أصلي|اصلي|mirror|original|vietnam|egypt)/i;
+const gradeNamedIn = (message = "") => {
+  const value = text(message).toLowerCase();
+  if (/(ميرور|مرور|mirror)/.test(value)) return PRODUCT_GRADES.find((grade) => grade.key === "mirror_original");
+  if (/(فيتنام|مستورد|vietnam)/.test(value)) return PRODUCT_GRADES.find((grade) => grade.key === "imported_from_vietnam");
+  if (/(مصري|محلي|egypt)/.test(value)) return PRODUCT_GRADES.find((grade) => grade.key === "local");
+  return null;
+};
 
 const deadlineLeft = (deadline) => {
   const remaining = deadline - Date.now();
@@ -749,7 +756,15 @@ export const runClaudeSalesAgent = async ({
         case "search_products": {
           if (typeof searchCards !== "function") return { error: "search_unavailable" };
           lastSearchQuery = text(input.query) || lastSearchQuery;
-          const cards = asArray(await searchCards(text(input.query)));
+          // «فيه نيوبالانس 530 ميرور؟»: the model searched «New Balance 530», the mirror pair was cut by
+          // the search limit, and it answered «مش ظاهر ميرور». The grade the customer named is
+          // searched by name as well.
+          const namedGrade = gradeNamedIn(customerMessage);
+          const [plain, graded] = await Promise.all([
+            searchCards(text(input.query)),
+            namedGrade && !text(input.query).includes(namedGrade.label) ? searchCards(`${text(input.query)} ${namedGrade.label}`).catch(() => []) : [],
+          ]);
+          const cards = [...asArray(graded), ...asArray(plain).filter((card) => !asArray(graded).some((other) => cardKey(other) === cardKey(card)))];
           for (const card of cards) cardPool.set(cardKey(card), card);
           return { query: text(input.query), count: cards.length, products: cards.slice(0, 8).map((card) => cardSummary(card, safeProductFacts)) };
         }
@@ -767,6 +782,22 @@ export const runClaudeSalesAgent = async ({
           // came back Egyptian-only while the Vietnamese and mirror pairs sat in the same search
           // (owner, 2026-10-20). Same model = same name before " - <colour>".
           const gradesAdded = [];
+          // The customer named a grade and the pick shows another: that grade's cards of the same
+          // model replace it, when the pool has them.
+          const askedGrade = gradeNamedIn(customerMessage);
+          let swappedToGrade = "";
+          if (askedGrade && picked.length) {
+            const gradeKey = (card) => text(safeProductFacts(card).grade).toLowerCase();
+            if (!picked.some((card) => gradeKey(card) === askedGrade.key)) {
+              const words = tellingWords(customerMessage);
+              const numbers = modelNumbers(customerMessage);
+              const inGrade = [...cardPool.values()].filter((card) => gradeKey(card) === askedGrade.key && (!words.size || namesAny(card, words, numbers)));
+              if (inGrade.length) {
+                picked.splice(0, picked.length, ...inGrade.slice(0, 6));
+                swappedToGrade = askedGrade.label;
+              }
+            }
+          }
           if (picked.length && !NAMED_GRADE.test(customerMessage)) {
             const gradeOf = (card) => text(safeProductFacts(card).grade).toLowerCase();
             const baseOf = (card) => text(safeProductFacts(card).name).toLowerCase().split(" - ")[0].replace(/\s+/g, " ").trim();
@@ -782,7 +813,10 @@ export const runClaudeSalesAgent = async ({
             // altogether (NB 530 Vietnamese, Jordan 4 Egyptian). Ask for each other grade by name,
             // the way a customer would («New Balance 530 فيتنامي»), in parallel.
             if (typeof searchCards === "function") {
-              const modelQuery = lastSearchQuery || baseOf(picked[0]);
+              // The customer's own words name the model best («jordan 4»); the catalog's long name
+              // («Air Jordan 4 Sneakers for Men») does not find the grade that spells it «Jordan 4».
+              const spoken = [...tellingWords(customerMessage), ...modelNumbers(customerMessage)].join(" ");
+              const modelQuery = spoken || lastSearchQuery || baseOf(picked[0]);
               const missing = PRODUCT_GRADES.filter((grade) => grade.key !== "original" && !shownGrades.has(grade.key));
               const found = await Promise.all(missing.map((grade) => searchCards(`${modelQuery} ${grade.label}`).catch(() => [])));
               for (const card of found.flat()) if (!cardPool.has(cardKey(card))) cardPool.set(cardKey(card), card);
@@ -802,6 +836,7 @@ export const runClaudeSalesAgent = async ({
             ok: true,
             will_send: chosenCards.length,
             unknown_ids: unknown.length ? unknown : undefined,
+            ...(swappedToGrade ? { note: `العميل طلب ${swappedToGrade} — الكروت اتغيرت للدرجة دي وهي متاحة` } : {}),
             other_grades_added: gradesAdded.length ? gradesAdded.map((grade) => chosenCards.map((card) => safeProductFacts(card)).find((facts) => text(facts.grade).toLowerCase() === grade)?.grade_label || grade) : undefined,
           };
         }
