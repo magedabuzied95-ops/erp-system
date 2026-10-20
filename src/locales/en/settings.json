@@ -125,7 +125,11 @@
       "useHint": "to show the customer name automatically. Maximum 10 openers.",
       "fixedReplyText": "Fixed reply text after the greeting",
       "dmTemplate": "Direct message template",
-      "optional": "Optional"
+      "optional": "Optional",
+      "enableTikTokAutoReply": "Automatic reply to TikTok comments",
+      "enableTikTokAutoReplyHint": "A public reply only — no like and no direct message. Works only while the automatic public reply above is on too.",
+      "tiktokReplyText": "TikTok reply text",
+      "tiktokReplyTextHint": "Leave empty to send the fixed reply text without its \"replied in private\" line — there is no direct message on TikTok."
     },
     "site": {
       "title": "Site Settings",

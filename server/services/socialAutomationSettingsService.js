@@ -48,6 +48,12 @@ export const DEFAULT_SOCIAL_AUTOMATION_SETTINGS = {
   banned_words_enabled: false,
   banned_words: DEFAULT_BANNED_WORDS,
   banned_word_exceptions: DEFAULT_BANNED_WORD_EXCEPTIONS,
+  // TikTok comments get the public reply only (no like, no DM through the comments API), so
+  // they have their own switch on top of auto_public_reply_enabled. OFF until the owner turns
+  // it on: deploying this must not start answering TikTok comments by itself.
+  tiktok_auto_reply_enabled: false,
+  // Null means "the shared public reply minus its DM line" — see tiktokCommentAutomationService.
+  tiktok_public_reply_template: null,
 };
 
 // The shipped list has to reach the tenant who ALREADY has a settings row — and this shop does.
@@ -273,6 +279,12 @@ const rowToSettings = (row = {}) => ({
   // list reaches an existing row through the column DEFAULT when the column is added, once.
   banned_words: normalizeWordList(row.banned_words, []),
   banned_word_exceptions: normalizeWordList(row.banned_word_exceptions, []),
+  tiktok_auto_reply_enabled: booleanFrom(row.tiktok_auto_reply_enabled, DEFAULT_SOCIAL_AUTOMATION_SETTINGS.tiktok_auto_reply_enabled),
+  tiktok_public_reply_template: normalizeTemplate(
+    row.tiktok_public_reply_template,
+    DEFAULT_SOCIAL_AUTOMATION_SETTINGS.tiktok_public_reply_template,
+    true
+  ),
   created_at: row.created_at || null,
   updated_at: row.updated_at || null,
   persisted: true,
@@ -291,6 +303,8 @@ const normalizePatch = (patch = {}) => ({
   ...(Object.prototype.hasOwnProperty.call(patch, "banned_words_enabled") ? { banned_words_enabled: booleanFrom(patch.banned_words_enabled, false) } : {}),
   ...(Object.prototype.hasOwnProperty.call(patch, "banned_words") ? { banned_words: normalizeWordList(patch.banned_words, []) } : {}),
   ...(Object.prototype.hasOwnProperty.call(patch, "banned_word_exceptions") ? { banned_word_exceptions: normalizeWordList(patch.banned_word_exceptions, []) } : {}),
+  ...(Object.prototype.hasOwnProperty.call(patch, "tiktok_auto_reply_enabled") ? { tiktok_auto_reply_enabled: booleanFrom(patch.tiktok_auto_reply_enabled, false) } : {}),
+  ...(Object.prototype.hasOwnProperty.call(patch, "tiktok_public_reply_template") ? { tiktok_public_reply_template: normalizeTemplate(patch.tiktok_public_reply_template, DEFAULT_SOCIAL_AUTOMATION_SETTINGS.tiktok_public_reply_template, true) } : {}),
 });
 
 const mergeSettings = (current = {}, patch = {}) => rowToSettings({
@@ -347,6 +361,8 @@ https://share.google/1e0cM7JVmxyLTpWVe',
           ADD COLUMN IF NOT EXISTS banned_words_enabled BOOLEAN NOT NULL DEFAULT FALSE,
           ${bannedWordColumnDefinition("banned_words", DEFAULT_BANNED_WORDS)},
           ${bannedWordColumnDefinition("banned_word_exceptions", DEFAULT_BANNED_WORD_EXCEPTIONS)},
+          ADD COLUMN IF NOT EXISTS tiktok_auto_reply_enabled BOOLEAN NOT NULL DEFAULT FALSE,
+          ADD COLUMN IF NOT EXISTS tiktok_public_reply_template TEXT NULL,
           ADD COLUMN IF NOT EXISTS created_at TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP,
           ADD COLUMN IF NOT EXISTS updated_at TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP
       `);
@@ -455,10 +471,12 @@ export async function updateSocialAutomationSettings(tenantId, patch = {}) {
         banned_words_enabled,
         banned_words,
         banned_word_exceptions,
+        tiktok_auto_reply_enabled,
+        tiktok_public_reply_template,
         created_at,
         updated_at
       )
-      VALUES ($1::bigint, $2, $3, $4, $5, $6, $7, $8::jsonb, $9, $10, $12, $13::jsonb, $14::jsonb, COALESCE($11::timestamp, CURRENT_TIMESTAMP), CURRENT_TIMESTAMP)
+      VALUES ($1::bigint, $2, $3, $4, $5, $6, $7, $8::jsonb, $9, $10, $12, $13::jsonb, $14::jsonb, $15, $16, COALESCE($11::timestamp, CURRENT_TIMESTAMP), CURRENT_TIMESTAMP)
       ON CONFLICT (tenant_id) DO UPDATE SET
         auto_like_enabled = EXCLUDED.auto_like_enabled,
         auto_public_reply_enabled = EXCLUDED.auto_public_reply_enabled,
@@ -472,6 +490,8 @@ export async function updateSocialAutomationSettings(tenantId, patch = {}) {
         banned_words_enabled = EXCLUDED.banned_words_enabled,
         banned_words = EXCLUDED.banned_words,
         banned_word_exceptions = EXCLUDED.banned_word_exceptions,
+        tiktok_auto_reply_enabled = EXCLUDED.tiktok_auto_reply_enabled,
+        tiktok_public_reply_template = EXCLUDED.tiktok_public_reply_template,
         updated_at = CURRENT_TIMESTAMP
       RETURNING *
       `,
@@ -490,6 +510,8 @@ export async function updateSocialAutomationSettings(tenantId, patch = {}) {
         next.banned_words_enabled,
         JSON.stringify(next.banned_words || []),
         JSON.stringify(next.banned_word_exceptions || []),
+        Boolean(next.tiktok_auto_reply_enabled),
+        next.tiktok_public_reply_template,
       ]
     );
     const settings = rowToSettings(result.rows[0] || next);

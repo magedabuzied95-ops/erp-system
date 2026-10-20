@@ -10,8 +10,10 @@
 //   * tiktok_business_reply_log        (reply idempotency)
 //
 // Events are stored through the SAME storeSocialCommentAutomationRuns() the
-// Meta pollers use, always with skipAutomation: true — the automation engine is
-// Meta-only today, and a TikTok row entering it would attempt Graph API calls.
+// Meta pollers use, always with skipAutomation: true — that engine is Meta-only,
+// and a TikTok row entering it would attempt Graph API calls. Each newly stored
+// customer comment is then handed to tiktokCommentAutomationService, which runs
+// the same reply gates and sends through replyToTikTokComment below.
 // The Social Comments Center reads TikTok rows through the tiktok branch that
 // socialCommentsCenterService.js dispatches to (list/thread/fast-list below).
 //
@@ -263,8 +265,20 @@ const cursorBlocked = (row) => Boolean(row?.next_attempt_at) && new Date(row.nex
 // ---------------------------------------------------------------------------
 
 const loadStoreDeps = async () => {
-  const module = await import("./socialCommentAutomationService.js");
-  return { storeSocialCommentAutomationRuns: module.storeSocialCommentAutomationRuns };
+  const [module, automation] = await Promise.all([
+    import("./socialCommentAutomationService.js"),
+    import("./tiktokCommentAutomationService.js"),
+  ]);
+  return {
+    storeSocialCommentAutomationRuns: module.storeSocialCommentAutomationRuns,
+    runAutoReply: ({ tenantId, row, isOwn }) =>
+      automation.runTikTokCommentAutoReply({
+        tenantId,
+        row,
+        isOwn,
+        deps: { sendReply: ({ tenantId: replyTenantId, commentId, text: replyText }) => replyToTikTokComment({ tenantId: replyTenantId, commentId, text: replyText }) },
+      }),
+  };
 };
 
 const knownCommentIdsForVideo = async ({ tenantId, videoId, client = db }) => {
@@ -282,7 +296,7 @@ const knownCommentIdsForVideo = async ({ tenantId, videoId, client = db }) => {
 // reply_list expansions arrive pre-normalized from the provider). Idempotent:
 // already-known comment ids only refresh counters in the map, and the ledger
 // insert is skipped for them, so re-syncs never duplicate rows.
-const ingestComments = async ({ tenantId, businessId, video, comments, storeDeps, client = db }) => {
+export const ingestTikTokComments = async ({ tenantId, businessId, video, comments, storeDeps, client = db }) => {
   if (!comments.length) return { ingested: 0, refreshed: 0 };
   const videoId = text(video.item_id) || text(comments[0]?.external_conversation_id);
   const known = await knownCommentIdsForVideo({ tenantId, videoId, client });
@@ -305,11 +319,19 @@ const ingestComments = async ({ tenantId, businessId, video, comments, storeDeps
     }
 
     const event = buildTikTokCommentEvent({ tenantId, businessId, video, comment });
-    // skipAutomation is unconditional for TikTok: the automation engine is
-    // Meta-only and must never receive a tiktok row.
-    await storeDeps.storeSocialCommentAutomationRuns({ tenantId, events: [event], skipAutomation: true });
+    // skipAutomation is unconditional for TikTok: the Meta automation engine
+    // must never receive a tiktok row. The TikTok reply runs right after, on the
+    // stored row, and only for a comment seen for the first time — a re-sync
+    // never reaches here, so it can never answer the same comment twice.
+    const stored = await storeDeps.storeSocialCommentAutomationRuns({ tenantId, events: [event], skipAutomation: true });
     known.set(commentId, { is_own_reply: isOwn });
     ingested += 1;
+    if (!isOwn && typeof storeDeps.runAutoReply === "function") {
+      // runTikTokCommentAutoReply never throws; the catch is for a broken dep.
+      await Promise.resolve()
+        .then(() => storeDeps.runAutoReply({ tenantId, row: { ...event, ...(stored?.[0] || {}) }, isOwn }))
+        .catch((error) => console.warn("[tiktok-business] auto-reply hook failed", { comment_id: commentId, message: error?.message || "" }));
+    }
   }
   return { ingested, refreshed };
 };
@@ -344,7 +366,7 @@ export const syncTikTokCommentsForVideo = async ({ tenantId, video = {}, videoId
         commentIds,
       });
       commentsSeen += result.comments.length;
-      const { ingested } = await ingestComments({ tenantId, businessId, video: { ...video, item_id: safeVideoId }, comments: result.comments, storeDeps });
+      const { ingested } = await ingestTikTokComments({ tenantId, businessId, video: { ...video, item_id: safeVideoId }, comments: result.comments, storeDeps });
       commentsSaved += ingested;
 
       if (!result.has_more || commentIds?.length) {

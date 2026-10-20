@@ -18,6 +18,8 @@ const DEFAULT_AUTOMATION = {
   banned_words_enabled: false,
   banned_words: [],
   banned_word_exceptions: [],
+  tiktok_auto_reply_enabled: false,
+  tiktok_public_reply_template: "",
 };
 
 const normalizeAutomation = (value = {}) => ({
@@ -39,6 +41,8 @@ const normalizeAutomation = (value = {}) => ({
   banned_word_exceptions: (Array.isArray(value.banned_word_exceptions) ? value.banned_word_exceptions : [])
     .map((item) => String(item || "").trim())
     .filter(Boolean),
+  tiktok_auto_reply_enabled: Boolean(value.tiktok_auto_reply_enabled),
+  tiktok_public_reply_template: String(value.tiktok_public_reply_template ?? ""),
 });
 
 function Section({ title, hint, action, children, light }) {
@@ -226,6 +230,32 @@ function SocialAutomationSection({ light }) {
               onChange={(event) => patch("public_reply_template", event.target.value)}
               className={`${inputClass} resize-none`}
             />
+          </label>
+
+          {/* TikTok answers in public only — no like, no DM — so it has its own switch, OFF by
+              default, on top of the public-reply switch above. */}
+          <div className="sm:col-span-2">
+            <SwitchRow
+              light={light}
+              label={t("settings.social.enableTikTokAutoReply")}
+              hint={t("settings.social.enableTikTokAutoReplyHint")}
+              checked={settings.tiktok_auto_reply_enabled}
+              onClick={() => patch("tiktok_auto_reply_enabled", !settings.tiktok_auto_reply_enabled)}
+            />
+          </div>
+
+          <label className="block sm:col-span-2">
+            <span className="mb-2 block text-xs font-black">{t("settings.social.tiktokReplyText")}</span>
+            <textarea
+              rows={4}
+              value={settings.tiktok_public_reply_template}
+              onChange={(event) => patch("tiktok_public_reply_template", event.target.value)}
+              placeholder={t("settings.social.optional")}
+              className={`${inputClass} resize-none`}
+            />
+            <span className={`mt-2 block text-[11px] leading-5 ${light ? "text-[#756c5b]" : "text-slate-400"}`}>
+              {t("settings.social.tiktokReplyTextHint")}
+            </span>
           </label>
 
           {/* The word filter arrives with a list already in it and the switch OFF. Read the list
