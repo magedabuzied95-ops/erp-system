@@ -31,14 +31,18 @@ const loaders = {
 };
 
 const withEnv = async (fn) => {
-  const saved = { enabled: process.env.AI_CLAUDE_AGENT_ENABLED, key: process.env.ANTHROPIC_API_KEY };
+  const saved = { enabled: process.env.AI_CLAUDE_AGENT_ENABLED, key: process.env.ANTHROPIC_API_KEY, scope: process.env.AI_SALES_AGENT_SCOPE, provider: process.env.AI_SALES_AGENT_PROVIDER };
   process.env.AI_CLAUDE_AGENT_ENABLED = "true";
   process.env.ANTHROPIC_API_KEY = "test-key";
+  process.env.AI_SALES_AGENT_SCOPE = "all";
+  process.env.AI_SALES_AGENT_PROVIDER = "anthropic";
   try {
     return await fn();
   } finally {
     process.env.AI_CLAUDE_AGENT_ENABLED = saved.enabled ?? "";
     process.env.ANTHROPIC_API_KEY = saved.key ?? "";
+    process.env.AI_SALES_AGENT_SCOPE = saved.scope ?? "";
+    process.env.AI_SALES_AGENT_PROVIDER = saved.provider ?? "";
     __setAgentClientForTests(null);
   }
 };
@@ -219,4 +223,56 @@ test("both inboxes offer the lesson, through the knowledge routes the owner alre
   }
   const routes = read("../../server/routes/aiAgentOrders.js");
   assert.match(routes, /router\.post\("\/feedback\/propose-lesson", protect, permit\("settings", "edit"\)/);
+});
+
+test("scope 'test' (the default): only the playground and the owner's test numbers get the agent", async () => {
+  const { agentAppliesTo } = await import("../../server/services/aiClaudeSalesAgentService.js");
+  const saved = process.env.AI_SALES_AGENT_SCOPE;
+  process.env.AI_SALES_AGENT_SCOPE = "";
+  try {
+    const loadTestContacts = async () => "201000000001";
+    assert.equal(await agentAppliesTo({ metadata: { source: "ai_playground" } }, { loadTestContacts }), true);
+    assert.equal(await agentAppliesTo({ externalCustomerId: "201000000001", metadata: {} }, { loadTestContacts }), true);
+    assert.equal(await agentAppliesTo({ externalCustomerId: "201099999999", metadata: {} }, { loadTestContacts }), false, "a real customer keeps brain V2");
+    process.env.AI_SALES_AGENT_SCOPE = "all";
+    assert.equal(await agentAppliesTo({ externalCustomerId: "201099999999", metadata: {} }, { loadTestContacts }), true);
+  } finally {
+    process.env.AI_SALES_AGENT_SCOPE = saved ?? "";
+  }
+});
+
+test("the same agent runs on OpenAI's Responses API: tools, call outputs, cards", async () => {
+  const { __setOpenAiClientForTests } = await import("../../server/services/aiClaudeSalesAgentService.js");
+  await withEnv(async () => {
+    process.env.AI_SALES_AGENT_PROVIDER = "openai";
+    process.env.AI_SALES_AGENT_OPENAI_MODEL = "gpt-4o";
+    process.env.AI_SUPPORT_ENABLED = "true";
+    const seen = [];
+    const replies = [
+      { output: [{ type: "function_call", call_id: "c1", name: "search_products", arguments: JSON.stringify({ query: "جوردن" }) }], usage: {} },
+      { output: [{ type: "function_call", call_id: "c2", name: "show_products", arguments: JSON.stringify({ product_ids: ["22"] }) }], usage: {} },
+      { output: [{ type: "message" }], output_text: "أيوه الجوردن متاح 👇", status: "completed", usage: { input_tokens_details: { cached_tokens: 1200 } } },
+    ];
+    __setOpenAiClientForTests({ responses: { create: async (params) => { seen.push(JSON.parse(JSON.stringify(params))); return replies.shift(); } } });
+    try {
+      const out = await runClaudeSalesAgent({ decision, inbound, customerGender: "female", loaders, helpers: { safeProductFacts, searchCards: async () => [jordan] } });
+      assert.ok(out, "OpenAI path produced a reply");
+      assert.equal(out.text, "أيوه الجوردن متاح 👇");
+      assert.deepEqual(out.product_cards.map((card) => card.product_id), ["22"]);
+      assert.equal(out.debug.claude_agent.provider, "openai");
+      assert.equal(out.debug.claude_agent.usage.cache_read, 1200);
+      assert.equal(seen[0].model, "gpt-4o");
+      assert.match(seen[0].instructions, /<egyptian_arabic_register>/, "the stable prompt is the instructions");
+      assert.equal(seen[0].input[0].role, "developer");
+      assert.match(seen[0].input[0].content, /صيغة المؤنث/);
+      assert.equal(seen[0].input.at(-1).role, "developer");
+      assert.match(seen[0].input.at(-1).content, /<system_findings>/);
+      assert.equal(seen[0].tools[0].type, "function");
+      assert.equal(seen[1].input.at(-1).type, "function_call_output");
+      assert.equal(seen[1].input.at(-1).call_id, "c1");
+    } finally {
+      __setOpenAiClientForTests(null);
+      delete process.env.AI_SALES_AGENT_OPENAI_MODEL;
+    }
+  });
 });

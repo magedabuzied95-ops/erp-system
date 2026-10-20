@@ -26,6 +26,14 @@ import { buildToolRegistry } from "./aiToolRegistryService.js";
 import { loadPersona, DEFAULT_PERSONA } from "./aiPersonaService.js";
 import { loadSupportKnowledgeBase } from "./aiSupportKnowledgeBaseService.js";
 import { markAiSupportConversationEscalated } from "./aiSupportLogService.js";
+import {
+  getSharedOpenAiClient,
+  isTextGenerationAvailable,
+  noteOpenAiFailure,
+  noteOpenAiSuccess,
+  resolveSupportModel,
+  resolveSupportSamplingParams,
+} from "./openaiSupportService.js";
 
 const text = (value = "") => String(value ?? "").trim();
 const asArray = (value) => (Array.isArray(value) ? value : []);
@@ -53,24 +61,85 @@ export const SKIP_INTENTS = Object.freeze([
   "post_product_color_list",
 ]);
 
-export const isClaudeAgentEnabled = () =>
-  envFlagEnabled(process.env.AI_CLAUDE_AGENT_ENABLED) && Boolean(text(process.env.ANTHROPIC_API_KEY));
+/*
+ * Provider: the same agent runs on Claude (Anthropic SDK) or on OpenAI (the Responses API key the
+ * shop already pays for — the owner, 2026-10-20: "جرب كل حاجه ب Open Ai"). AI_SALES_AGENT_PROVIDER
+ * picks; left empty it is Claude when an Anthropic key exists, otherwise OpenAI.
+ */
+export const agentProvider = () => {
+  const explicit = text(process.env.AI_SALES_AGENT_PROVIDER).toLowerCase();
+  if (explicit === "openai" || explicit === "anthropic") return explicit;
+  return text(process.env.ANTHROPIC_API_KEY) ? "anthropic" : "openai";
+};
 
-const agentModel = () => text(process.env.AI_CLAUDE_AGENT_MODEL) || DEFAULT_AGENT_MODEL;
+const providerReady = () =>
+  agentProvider() === "anthropic"
+    ? Boolean(text(process.env.ANTHROPIC_API_KEY))
+    : Boolean(sharedOpenAi) || (isTextGenerationAvailable() && Boolean(getSharedOpenAiClient()));
+
+export const isClaudeAgentEnabled = () =>
+  (envFlagEnabled(process.env.AI_SALES_AGENT_ENABLED) || envFlagEnabled(process.env.AI_CLAUDE_AGENT_ENABLED)) && providerReady();
+export const isSalesAgentEnabled = isClaudeAgentEnabled;
+
+/*
+ * Who gets it. "test" (the default): the AI playground and the owner's test numbers
+ * (ai_channels.ai_test_contacts) only — real customers keep brain V2's reply until the owner
+ * switches AI_SALES_AGENT_SCOPE to "all".
+ */
+const agentScope = () => (text(process.env.AI_SALES_AGENT_SCOPE).toLowerCase() === "all" ? "all" : "test");
+export const agentAppliesTo = async (inbound = {}, { loadTestContacts } = {}) => {
+  if (agentScope() === "all") return true;
+  if (text(inbound.metadata?.source) === "ai_playground") return true;
+  try {
+    const { isAiTestContact, parseAiTestContacts } = await import("../utils/aiAutoReplyGate.js");
+    const raw = loadTestContacts
+      ? await loadTestContacts()
+      : await import("./settingsService.js").then((settings) => settings.getSetting("ai_channels.ai_test_contacts", ""));
+    const contacts = parseAiTestContacts(raw || "");
+    return [inbound.metadata?.customer_phone, inbound.externalCustomerId]
+      .map(text)
+      .filter(Boolean)
+      .some((phone) => isAiTestContact(contacts, phone));
+  } catch {
+    return false;
+  }
+};
+
+const agentModel = () =>
+  agentProvider() === "openai"
+    ? text(process.env.AI_SALES_AGENT_OPENAI_MODEL) || resolveSupportModel()
+    : text(process.env.AI_CLAUDE_AGENT_MODEL) || DEFAULT_AGENT_MODEL;
 // Chat is a low-effort workload: at "low" the model skips thinking on simple turns, which is what
 // a customer waiting on WhatsApp feels.
 const agentEffort = () => text(process.env.AI_CLAUDE_AGENT_EFFORT).toLowerCase() || "low";
-const agentDeadlineMs = () => positiveNumber(process.env.AI_CLAUDE_AGENT_DEADLINE_MS, DEFAULT_DEADLINE_MS);
+const agentDeadlineMs = () => positiveNumber(process.env.AI_SALES_AGENT_DEADLINE_MS || process.env.AI_CLAUDE_AGENT_DEADLINE_MS, DEFAULT_DEADLINE_MS);
 
 let sharedClient = null;
+let sharedOpenAi = null;
 const client = () => {
   if (!sharedClient) sharedClient = new Anthropic({ maxRetries: 1 });
   return sharedClient;
 };
+const openai = () => sharedOpenAi || getSharedOpenAiClient();
 /** Tests hand in a fake client; production never calls this. */
 export const __setAgentClientForTests = (fake) => {
   sharedClient = fake;
 };
+export const __setOpenAiClientForTests = (fake) => {
+  sharedOpenAi = fake;
+};
+
+// Reasoning models (gpt-5, o-series) take an effort and reject temperature; chat models the reverse.
+const openAiSampling = (model) =>
+  /^(gpt-5|o\d)/i.test(text(model)) ? { reasoning: { effort: "low" } } : resolveSupportSamplingParams(model);
+
+const OPENAI_TOOLS = () => AGENT_TOOLS.map((tool) => ({
+  type: "function",
+  name: tool.name,
+  description: tool.description,
+  parameters: tool.input_schema,
+  strict: false,
+}));
 
 /* ------------------------------------------------------------------ prompt */
 
@@ -414,6 +483,124 @@ const findingsFor = ({ decision, preparedCards, safeProductFacts, mustKeepFacts 
 
 const cardId = (card = {}) => text(card.product_id || card.id);
 
+const deadlineLeft = (deadline) => {
+  const remaining = deadline - Date.now();
+  if (remaining < 1_500) throw Object.assign(new Error("deadline"), { reason: "deadline" });
+  return remaining;
+};
+
+/** Claude: cached system block, findings as a mid-conversation system message, thinking passed back. */
+const runAnthropicTurns = async ({ stablePrompt, dynamicContext, findings, history, customerMessage, deadline, usage, executeCalls }) => {
+  const system = [
+    { type: "text", text: stablePrompt, cache_control: { type: "ephemeral" } },
+    { type: "text", text: dynamicContext },
+  ];
+  const messages = [
+    ...history,
+    { role: "user", content: customerMessage.slice(0, 2000) },
+    // Operator channel, after the customer's turn: what the store's systems found. A system
+    // message cannot be impersonated by the customer the way text inside their turn could.
+    { role: "system", content: findings },
+  ];
+  for (let round = 0; round < MAX_TOOL_ROUNDS; round += 1) {
+    const response = await client().beta.messages.create(
+      {
+        model: agentModel(),
+        max_tokens: 2_000,
+        system,
+        tools: AGENT_TOOLS,
+        messages,
+        output_config: { effort: agentEffort() },
+        betas: ["server-side-fallback-2026-07-01"],
+        fallbacks: "default",
+      },
+      { timeout: deadlineLeft(deadline) }
+    );
+    usage.input += Number(response.usage?.input_tokens || 0);
+    usage.output += Number(response.usage?.output_tokens || 0);
+    usage.cache_read += Number(response.usage?.cache_read_input_tokens || 0);
+    usage.cache_write += Number(response.usage?.cache_creation_input_tokens || 0);
+    if (response.stop_reason === "refusal") throw Object.assign(new Error("refusal"), { reason: "refusal" });
+    if (response.stop_reason === "max_tokens") throw Object.assign(new Error("max_tokens"), { reason: "max_tokens" });
+
+    const toolUses = asArray(response.content).filter((block) => block.type === "tool_use");
+    if (!toolUses.length || response.stop_reason !== "tool_use") {
+      return asArray(response.content).filter((block) => block.type === "text").map((block) => block.text).join("\n").trim();
+    }
+    // The whole assistant turn goes back unchanged — thinking blocks included.
+    messages.push({ role: "assistant", content: response.content });
+    const done = await executeCalls(toolUses.map((block) => ({ id: block.id, name: block.name, input: block.input })));
+    messages.push({
+      role: "user",
+      content: done.map(({ call, result }) => ({
+        type: "tool_result",
+        tool_use_id: call.id,
+        content: JSON.stringify(result ?? {}).slice(0, 6_000),
+        ...(result?.error ? { is_error: true } : {}),
+      })),
+    });
+  }
+  throw Object.assign(new Error("max_rounds"), { reason: "max_rounds" });
+};
+
+/**
+ * OpenAI (Responses API): the stable prompt is `instructions`, so its prefix caches automatically;
+ * per-customer context and the findings ride as developer messages, never inside the customer's turn.
+ */
+const runOpenAiTurns = async ({ stablePrompt, dynamicContext, findings, history, customerMessage, deadline, usage, executeCalls }) => {
+  const model = agentModel();
+  const input = [
+    { role: "developer", content: dynamicContext },
+    ...history.map((turn) => ({ role: turn.role, content: turn.content })),
+    { role: "user", content: customerMessage.slice(0, 2000) },
+    { role: "developer", content: findings },
+  ];
+  for (let round = 0; round < MAX_TOOL_ROUNDS; round += 1) {
+    let response;
+    try {
+      response = await openai().responses.create(
+        {
+          model,
+          instructions: stablePrompt,
+          input,
+          tools: OPENAI_TOOLS(),
+          max_output_tokens: 2_000,
+          ...openAiSampling(model),
+        },
+        { timeout: deadlineLeft(deadline), maxRetries: 0 }
+      );
+      noteOpenAiSuccess();
+    } catch (error) {
+      if (!error?.reason) noteOpenAiFailure(error);
+      throw error;
+    }
+    usage.input += Number(response.usage?.input_tokens || 0);
+    usage.output += Number(response.usage?.output_tokens || 0);
+    usage.cache_read += Number(response.usage?.input_tokens_details?.cached_tokens || 0);
+
+    const calls = asArray(response.output).filter((item) => item?.type === "function_call");
+    if (!calls.length) {
+      if (response.status === "incomplete") throw Object.assign(new Error("incomplete"), { reason: "max_tokens" });
+      return text(response.output_text);
+    }
+    // Reasoning items go back with the calls: reasoning models refuse a turn whose items were dropped.
+    input.push(...asArray(response.output));
+    const done = await executeCalls(calls.map((call) => {
+      let parsed = {};
+      try {
+        parsed = JSON.parse(call.arguments || "{}");
+      } catch {
+        parsed = {};
+      }
+      return { id: call.call_id, name: call.name, input: parsed };
+    }));
+    for (const { call, result } of done) {
+      input.push({ type: "function_call_output", call_id: call.id, output: JSON.stringify(result ?? {}).slice(0, 6_000) });
+    }
+  }
+  throw Object.assign(new Error("max_rounds"), { reason: "max_rounds" });
+};
+
 /**
  * @returns {Promise<object|null>} the decision with the agent's reply (and maybe other cards), or
  *          null to keep brain V2's reply.
@@ -433,6 +620,7 @@ export const runClaudeSalesAgent = async ({
   if (SKIP_INTENTS.includes(intent) || asArray(helpers.skipIntents).includes(intent)) return null;
   const customerMessage = text(inbound.originalText || inbound.text);
   if (!customerMessage) return null;
+  if (!(await agentAppliesTo(inbound, { loadTestContacts: loaders.testContacts }))) return null;
 
   const { safeProductFacts, searchCards, mustKeepFacts = false } = helpers;
   const startedAt = Date.now();
@@ -496,79 +684,31 @@ export const runClaudeSalesAgent = async ({
       }
     };
 
-    const system = [
-      { type: "text", text: buildStablePrompt({ kb, persona }), cache_control: { type: "ephemeral" } },
-      {
-        type: "text",
-        text: buildDynamicContext({
-          customerName: inbound.customerName,
-          customerPhone,
-          channel: inbound.channel,
-          gender: customerGender,
-          customerCard,
-          memory,
-        }),
-      },
-    ];
-
-    const messages = [
-      ...history,
-      { role: "user", content: customerMessage.slice(0, 2000) },
-      // Operator channel, after the customer's turn: what the store's systems found. A system
-      // message cannot be impersonated by the customer the way text inside their turn could.
-      { role: "system", content: findingsFor({ decision, preparedCards, safeProductFacts, mustKeepFacts }) },
-    ];
-
-    let reply = "";
+    const stablePrompt = buildStablePrompt({ kb, persona });
+    const dynamicContext = buildDynamicContext({
+      customerName: inbound.customerName,
+      customerPhone,
+      channel: inbound.channel,
+      gender: customerGender,
+      customerCard,
+      memory,
+    });
+    const findings = findingsFor({ decision, preparedCards, safeProductFacts, mustKeepFacts });
     const toolTrace = [];
     const usage = { input: 0, output: 0, cache_read: 0, cache_write: 0 };
-    for (let round = 0; round < MAX_TOOL_ROUNDS; round += 1) {
-      const remaining = deadline - Date.now();
-      if (remaining < 1_500) throw Object.assign(new Error("deadline"), { reason: "deadline" });
-      const response = await client().beta.messages.create(
-        {
-          model: agentModel(),
-          max_tokens: 2_000,
-          system,
-          tools: AGENT_TOOLS,
-          messages,
-          output_config: { effort: agentEffort() },
-          betas: ["server-side-fallback-2026-07-01"],
-          fallbacks: "default",
-        },
-        { timeout: remaining }
-      );
-      usage.input += Number(response.usage?.input_tokens || 0);
-      usage.output += Number(response.usage?.output_tokens || 0);
-      usage.cache_read += Number(response.usage?.cache_read_input_tokens || 0);
-      usage.cache_write += Number(response.usage?.cache_creation_input_tokens || 0);
 
-      if (response.stop_reason === "refusal") throw Object.assign(new Error("refusal"), { reason: "refusal" });
-      if (response.stop_reason === "max_tokens") throw Object.assign(new Error("max_tokens"), { reason: "max_tokens" });
+    const executeCalls = async (calls) => Promise.all(calls.map(async (call) => {
+      const result = await runTool(call.name, call.input || {}).catch((error) => ({ error: "tool_failed", message: error?.message }));
+      toolTrace.push({ tool: call.name, ok: !result?.error });
+      return { call, result };
+    }));
 
-      const toolUses = asArray(response.content).filter((block) => block.type === "tool_use");
-      if (!toolUses.length || response.stop_reason !== "tool_use") {
-        reply = asArray(response.content).filter((block) => block.type === "text").map((block) => block.text).join("\n").trim();
-        break;
-      }
-      // The whole assistant turn goes back unchanged — thinking blocks included.
-      messages.push({ role: "assistant", content: response.content });
-      const results = await Promise.all(toolUses.map(async (block) => {
-        const result = await runTool(block.name, block.input || {}).catch((error) => ({ error: "tool_failed", message: error?.message }));
-        toolTrace.push({ tool: block.name, ok: !result?.error });
-        return {
-          type: "tool_result",
-          tool_use_id: block.id,
-          content: JSON.stringify(result ?? {}).slice(0, 6_000),
-          ...(result?.error ? { is_error: true } : {}),
-        };
-      }));
-      messages.push({ role: "user", content: results });
-    }
+    let reply = agentProvider() === "openai"
+      ? await runOpenAiTurns({ stablePrompt, dynamicContext, findings, history, customerMessage, deadline, usage, executeCalls })
+      : await runAnthropicTurns({ stablePrompt, dynamicContext, findings, history, customerMessage, deadline, usage, executeCalls });
 
     reply = reply.replace(/\*\*/g, "").replace(/^#+\s*/gm, "").trim();
     if (!reply) throw Object.assign(new Error("empty"), { reason: "empty_reply" });
-
     const cards = chosenCards ?? preparedCards;
     const images = cards
       .map((card) => ({
@@ -628,11 +768,11 @@ export const runClaudeSalesAgent = async ({
       reply_parts: undefined,
       debug: {
         ...(decision.debug || {}),
-        claude_agent: { applied: true, model: agentModel(), ms: Date.now() - startedAt, tools: toolTrace, escalated: Boolean(escalation), usage },
+        claude_agent: { applied: true, provider: agentProvider(), model: agentModel(), ms: Date.now() - startedAt, tools: toolTrace, escalated: Boolean(escalation), usage },
       },
     };
   } catch (error) {
-    const reason = error?.reason || (error instanceof Anthropic.APIError ? `api_${error.status}` : "error");
+    const reason = error?.reason || (error?.status ? `api_${error.status}` : "error");
     console.warn("[claude-agent] skipped — brain V2 reply kept", { session_id: sessionId, intent, reason, message: error?.message, ms: Date.now() - startedAt });
     return null;
   }
@@ -674,26 +814,49 @@ export const writeFollowUpMessage = async ({
       "اكتب نص الرسالة بس.",
       "</follow_up_task>",
     ].join("\n");
-    const response = await client().beta.messages.create(
-      {
-        model: agentModel(),
-        max_tokens: 600,
-        system: [
-          { type: "text", text: buildStablePrompt({ kb, persona }), cache_control: { type: "ephemeral" } },
-          { type: "text", text: buildDynamicContext({ customerName, channel: "", gender: inferCustomerGender(customerName).gender }) },
-        ],
-        // The task closes the transcript as a user turn: the API needs one last, and the system half
-        // above says it is the store speaking.
-        messages: [...history, { role: "user", content: task }],
-        output_config: { effort: agentEffort() },
-        betas: ["server-side-fallback-2026-07-01"],
-        fallbacks: "default",
-      },
-      { timeout: agentDeadlineMs() }
-    );
-    if (response.stop_reason === "refusal" || response.stop_reason === "max_tokens") return "";
-    const written = asArray(response.content).filter((block) => block.type === "text").map((block) => block.text).join("\n")
-      .replace(/\*\*/g, "").replace(/^#+\s*/gm, "").trim();
+    const stablePrompt = buildStablePrompt({ kb, persona });
+    const dynamicContext = buildDynamicContext({ customerName, channel: "", gender: inferCustomerGender(customerName).gender });
+    let raw = "";
+    if (agentProvider() === "openai") {
+      const model = agentModel();
+      const response = await openai().responses.create(
+        {
+          model,
+          instructions: stablePrompt,
+          input: [
+            { role: "developer", content: dynamicContext },
+            ...history.map((turn) => ({ role: turn.role, content: turn.content })),
+            // The store's own instruction: a developer message, never a fake customer turn.
+            { role: "developer", content: task },
+          ],
+          max_output_tokens: 600,
+          ...openAiSampling(model),
+        },
+        { timeout: agentDeadlineMs(), maxRetries: 0 }
+      );
+      raw = text(response.output_text);
+    } else {
+      const response = await client().beta.messages.create(
+        {
+          model: agentModel(),
+          max_tokens: 600,
+          system: [
+            { type: "text", text: stablePrompt, cache_control: { type: "ephemeral" } },
+            { type: "text", text: dynamicContext },
+          ],
+          // The task closes the transcript as a user turn: the API needs one last, and the system half
+          // above says it is the store speaking.
+          messages: [...history, { role: "user", content: task }],
+          output_config: { effort: agentEffort() },
+          betas: ["server-side-fallback-2026-07-01"],
+          fallbacks: "default",
+        },
+        { timeout: agentDeadlineMs() }
+      );
+      if (response.stop_reason === "refusal" || response.stop_reason === "max_tokens") return "";
+      raw = asArray(response.content).filter((block) => block.type === "text").map((block) => block.text).join("\n");
+    }
+    const written = raw.replace(/\*\*/g, "").replace(/^#+\s*/gm, "").trim();
     console.info("[claude-agent] follow-up written", { session_id: sessionId, step: stepNumber, ms: Date.now() - startedAt, chars: written.length });
     return written;
   } catch (error) {
@@ -722,7 +885,7 @@ const LESSON_SCHEMA = {
   },
 };
 
-export const isClaudeConfigured = () => Boolean(text(process.env.ANTHROPIC_API_KEY));
+export const isClaudeConfigured = () => providerReady();
 
 export const proposeAgentLesson = async ({
   tenantId = null,
@@ -733,7 +896,7 @@ export const proposeAgentLesson = async ({
   feedback = "",
   loaders = {},
 } = {}) => {
-  if (!isClaudeConfigured()) throw Object.assign(new Error("ANTHROPIC_API_KEY is not set"), { status: 503, code: "AI_NOT_CONFIGURED" });
+  if (!isClaudeConfigured()) throw Object.assign(new Error("No AI provider is configured"), { status: 503, code: "AI_NOT_CONFIGURED" });
   if (!text(aiReply) || !(text(correctReply) || text(feedback))) {
     throw Object.assign(new Error("The wrong reply and what was wrong with it are both needed"), { status: 400 });
   }
@@ -746,11 +909,7 @@ export const proposeAgentLesson = async ({
     .slice(0, 60)
     .map((entry) => ({ id: entry.id, title: text(entry.title), answer: text(entry.answer).slice(0, 600) }));
 
-  const response = await client().messages.create(
-    {
-      model: agentModel(),
-      max_tokens: 2_000,
-      system: [
+  const lessonSystem = [
         "إنت بتصلّح تعليمات موظف مبيعات (AI) في متجر مصري أونلاين. التعليمات الثابتة مش في إيدك؛ اللي في إيدك «معلومات صاحب المحل» (owner_knowledge): سطور قصيرة الإيجنت بيقراها قبل كل رد.",
         "زميل في المتجر علّم على رد غلط وقال الصح. اقترح تعديل واحد بس:",
         "- update: لو فيه سطر موجود هو اللي سبّب الغلط أو ناقص — عدّل السطر ده (entry_id) بالصيغة الجديدة كاملة.",
@@ -758,26 +917,45 @@ export const proposeAgentLesson = async ({
         "- none: لو الغلط مش معلومة ناقصة (مثلا مشكلة سعر أو مخزون في السيستم نفسه) — وقول ده في explanation.",
         "السطر لازم يكون قاعدة عامة تنفع لكل عميل، مش رد على العميل ده بالذات. قصير، محدد، بالعامية المصرية. متخترعش أرقام مش موجودة في كلام الزميل.",
         "triggers: 2–6 كلمات أو عبارات قصيرة العميل ممكن يقولها في الموضوع ده.",
-      ].join("\n"),
-      messages: [
-        {
-          role: "user",
-          content: JSON.stringify({
-            customer_question: text(customerQuestion).slice(0, 1500),
-            wrong_ai_reply: text(aiReply).slice(0, 1500),
-            correct_reply_from_colleague: text(correctReply).slice(0, 1500),
-            what_was_wrong: text(feedback).slice(0, 800),
-            correction_type: text(correctionType),
-            current_owner_knowledge: current,
-          }, null, 1),
-        },
-      ],
-      output_config: { effort: "medium", format: { type: "json_schema", schema: LESSON_SCHEMA } },
-    },
-    { timeout: 45_000 }
-  );
-  if (response.stop_reason === "refusal") throw Object.assign(new Error("The model declined"), { status: 422 });
-  const raw = asArray(response.content).filter((block) => block.type === "text").map((block) => block.text).join("");
+  ].join("\n");
+  const lessonInput = JSON.stringify({
+    customer_question: text(customerQuestion).slice(0, 1500),
+    wrong_ai_reply: text(aiReply).slice(0, 1500),
+    correct_reply_from_colleague: text(correctReply).slice(0, 1500),
+    what_was_wrong: text(feedback).slice(0, 800),
+    correction_type: text(correctionType),
+    current_owner_knowledge: current,
+  }, null, 1);
+
+  let raw = "";
+  if (agentProvider() === "openai") {
+    const model = agentModel();
+    const response = await openai().responses.create(
+      {
+        model,
+        instructions: lessonSystem,
+        input: [{ role: "user", content: lessonInput }],
+        text: { format: { type: "json_schema", name: "agent_lesson", strict: true, schema: LESSON_SCHEMA } },
+        max_output_tokens: 2_000,
+        ...openAiSampling(model),
+      },
+      { timeout: 45_000, maxRetries: 0 }
+    );
+    raw = text(response.output_text);
+  } else {
+    const response = await client().messages.create(
+      {
+        model: agentModel(),
+        max_tokens: 2_000,
+        system: lessonSystem,
+        messages: [{ role: "user", content: lessonInput }],
+        output_config: { effort: "medium", format: { type: "json_schema", schema: LESSON_SCHEMA } },
+      },
+      { timeout: 45_000 }
+    );
+    if (response.stop_reason === "refusal") throw Object.assign(new Error("The model declined"), { status: 422 });
+    raw = asArray(response.content).filter((block) => block.type === "text").map((block) => block.text).join("");
+  }
   let lesson;
   try {
     lesson = JSON.parse(raw);
