@@ -192,6 +192,9 @@ ${knowledge.length ? `\n<owner_knowledge>\nمعلومات صاحب المحل ب
 - system_findings فيها الكروت الجاهزة للرسالة دي، وهتتبعت زي ما هي. لو مش هي اللي العميل عايزها، استدعي search_products باسم الموديل، وبعدين show_products بالـ product_id اللي تختارها. show_products بقايمة فاضية = متبعتش كروت.
 - النظام ساعات بيفهم الرسالة غلط ويجهّز كروت ملهاش علاقة (مثلًا العميل بيسأل عن أوردر أو بيدردش). لو الكروت الجاهزة مش ليها علاقة بكلام العميل، لازم تستدعي show_products بقايمة فاضية قبل ما ترد.
 - نفس الكلام على draft_answer: لو مش رد على كلام العميل (مثلًا العميل سأل سؤال تاني في نص البحث)، جاوب على اللي سأله هو، وبعدين رجّعه لخطوة البحث في سطر لو مناسب.
+- «النية اللي النظام فهمها» تخمين، وممكن تكون غلط: «بكام الجوردن؟» سؤال سعر مش اعتراض. متردش على اعتراض العميل ما قالوش.
+- لو draft_answer سؤال خطوة (زي «مقاس كام؟» أو «تحب أنهي درجة؟»): يا تسأله بأسلوبك، يا تعرض كروت — مش الاتنين لازقين في جملة واحدة. لو بعت كروت، السؤال ييجي بعد سطر الكروت في سطر لوحده.
+- لما العميل يقول «بكام؟» أو «في منه أسود؟» أو «ده أصلي؟» من غير اسم موديل، يبقى يقصد آخر موديل اتكلمتوا عنه في المحادثة أو آخر كروت اتبعتت — متسألوش عن اسمه تاني.
 - السعر والتوفر والمقاس واللون: من الكروت أو من نتيجة أداة في المحادثة دي بس. get_inventory هي الطريقة الوحيدة تتأكد إن مقاس ولون معين متاح.
 - المقاسات: متقولش إن موديل «مقاسه مظبوط» أو «بيطلع كبير/صغير» أو «خد مقاس أكبر» إلا لو ده مكتوب في owner_knowledge. لو مش مكتوب، اسأل العميل بيلبس مقاس كام عادةً في الكوتشيات.
 - الدرجات (grade_label) حقيقية ومتسجلة: قولها زي ما هي من غير مبالغة، ومتقولش «أصلي» على حاجة مش متسجلة كده.
@@ -351,6 +354,20 @@ export const historyTurnsFromRows = (rows = [], currentMessage = "") => {
   while (turns.length && turns[0].role !== "user") turns.shift();
   // Consecutive same-role turns are merged so the transcript reads as a chat.
   return turns.reduce((acc, turn) => {
+    const last = acc[acc.length - 1];
+    if (last && last.role === turn.role) last.content = `${last.content}\n${turn.content}`;
+    else acc.push({ ...turn });
+    return acc;
+  }, []);
+};
+
+/** Chat turns as the APIs want them: user first, same-role neighbours merged. */
+const mergeTurns = (turns = []) => {
+  const clean = asArray(turns)
+    .map((turn) => ({ role: turn?.role === "assistant" ? "assistant" : "user", content: text(turn?.content).slice(0, 800) }))
+    .filter((turn) => turn.content);
+  while (clean.length && clean[0].role !== "user") clean.shift();
+  return clean.reduce((acc, turn) => {
     const last = acc[acc.length - 1];
     if (last && last.role === turn.role) last.content = `${last.content}\n${turn.content}`;
     else acc.push({ ...turn });
@@ -637,7 +654,12 @@ export const runClaudeSalesAgent = async ({
       (loaders.knowledgeBase || (() => loadSupportKnowledgeBase({ tenantId })))()
         .then((loaded) => ({ ...(loaded?.knowledge_base || {}), branches: asArray(loaded?.branches) }))
         .catch(() => ({})),
-      (loaders.history || (() => loadHistory({ tenantId, sessionId, currentMessage: customerMessage })))().catch(() => []),
+      (loaders.history || (() => (
+        // The playground keeps its own transcript (its test chat is never logged).
+        text(inbound.metadata?.source) === "ai_playground" && Array.isArray(inbound.metadata?.agent_history)
+          ? Promise.resolve(mergeTurns(inbound.metadata.agent_history))
+          : loadHistory({ tenantId, sessionId, currentMessage: customerMessage })
+      )))().catch(() => []),
       (loaders.customerCard || (() => import("./aiCustomer360Service.js").then(async (customer360) => {
         if (!customerPhone) return "";
         const profile = await customer360.loadCustomer360({ tenantId, phone: customerPhone });
@@ -702,7 +724,13 @@ export const runClaudeSalesAgent = async ({
 
     const executeCalls = async (calls) => Promise.all(calls.map(async (call) => {
       const result = await runTool(call.name, call.input || {}).catch((error) => ({ error: "tool_failed", message: error?.message }));
-      toolTrace.push({ tool: call.name, ok: !result?.error });
+      // What it asked and what came back, in a few words — enough to see a wrong query in the logs.
+      toolTrace.push({
+        tool: call.name,
+        ok: !result?.error,
+        input: JSON.stringify(call.input || {}).slice(0, 160),
+        found: Number.isFinite(Number(result?.count)) ? Number(result.count) : result?.will_send ?? result?.found ?? undefined,
+      });
       return { call, result };
     }));
 

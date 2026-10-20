@@ -1456,6 +1456,9 @@ router.put("/quick-replies/reorder", protect, permit("settings", "edit"), async 
 // webhooks run (generateUnifiedConversationDecision: brain V2 + the OpenAI grounded
 // rewrite), read-only, and keeps a per-admin memory so follow-ups ("مقاس 42") work.
 const playgroundMemories = new Map();
+// The playground's own transcript, so the sales agent reads the conversation so far exactly as it
+// reads ai_support_messages on a live channel (the test chat is never logged there).
+const playgroundTranscripts = new Map();
 const PLAYGROUND_MEMORY_LIMIT = 200;
 
 const mergePlaygroundMemory = (memory = {}, output = {}) => {
@@ -1493,7 +1496,11 @@ router.post("/test-reply", protect, permit("settings", "view"), async (req, res)
     });
     const effectiveMode = autoSend.runtimeMode;
     const testConversationId = `test:${channelId}:${req.user?.id || "admin"}`;
-    if (req.body?.reset) playgroundMemories.delete(testConversationId);
+    if (req.body?.reset) {
+      playgroundMemories.delete(testConversationId);
+      playgroundTranscripts.delete(testConversationId);
+    }
+    const transcript = playgroundTranscripts.get(testConversationId) || [];
     const memory = playgroundMemories.get(testConversationId) || {};
     const startedAt = Date.now();
 
@@ -1508,6 +1515,7 @@ router.post("/test-reply", protect, permit("settings", "view"), async (req, res)
         channel: channelId,
         source: "ai_playground",
         ai_memory: memory,
+        agent_history: transcript.slice(-24),
       },
     }, { tenantId, memory });
 
@@ -1515,6 +1523,14 @@ router.post("/test-reply", protect, permit("settings", "view"), async (req, res)
     playgroundMemories.set(testConversationId, mergePlaygroundMemory(memory, output));
 
     const finalReply = envText(output.channel_reply?.text || output.text || output.answer);
+    const sentCards = (Array.isArray(output.product_cards) ? output.product_cards : []).map((card) => envText(card?.title || card?.name)).filter(Boolean).slice(0, 6);
+    if (playgroundTranscripts.size >= PLAYGROUND_MEMORY_LIMIT) playgroundTranscripts.clear();
+    playgroundTranscripts.set(testConversationId, [
+      ...transcript,
+      { role: "user", content: message },
+      ...(finalReply ? [{ role: "assistant", content: finalReply }] : []),
+      ...(sentCards.length ? [{ role: "assistant", content: `[اتبعتله كروت: ${sentCards.join("، ")}]` }] : []),
+    ].slice(-30));
     const productCards = (Array.isArray(output.product_cards) ? output.product_cards : []).slice(0, 12).map((card) => ({
       id: card?.id || card?.product_id || null,
       name: envText(card?.name || card?.title || card?.product_name),
