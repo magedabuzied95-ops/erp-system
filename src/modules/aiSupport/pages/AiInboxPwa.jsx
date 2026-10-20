@@ -51,7 +51,7 @@ import {
 } from "lucide-react";
 import { toast } from "react-hot-toast";
 import { useTranslation } from "react-i18next";
-import { FaFacebookMessenger, FaInstagram, FaTelegramPlane, FaWhatsapp } from "react-icons/fa";
+import { FaFacebookMessenger, FaInstagram, FaTelegramPlane, FaTiktok, FaWhatsapp } from "react-icons/fa";
 
 import { api } from "../../../shared/api/api";
 import { getCurrentTenant, getCurrentUser } from "../../../shared/auth/authStorage";
@@ -367,6 +367,7 @@ const CONVERSATION_CHANNEL_PREFIXES = new Map([
   ["messenger", "facebook_messenger"],
   ["instagram", "instagram"],
   ["telegram", "telegram"],
+  ["tiktok", "tiktok"],
   ["whatsapp", "whatsapp"],
   ["web_chat", "web_chat"],
   ["web", "web_chat"],
@@ -485,6 +486,7 @@ const normalizeConversationChannel = (conversation = {}) => {
     : stored;
   if (raw.includes("whatsapp")) return "whatsapp";
   if (raw.includes("telegram")) return "telegram";
+  if (raw === "tiktok" || raw === "tiktok_dm") return "tiktok";
   if (raw.includes("instagram_comment")) return "instagram_comment";
   if (raw.includes("facebook_comment")) return "facebook_comment";
   if (raw.includes("instagram")) return "instagram";
@@ -1545,6 +1547,7 @@ const channelMeta = (value = "") => {
   const key = normalizeConversationChannel({ channel: value });
   if (key === "whatsapp") return { labelKey: "aiSupport.inbox.pwa.whatsapp", icon: FaWhatsapp, tone: "text-emerald-600" };
   if (key === "telegram") return { labelKey: "aiSupport.inbox.pwa.telegram", icon: FaTelegramPlane, tone: "text-sky-500" };
+  if (key === "tiktok") return { labelKey: "aiSupport.inbox.pwa.tiktok", icon: FaTiktok, tone: "text-rose-500" };
   if (key === "instagram" || key === "instagram_comment") return { labelKey: key === "instagram" ? "aiSupport.inbox.pwa.instagramDm" : "aiSupport.inbox.pwa.instagram", icon: FaInstagram, tone: "text-rose-500" };
   if (key === "messenger" || key === "facebook_comment") return { labelKey: "aiSupport.inbox.pwa.messenger", icon: FaFacebookMessenger, tone: "text-blue-600" };
   return { labelKey: "aiSupport.inbox.pwa.web", icon: Globe, tone: "text-slate-500" };

@@ -34,6 +34,7 @@ const CHANNEL_LABELS = {
   messenger: "ماسنجر",
   instagram: "إنستجرام",
   telegram: "تليجرام",
+  tiktok: "تيك توك",
   web_chat: "شات الموقع",
   webchat: "شات الموقع",
 };

@@ -75,7 +75,7 @@ const backendAccepted = [...backend.matchAll(/normalizedChannelFilter === "([a-z
 test("the backend's accepted channel vocabulary is what we think it is", () => {
   assert.deepEqual(
     [...backendAccepted].sort(),
-    ["facebook_comment", "facebook_messenger", "instagram", "instagram_comment", "telegram", "web_chat", "whatsapp"]
+    ["facebook_comment", "facebook_messenger", "instagram", "instagram_comment", "telegram", "tiktok", "web_chat", "whatsapp"]
   );
 });
 

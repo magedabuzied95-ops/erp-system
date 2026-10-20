@@ -2416,7 +2416,8 @@ export const conversationPhoneKeys = (conversation = {}) => {
   // Telegram user/chat ids are numeric external identities, never phone
   // numbers. Keeping this guard before candidate extraction prevents an
   // accidental CRM match when a Telegram id happens to equal a customer phone.
-  if (channel === "telegram") return [];
+  // TikTok ids are account ids too — never phones.
+  if (channel === "telegram" || channel === "tiktok") return [];
   const metadata = conversation.channel_metadata || {};
   const profile = conversation.customer_profile || {};
   return [...new Set([
@@ -2675,6 +2676,9 @@ export const loadAiInbox = async ({ tenantId, filter = "all", channelFilter = ""
   }
   if (normalizedChannelFilter === "telegram") {
     clauses.push(`${INBOX_RESOLVED_CHANNEL_SQL} = 'telegram'`);
+  }
+  if (normalizedChannelFilter === "tiktok") {
+    clauses.push(`${INBOX_RESOLVED_CHANNEL_SQL} = 'tiktok'`);
   }
   if (searchTerm) {
     // Raw term for the folded comparisons; the SQL folds it the same way it
@@ -2992,7 +2996,7 @@ export const loadAiInbox = async ({ tenantId, filter = "all", channelFilter = ""
     ) op ON TRUE
     WHERE ${[...clauses, readFilterClauseSql(readFilter, "m.latest_message_created_at"), deletedConversationClauseSql("m.latest_message_created_at")].filter(Boolean).join(" AND ")}
     ORDER BY
-      CASE WHEN ${INBOX_RESOLVED_CHANNEL_SQL} IN ('facebook_messenger', 'instagram', 'whatsapp', 'telegram') THEN 0 ELSE 1 END,
+      CASE WHEN ${INBOX_RESOLVED_CHANNEL_SQL} IN ('facebook_messenger', 'instagram', 'whatsapp', 'telegram', 'tiktok') THEN 0 ELSE 1 END,
       COALESCE(m.latest_message_created_at, c.last_message_at, s.updated_at) DESC,
       s.updated_at DESC,
       -- Stable tiebreak. Keyset pagination needs the sort to be a total order,

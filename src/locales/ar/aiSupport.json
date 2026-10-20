@@ -3093,7 +3093,8 @@
         "whatsapp": "واتساب",
         "messenger": "ماسنجر",
         "instagram": "إنستجرام",
-        "telegram": "تليجرام"
+        "telegram": "تليجرام",
+        "tiktok": "تيك توك"
       }
     },
     "groups": {
@@ -3182,7 +3183,8 @@
         "whatsapp": "واتساب",
         "messenger": "ماسنجر",
         "instagram": "إنستجرام",
-        "telegram": "تليجرام"
+        "telegram": "تليجرام",
+        "tiktok": "تيك توك"
       }
     }
   },

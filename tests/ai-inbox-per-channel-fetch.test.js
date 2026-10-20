@@ -102,7 +102,7 @@ test("a global limit fails at 1000 WhatsApp — proving the fix is what saves it
 // from is a tautology: dropping a channel changes both sides and the test still
 // passes, which is how a channel could silently stop being fetched. Changing this list
 // should require a human to agree that the change is intended — that is the point.
-const EXPECTED_MESSAGE_CHANNELS = ["whatsapp", "facebook_messenger", "instagram", "telegram", "web_chat"];
+const EXPECTED_MESSAGE_CHANNELS = ["whatsapp", "facebook_messenger", "instagram", "telegram", "tiktok", "web_chat"];
 
 test('"All" fans out to exactly the message channels, no comment channels', () => {
   assert.deepEqual(channelsForFilter("all"), EXPECTED_MESSAGE_CHANNELS);

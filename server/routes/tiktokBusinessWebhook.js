@@ -33,6 +33,7 @@ import express from "express";
 
 import db from "../database/db.js";
 import { parseTikTokBusinessWebhookContent } from "../services/tiktokBusinessApiClient.js";
+import { isTikTokDmEvent, wakeTikTokDmDrain } from "../services/tiktokBusinessDmService.js";
 import {
   tiktokBusinessAppSecret,
   tiktokBusinessEnabled,
@@ -114,6 +115,14 @@ export const webhookEventKey = (payload = {}) => {
   // Digit-safe: TikTok's ids arrive as unquoted numbers past 2^53 and must
   // never round-trip through Number.
   const content = parseTikTokBusinessWebhookContent(payload?.content);
+  // A direct message is identified by its own message id. create_time is when
+  // TikTok sent the NOTIFICATION, so a retry of the same message carries a new
+  // one and must not mint a second key.
+  if (isTikTokDmEvent(payload?.event)) {
+    const messageId = text(content?.message_id);
+    if (!messageId) return "";
+    return `tiktok_business:${text(payload.event).toLowerCase()}:${text(payload?.user_openid)}:${messageId}`;
+  }
   const parts = [
     text(payload?.event ?? payload?.event_type),
     text(payload?.user_openid ?? payload?.business_id),
@@ -179,6 +188,7 @@ router.post("/", express.raw({ type: "*/*" }), async (req, res) => {
        RETURNING id`,
       [eventKey, text(payload?.user_openid), text(payload?.event), JSON.stringify(payload)]
     );
+    if (inserted.rowCount && isTikTokDmEvent(payload?.event)) wakeTikTokDmDrain();
     return res.status(200).json({ success: true, stored: Boolean(inserted.rowCount), duplicate: !inserted.rowCount });
   } catch (error) {
     // Storage failed — tell TikTok to retry rather than dropping the event.

@@ -65,7 +65,7 @@ const tenantOf = (value) => {
   return Number.isFinite(parsed) && parsed > 0 ? Math.trunc(parsed) : 1;
 };
 
-export const INBOX_CHANNELS = Object.freeze(["whatsapp", "facebook_messenger", "instagram", "telegram"]);
+export const INBOX_CHANNELS = Object.freeze(["whatsapp", "facebook_messenger", "instagram", "telegram", "tiktok"]);
 
 export const normalizeInboxChannel = (value = "") => {
   const lower = text(value).toLowerCase();
@@ -74,6 +74,7 @@ export const normalizeInboxChannel = (value = "") => {
   if (lower.includes("messenger") || lower.includes("facebook")) return "facebook_messenger";
   if (lower.includes("whatsapp")) return "whatsapp";
   if (lower.includes("telegram")) return "telegram";
+  if (lower.includes("tiktok")) return "tiktok";
   return lower;
 };
 

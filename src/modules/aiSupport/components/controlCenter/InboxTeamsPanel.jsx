@@ -14,7 +14,7 @@ import ThemedSelect from "../../../../shared/ui/ThemedSelect";
 import { ActionButton, PanelSkeleton, TextInput, ToggleRow, clean } from "../integrations/integrationsUi.jsx";
 
 const SUPPRESSED = { suppressErrorStatuses: [400, 403, 404, 409, 500, 502] };
-const CHANNELS = ["whatsapp", "facebook_messenger", "instagram", "telegram"];
+const CHANNELS = ["whatsapp", "facebook_messenger", "instagram", "telegram", "tiktok"];
 const DISTRIBUTIONS = ["manual", "round_robin", "least_busy", "broadcast"];
 const EMPTY = Object.freeze({ id: null, name: "", distribution: "round_robin", channels: [], is_active: true, members: [] });
 const selectTrigger = "h-10 w-full rounded-xl border border-white/10 bg-slate-950/70 px-3 text-sm font-bold text-white";
@@ -38,6 +38,7 @@ const channelLabel = (t, value) => {
   if (value === "whatsapp") return t("aiSupport.inboxOrg.teams.channel.whatsapp");
   if (value === "facebook_messenger") return t("aiSupport.inboxOrg.teams.channel.messenger");
   if (value === "instagram") return t("aiSupport.inboxOrg.teams.channel.instagram");
+  if (value === "tiktok") return t("aiSupport.inboxOrg.teams.channel.tiktok");
   return t("aiSupport.inboxOrg.teams.channel.telegram");
 };
 

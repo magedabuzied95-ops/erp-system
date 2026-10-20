@@ -3085,7 +3085,8 @@
         "whatsapp": "WhatsApp",
         "messenger": "Messenger",
         "instagram": "Instagram",
-        "telegram": "Telegram"
+        "telegram": "Telegram",
+        "tiktok": "TikTok"
       }
     },
     "groups": {
@@ -3174,7 +3175,8 @@
         "whatsapp": "WhatsApp",
         "messenger": "Messenger",
         "instagram": "Instagram",
-        "telegram": "Telegram"
+        "telegram": "Telegram",
+        "tiktok": "TikTok"
       }
     }
   },

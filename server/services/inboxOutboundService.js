@@ -3,6 +3,7 @@ import { AI_AGENT_CHANNELS, sendWhatsAppCloudReply } from "./aiChannelAdapterSer
 import { sendMetaInboxOutboundMessage } from "./metaIntegrationService.js";
 import { resolveWhatsappConversationInstance, sendWhatsappMediaMessage } from "./whatsappGatewayService.js";
 import { sendTelegramMedia, sendTelegramText, TELEGRAM_CHANNEL } from "./telegramBotService.js";
+import { sendTikTokDirectMediaFromUrl, sendTikTokDirectText, TIKTOK_DM_CHANNEL, tiktokConversationIdFromSessionId } from "./tiktokBusinessDmService.js";
 import { appendManualAiSupportReply } from "./aiSupportLogService.js";
 import { normalizeWhatsappLid, normalizeWhatsappPhone } from "../utils/whatsappIdentity.js";
 import { absolutePublicUploadUrl } from "../utils/publicUrl.js";
@@ -30,6 +31,7 @@ export const normalizeInboxSendChannel = (value = "") => {
   if (channel === "instagram" || channel === "instagram_dm") return AI_AGENT_CHANNELS.INSTAGRAM;
   if (channel === "whatsapp") return AI_AGENT_CHANNELS.WHATSAPP;
   if (channel === TELEGRAM_CHANNEL) return TELEGRAM_CHANNEL;
+  if (channel === TIKTOK_DM_CHANNEL || channel === "tiktok_dm") return TIKTOK_DM_CHANNEL;
   if (channel === "web" || channel === "web_chat") return AI_AGENT_CHANNELS.WEB_CHAT;
   return channel;
 };
@@ -164,6 +166,10 @@ export const resolveInboxRecipient = (conversation = {}) => {
   if (channel === AI_AGENT_CHANNELS.WHATSAPP) {
     return { channel, recipientId: text(whatsappRecipient({ conversation, channelMetadata }) || fromKey), channelMetadata, sessionId };
   }
+  if (channel === TIKTOK_DM_CHANNEL) {
+    // TikTok replies are addressed to the conversation, not the person.
+    return { channel, recipientId: text(channelMetadata.tiktok_conversation_id || tiktokConversationIdFromSessionId(sessionId)), channelMetadata, sessionId };
+  }
   const recipientId = text(
     (channel === TELEGRAM_CHANNEL ? channelMetadata.chat_id : "") ||
       channelMetadata.customer_psid ||
@@ -204,7 +210,8 @@ const sendableChannel = (channel) =>
   channel === AI_AGENT_CHANNELS.WHATSAPP ||
   channel === AI_AGENT_CHANNELS.FACEBOOK_MESSENGER ||
   channel === AI_AGENT_CHANNELS.INSTAGRAM ||
-  channel === TELEGRAM_CHANNEL;
+  channel === TELEGRAM_CHANNEL ||
+  channel === TIKTOK_DM_CHANNEL;
 
 const announce = (tenantId, sessionId, message) => {
   emitToRooms([`tenant:${tenantId}`], "ai_inbox:message", { tenant_id: tenantId, session_id: sessionId, message, at: new Date().toISOString() });
@@ -231,7 +238,7 @@ export const sendInboxText = async ({
   if (!conversation) throw Object.assign(new Error(`Conversation not found: ${conversationId}`), { status: 404, code: "AI_INBOX_CONVERSATION_NOT_FOUND" });
   const { channel, recipientId, channelMetadata, sessionId } = resolveInboxRecipient(conversation);
   if (!sendableChannel(channel)) {
-    throw Object.assign(new Error("Live sending is only available for WhatsApp, Messenger, Instagram DM, and Telegram conversations."), { status: 409, code: "CHANNEL_SEND_UNAVAILABLE" });
+    throw Object.assign(new Error("Live sending is only available for WhatsApp, Messenger, Instagram DM, Telegram, and TikTok conversations."), { status: 409, code: "CHANNEL_SEND_UNAVAILABLE" });
   }
   if (!recipientId) throw Object.assign(new Error("The conversation has no reachable recipient id."), { status: 409, code: "RECIPIENT_MISSING" });
 
@@ -244,6 +251,13 @@ export const sendInboxText = async ({
       delivery_status: "failed",
       delivery_error: error?.message || "WhatsApp did not accept the message",
       error_code: error?.code || "WHATSAPP_SEND_FAILED",
+    }));
+  } else if (channel === TIKTOK_DM_CHANNEL) {
+    sendResult = await sendTikTokDirectText({ tenantId, conversationId: recipientId, messageText: body }).catch((error) => ({
+      sent: false,
+      delivery_status: "failed",
+      delivery_error: error?.message || "TikTok message was not accepted",
+      error_code: error?.code || "TIKTOK_DM_ERROR",
     }));
   } else if (channel === TELEGRAM_CHANNEL) {
     sendResult = await sendTelegramText({ chatId: recipientId, messageText: body }).catch((error) => ({
@@ -329,6 +343,11 @@ export const sendInboxMedia = async ({
     sendResult = await sendWhatsappMediaMessage({ phone: recipientId, mediaUrl: url, mediaType: attachmentKind, caption: safeCaption, instance })
       .then((result) => ({ ...result, sent: true, delivery_status: "sent", message_id: text(result?.result?.key?.id || result?.result?.message_id || result?.message_id || "") }))
       .catch((error) => ({ sent: false, delivery_status: "failed", delivery_error: error?.message || `WhatsApp did not accept the ${attachmentKind}`, error_code: error?.code || "WHATSAPP_MEDIA_SEND_FAILED" }));
+  } else if (channel === TIKTOK_DM_CHANNEL) {
+    sendResult = attachmentKind === "video"
+      ? { sent: false, delivery_status: "failed", delivery_error: "TikTok does not accept videos through its messaging API", error_code: "TIKTOK_DM_VIDEO_UNSUPPORTED" }
+      : await sendTikTokDirectMediaFromUrl({ tenantId, conversationId: recipientId, url, mimeType, caption: safeCaption })
+        .catch((error) => ({ sent: false, delivery_status: "failed", delivery_error: error?.message || "TikTok did not accept the image", error_code: error?.code || "TIKTOK_DM_MEDIA_SEND_FAILED" }));
   } else if (channel === TELEGRAM_CHANNEL) {
     sendResult = await sendTelegramMedia({ chatId: recipientId, mediaUrl: absolutePublicUploadUrl(url) || url, mediaType: attachmentKind === "video" ? "video" : "photo", caption: safeCaption })
       .catch((error) => ({ sent: false, delivery_status: "failed", delivery_error: error?.message || `Telegram did not accept the ${attachmentKind}`, error_code: error?.code || "TELEGRAM_MEDIA_SEND_FAILED" }));

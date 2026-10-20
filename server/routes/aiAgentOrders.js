@@ -215,6 +215,7 @@ import {
   updateAiInboxQuickReply,
 } from "../services/aiInboxQuickRepliesService.js";
 import { sendTelegramMedia, sendTelegramText, TELEGRAM_CHANNEL } from "../services/telegramBotService.js";
+import { sendTikTokDirectText, TIKTOK_DM_CHANNEL, tiktokConversationIdFromSessionId } from "../services/tiktokBusinessDmService.js";
 import { listChannelAccounts, setChannelAccountActive, syncEnvChannelAccounts, syncMetaChannelAccounts, upsertChannelAccount } from "../services/channelAccountsService.js";
 import { syncEvolutionWebhookForInstance } from "../services/evolutionWebhookSyncService.js";
 import { loadCodPolicySettings } from "../services/storefrontShippingService.js";
@@ -5252,6 +5253,7 @@ const normalizeProductCardSendChannel = (value = "") => {
   if (channel === "instagram" || channel === "instagram_dm") return AI_AGENT_CHANNELS.INSTAGRAM;
   if (channel === "whatsapp") return AI_AGENT_CHANNELS.WHATSAPP;
   if (channel === TELEGRAM_CHANNEL) return TELEGRAM_CHANNEL;
+  if (channel === TIKTOK_DM_CHANNEL || channel === "tiktok_dm") return TIKTOK_DM_CHANNEL;
   if (channel === "web" || channel === "web_chat") return AI_AGENT_CHANNELS.WEB_CHAT;
   return channel;
 };
@@ -6656,10 +6658,14 @@ router.post("/conversations/:conversationId/send", protect, inboxReply(), async 
     }
     const aiReplyDraft = normalizeAiReplyDraft(conversation.last_ai_reply_draft || {});
     const isWhatsAppConversation = normalizedChannel === AI_AGENT_CHANNELS.WHATSAPP;
+    const isTikTokConversation = normalizedChannel === TIKTOK_DM_CHANNEL;
     const recipientId = envText(
       isWhatsAppConversation
         ? whatsappRecipient({ conversation, channelMetadata })
-        : (normalizedChannel === TELEGRAM_CHANNEL ? channelMetadata.chat_id : "") ||
+        : isTikTokConversation
+          // TikTok replies are addressed to the conversation, not the person.
+          ? channelMetadata.tiktok_conversation_id || tiktokConversationIdFromSessionId(conversation.session_id || conversationId)
+          : (normalizedChannel === TELEGRAM_CHANNEL ? channelMetadata.chat_id : "") ||
           channelMetadata.customer_psid ||
           channelMetadata.sender_psid ||
           channelMetadata.resolved_customer_id ||
@@ -6668,8 +6674,8 @@ router.post("/conversations/:conversationId/send", protect, inboxReply(), async 
     );
     const isMetaConversation = normalizedChannel === AI_AGENT_CHANNELS.FACEBOOK_MESSENGER || normalizedChannel === AI_AGENT_CHANNELS.INSTAGRAM;
     const isTelegramConversation = normalizedChannel === TELEGRAM_CHANNEL;
-    if (!isWhatsAppConversation && !isMetaConversation && !isTelegramConversation) {
-      throw Object.assign(new Error("Live sending is only available for WhatsApp, Messenger, Instagram DM, and Telegram conversations."), {
+    if (!isWhatsAppConversation && !isMetaConversation && !isTelegramConversation && !isTikTokConversation) {
+      throw Object.assign(new Error("Live sending is only available for WhatsApp, Messenger, Instagram DM, Telegram, and TikTok conversations."), {
         status: 409,
         code: "CHANNEL_SEND_UNAVAILABLE",
       });
@@ -6699,9 +6705,9 @@ router.post("/conversations/:conversationId/send", protect, inboxReply(), async 
           reason: "whatsapp_recipient_missing",
         });
       }
-      throw Object.assign(new Error(isTelegramConversation ? "Conversation has no Telegram chat id." : "Conversation has no Meta recipient id."), {
+      throw Object.assign(new Error(isTelegramConversation ? "Conversation has no Telegram chat id." : isTikTokConversation ? "Conversation has no TikTok conversation id." : "Conversation has no Meta recipient id."), {
         status: 409,
-        code: isTelegramConversation ? "TELEGRAM_CHAT_ID_MISSING" : "META_RECIPIENT_MISSING",
+        code: isTelegramConversation ? "TELEGRAM_CHAT_ID_MISSING" : isTikTokConversation ? "TIKTOK_DM_RECIPIENT_MISSING" : "META_RECIPIENT_MISSING",
       });
     }
 
@@ -6850,6 +6856,17 @@ router.post("/conversations/:conversationId/send", protect, inboxReply(), async 
           reason: sendResult?.transport ? `whatsapp_${sendResult.transport}_stored_only` : "whatsapp_stored_only",
         });
       }
+    } else if (isTikTokConversation) {
+      try {
+        sendResult = await sendTikTokDirectText({ tenantId, conversationId: recipientId, messageText });
+      } catch (tiktokError) {
+        sendResult = {
+          sent: false,
+          delivery_status: "failed",
+          delivery_error: tiktokError?.message || "TikTok message was not accepted",
+          error_code: tiktokError?.code || "TIKTOK_DM_ERROR",
+        };
+      }
     } else if (isTelegramConversation) {
       try {
         sendResult = await sendTelegramText({ chatId: recipientId, messageText });
@@ -6968,7 +6985,7 @@ router.post("/conversations/:conversationId/send", protect, inboxReply(), async 
         meta_message_id: sendResult?.message_id || sendResult?.results?.[0]?.result?.key?.id || "",
         config_id: sendResult?.config_id || null,
         source: "ai_inbox_send",
-        channel_type: isWhatsAppConversation ? "whatsapp" : isTelegramConversation ? "telegram" : "meta",
+        channel_type: isWhatsAppConversation ? "whatsapp" : isTelegramConversation ? "telegram" : isTikTokConversation ? "tiktok" : "meta",
         retry_after: Number(sendResult?.retry_after || 0),
         mock_delivery: mockDelivery,
       },

@@ -14,7 +14,7 @@ import { api } from "../../../../shared/api/api";
 import { ActionButton, PanelSkeleton, TextInput, ToggleRow, clean } from "../integrations/integrationsUi.jsx";
 
 const SUPPRESSED = { suppressErrorStatuses: [400, 403, 404, 409, 500, 502] };
-const CHANNELS = ["whatsapp", "facebook_messenger", "instagram", "telegram"];
+const CHANNELS = ["whatsapp", "facebook_messenger", "instagram", "telegram", "tiktok"];
 // Saturday first: the Egyptian working week.
 const DAY_ORDER = [6, 0, 1, 2, 3, 4, 5];
 const EMPTY = Object.freeze({ id: null, name: "", days: [6, 0, 1, 2, 3, 4], start_time: "10:00", end_time: "18:00", applies_to_all: true, channels: [], is_active: true, members: [] });
@@ -35,6 +35,7 @@ const channelLabel = (t, value) => {
   if (value === "whatsapp") return t("aiSupport.inboxOrg.shifts.channel.whatsapp");
   if (value === "facebook_messenger") return t("aiSupport.inboxOrg.shifts.channel.messenger");
   if (value === "instagram") return t("aiSupport.inboxOrg.shifts.channel.instagram");
+  if (value === "tiktok") return t("aiSupport.inboxOrg.shifts.channel.tiktok");
   return t("aiSupport.inboxOrg.shifts.channel.telegram");
 };
 const crossesMidnight = (start, end) => Boolean(start && end && end <= start && start !== end);

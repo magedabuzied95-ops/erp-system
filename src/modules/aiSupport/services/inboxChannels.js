@@ -20,6 +20,7 @@ export const AI_INBOX_BACKEND_CHANNEL_FILTERS = new Map([
   ["instagram", "instagram"],
   ["whatsapp", "whatsapp"],
   ["telegram", "telegram"],
+  ["tiktok", "tiktok"],
   ["web", "web_chat"],
   ["web_chat", "web_chat"],
   ["facebook_comment", "facebook_comment"],
@@ -45,6 +46,7 @@ const SESSION_ID_CHANNEL_PREFIXES = [
   [/^(?:facebook_messenger|messenger|facebook):/i, "facebook_messenger"],
   [/^instagram:/i, "instagram"],
   [/^telegram:/i, "telegram"],
+  [/^tiktok:/i, "tiktok"],
 ];
 
 // The channel stamped into a conversation's session id by whichever ingest path
@@ -66,7 +68,7 @@ export const channelFromConversationSessionId = (conversation = {}) => {
 
 // Message channels the inbox "All" view covers. Comment channels live in the
 // separate Social Comments section and are deliberately excluded.
-export const AI_INBOX_MESSAGE_CHANNELS = ["whatsapp", "facebook_messenger", "instagram", "telegram", "web_chat"];
+export const AI_INBOX_MESSAGE_CHANNELS = ["whatsapp", "facebook_messenger", "instagram", "telegram", "tiktok", "web_chat"];
 
 // Sized from production: WhatsApp is the only large population (200+);
 // Messenger/Instagram/Web are single digits, so 50 is generous headroom. A
@@ -77,6 +79,7 @@ export const AI_INBOX_CHANNEL_WINDOW = {
   facebook_messenger: 50,
   instagram: 50,
   telegram: 50,
+  tiktok: 50,
   web_chat: 50,
 };
 

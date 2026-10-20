@@ -50,6 +50,14 @@ export const TIKTOK_BUSINESS_PATHS = Object.freeze({
   COMMENT_REPLY_CREATE: "/business/comment/reply/create/",
   WEBHOOK_UPDATE: "/business/webhook/update/",
   WEBHOOK_GET: "/business/webhook/get/",
+  // The documented read for a webhook subscription is `list`, not `get`.
+  WEBHOOK_LIST: "/business/webhook/list/",
+  // Business Messaging API (direct messages).
+  MESSAGE_SEND: "/business/message/send/",
+  MESSAGE_CONVERSATION_LIST: "/business/message/conversation/list/",
+  MESSAGE_CONTENT_LIST: "/business/message/content/list/",
+  MESSAGE_MEDIA_UPLOAD: "/business/message/media/upload/",
+  MESSAGE_MEDIA_DOWNLOAD: "/business/message/media/download/",
 });
 
 export const TIKTOK_BUSINESS_AUTHORIZE_BASE = "https://www.tiktok.com/v2/auth/authorize";
@@ -239,6 +247,21 @@ export const tiktokBusinessPost = async (path, { accessToken = "", body = {} } =
     headers,
     body: JSON.stringify(body),
   });
+  return assertOk(await parseBody(response), response);
+};
+
+// multipart/form-data POST — only the message media upload uses it. `fetch`
+// builds the boundary itself, so no Content-Type header is set by hand.
+export const tiktokBusinessPostMultipart = async (path, { accessToken = "", fields = {}, file = null } = {}) => {
+  const url = `${apiRoot()}${path}`;
+  const form = new FormData();
+  for (const [key, value] of Object.entries(fields)) form.append(key, text(value));
+  if (file?.bytes) {
+    form.append(file.field || "file", new Blob([file.bytes], { type: text(file.mimeType) || "application/octet-stream" }), text(file.fileName) || "file");
+  }
+  const headers = { Accept: "application/json" };
+  if (text(accessToken)) headers["Access-Token"] = text(accessToken);
+  const response = await withTimeout(url, { method: "POST", headers, body: form });
   return assertOk(await parseBody(response), response);
 };
 

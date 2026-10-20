@@ -807,6 +807,7 @@ const { default: tiktokBusinessRoutes } = await import("./routes/tiktokBusiness.
 const { default: tiktokBusinessWebhookRoutes } = await import("./routes/tiktokBusinessWebhook.js");
 const { ensureTikTokBusinessSchema } = await import("./services/tiktokBusinessOAuthService.js");
 const { startTikTokBusinessCommentsWorker } = await import("./services/tiktokBusinessCommentsSyncService.js");
+const { startTikTokDmWorker } = await import("./services/tiktokBusinessDmService.js");
 const { tiktokBusinessEnabled: isTikTokBusinessEnabled, tiktokBusinessCommentsEnabled: isTikTokBusinessCommentsEnabled, validateTikTokBusinessConfig } = await import("./services/tiktokBusinessConfigService.js");
 const { default: aiWorkflowRoutes } = await import("./routes/aiWorkflows.js");
 const { ensureAiWorkflowSchema } = await import("./services/aiWorkflowSchema.js");
@@ -2912,8 +2913,11 @@ const bootstrapStartup = async () => {
       } else {
         await ensureTikTokBusinessSchema(db);
         if (isTikTokBusinessCommentsEnabled()) startTikTokBusinessCommentsWorker();
+        // Direct messages: starts only when TIKTOK_BUSINESS_MESSAGING_ENABLED is on.
+        const tiktokDmWorker = startTikTokDmWorker();
         console.log("[server] TikTok Business integration ready", {
           comments_worker: isTikTokBusinessCommentsEnabled(),
+          dm_worker: Boolean(tiktokDmWorker),
         });
       }
     }

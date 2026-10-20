@@ -39,7 +39,7 @@ test("AI Inbox queues a filter refresh instead of dropping it during an active r
 });
 
 test("AI Inbox prioritizes WhatsApp direct messages in the initial summary", () => {
-  assert.match(serviceSource, /IN \('facebook_messenger', 'instagram', 'whatsapp', 'telegram'\) THEN 0/);
+  assert.match(serviceSource, /IN \('facebook_messenger', 'instagram', 'whatsapp', 'telegram', 'tiktok'\) THEN 0/);
 });
 
 test("legacy Facebook DM sessions remain visible under Messenger", () => {

@@ -12,6 +12,8 @@
 //   POST /disconnect                auth'd   revoke + clear tokens
 //   POST /refresh                   auth'd   force token refresh + re-detect
 //   POST /comments/sync             auth'd   manual comment sync pass
+//   GET  /messaging/webhook         auth'd   read the DIRECT_MESSAGE subscription
+//   POST /messaging/webhook         auth'd   subscribe DIRECT_MESSAGE to our webhook
 //
 // The callback is public by necessity (it is the OAuth redirect target) and is
 // safe because it acts only on a single-use, expiring state token minted by an
@@ -26,10 +28,13 @@ import { getTenantId } from "../utils/requestScope.js";
 import {
   describeTikTokBusinessConfig,
   TIKTOK_BUSINESS_REQUESTED_PERMISSIONS,
+  tiktokBusinessAppId,
+  tiktokBusinessAppSecret,
   tiktokBusinessCommentsEnabled,
   tiktokBusinessEnabled,
 } from "../services/tiktokBusinessConfigService.js";
 import { describeTikTokBusinessMessagingCapability } from "../services/tiktokBusinessMessagingProvider.js";
+import { describeTikTokDmStatus, getTikTokDmWebhook, registerTikTokDmWebhook } from "../services/tiktokBusinessDmService.js";
 import { describeTikTokBusinessCommentsCapability } from "../services/tiktokBusinessCommentsProvider.js";
 import { describeTikTokBusinessFailure, redactTikTokBusinessError } from "../services/tiktokBusinessApiClient.js";
 import {
@@ -106,6 +111,8 @@ router.get("/status", ...settingsGuard, async (req, res) => {
       const probe = ["1", "true"].includes(text(req.query?.probe).toLowerCase());
       comments = await describeTikTokBusinessCommentsCapability({ tenantId, probe });
       messaging = await describeTikTokBusinessMessagingCapability({ tenantId });
+      // The live DM channel (tiktokBusinessDmService) — what the inbox actually uses.
+      messaging = { ...messaging, inbox_channel: await describeTikTokDmStatus({ tenantId }) };
     } else {
       comments = { status: "DISABLED", available: false, reason: "TIKTOK_BUSINESS_ENABLED is not set" };
       messaging = await describeTikTokBusinessMessagingCapability({ tenantId: null });
@@ -225,6 +232,42 @@ router.post("/comments/sync", ...settingsGuard, async (req, res) => {
     res.status(result.success ? 200 : 409).json({ success: result.success, data: result });
   } catch (error) {
     fail(res, error, "Failed to sync TikTok comments");
+  }
+});
+
+// ---------------------------------------------------------------------------
+// Direct messages
+// ---------------------------------------------------------------------------
+
+// The subscription is app-level: one call covers every account that has
+// authorised the app. The callback is the same signed webhook the comment
+// events use.
+const dmWebhookCallbackUrl = () =>
+  text(process.env.TIKTOK_BUSINESS_WEBHOOK_URL) ||
+  `${text(process.env.PUBLIC_BACKEND_URL || "https://api.m1store-egy.com").replace(/\/+$/g, "")}/api/webhooks/tiktok-business`;
+
+router.get("/messaging/webhook", ...settingsGuard, async (req, res) => {
+  try {
+    const data = await getTikTokDmWebhook({ appId: tiktokBusinessAppId(), appSecret: tiktokBusinessAppSecret() });
+    res.json({ success: true, data: { ...data, expected_callback_url: dmWebhookCallbackUrl() } });
+  } catch (error) {
+    fail(res, error, "Failed to read the TikTok messaging webhook");
+  }
+});
+
+router.post("/messaging/webhook", ...settingsGuard, async (req, res) => {
+  try {
+    if (!tiktokBusinessEnabled()) {
+      return res.status(503).json({ success: false, code: "TIKTOK_BUSINESS_DISABLED", message: "TikTok Business is not enabled" });
+    }
+    const data = await registerTikTokDmWebhook({
+      appId: tiktokBusinessAppId(),
+      appSecret: tiktokBusinessAppSecret(),
+      callbackUrl: dmWebhookCallbackUrl(),
+    });
+    res.json({ success: true, data });
+  } catch (error) {
+    fail(res, error, "Failed to register the TikTok messaging webhook");
   }
 });
 

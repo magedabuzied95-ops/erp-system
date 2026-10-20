@@ -60,7 +60,7 @@ export const TIKTOK_BUSINESS_MESSAGING_STATE = Object.freeze({
   prerequisites: Object.freeze([
     { key: "developer_app_approved", satisfied: true, detail: "M1 Store ERP approved 2026-08-28 (Account Comment scopes only)" },
     { key: "business_app_id_issued", satisfied: true, detail: "issued with the approval" },
-    { key: "data_security_privacy_review", satisfied: false, detail: "not started" },
+    { key: "data_security_privacy_review", satisfied: false, detail: "intake form submitted 2026-10-20; awaiting TikTok questionnaire" },
     { key: "business_messaging_permission", satisfied: false, detail: "separate application" },
   ]),
 });

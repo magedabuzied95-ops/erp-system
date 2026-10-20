@@ -18,7 +18,8 @@
 //
 // The session id is the reliable signal because the ingest paths mint it —
 // `whatsapp:<phone>`, `whatsapp:lid:<lid>`, `facebook_messenger:<psid>`,
-// `instagram:<igsid>`, `telegram:<chat>` — and nothing rewrites it afterwards.
+// `instagram:<igsid>`, `telegram:<chat>`, `tiktok:<conversation>` — and nothing
+// rewrites it afterwards.
 
 const text = (value = "") => String(value ?? "").trim();
 
@@ -36,6 +37,7 @@ const SESSION_ID_CHANNEL_PREFIXES = [
   [/^(?:facebook_messenger|messenger|facebook):/i, "facebook_messenger"],
   [/^instagram:/i, "instagram"],
   [/^telegram:/i, "telegram"],
+  [/^tiktok:/i, "tiktok"],
 ];
 
 /**
@@ -111,6 +113,7 @@ export const channelFromSessionIdSql = (sessionIdSql) => `
         WHEN ${sessionIdSql} ~* '^(facebook_messenger|messenger|facebook):' THEN 'facebook_messenger'
         WHEN ${sessionIdSql} ~* '^instagram:' THEN 'instagram'
         WHEN ${sessionIdSql} ~* '^telegram:' THEN 'telegram'
+        WHEN ${sessionIdSql} ~* '^tiktok:' THEN 'tiktok'
         ELSE ''
       END`;
 

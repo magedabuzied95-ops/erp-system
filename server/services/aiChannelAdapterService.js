@@ -43,6 +43,7 @@ export const AI_AGENT_CHANNELS = Object.freeze({
   INSTAGRAM: "instagram",
   FACEBOOK_MESSENGER: "facebook_messenger",
   TELEGRAM: "telegram",
+  TIKTOK: "tiktok",
 });
 
 const supportedChannels = new Set(Object.values(AI_AGENT_CHANNELS));
@@ -1653,6 +1654,14 @@ export const getAiChannelsStatus = async ({ tenantId } = {}) => {
     });
     return [channel, merged];
   }));
+  // TikTok DMs report their own readiness (flags + connection + granted
+  // message scopes). Loaded lazily: the DM service imports this module.
+  try {
+    const { describeTikTokDmStatus } = await import("./tiktokBusinessDmService.js");
+    entries.push([AI_AGENT_CHANNELS.TIKTOK, await describeTikTokDmStatus({ tenantId: numberOrNull(tenantId) })]);
+  } catch (error) {
+    console.warn("[ai-channels] tiktok status unavailable", { message: error?.message || "unknown" });
+  }
   return Object.fromEntries(entries);
 };
 

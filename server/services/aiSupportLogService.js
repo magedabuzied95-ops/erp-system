@@ -1092,10 +1092,11 @@ export const ensureAiSupportLogSchema = async (clientOrPool = db) => {
               WHEN s.session_id ~* '^(facebook_messenger|messenger|facebook):' THEN 'facebook_messenger'
               WHEN s.session_id ~* '^instagram:' THEN 'instagram'
               WHEN s.session_id ~* '^telegram:' THEN 'telegram'
+              WHEN s.session_id ~* '^tiktok:' THEN 'tiktok'
               ELSE s.channel
             END
         WHERE lower(COALESCE(s.channel, '')) IN ('', 'web', 'web_chat')
-          AND s.session_id ~* '^(whatsapp|facebook_messenger|messenger|facebook|instagram|telegram):'
+          AND s.session_id ~* '^(whatsapp|facebook_messenger|messenger|facebook|instagram|telegram|tiktok):'
       `).catch((error) => logSqlError("channel_repair_sessions_by_prefix", error));
       // Prefix-less legacy rows: a message carrying an Evolution instance or a
       // WhatsApp JID could only have come from WhatsApp.
@@ -1131,6 +1132,7 @@ export const ensureAiSupportLogSchema = async (clientOrPool = db) => {
               WHEN external_conversation_id ~* '^(facebook_messenger|messenger|facebook):' THEN 'facebook_messenger'
               WHEN external_conversation_id ~* '^instagram:' THEN 'instagram'
               WHEN external_conversation_id ~* '^telegram:' THEN 'telegram'
+              WHEN external_conversation_id ~* '^tiktok:' THEN 'tiktok'
               ELSE ''
             END AS channel
           FROM ai_channel_conversations
