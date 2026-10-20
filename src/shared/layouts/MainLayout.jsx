@@ -576,6 +576,19 @@ function MainLayout() {
       .filter((group) => group.items.length > 0);
   }, [groupedSections, searchQuery]);
   const sidebarHidden = sidebarAutoHide && !sidebarPeek;
+  // The resting rail shows every module icon, whichever groups are folded.
+  const railSidebarItems = useMemo(() => {
+    if (!sidebarHidden) return [];
+    const seen = new Set();
+    return visibleGroupedSections
+      .flatMap((group) => group.items)
+      .filter((item) => {
+        const key = String(item?.to || item?.label || "");
+        if (!key || seen.has(key)) return false;
+        seen.add(key);
+        return true;
+      });
+  }, [sidebarHidden, visibleGroupedSections]);
   const PinIcon = isRtl
     ? sidebarAutoHide ? PanelRightOpen : PanelRightClose
     : sidebarAutoHide ? PanelLeftOpen : PanelLeftClose;
@@ -773,6 +786,13 @@ function MainLayout() {
             className="min-h-0 flex-1 space-y-1.5 overflow-y-auto pe-1"
             aria-label={t("common.mainNavigation", "التنقل الرئيسي")}
           >
+            {railSidebarItems.length ? (
+              <div className="m1-sidebar-rail-list hidden">
+                {railSidebarItems.map((item) => (
+                  <SidebarNavItem key={item.to} item={item} location={location} onNavigate={() => setMobileDrawerOpen(false)} />
+                ))}
+              </div>
+            ) : null}
             {visibleGroupedSections.length ? visibleGroupedSections.map((group) => {
               const isOpen = Boolean(searchQuery || openGroups[group.title] || activeGroupTitle === group.title);
               const groupLabel = t(GROUP_TITLE_KEYS[group.title] || group.title, { defaultValue: group.title });

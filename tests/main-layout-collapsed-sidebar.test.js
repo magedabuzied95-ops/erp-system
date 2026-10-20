@@ -19,6 +19,13 @@ test("the sidebar rests as an icon rail and widens over the page on hover", () =
   assert.match(css, /\.m1-shell-sidebar--rail :is\(\.m1-sidebar-fade,nav a>span,nav button>\*\)\{opacity:0/);
 });
 
+test("the resting rail lists every module icon and drops the brand card", () => {
+  assert.match(layout, /<div className="m1-sidebar-rail-list hidden">/);
+  assert.match(layout, /if \(!sidebarHidden\) return \[\];/);
+  assert.match(css, /aside\.m1-shell-sidebar--rail nav>:not\(\.m1-sidebar-rail-list\)\{display:none!important\}/);
+  assert.match(css, /aside\.m1-shell-sidebar--rail \.m1-sidebar-brand\{display:none\}/);
+});
+
 test("typing in the module search keeps the peeked sidebar open", () => {
   assert.match(layout, /focused === sidebarSearchInputRef\.current\) return;/);
 });
