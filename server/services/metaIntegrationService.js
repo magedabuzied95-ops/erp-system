@@ -30562,3 +30562,106 @@ export const getPublicWebhookVerificationConfig = async ({ verifyToken } = {}) =
 };
 
 export { adapterChannel };
+
+/*
+ * The Messenger / Instagram "Accounts" pages (inbox top bar, Genie parity): one row per connected
+ * Page and per linked Instagram account, with what Meta says about it now — username, category,
+ * audience and the 28-day page numbers. Read-only; every Graph call is best-effort so one failing
+ * field never hides the account. Cached briefly because the page is opened often and the numbers
+ * move slowly.
+ */
+const metaAccountsOverviewCache = new Map();
+const META_ACCOUNTS_OVERVIEW_TTL_MS = 5 * 60 * 1000;
+
+const graphGetJson = async (path, accessToken) => {
+  const response = await fetch(`${GRAPH_BASE_URL}${path}${path.includes("?") ? "&" : "?"}access_token=${encodeURIComponent(accessToken)}`);
+  const payload = await response.json().catch(() => ({}));
+  if (!response.ok) throw Object.assign(new Error(text(payload?.error?.message) || `Graph ${response.status}`), { status: response.status });
+  return payload;
+};
+
+const insightValue = (payload, metric) => {
+  const row = (Array.isArray(payload?.data) ? payload.data : []).find((item) => item?.name === metric);
+  const values = Array.isArray(row?.values) ? row.values : [];
+  const last = values[values.length - 1];
+  return Number.isFinite(Number(last?.value)) ? Number(last.value) : null;
+};
+
+export const listMetaAccountsOverview = async ({ tenantId, refresh = false } = {}) => {
+  await ensureMetaIntegrationSchema();
+  const scopedTenantId = numberOrNull(tenantId);
+  const cached = metaAccountsOverviewCache.get(scopedTenantId);
+  if (!refresh && cached && Date.now() - cached.at < META_ACCOUNTS_OVERVIEW_TTL_MS) return cached.value;
+
+  const result = await db.query(
+    `SELECT id, facebook_page_id, page_name, facebook_page_name, instagram_business_account_id, instagram_username,
+            page_access_token_encrypted, status, token_expires_at, webhook_enabled, subscribed_apps_verified,
+            messenger_enabled, instagram_dm_enabled, last_webhook_at, updated_at
+       FROM meta_integration_configs
+      WHERE tenant_id = $1 AND COALESCE(facebook_page_id, '') <> ''
+      ORDER BY updated_at DESC`,
+    [scopedTenantId]
+  );
+  const seenPages = new Set();
+  const pages = [];
+  const instagram = [];
+  for (const row of result.rows) {
+    const pageId = text(row.facebook_page_id);
+    if (seenPages.has(pageId)) continue;
+    seenPages.add(pageId);
+    const token = tryDecryptSecret(row.page_access_token_encrypted, { tenant_id: scopedTenantId, config_id: row.id, source: "accounts_overview" }).value;
+    const status = text(row.status) || "not_connected";
+    const base = {
+      config_id: row.id,
+      status,
+      token_expires_at: row.token_expires_at || null,
+      webhook: Boolean(row.webhook_enabled || row.subscribed_apps_verified),
+      last_webhook_at: row.last_webhook_at || null,
+    };
+    let page = {};
+    let insights = {};
+    if (token) {
+      [page, insights] = await Promise.all([
+        graphGetJson(`/${pageId}?fields=name,username,category,fan_count,followers_count,link,picture{url}`, token).catch(() => ({})),
+        graphGetJson(`/${pageId}/insights?metric=page_impressions,page_impressions_unique,page_views_total,page_post_engagements&period=days_28`, token).catch(() => ({})),
+      ]);
+    }
+    pages.push({
+      ...base,
+      page_id: pageId,
+      name: text(page.name) || text(row.facebook_page_name || row.page_name) || pageId,
+      username: text(page.username),
+      category: text(page.category),
+      followers: Number.isFinite(Number(page.followers_count ?? page.fan_count)) ? Number(page.followers_count ?? page.fan_count) : null,
+      link: text(page.link),
+      picture: text(page.picture?.data?.url),
+      enabled: row.messenger_enabled !== false,
+      impressions_28d: insightValue(insights, "page_impressions"),
+      reach_28d: insightValue(insights, "page_impressions_unique"),
+      views_28d: insightValue(insights, "page_views_total"),
+      engagements_28d: insightValue(insights, "page_post_engagements"),
+    });
+    const igId = text(row.instagram_business_account_id);
+    if (igId) {
+      const ig = token
+        ? await graphGetJson(`/${igId}?fields=name,username,followers_count,media_count,profile_picture_url`, token).catch(() => ({}))
+        : {};
+      instagram.push({
+        ...base,
+        account_id: igId,
+        page_id: pageId,
+        page_name: text(page.name) || text(row.facebook_page_name || row.page_name),
+        profile_name: text(ig.name),
+        username: text(ig.username) || text(row.instagram_username),
+        type: "Business",
+        followers: Number.isFinite(Number(ig.followers_count)) ? Number(ig.followers_count) : null,
+        media_count: Number.isFinite(Number(ig.media_count)) ? Number(ig.media_count) : null,
+        picture: text(ig.profile_picture_url),
+        enabled: row.instagram_dm_enabled !== false,
+      });
+    }
+  }
+  const value = { pages, instagram, checked_at: new Date().toISOString() };
+  metaAccountsOverviewCache.set(scopedTenantId, { at: Date.now(), value });
+  return value;
+};

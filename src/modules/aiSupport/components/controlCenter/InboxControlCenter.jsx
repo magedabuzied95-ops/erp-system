@@ -71,6 +71,7 @@ const InboxTeamsPanel = lazy(() => import("./InboxTeamsPanel.jsx"));
 const CustomerGroupsPanel = lazy(() => import("./CustomerGroupsPanel.jsx"));
 const InboxShiftsPanel = lazy(() => import("./InboxShiftsPanel.jsx"));
 const InboxTagsPanel = lazy(() => import("./InboxTagsPanel.jsx"));
+const MetaAccountsPanel = lazy(() => import("./MetaAccountsPanel.jsx"));
 const PresenceLogPanel = lazy(() => import("./PresenceLogPanel.jsx"));
 const ChatBackupsPanel = lazy(() => import("./ChatBackupsPanel.jsx"));
 
@@ -88,6 +89,7 @@ export const CONTROL_CENTER_GROUPS = [
   { key: "growth", sections: ["broadcasts", "sequences"] },
   { key: "team", sections: ["cfg_tags", "cfg_teams", "cfg_groups", "cfg_shifts", "cfg_presence", "cfg_backups"] },
   { key: "insight", sections: ["performance"] },
+  { key: "meta_accounts", sections: ["fb_pages", "fb_connect", "ig_accounts", "ig_connect"] },
   { key: "connections", sections: ["overview", "meta", "whatsapp", "whatsapp_web", "automations", "queue", "tiktok"] },
 ];
 
@@ -112,6 +114,10 @@ const SECTION_ICON = {
   invoice_messages: Receipt,
   wa_templates: FileText,
   wa_usage: Receipt,
+  fb_pages: () => <FaFacebookF className="h-4 w-4 text-blue-300" aria-hidden="true" />,
+  fb_connect: () => <FaFacebookF className="h-4 w-4 text-blue-300" aria-hidden="true" />,
+  ig_accounts: () => <FaInstagram className="h-4 w-4 text-pink-300" aria-hidden="true" />,
+  ig_connect: () => <FaInstagram className="h-4 w-4 text-pink-300" aria-hidden="true" />,
   cfg_tags: Tag,
   cfg_presence: Clock3,
   cfg_backups: DatabaseBackup,
@@ -142,6 +148,10 @@ const sectionLabel = (t, key) => {
   if (key === "comments") return t("aiSupport.commentsSettings.title");
   if (key === "invoice_messages") return t("aiSupport.aiSettings.variants.menuTitle");
   if (key === "wa_templates") return t("aiSupport.waTemplates.title");
+  if (key === "fb_pages") return t("aiSupport.metaAccounts.titles.fbPages");
+  if (key === "fb_connect") return t("aiSupport.metaAccounts.titles.fbConnect");
+  if (key === "ig_accounts") return t("aiSupport.metaAccounts.titles.igAccounts");
+  if (key === "ig_connect") return t("aiSupport.metaAccounts.titles.igConnect");
   if (key === "cfg_tags") return t("aiSupport.inbox.topbar.items.tags");
   if (key === "cfg_presence") return t("aiSupport.inbox.topbar.items.presence");
   if (key === "cfg_backups") return t("aiSupport.inbox.topbar.items.backups");
@@ -167,6 +177,7 @@ const sectionLabel = (t, key) => {
 const groupLabel = (t, key) => {
   if (key === "agent") return t("aiSupport.controlCenter.groups.agent");
   if (key === "workspace") return t("aiSupport.controlCenter.groups.workspace");
+  if (key === "meta_accounts") return t("aiSupport.integrations.nav.meta");
   if (key === "team") return t("aiSupport.inbox.topbar.items.teams");
   if (key === "whatsapp_official") return t("aiSupport.inbox.topbar.menus.whatsapp");
   if (key === "growth") return t("aiSupport.controlCenter.groups.growth");
@@ -241,6 +252,10 @@ export default function InboxControlCenter({
       {section === "comments" ? <CommentsSettingsPanel {...(commentsProps || {})} light={false} /> : null}
       {section === "invoice_messages" ? <WhatsappMessageVariantsEditor initialType="invoice_receipt" /> : null}
       {section === "wa_templates" ? <WhatsAppTemplatesPanel headers={headers} /> : null}
+      {section === "fb_pages" ? <MetaAccountsPanel headers={headers} mode="messenger" /> : null}
+      {section === "fb_connect" ? <MetaAccountsPanel headers={headers} mode="connect_messenger" /> : null}
+      {section === "ig_accounts" ? <MetaAccountsPanel headers={headers} mode="instagram" /> : null}
+      {section === "ig_connect" ? <MetaAccountsPanel headers={headers} mode="connect_instagram" /> : null}
       {section === "cfg_tags" ? <InboxTagsPanel headers={headers} /> : null}
       {section === "cfg_presence" ? <PresenceLogPanel headers={headers} /> : null}
       {section === "cfg_backups" ? <ChatBackupsPanel headers={headers} /> : null}

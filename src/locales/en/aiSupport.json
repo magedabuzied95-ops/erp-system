@@ -3255,5 +3255,72 @@
         "availableUntil": "Available until"
       }
     }
+  },
+  "metaAccounts": {
+    "titles": {
+      "fbPages": "Accounts",
+      "fbConnect": "Connect page",
+      "igAccounts": "Accounts",
+      "igConnect": "Connect"
+    },
+    "active": "Active",
+    "inactive": "Inactive",
+    "connected": "Connected",
+    "connectFailed": "Connection failed",
+    "loadFailed": "Failed to load accounts",
+    "choosePage": "Choose the page to connect",
+    "noInstagram": "No linked Instagram",
+    "continueWithFacebook": "Continue with Facebook",
+    "connectNote": "Facebook will ask you to choose which Pages to share.",
+    "connectPage": "Connect page",
+    "connectInstagram": "Connect Instagram",
+    "syncNow": "Sync now",
+    "search": "Search…",
+    "empty": "No connected accounts yet.",
+    "allAccounts": "All accounts",
+    "followers": "Followers",
+    "posts": "Posts",
+    "linkedPage": "Linked page",
+    "impressions": "Impressions (28d)",
+    "reach": "Reach (28d)",
+    "views": "Page views (28d)",
+    "engagements": "Engagements (28d)",
+    "tokenStatus": "Connection status",
+    "tokenExpires": "Token expires",
+    "webhook": "Webhook",
+    "webhookOn": "Working",
+    "webhookOff": "Not working",
+    "lastWebhook": "Last event received",
+    "verifyWebhook": "Verify webhook",
+    "webhookChecked": "Webhook verified",
+    "webhookFailed": "Webhook check failed",
+    "tabs": {
+      "status": "Status",
+      "credentials": "Credentials & Webhook"
+    },
+    "columns": {
+      "pageName": "Page name",
+      "pageId": "Page ID",
+      "status": "Status",
+      "username": "Username",
+      "category": "Category",
+      "profileName": "Profile name",
+      "accountName": "Account name",
+      "type": "Type"
+    },
+    "connectFb": {
+      "title": "Connect Messenger",
+      "subtitle": "Receive and reply to Messenger conversations from your inbox.",
+      "p1": "Read and send Page messages",
+      "p2": "Connect several Pages in one step",
+      "p3": "Requires admin access to the Page"
+    },
+    "connectIg": {
+      "title": "Connect Instagram",
+      "subtitle": "Receive and reply to Instagram DMs and comments from your inbox.",
+      "p1": "DMs, comments and story replies",
+      "p2": "Needs a Business or Creator account",
+      "p3": "Linked to a Facebook Page you admin"
+    }
   }
 }

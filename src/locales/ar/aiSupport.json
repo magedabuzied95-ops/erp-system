@@ -3263,5 +3263,72 @@
         "availableUntil": "متاحة لحد"
       }
     }
+  },
+  "metaAccounts": {
+    "titles": {
+      "fbPages": "الحسابات",
+      "fbConnect": "ربط صفحة",
+      "igAccounts": "الحسابات",
+      "igConnect": "ربط حساب"
+    },
+    "active": "نشط",
+    "inactive": "غير نشط",
+    "connected": "اتربط بنجاح",
+    "connectFailed": "الربط ما تمش",
+    "loadFailed": "تعذر تحميل الحسابات",
+    "choosePage": "اختار الصفحة اللي عايز تربطها",
+    "noInstagram": "مفيش إنستجرام مربوط",
+    "continueWithFacebook": "المتابعة بفيسبوك",
+    "connectNote": "فيسبوك هيطلب منك تختار الصفحات اللي هتشاركها.",
+    "connectPage": "ربط صفحة",
+    "connectInstagram": "ربط حساب إنستجرام",
+    "syncNow": "مزامنة الآن",
+    "search": "بحث…",
+    "empty": "مفيش حسابات مربوطة لسه.",
+    "allAccounts": "كل الحسابات",
+    "followers": "المتابعين",
+    "posts": "البوستات",
+    "linkedPage": "الصفحة المربوطة",
+    "impressions": "مرات الظهور (28 يوم)",
+    "reach": "الوصول (28 يوم)",
+    "views": "زيارات الصفحة (28 يوم)",
+    "engagements": "التفاعل (28 يوم)",
+    "tokenStatus": "حالة الربط",
+    "tokenExpires": "انتهاء الرمز",
+    "webhook": "Webhook",
+    "webhookOn": "شغال",
+    "webhookOff": "مش شغال",
+    "lastWebhook": "آخر حدث وصل",
+    "verifyWebhook": "التحقق من Webhook",
+    "webhookChecked": "تم التحقق من Webhook",
+    "webhookFailed": "التحقق من Webhook فشل",
+    "tabs": {
+      "status": "الحالة",
+      "credentials": "الربط و Webhook"
+    },
+    "columns": {
+      "pageName": "اسم الصفحة",
+      "pageId": "رقم الصفحة",
+      "status": "الحالة",
+      "username": "اسم المستخدم",
+      "category": "التصنيف",
+      "profileName": "اسم البروفايل",
+      "accountName": "الصفحة",
+      "type": "النوع"
+    },
+    "connectFb": {
+      "title": "ربط ماسنجر",
+      "subtitle": "استقبل رسايل ماسنجر ورد عليها من الإنبوكس.",
+      "p1": "قراءة وإرسال رسايل الصفحة",
+      "p2": "ربط أكتر من صفحة مرة واحدة",
+      "p3": "لازم تكون أدمن على الصفحة"
+    },
+    "connectIg": {
+      "title": "ربط إنستجرام",
+      "subtitle": "استقبل رسايل وتعليقات إنستجرام ورد عليها من الإنبوكس.",
+      "p1": "رسايل الـ DM والتعليقات والستوري",
+      "p2": "لازم الحساب يكون Business أو Creator",
+      "p3": "ومربوط بصفحة فيسبوك أنت أدمن عليها"
+    }
   }
 }

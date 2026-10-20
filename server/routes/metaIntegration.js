@@ -15,6 +15,7 @@ import {
   getPublicWebhookVerificationConfig,
   getMetaSetupCheck,
   getMetaWebhookHealth,
+  listMetaAccountsOverview,
   processMetaWebhook,
   saveMetaIntegrationConfig,
   saveInstagramBusinessAccessToken,
@@ -171,6 +172,16 @@ integrationRouter.get("/status", protect, permit("settings", "view"), async (req
     res.json({ success: true, ...status });
   } catch (error) {
     sendError(res, error, "Unable to load Meta integration status");
+  }
+});
+
+// Messenger / Instagram account lists for the inbox top bar (Genie parity).
+integrationRouter.get("/accounts", protect, permit("settings", "view"), async (req, res) => {
+  try {
+    const overview = await listMetaAccountsOverview({ tenantId: toTenantId(req), refresh: req.query?.refresh === "1" });
+    res.json({ success: true, ...overview });
+  } catch (error) {
+    sendError(res, error, "Unable to load Meta accounts");
   }
 });
 

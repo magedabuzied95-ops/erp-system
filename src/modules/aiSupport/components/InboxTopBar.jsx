@@ -52,10 +52,10 @@ const MENUS = [
     icon: FaFacebookMessenger,
     tone: "text-sky-300",
     items: [
-      { key: "metaConnect", section: "meta" },
-      { key: "comments", comments: "facebook" },
+      { key: "fbPages", section: "fb_pages" },
+      { key: "fbConnect", section: "fb_connect" },
       { key: "posts", to: "/marketing/posts" },
-      { key: "publisher", to: "/marketing/social-media-publisher" },
+      { key: "comments", comments: "facebook" },
       { key: "stories", to: "/marketing/ai-center" },
       { key: "autoReplies", section: "comments" },
       { key: "flows", to: "/ai-studio/workflows" },
@@ -66,10 +66,10 @@ const MENUS = [
     icon: FaInstagram,
     tone: "text-pink-300",
     items: [
-      { key: "metaConnect", section: "meta" },
+      { key: "igAccounts", section: "ig_accounts" },
+      { key: "igConnect", section: "ig_connect" },
       { key: "comments", comments: "instagram" },
       { key: "posts", to: "/marketing/posts" },
-      { key: "publisher", to: "/marketing/social-media-publisher" },
       { key: "stories", to: "/marketing/ai-center" },
       { key: "autoReplies", section: "comments" },
       { key: "flows", to: "/ai-studio/workflows" },
@@ -128,10 +128,12 @@ const itemLabel = (t, key) => {
     case "webConnection": return t("aiSupport.inbox.topbar.items.webConnection");
     case "webQueue": return t("aiSupport.inbox.topbar.items.webQueue");
     case "webAutomations": return t("aiSupport.inbox.topbar.items.webAutomations");
-    case "metaConnect": return t("aiSupport.inbox.topbar.items.metaConnect");
+    case "fbPages": return t("aiSupport.metaAccounts.titles.fbPages");
+    case "fbConnect": return t("aiSupport.metaAccounts.titles.fbConnect");
+    case "igAccounts": return t("aiSupport.metaAccounts.titles.igAccounts");
+    case "igConnect": return t("aiSupport.metaAccounts.titles.igConnect");
     case "comments": return t("aiSupport.inbox.topbar.items.comments");
     case "posts": return t("aiSupport.inbox.topbar.items.posts");
-    case "publisher": return t("aiSupport.inbox.topbar.items.publisher");
     case "stories": return t("aiSupport.inbox.topbar.items.stories");
     case "autoReplies": return t("aiSupport.inbox.topbar.items.autoReplies");
     case "flows": return t("aiSupport.inbox.topbar.items.flows");
