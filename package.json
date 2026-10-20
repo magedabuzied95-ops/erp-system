@@ -52,6 +52,7 @@
     "fix:encoding": "node scripts/fix-arabic-mojibake.cjs"
   },
   "dependencies": {
+    "@anthropic-ai/sdk": "^0.131.0",
     "@heroui/react": "^3.2.4",
     "@xyflow/react": "^12.11.2",
     "axios": "^1.16.0",

@@ -15,6 +15,7 @@ import { PRODUCT_GRADES, productGrade, productGradeRank } from "../config/produc
 import { resolveInvoiceTemplateForOrder } from "./invoiceTemplateService.js";
 import { detectCatalogBrowseSlots } from "../utils/catalogBrowseRequest.js";
 import { genderizeDecision, resolveCustomerGender } from "../utils/customerGender.js";
+import { runClaudeSalesAgent } from "./aiClaudeSalesAgentService.js";
 import { buildStoreFactsDecision, STORE_FACTS_INTENTS } from "./aiStoreFactsReplyService.js";
 import { buildCatalogBrowseDecision, CATALOG_BROWSE_INTENTS } from "./aiCatalogBrowseService.js";
 import {
@@ -1204,8 +1205,42 @@ export const generateUnifiedConversationDecision = async (normalizedInbound = {}
     name: inbound.customerName,
     override: inbound.metadata.customer_gender || inbound.metadata.customerGender,
   });
-  decision = await rewriteStructuredDecision({ decision, inbound, tenantId, customerGender: genderRead.gender });
-  decision = genderizeDecision(decision, genderRead.gender);
+  // The Claude sales agent writes the reply when it is switched on (AI_CLAUDE_AGENT_ENABLED); any
+  // failure returns null and the old grounded rewrite runs exactly as before.
+  const agentDecision = await runClaudeSalesAgent({
+    decision,
+    inbound,
+    tenantId,
+    customerGender: genderRead.gender,
+    memory: effectiveMemoryWithV2 || {},
+    helpers: {
+      safeProductFacts,
+      skipIntents: CATALOG_BROWSE_INTENTS,
+      mustKeepFacts: STORE_FACTS_INTENTS.includes(text(decision.detected_intent || decision.intent)) ||
+        Boolean(text(decision.debug?.colorway_missing_reply?.text) || text(decision.debug?.grade_missing_reply?.text) || text(decision.debug?.grade_found_reply?.text)),
+      // The same search brain V2 runs for a customer's message, on the model's query, so the cards
+      // it picks are built exactly like every other card.
+      searchCards: async (query) => {
+        if (!text(query)) return [];
+        const searchInbound = normalizeUnifiedInbound({
+          channel: inbound.channel,
+          text: query,
+          original_message: query,
+          externalConversationId: inbound.externalConversationId,
+          metadata: { tenant_id: tenantId, channel: inbound.channel, source: "claude_agent_search" },
+        });
+        const found = await generateAiBrainV2Decision({
+          ...searchInbound,
+          metadata: { ...searchInbound.metadata, channel: searchInbound.channel, ai_memory: {} },
+        }, { tenantId, branchId, memory: {} });
+        return asArray(found?.product_cards);
+      },
+    },
+  });
+  decision = agentDecision
+    || await rewriteStructuredDecision({ decision, inbound, tenantId, customerGender: genderRead.gender });
+  // The agent already writes in the customer's gender; the swap list is for templates only.
+  if (!agentDecision) decision = genderizeDecision(decision, genderRead.gender);
   decision = { ...decision, debug: { ...(decision.debug || {}), customer_gender: genderRead.gender, customer_gender_reason: genderRead.reason } };
   const output = normalizeUnifiedDecisionOutput(applySharedShortcutMetadata({ decision, inbound }), inbound);
   console.info("AI_UNIFIED_DECISION_OUTPUT", {

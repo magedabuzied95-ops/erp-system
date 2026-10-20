@@ -92,7 +92,8 @@ test("the model is told the gender, and told never to guess it", () => {
 
 test("the live decision and the Meta greeting both use it", () => {
   const unified = read("../../server/services/aiUnifiedDecisionService.js");
-  assert.match(unified, /decision = await rewriteStructuredDecision\(\{ decision, inbound, tenantId, customerGender: genderRead\.gender \}\);\s*decision = genderizeDecision\(decision, genderRead\.gender\);/);
+  assert.match(unified, /customerGender: genderRead\.gender,/);
+  assert.match(unified, /if \(!agentDecision\) decision = genderizeDecision\(decision, genderRead\.gender\);/);
   const meta = read("../../server/services/metaIntegrationService.js");
   assert.match(meta, /const greetingParts = greetingReplyParts\(message\.message_text \|\| ""\)\.map\(\(part\) => genderizeReply\(part, greetingGender\)\);/);
 });

@@ -180,6 +180,7 @@ server/services/*
 !server/services/aiCustomer360Service.js
 !server/services/aiPersonaService.js
 !server/services/aiToolRegistryService.js
+!server/services/aiClaudeSalesAgentService.js
 !server/services/aiAgentLoopService.js
 !server/services/aiHybridProductSearchService.js
 !server/services/aiReplyEngineService.js
