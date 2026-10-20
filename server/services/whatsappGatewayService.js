@@ -2533,7 +2533,11 @@ export const sendCartCarouselMessage = async ({ phone, body = "", cards = [], fa
   // template, which is a different product with its own review, price and opt-out rules.
   if (isCloudTransport(instance)) throw gatewayError("A carousel can only be sent from the Evolution number; on Cloud it would have to be an approved marketing template", "WHATSAPP_CAROUSEL_UNSUPPORTED", 409);
   if (provider() !== "evolution") throw gatewayError("Carousel messages are only supported on the Evolution provider", "WHATSAPP_CAROUSEL_UNSUPPORTED", 409);
-  const normalizedPhone = normalizeEgyptPhone(phone);
+  // A username customer has a LID and no phone (see sendTextMessage). The carousel used to accept
+  // a phone only, so every product send to such a customer fell back to one photo + caption per
+  // card (LIVE 2026-10-20, @x1_youssef_12). The LID addresses the chat exactly as text sends do.
+  const lid = normalizeWhatsappLid(phone);
+  const normalizedPhone = lid ? `${lid}@lid` : normalizeEgyptPhone(phone);
   if (!normalizedPhone) throw gatewayError("A valid WhatsApp phone number is required", "WHATSAPP_PHONE_REQUIRED", 400);
   const normalizedCards = (await Promise.all((Array.isArray(cards) ? cards : []).map(async (card) => {
     // Evolution's carousel schema names this `imageUrl` — a card sent with `image` is accepted
