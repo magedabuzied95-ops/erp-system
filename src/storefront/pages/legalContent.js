@@ -325,13 +325,85 @@ export const legalSections = {
         ],
       },
     },
+    // --- Meta (WhatsApp Business Platform, Facebook Login, Meta Ads) ---------
+    // Added for the Meta App Review. Each clause matches what the code does:
+    // server/modules/whatsappOfficial, server/modules/metaAds (leads, ad clicks,
+    // Conversions API with the click id only, audiences read-only), and the
+    // campaign opt-out keyword in marketingBroadcastService.
+    {
+      icon: "key",
+      ar: {
+        title: "ربط حسابات Meta (فيسبوك وإنستجرام وواتساب)",
+        items: [
+          "يتم ربط حسابات Meta (صفحات فيسبوك، وحسابات إنستجرام، وحسابات واتساب للأعمال، وحسابات الإعلانات) فقط عندما يختار مستخدم مصرح له الربط من داخل M1 ERP عبر تسجيل الدخول بفيسبوك للأعمال.",
+          "تتم الموافقة على الصلاحيات على شاشة Meta نفسها، ولا يحصل M1 Store على كلمة مرور أي حساب ولا يطلبها.",
+          "تُحفظ رموز الوصول مشفّرة، ولا تُستخدم إلا لتنفيذ الوظائف التي فعّلها المستخدم.",
+          "يمكن فصل أي حساب في أي وقت من داخل M1 ERP، أو إلغاء وصول التطبيق من إعدادات فيسبوك أو Business Manager.",
+        ],
+      },
+      en: {
+        title: "Connecting Meta accounts (Facebook, Instagram, WhatsApp)",
+        items: [
+          "Meta assets (Facebook Pages, Instagram accounts, WhatsApp Business Accounts and ad accounts) are connected only when an authorised user chooses to connect them inside M1 ERP through Facebook Login for Business.",
+          "Permissions are approved on Meta's own screen; M1 Store never receives or asks for any account password.",
+          "Access tokens are stored encrypted and are used only to perform the functions the user has enabled.",
+          "Any account can be disconnected at any time from inside M1 ERP, and the app's access can be removed from Facebook or Business Manager settings.",
+        ],
+      },
+    },
+    {
+      icon: "message",
+      ar: {
+        title: "واتساب للأعمال (WhatsApp Business Platform)",
+        items: [
+          "عندما يراسل العميل رقم واتساب المتجر الرسمي، نستقبل من Meta رقم هاتفه واسم ملفه الشخصي ومحتوى رسائله والوسائط التي يرسلها، وحالة تسليم وقراءة الرسائل التي نرسلها.",
+          "نستخدم هذه البيانات للرد على العميل، وخدمة العملاء، وتنفيذ الطلبات ومتابعتها، وإرسال إشعارات الطلب والشحن.",
+          "قد تُعالَج نصوص المحادثات بواسطة أنظمة ذكاء اصطناعي، منها مزوّدو خدمات خارجيون، لاقتراح الردود أو إرسالها تلقائيًا، ويمكن لفريق المتجر التدخل وتولي المحادثة في أي وقت.",
+          "قد يستقبل العميل من المتجر رسائل بقوالب معتمدة من Meta (مثل تحديثات الطلب أو العروض). ويمكنه إيقاف الرسائل التسويقية في أي وقت بالرد بكلمة «إلغاء»، وبعدها لا يدخل أي حملة.",
+          "نحتفظ بإحصاءات الرسائل (المرسلة والمسلّمة والمقروءة وتكلفتها) لمتابعة جودة الخدمة.",
+        ],
+      },
+      en: {
+        title: "WhatsApp Business Platform",
+        items: [
+          "When a customer messages the store's official WhatsApp number, we receive from Meta their phone number, profile name, message content and any media they send, together with delivery and read statuses of the messages we send.",
+          "We use this data to reply, provide customer service, fulfil and track orders, and send order and shipping notifications.",
+          "Conversation text may be processed by AI systems, including third-party service providers, to suggest or automatically send replies; the store team can step in and take over a conversation at any time.",
+          "Customers may receive Meta-approved template messages from the store (such as order updates or offers). They can stop marketing messages at any time by replying «إلغاء» (cancel), after which they are excluded from every campaign.",
+          "We keep message statistics (sent, delivered, read and their cost) to monitor service quality.",
+        ],
+      },
+    },
+    {
+      icon: "send",
+      ar: {
+        title: "إعلانات Meta والعملاء المحتملون",
+        items: [
+          "يدير M1 ERP إعلانات المتجر على فيسبوك وإنستجرام: إنشاء الحملات وتعديلها وإيقافها، وعرض نتائجها وإحصاءاتها، وعرض الجماهير المحفوظة في حساب الإعلانات.",
+          "عندما يملأ شخص نموذج عميل محتمل في إعلان للمتجر، نستقبل البيانات التي أدخلها في النموذج (مثل الاسم ورقم الهاتف والبريد الإلكتروني) لنتواصل معه بخصوص طلبه.",
+          "عندما يبدأ شخص محادثة من إعلان (واتساب أو ماسنجر أو إنستجرام)، نستقبل من Meta بيانات الإعلان الذي ضغط عليه (الحملة والإعلان ومعرّف النقرة)، ونربط بها المحادثة والطلبات الناتجة عنها لمعرفة نتائج كل حملة.",
+          "لقياس نتائج الإعلانات، قد نرسل إلى Meta حدث شراء (قيمة الطلب وعملته) مرتبطًا فقط بمعرّف النقرة أو المعرّف الذي أرسلته Meta مع تلك النقرة، ولا نرسل قوائم بأرقام أو بيانات العملاء.",
+          "لا نبيع هذه البيانات، ولا نستخدمها خارج تشغيل إعلانات المتجر وخدمة عملائه.",
+        ],
+      },
+      en: {
+        title: "Meta ads and leads",
+        items: [
+          "M1 ERP manages the store's Facebook and Instagram ads: creating, editing and pausing campaigns, showing their results and insights, and showing the saved audiences of the ad account.",
+          "When someone submits a lead form in one of the store's ads, we receive the information they entered in the form (such as name, phone number and email) in order to contact them about their request.",
+          "When someone starts a conversation from an ad (WhatsApp, Messenger or Instagram), we receive from Meta the details of the ad they clicked (campaign, ad and click identifier) and link the conversation and any resulting orders to it, to measure each campaign's results.",
+          "To measure ad results, we may send Meta a purchase event (order value and currency) linked only to the click identifier, or the identifier Meta sent with that click; we do not upload lists of customer phone numbers or other customer data.",
+          "We do not sell this data, and we do not use it beyond running the store's ads and serving its customers.",
+        ],
+      },
+    },
     {
       icon: "sparkles",
       ar: {
         title: "استخدام بيانات التكامل والاحتفاظ بها",
         items: [
           "تُستخدم البيانات المستلمة من المنصات الخارجية فقط للأغراض المرتبطة بالوظائف التي فعّلها المستخدم: ربط الحساب، عرض حالة الاتصال، النشر، متابعة حالة النشر، وإدارة التكامل.",
-          "لا نستخدم هذه البيانات في الإعلانات أو في بناء ملفات تعريفية للمستخدمين.",
+          "لا نستخدم هذه البيانات في الإعلانات أو في بناء ملفات تعريفية للمستخدمين، فيما عدا قياس نتائج إعلانات المتجر على Meta كما هو موضّح في قسم «إعلانات Meta والعملاء المحتملون».",
           "لا يتم الاحتفاظ ببيانات التكامل مدة أطول مما تقتضيه الحاجة التشغيلية أو الالتزامات القانونية.",
           "قد نضيف وظائف جديدة لهذه التكاملات مستقبلًا، ولن يتم ذلك إلا بعد الحصول على الصلاحيات اللازمة من المنصة المعنية ومن المستخدم.",
         ],
@@ -340,7 +412,7 @@ export const legalSections = {
         title: "Use and retention of integration data",
         items: [
           "Data received from third-party platforms is used only for purposes tied to the functions the user has enabled: connecting the account, showing connection status, publishing, tracking publishing status, and managing the integration.",
-          "We do not use this data for advertising or to build user profiles.",
+          "We do not use this data for advertising or to build user profiles, except for measuring the store's own Meta ad results as described in \"Meta ads and leads\".",
           "Integration data is not retained for longer than operational need or legal obligations require.",
             "We may add further functionality to these integrations in future; that will only happen after obtaining the necessary permissions from the platform concerned and from the user.",
         ],
@@ -638,6 +710,7 @@ export const legalSections = {
         items: [
           "يشمل الطلب بيانات الاتصال، المحادثات، الطلبات، وسجلات الاستخدام المرتبطة.",
           "يشمل كذلك بيانات ربط أي منصة خارجية متصلة، مثل TikTok، وبيانات التفويض الخاصة بها.",
+          "ويشمل رسائل واتساب، وبيانات نماذج العملاء المحتملين في إعلانات Meta، وبيانات الإعلان المرتبطة بمحادثات الشخص.",
           "قد يُستثنى ما يجب الاحتفاظ به قانونيًا أو محاسبيًا أو تشغيليًا.",
           `للمتابعة: ${SUPPORT_EMAIL}`,
         ],
@@ -647,6 +720,7 @@ export const legalSections = {
         items: [
           "A request covers contact details, conversations, orders, and the related usage records.",
           "It also covers the connection data for any connected third-party platform, such as TikTok, and its authorisation credentials.",
+          "It also covers WhatsApp messages, Meta lead-form submissions, and the ad details linked to the person's conversations.",
           "Data that must be retained for legal, accounting, or operational reasons may be excluded.",
           `To follow up: ${SUPPORT_EMAIL}`,
         ],
@@ -696,7 +770,7 @@ export const legalUiStrings = {
 
 // Bumped whenever the substance of a policy changes, so a reviewer (and a user)
 // can see the page is current rather than guessing.
-export const LEGAL_LAST_UPDATED = "2026-08-14";
+export const LEGAL_LAST_UPDATED = "2026-10-21";
 
 export const legalMetaFor = (pageKey, language) => {
   const meta = legalPageMeta[pageKey];
