@@ -342,6 +342,38 @@ export const listWabaSubscriptions = async ({ accessToken = "", wabaId = "" } = 
   }
 };
 
+/*
+ * What Meta says about the connected number right now — the account page's "Status" tab (Genie
+ * parity): display-name review, messaging-limit tier, quality, account review and whether our app
+ * still hears the WABA. Read-only.
+ */
+export const fetchLiveNumberStatus = async ({ accessToken = "", wabaId = "", phoneNumberId = "" } = {}) => {
+  const config = embeddedSignupConfig();
+  const fields = "id,display_phone_number,verified_name,name_status,new_name_status,quality_rating,messaging_limit_tier,code_verification_status,platform_type,status,throughput,is_official_business_account";
+  const [number, waba, subscriptions] = await Promise.all([
+    graph({ path: `/${config.graphVersion}/${text(phoneNumberId)}?fields=${encodeURIComponent(fields)}`, accessToken }),
+    graph({ path: `/${config.graphVersion}/${text(wabaId)}?fields=${encodeURIComponent("id,name,account_review_status,business_verification_status")}`, accessToken }).catch(() => ({})),
+    listWabaSubscriptions({ accessToken, wabaId }),
+  ]);
+  return {
+    display_phone_number: text(number?.display_phone_number),
+    verified_name: text(number?.verified_name),
+    name_status: text(number?.name_status),
+    new_name_status: text(number?.new_name_status),
+    quality_rating: text(number?.quality_rating),
+    messaging_limit_tier: text(number?.messaging_limit_tier),
+    code_verification_status: text(number?.code_verification_status),
+    platform_type: text(number?.platform_type),
+    status: text(number?.status),
+    throughput_level: text(number?.throughput?.level),
+    is_official_business_account: number?.is_official_business_account === true,
+    account_review_status: text(waba?.account_review_status),
+    business_verification_status: text(waba?.business_verification_status),
+    webhook_subscribed: subscriptions.length > 0,
+    checked_at: new Date().toISOString(),
+  };
+};
+
 /* ── Storage ───────────────────────────────────────────────────────────────────────────────── */
 
 /*
@@ -592,6 +624,7 @@ export default {
   classifyCoexistence,
   subscribeWabaWebhooks,
   listWabaSubscriptions,
+  fetchLiveNumberStatus,
   upsertIntegration,
   listIntegrations,
   findIntegrationByPhoneNumberId,

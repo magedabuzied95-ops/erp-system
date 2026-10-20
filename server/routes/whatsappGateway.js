@@ -28,7 +28,10 @@ import {
   completeEmbeddedSignup,
   consumeSignupState,
   disconnectIntegration,
+  fetchLiveNumberStatus,
   findIntegrationByPhoneNumberId,
+  integrationAccessToken,
+  subscribeWabaWebhooks,
   issueSignupState,
   listIntegrations,
   publicEmbeddedSignupConfig,
@@ -331,6 +334,39 @@ router.post("/embedded-signup/callback", protect, permit("settings", "edit"), as
       code: error?.code || "EMBEDDED_SIGNUP_FAILED",
       message: error?.message || "تعذر إتمام ربط واتساب",
     });
+  }
+});
+
+// The connected number as Meta sees it now ("Test connection"), and re-attaching our app to the
+// WABA's webhooks ("Subscribe") — both act on the tenant's own connected integration only.
+const connectedIntegrationFor = async (req) => {
+  const rows = await listIntegrations({ tenantId: tenantScope(req) || 0 });
+  const wanted = Number(req.query?.id || req.body?.id || 0);
+  const row = rows.find((item) => item.status === "connected" && (!wanted || Number(item.id) === wanted));
+  const accessToken = row ? integrationAccessToken(row) : "";
+  if (!row || !accessToken) {
+    throw Object.assign(new Error("No connected official WhatsApp number"), { status: 409, code: "WHATSAPP_CLOUD_NOT_CONNECTED" });
+  }
+  return { row, accessToken };
+};
+
+router.get("/embedded-signup/live-status", protect, permit("settings", "view"), async (req, res) => {
+  try {
+    const { row, accessToken } = await connectedIntegrationFor(req);
+    const status = await fetchLiveNumberStatus({ accessToken, wabaId: row.waba_id, phoneNumberId: row.phone_number_id });
+    return res.json({ success: true, status });
+  } catch (error) {
+    return res.status(error?.status && error.status < 500 ? error.status : 400).json({ success: false, code: error?.code || "WHATSAPP_LIVE_STATUS_FAILED", message: error?.message || "Meta did not answer" });
+  }
+});
+
+router.post("/embedded-signup/subscribe", protect, permit("settings", "edit"), async (req, res) => {
+  try {
+    const { row, accessToken } = await connectedIntegrationFor(req);
+    const result = await subscribeWabaWebhooks({ accessToken, wabaId: row.waba_id });
+    return res.json({ success: true, ...result });
+  } catch (error) {
+    return res.status(error?.status && error.status < 500 ? error.status : 400).json({ success: false, code: error?.code || "WHATSAPP_SUBSCRIBE_FAILED", message: error?.message || "Meta refused the subscription" });
   }
 });
 

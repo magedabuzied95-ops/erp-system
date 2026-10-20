@@ -2277,7 +2277,21 @@
           "business_app_coexistence": "Coexistence with WhatsApp Business app",
           "on_premise": "On-Premise",
           "unknown": "Unknown"
-        }
+        },
+        "testConnection": "Test connection",
+        "subscribe": "Subscribe webhooks",
+        "subscribed": "App re-subscribed to the account's events",
+        "subscribeFailed": "Meta refused the subscription",
+        "liveFailed": "Meta did not answer",
+        "liveTitle": "Number status at Meta now",
+        "nameStatus": "Display name status",
+        "messagingLimit": "Messaging limit",
+        "accountReview": "Account review",
+        "businessVerification": "Business verification",
+        "blueTick": "Blue tick",
+        "numberStatus": "Number status",
+        "nameNotApproved": "Meta has not approved the display name yet, so customers see the number instead. It is approved automatically when the number reaches a higher messaging limit.",
+        "limitExplainer": "Messaging limit = how many customers you can send templates to per 24h (250 → 2,000 → 10,000 → 100,000 → unlimited). It rises with business verification or high-quality template sends to distinct customers."
       }
     },
     "tiktok": {

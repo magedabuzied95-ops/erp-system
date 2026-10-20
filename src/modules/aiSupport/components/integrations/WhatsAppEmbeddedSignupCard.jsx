@@ -15,7 +15,7 @@
 
 import { useCallback, useEffect, useRef, useState } from "react";
 import { useTranslation } from "react-i18next";
-import { Link2, Link2Off, MessageCircle, RefreshCw } from "lucide-react";
+import { Activity, BellRing, Link2, Link2Off, MessageCircle, RefreshCw } from "lucide-react";
 
 import { api } from "../../../../shared/api/api";
 import {
@@ -97,6 +97,7 @@ export default function WhatsAppEmbeddedSignupCard({ onConnected }) {
   const [busy, setBusy] = useState("");
   const [error, setError] = useState("");
   const [notice, setNotice] = useState("");
+  const [live, setLive] = useState(null);
 
   const mountedRef = useRef(true);
   // The ids from the postMessage, waiting for the code from the login callback.
@@ -245,6 +246,34 @@ export default function WhatsAppEmbeddedSignupCard({ onConnected }) {
   }, [load, t]);
 
   const connected = integrations.find((row) => row.status === "connected") || null;
+
+  // "Test connection" / "Subscribe" (Genie parity): what Meta says about the number right now.
+  const testConnection = useCallback(async () => {
+    setBusy("live");
+    setError("");
+    try {
+      const result = await api.get("/whatsapp/embedded-signup/live-status", { params: connected ? { id: connected.id } : {}, suppressErrorStatuses: [400, 403, 409] });
+      if (mountedRef.current) setLive(result?.status || null);
+    } catch (liveError) {
+      if (mountedRef.current) setError(liveError?.message || t("aiSupport.integrations.whatsapp.embeddedSignup.liveFailed"));
+    } finally {
+      if (mountedRef.current) setBusy("");
+    }
+  }, [connected, t]);
+
+  const subscribe = useCallback(async () => {
+    setBusy("subscribe");
+    setError("");
+    try {
+      await api.post("/whatsapp/embedded-signup/subscribe", connected ? { id: connected.id } : {}, { suppressErrorStatuses: [400, 403, 409] });
+      if (mountedRef.current) setNotice(t("aiSupport.integrations.whatsapp.embeddedSignup.subscribed"));
+      await load({ silent: true });
+    } catch (subscribeError) {
+      if (mountedRef.current) setError(subscribeError?.message || t("aiSupport.integrations.whatsapp.embeddedSignup.subscribeFailed"));
+    } finally {
+      if (mountedRef.current) setBusy("");
+    }
+  }, [connected, load, t]);
   const state = connected ? "connected" : config?.configured ? "off" : "error";
 
   return (
@@ -280,7 +309,32 @@ export default function WhatsAppEmbeddedSignupCard({ onConnected }) {
             <FieldRow label={t("aiSupport.integrations.whatsapp.embeddedSignup.connectedAt")} value={formatDateTime(connected.connected_at)} />
             <FieldRow label={t("aiSupport.integrations.whatsapp.embeddedSignup.quality")} value={connected.quality_rating} />
           </div>
+          {live ? (
+            <div className="mt-3 rounded-xl border border-white/10 bg-slate-950/40 p-3">
+              <div className="mb-2 text-xs font-black text-white">{t("aiSupport.integrations.whatsapp.embeddedSignup.liveTitle")} · <span className="font-bold text-slate-500">{formatDateTime(live.checked_at)}</span></div>
+              <div className="grid gap-2 sm:grid-cols-2">
+                <FieldRow label={t("aiSupport.integrations.whatsapp.embeddedSignup.nameStatus")} value={live.name_status} />
+                <FieldRow label={t("aiSupport.integrations.whatsapp.embeddedSignup.messagingLimit")} value={live.messaging_limit_tier} />
+                <FieldRow label={t("aiSupport.integrations.whatsapp.embeddedSignup.quality")} value={live.quality_rating} />
+                <FieldRow label={t("aiSupport.integrations.whatsapp.embeddedSignup.accountReview")} value={live.account_review_status} />
+                <FieldRow label={t("aiSupport.integrations.whatsapp.embeddedSignup.businessVerification")} value={live.business_verification_status} />
+                <FieldRow label={t("aiSupport.integrations.whatsapp.embeddedSignup.blueTick")} value={live.is_official_business_account ? t("aiSupport.integrations.common.on") : t("aiSupport.integrations.common.off")} />
+                <FieldRow label={t("aiSupport.integrations.whatsapp.embeddedSignup.webhook")} value={live.webhook_subscribed ? t("aiSupport.integrations.common.on") : t("aiSupport.integrations.common.off")} />
+                <FieldRow label={t("aiSupport.integrations.whatsapp.embeddedSignup.numberStatus")} value={live.status} />
+              </div>
+              {live.name_status && live.name_status !== "APPROVED" ? (
+                <p className="mt-2 rounded-xl border border-amber-300/20 bg-amber-400/10 p-2.5 text-[11px] leading-5 text-amber-100">{t("aiSupport.integrations.whatsapp.embeddedSignup.nameNotApproved")}</p>
+              ) : null}
+              <p className="mt-2 text-[11px] leading-5 text-slate-500">{t("aiSupport.integrations.whatsapp.embeddedSignup.limitExplainer")}</p>
+            </div>
+          ) : null}
           <div className="mt-3 flex flex-wrap gap-2">
+            <ActionButton tone="emerald" icon={Activity} loading={busy === "live"} onClick={testConnection}>
+              {t("aiSupport.integrations.whatsapp.embeddedSignup.testConnection")}
+            </ActionButton>
+            <ActionButton tone="ghost" icon={BellRing} loading={busy === "subscribe"} onClick={subscribe}>
+              {t("aiSupport.integrations.whatsapp.embeddedSignup.subscribe")}
+            </ActionButton>
             <ActionButton tone="ghost" icon={Link2} loading={busy === "launch" || busy === "connect"} onClick={startSignup}>
               {t("aiSupport.integrations.whatsapp.embeddedSignup.reconnect")}
             </ActionButton>
