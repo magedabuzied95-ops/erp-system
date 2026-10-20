@@ -126,7 +126,8 @@ export default function ManagerTable({
                   <Checkbox aria-label={t("metaAdsManager.columns.select")} checked={selectedIds.has(key)} onChange={(event) => onSelect(key, event.target.checked)} />
                 </td>
                 <td className="ma-col-toggle">
-                  {row.is_draft ? (
+                  {/* Meta refuses ACTIVE/PAUSED on an archived or deleted object, so no switch there. */}
+                  {row.is_draft || ["ARCHIVED", "DELETED"].includes(String(row.status || "").toUpperCase()) ? (
                     <span className="ma-muted">{DASH}</span>
                   ) : (
                     <Switch
