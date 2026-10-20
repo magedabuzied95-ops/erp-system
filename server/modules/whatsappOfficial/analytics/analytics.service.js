@@ -446,7 +446,7 @@ const saveSyncState = async (tenantId, wabaId, { errors = [], analyticsDisabled 
   const first = errors[0];
   await db.query(
     `INSERT INTO wa_analytics_sync_state (tenant_id, waba_id, last_synced_at, last_error, last_error_details, last_error_at, analytics_disabled, updated_at)
-     VALUES ($1, $2, NOW(), $3, $4::jsonb, CASE WHEN $3::text <> '' THEN NOW() ELSE NULL END, $5, NOW())
+     VALUES ($1, $2, NOW(), $3::text, $4::jsonb, CASE WHEN $3::text <> '' THEN NOW() ELSE NULL END, $5, NOW())
      ON CONFLICT (tenant_id, waba_id) DO UPDATE
        SET last_synced_at = NOW(), last_error = EXCLUDED.last_error, last_error_details = EXCLUDED.last_error_details,
            last_error_at = EXCLUDED.last_error_at, analytics_disabled = EXCLUDED.analytics_disabled, updated_at = NOW()`,

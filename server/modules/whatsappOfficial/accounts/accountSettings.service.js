@@ -282,7 +282,7 @@ export const syncAccountStatus = async ({ tenantId, account }) => {
   const newNameStatus = text(number?.new_name_status);
   await db.query(
     `UPDATE wa_account_settings SET
-        verified_name = $3, display_phone_number = $4, display_name_status = $5, new_name_status = $6,
+        verified_name = $3, display_phone_number = $4, display_name_status = $5, new_name_status = $6::text,
         messaging_limit_tier = $7, quality_rating = $8, platform_type = $9, code_verification_status = $10,
         throughput_level = $11, blue_tick = $12, disconnected_at = $13,
         pending_display_name = CASE WHEN $6::text IN ('APPROVED', 'DECLINED', 'NONE', '') THEN '' ELSE pending_display_name END,
