@@ -1026,8 +1026,13 @@ const resolveMetaTenantId = async (req, accountId = "") => {
   return null;
 };
 
-const aiSupportBaseUrl = (req) =>
-  envText(process.env.INTERNAL_AI_SUPPORT_URL) || (process.env.PORT ? `http://127.0.0.1:${process.env.PORT}` : `${req.protocol || "http"}://${req.get("host")}`);
+// Always this process, over loopback. Production sets no PORT, and the old fallback built the URL
+// from the request's public host: the Cloud webhook's POST went out to http://api..., got
+// redirected to https as a GET, and every official-number message failed the AI with a 404.
+// Same rule as aiConversationOrchestrator's aiSupportBaseUrl (server.js listens on PORT || 8000).
+// eslint-disable-next-line no-unused-vars
+const aiSupportBaseUrl = (_req) =>
+  envText(process.env.INTERNAL_AI_SUPPORT_URL || process.env.AI_SUPPORT_INTERNAL_URL) || `http://127.0.0.1:${process.env.PORT || 8000}`;
 
 const routeChannelMessageThroughAi = async ({ req, tenantId, message, channel }) => {
   const globalSettings = await getAISettings();
