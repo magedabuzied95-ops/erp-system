@@ -71,6 +71,9 @@ test("a model shown in one grade brings its other grades along, unless the custo
     const all = await run("فيه نيوبالانس 530");
     assert.deepEqual(all.product_cards.map((c) => `${c.product_id}:${c.color}`), ["180:Navy", "180:Beige", "140:White & Navy", "141:Grey"], "every grade of the same model, never another model");
     assert.equal(all.detected_intent, "product_search", "WhatsApp sends cards only for product intents");
+    // «البيج» next must resolve against these cards, in every copy of the memory.
+    assert.deepEqual(all.ai_memory_patch.preferences.last_product_cards.map((c) => c.product_id), ["180", "180", "140", "141"]);
+    assert.equal(all.ai_memory_patch.preferences.catalog_browse, null);
     const mirror = await run("فيه نيوبالانس 530 مصري");
     assert.deepEqual(mirror.product_cards.map((c) => c.product_id), ["180", "180"], "a named grade is respected");
   } finally {

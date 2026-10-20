@@ -909,8 +909,10 @@ export const runClaudeSalesAgent = async ({
       .filter((image) => image.url);
     const cardsChanged = chosenCards !== null || Boolean(escalation && preparedCards.length) || cards.length !== preparedCards.length;
     const activeProductId = cardId(cards[0] || {});
+    // The cards the customer now sees are the ones the next «البيج» / «42» must resolve against, and
+    // a catalog-browse question the agent answered with cards is over.
     const memoryPatch = cardsChanged && cards.length
-      ? { active_product_id: activeProductId, selected_product_id: activeProductId, last_product_id: activeProductId, last_product_cards: cards }
+      ? { active_product_id: activeProductId, selected_product_id: activeProductId, last_product_id: activeProductId, last_product_cards: cards, lastProductCards: cards, catalog_browse: null }
       : {};
 
     // A playground conversation is not a real one: nothing to hand over.
@@ -972,6 +974,16 @@ export const runClaudeSalesAgent = async ({
         : {}),
       memoryUpdates,
       memory_updates: memoryUpdates,
+      // Brain V2 keeps a second copy of its memory here, with ITS cards: «البيج» after the agent's New
+      // Balance cards picked «ADIDAS - Beige» from it (playground re-test, 2026-10-20).
+      ...(cardsChanged && cards.length
+        ? {
+            ai_memory_patch: {
+              ...(decision.ai_memory_patch || {}),
+              preferences: (({ aiConversationMemoryV2, ...rest }) => ({ ...rest, ...memoryPatch }))(decision.ai_memory_patch?.preferences || {}),
+            },
+          }
+        : {}),
       channel_reply: {
         ...(decision.channel_reply || {}),
         text: reply,
