@@ -268,10 +268,11 @@ function RecordView({ platform, account, onBack, onRefresh, refreshing }) {
             <Field label={t("aiSupport.metaAccounts.columns.username")} value={account.username ? `@${account.username}` : ""} ltr />
             <Field label={t("aiSupport.metaAccounts.columns.category")} value={account.category} />
             <Field label={t("aiSupport.metaAccounts.followers")} value={formatNumber(account.followers)} ltr />
-            <Field label={t("aiSupport.metaAccounts.impressions")} value={formatNumber(account.impressions_28d)} ltr />
-            <Field label={t("aiSupport.metaAccounts.reach")} value={formatNumber(account.reach_28d)} ltr />
-            <Field label={t("aiSupport.metaAccounts.views")} value={formatNumber(account.views_28d)} ltr />
-            <Field label={t("aiSupport.metaAccounts.engagements")} value={formatNumber(account.engagements_28d)} ltr />
+            {/* Meta only answers these with read_insights; a number it did not give is left out, not shown as a dash. */}
+            {account.impressions_28d !== null ? <Field label={t("aiSupport.metaAccounts.impressions")} value={formatNumber(account.impressions_28d)} ltr /> : null}
+            {account.reach_28d !== null ? <Field label={t("aiSupport.metaAccounts.reach")} value={formatNumber(account.reach_28d)} ltr /> : null}
+            {account.views_28d !== null ? <Field label={t("aiSupport.metaAccounts.views")} value={formatNumber(account.views_28d)} ltr /> : null}
+            {account.engagements_28d !== null ? <Field label={t("aiSupport.metaAccounts.engagements")} value={formatNumber(account.engagements_28d)} ltr /> : null}
           </div>
         )
       ) : (

@@ -30580,6 +30580,17 @@ const graphGetJson = async (path, accessToken) => {
   return payload;
 };
 
+// One metric per call, newest name first: Meta retires page metrics (page_impressions →
+// page_media_view in 2025) and a single retired name fails the whole request.
+const pageInsight28d = async (pageId, token, names) => {
+  for (const name of names) {
+    const payload = await graphGetJson(`/${pageId}/insights?metric=${name}&period=days_28`, token).catch(() => null);
+    const value = payload ? insightValue(payload, name) : null;
+    if (value !== null) return value;
+  }
+  return null;
+};
+
 const insightValue = (payload, metric) => {
   const row = (Array.isArray(payload?.data) ? payload.data : []).find((item) => item?.name === metric);
   const values = Array.isArray(row?.values) ? row.values : [];
@@ -30621,10 +30632,15 @@ export const listMetaAccountsOverview = async ({ tenantId, refresh = false } = {
     let page = {};
     let insights = {};
     if (token) {
-      [page, insights] = await Promise.all([
+      const [pageInfo, impressions, reach, views, engagements] = await Promise.all([
         graphGetJson(`/${pageId}?fields=name,username,category,fan_count,followers_count,link,picture{url}`, token).catch(() => ({})),
-        graphGetJson(`/${pageId}/insights?metric=page_impressions,page_impressions_unique,page_views_total,page_post_engagements&period=days_28`, token).catch(() => ({})),
+        pageInsight28d(pageId, token, ["page_media_view", "page_impressions"]),
+        pageInsight28d(pageId, token, ["page_total_media_view_unique", "page_impressions_unique"]),
+        pageInsight28d(pageId, token, ["page_views_total"]),
+        pageInsight28d(pageId, token, ["page_post_engagements"]),
       ]);
+      page = pageInfo;
+      insights = { impressions, reach, views, engagements };
     }
     pages.push({
       ...base,
@@ -30636,10 +30652,10 @@ export const listMetaAccountsOverview = async ({ tenantId, refresh = false } = {
       link: text(page.link),
       picture: text(page.picture?.data?.url),
       enabled: row.messenger_enabled !== false,
-      impressions_28d: insightValue(insights, "page_impressions"),
-      reach_28d: insightValue(insights, "page_impressions_unique"),
-      views_28d: insightValue(insights, "page_views_total"),
-      engagements_28d: insightValue(insights, "page_post_engagements"),
+      impressions_28d: insights.impressions ?? null,
+      reach_28d: insights.reach ?? null,
+      views_28d: insights.views ?? null,
+      engagements_28d: insights.engagements ?? null,
     });
     const igId = text(row.instagram_business_account_id);
     if (igId) {
