@@ -10,11 +10,24 @@ import { useTranslation } from "react-i18next";
 import { CheckCircle2, Loader2, Pencil, Search, Tag, XCircle } from "lucide-react";
 
 import { clean } from "../lib/conversationHelpers";
+import { api } from "../../../shared/api/api";
 import {
   AI_INBOX_DEFAULT_LABELS,
   customAiInboxLabel,
   normalizeAiInboxConversationLabels,
 } from "../../../../shared/aiInboxConversationLabels.js";
+
+// The picker's catalogue comes from Config → Tags (server/routes/inboxTags.js). Kept between opens so
+// the list shows at once; refreshed on every open; the hardcoded defaults stand in if the call fails.
+let lastTagCatalog = null;
+const loadTagCatalog = () =>
+  api.get("/inbox-config/tags/options", { suppressErrorStatuses: [403, 404, 500, 502, 503], timeoutMs: 8000 })
+    .then((payload) => {
+      const labels = Array.isArray(payload?.labels) ? normalizeAiInboxConversationLabels(payload.labels, { max: 500 }) : [];
+      if (labels.length) lastTagCatalog = labels;
+      return lastTagCatalog;
+    })
+    .catch(() => lastTagCatalog);
 
 const CONVERSATION_LABEL_CLASSES = {
   sky: "border-sky-400/35 bg-sky-500/15 text-sky-100",
@@ -46,6 +59,7 @@ function ConversationLabelsModal({ open, labels = [], saving = false, onClose, o
   const [query, setQuery] = useState("");
   const [draftLabels, setDraftLabels] = useState([]);
   const [editingLabel, setEditingLabel] = useState(null);
+  const [catalog, setCatalog] = useState(() => lastTagCatalog || AI_INBOX_DEFAULT_LABELS);
 
   useEffect(() => {
     if (!open) return;
@@ -54,13 +68,20 @@ function ConversationLabelsModal({ open, labels = [], saving = false, onClose, o
     setDraftLabels(normalizeAiInboxConversationLabels(labels));
   }, [labels, open]);
 
+  useEffect(() => {
+    if (!open) return undefined;
+    let alive = true;
+    void loadTagCatalog().then((next) => { if (alive && next?.length) setCatalog(next); });
+    return () => { alive = false; };
+  }, [open]);
+
   if (!open) return null;
 
   const normalizedQuery = clean(query).toLowerCase();
   const selectedIds = new Set(draftLabels.map((label) => label.id));
-  const availableLabels = AI_INBOX_DEFAULT_LABELS.filter((label) => !selectedIds.has(label.id) && (!normalizedQuery || label.name.toLowerCase().includes(normalizedQuery)));
+  const availableLabels = catalog.filter((label) => !selectedIds.has(label.id) && (!normalizedQuery || label.name.toLowerCase().includes(normalizedQuery)));
   const customCandidate = customAiInboxLabel(query);
-  const canCreateCustom = Boolean(customCandidate && !selectedIds.has(customCandidate.id) && !AI_INBOX_DEFAULT_LABELS.some((label) => label.id === customCandidate.id));
+  const canCreateCustom = Boolean(customCandidate && !selectedIds.has(customCandidate.id) && !catalog.some((label) => label.id === customCandidate.id || label.name.toLowerCase() === customCandidate.name.toLowerCase()));
   const addLabel = (label) => setDraftLabels((current) => normalizeAiInboxConversationLabels([...current, label]));
   const saveLabelEdit = () => {
     const nextName = clean(editingLabel?.name).slice(0, 40);
