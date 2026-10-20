@@ -16,6 +16,7 @@ import { cloudErrorMeaning, graphRequest } from "./whatsappCloudProvider.js";
 import { buildTemplateMessage, resolveSendCredentials } from "./whatsappApiAccessService.js";
 import { ensureWhatsappTemplateSchema } from "./whatsappTemplateStudioService.js";
 import { normalizeWhatsappPhone } from "../utils/whatsappIdentity.js";
+import { recordCampaignSendsSafe } from "../modules/campaignAttribution/campaignInbox.js";
 
 const text = (value) => String(value ?? "").trim();
 const sleep = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
@@ -261,6 +262,8 @@ export const deliverTemplateCampaign = async ({ tenantId, broadcast, intervalMs 
       if (!batch.rows.length) break;
 
       let fatal = "";
+      // This batch's delivered sends, written into the inbox after it (see flush below).
+      const delivered = [];
       for (const { id: recipientId } of batch.rows) {
         // The claim also re-checks consent: a customer who replied "stop" after the campaign was
         // built is not sent to.
@@ -298,6 +301,7 @@ export const deliverTemplateCampaign = async ({ tenantId, broadcast, intervalMs 
               [row.id, text(result?.messages?.[0]?.id).slice(0, 200)]
             );
             sent += 1;
+            delivered.push({ recipient: { phone: row.phone, customer_name: row.customer_name }, values, messageId: text(result?.messages?.[0]?.id) });
           } catch (error) {
             const graphCode = error?.details?.graph_code ?? null;
             const meaning = error?.details?.meaning || cloudErrorMeaning(graphCode) || "";
@@ -325,6 +329,12 @@ export const deliverTemplateCampaign = async ({ tenantId, broadcast, intervalMs 
         }
         if (fatal) break;
         await sleep(intervalMs);
+      }
+      // The template as each customer received it goes into their inbox conversation (author chip
+      // "حملة: <name>", wamid kept for quoted replies) and, with auto lead generation, opens their
+      // lead + attribution. Detached: the pacer never waits on the inbox.
+      if (delivered.length) {
+        void recordCampaignSendsSafe({ tenantId, broadcast, template, phoneNumberId: credentials.phoneNumberId, sends: delivered });
       }
       if (fatal) {
         // A dead token or a template Meta no longer accepts fails every remaining recipient the

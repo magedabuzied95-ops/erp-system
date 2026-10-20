@@ -8,13 +8,17 @@
 // Handler contract: async ({ tenantId, phoneNumberId, message, metadata }) => ({ handled, reason })
 //   message = the normalized inbound message (external_customer_id, external_conversation_id,
 //             message_text, attachments, raw — see extractWhatsAppWebhookMessages)
+//   campaign reply → ../campaignAttribution/campaignReplyInbound.js (a reply to a template
+//                    campaign: attributes the chat, and runs the campaign's own chatbot flow)
 //   chatbot flows  → ./flows/flowInbound.js       (owned by the chatbot-flows work)
 //   auto reply     → ./accounts/autoReplyInbound.js (owned by the account-settings work)
 
 import { handleFlowInbound } from "./flows/flowInbound.js";
 import { handleAutoReplyInbound } from "./accounts/autoReplyInbound.js";
+import { handleCampaignReplyInbound } from "../campaignAttribution/campaignReplyInbound.js";
 
 const HANDLERS = [
+  ["campaign_reply", handleCampaignReplyInbound],
   ["chatbot_flow", handleFlowInbound],
   ["auto_reply", handleAutoReplyInbound],
 ];

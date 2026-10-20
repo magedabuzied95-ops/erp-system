@@ -148,6 +148,13 @@ export const recordAdReferral = async ({ tenantId, channel, conversationKey = ""
     ],
   );
   log("ad-click", { tenant_id: tenantId, channel: normalizedChannel, resolved: Boolean(ad), first_touch: !earlier[0] });
+  // The conversation's "تتبع الحملة" record (first/last touch, click counters) for the inbox card
+  // and the order copy. Detached and safe, like this whole path.
+  if (rows[0]?.id) {
+    void import("../../campaignAttribution/attribution.js")
+      .then((m) => m.recordAdClickTouchSafe({ tenantId, clickId: rows[0].id }))
+      .catch(() => {});
+  }
   return rows[0]?.id || null;
 };
 

@@ -10,7 +10,7 @@ const asArray = (value) => (Array.isArray(value) ? value : []);
  * other automation write sender_type 'system'. The writer's marker (source_path / insert_source)
  * names it. Mirrors inboxMessageAuthorKind in server/services/aiSalesAgentService.js; computed
  * here too because a socket event carries the raw row without author_kind.
- *   customer | note | chatbot | auto_reply | staff | ai | system | ""
+ *   customer | note | chatbot | campaign | auto_reply | staff | ai | system | ""
  */
 export const messageAuthorKind = (message = {}) => {
   const senderType = lower(message.sender_type || message.senderType);
@@ -20,6 +20,8 @@ export const messageAuthorKind = (message = {}) => {
   // detected_intent too: rows a Cloud status tick re-stamped (source_path became
   // whatsapp_cloud_status_webhook) still say the chatbot wrote them there.
   if (marker.includes("wa_chatbot_flow") || lower(message.detected_intent) === "wa_chatbot_flow") return "chatbot";
+  // A template campaign's send; the campaign's name rides in staff_user_name.
+  if (marker.includes("wa_campaign") || lower(message.detected_intent) === "wa_campaign") return "campaign";
   // The away message only — "whatsapp_ai_auto_reply" / "meta_ai_auto_reply" are the AI's own replies.
   if (marker.includes("wa_official_auto_reply")) return "auto_reply";
   if (["staff", "agent", "human"].includes(senderType)) return "staff";

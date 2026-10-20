@@ -1,6 +1,6 @@
 ﻿import { memo, useContext, useMemo } from "react";
 import { useEffect, useRef, useState } from "react";
-import { Ban, Bot, Camera, Check, CheckSquare, Clock3, Cog, Copy, ExternalLink, History, Info, List, MessageSquareText, Pencil, Phone, Pin, PinOff, Reply as ReplyIcon, Smartphone, Smile, Sparkles, Star, Trash2, UserCheck, Workflow, X } from "lucide-react";
+import { Ban, Bot, Camera, Check, CheckSquare, Clock3, Cog, Copy, ExternalLink, History, Info, List, Megaphone, MessageSquareText, Pencil, Phone, Pin, PinOff, Reply as ReplyIcon, Smartphone, Smile, Sparkles, Star, Trash2, UserCheck, Workflow, X } from "lucide-react";
 
 import { useTranslation } from "react-i18next";
 
@@ -64,6 +64,7 @@ const outboundAuthorLabel = (message = {}, t) => {
   const kind = outboundAuthorKind(message);
   const name = clean(message.staff_user_name);
   if (kind === "chatbot") return name ? t("aiSupport.inbox.author.chatbotFlow", { flow: name }) : t("aiSupport.inbox.author.chatbot");
+  if (kind === "campaign") return name ? t("aiSupport.inbox.author.campaignNamed", { name }) : t("aiSupport.inbox.author.campaign");
   if (kind === "auto_reply") return t("aiSupport.inbox.author.autoReply");
   if (kind === "ai") return t("aiSupport.inbox.author.ai");
   if (kind === "staff") {
@@ -71,7 +72,7 @@ const outboundAuthorLabel = (message = {}, t) => {
   }
   return t("aiSupport.inbox.author.system");
 };
-const AUTHOR_ICONS = { ai: Bot, staff: UserCheck, chatbot: Workflow, auto_reply: Clock3, system: Cog };
+const AUTHOR_ICONS = { ai: Bot, staff: UserCheck, chatbot: Workflow, campaign: Megaphone, auto_reply: Clock3, system: Cog };
 
 // Which of our WhatsApp numbers the message went through. Only rendered when the thread spans
 // more than one of them (the row carries numberLabel only then).
@@ -1434,7 +1435,7 @@ function TranscriptMessage({
   // row keeps its attachments under the text.
   const mediaFirst = ["interactive", "template"].includes(clean(message.message_type).toLowerCase()) && !flush;
   // A chatbot flow or the away auto-reply is not the AI's answer, so there is nothing to teach it.
-  const correctReply = isAi && authorKind !== "chatbot" && authorKind !== "auto_reply" && onOpenCorrection && message.message_type !== "comment_suggestion" ? (
+  const correctReply = isAi && authorKind !== "chatbot" && authorKind !== "campaign" && authorKind !== "auto_reply" && onOpenCorrection && message.message_type !== "comment_suggestion" ? (
     <button
       type="button"
       title={t("aiSupport.inbox.message.correctReply")}

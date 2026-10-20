@@ -81,6 +81,7 @@ import { platformCanvas, resolveMessagePlatform } from "../components/messagePla
 import { cascadeDeliveryStatuses } from "../components/DeliveryTicks.jsx";
 import ProductCardMessage from "../components/ProductCardMessage";
 import OriginPostCard from "../components/OriginPostCard.jsx";
+import { CampaignAttributionChip } from "../components/CampaignAttribution.jsx";
 import SocialCommentsPanel from "../components/SocialCommentsPanel";
 import { normalizeSocialPostDisplay, SocialCommentsWorkspaceCommentRow, SocialCommentThreadGroup } from "../components/SocialCommentsWorkspace.jsx";
 import { commentThreadCanvas, threadCommentsForDisplay } from "../lib/socialCommentThread.js";
@@ -8698,6 +8699,8 @@ export default function AiInboxPwa({ portal = null } = {}) {
                       <Tag className="h-3 w-3" />
                       {conversationLabels.length > 3 ? `+${conversationLabels.length - 3}` : t("aiSupport.inbox.pwa.labels")}
                     </button>
+                    {/* The ad / WhatsApp campaign this chat came from; a tap opens "تتبع الحملة". */}
+                    <CampaignAttributionChip conversation={selectedConversation} variant="pwa" sheet />
                   </div>
                   {lastOrder ? (
                     <div className="mt-1.5 flex flex-wrap items-center gap-2">

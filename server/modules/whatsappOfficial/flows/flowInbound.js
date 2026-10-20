@@ -528,6 +528,51 @@ export const handleFlowInbound = async (input = {}) => {
   }
 };
 
+/**
+ * Starts one given flow for an inbound message: a template campaign's own chatbot flow answering
+ * the customer's reply to it (see campaignAttribution/campaignReplyInbound.js). The campaign has
+ * already decided the reply is its own, so there is no trigger or TTL check; a conversation that
+ * is mid-way through another flow keeps it. A tap on one of this flow's buttons (a template quick
+ * reply whose payload is a flow output id) continues that branch instead of starting over.
+ */
+export const startFlowForInbound = async ({ tenantId: rawTenant, phoneNumberId, message, flowId, reason = "campaign_flow" } = {}) => {
+  try {
+    const tenantId = Number(rawTenant) || 0;
+    if (!tenantId || !str(phoneNumberId) || !message || !Number(flowId)) return { handled: false };
+    const { raw, replyId } = replyOf(message);
+    if (SKIPPED_TYPES.has(str(raw.type))) return { handled: false, reason: "skipped_type" };
+    const phone = str(message.external_customer_id) || str(raw.from);
+    const conversationKey = str(message.external_conversation_id) || (phone ? `whatsapp:${phone}` : "");
+    if (!conversationKey || !phone) return { handled: false };
+    await ensureChatbotFlowSchema();
+    if (await loadActiveSession(tenantId, phoneNumberId, conversationKey)) return { handled: false, reason: "session_active" };
+    const found = await db.query(
+      `SELECT * FROM wa_chatbot_flows WHERE tenant_id = $1 AND id = $2 AND status = 'active' AND published_graph IS NOT NULL`,
+      [tenantId, Number(flowId)]
+    );
+    const flow = found.rows[0];
+    if (!flow) return { handled: false, reason: "flow_off" };
+    const graph = graphOf(flow, false);
+    const owner = replyId ? findOutputOwner(graph, replyId) : null;
+    const edge = owner ? edgeFrom(graph, owner.node.id, owner.output.id) : null;
+    const start = edge ? null : findStartNode(graph);
+    if (!edge && !start) return { handled: false, reason: "empty_flow" };
+    const vars = varsFor(message, phone, {});
+    await endOtherSessions(tenantId, conversationKey, "replaced");
+    const created = await createSession({ tenantId, flowId: flow.id, phoneNumberId, conversationKey, phone, vars });
+    return await runFrom({
+      ctx: { tenantId, phoneNumberId: str(phoneNumberId), phone, conversationKey, flowName: flow.name, vars: owner ? { ...vars, last_reply: owner.output.title } : vars },
+      graph,
+      session: created,
+      nodeId: edge ? edge.target : start.id,
+      reason,
+    });
+  } catch (error) {
+    console.warn("[wa-flows] campaign flow start failed", { message: String(error?.message || error).slice(0, 200) });
+    return { handled: false, reason: "error" };
+  }
+};
+
 /* ------------------------------------------------------------------ test run */
 
 /**

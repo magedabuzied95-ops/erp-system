@@ -132,6 +132,17 @@ export const ensureBroadcastSchema = async (clientOrPool = db) => {
       `ALTER TABLE marketing_broadcast_recipients ADD COLUMN IF NOT EXISTS error_meaning VARCHAR(80) NOT NULL DEFAULT ''`,
       `ALTER TABLE marketing_broadcast_recipients ADD COLUMN IF NOT EXISTS error_message TEXT NOT NULL DEFAULT ''`,
       `CREATE INDEX IF NOT EXISTS idx_marketing_broadcasts_due ON marketing_broadcasts (scheduled_at) WHERE status = 'scheduled'`,
+      // Replies (GENI's campaign form): an optional chatbot flow that answers a reply to the
+      // campaign, the campaign's own instructions for the AI, and "auto lead generation" (each
+      // recipient's conversation gets a lead + attribution on send) — ON by default, like GENI.
+      // Read by server/modules/campaignAttribution/*.
+      `ALTER TABLE marketing_broadcasts ADD COLUMN IF NOT EXISTS chatbot_flow_id BIGINT NULL`,
+      `ALTER TABLE marketing_broadcasts ADD COLUMN IF NOT EXISTS ai_instructions TEXT NOT NULL DEFAULT ''`,
+      `ALTER TABLE marketing_broadcasts ADD COLUMN IF NOT EXISTS auto_lead_generation BOOLEAN NOT NULL DEFAULT TRUE`,
+      // A reply that quotes the campaign message is matched by its wamid; a plain reply by phone
+      // inside the last 72 hours.
+      `CREATE INDEX IF NOT EXISTS idx_marketing_broadcast_recipients_message ON marketing_broadcast_recipients (tenant_id, message_id) WHERE message_id <> ''`,
+      `CREATE INDEX IF NOT EXISTS idx_marketing_broadcast_recipients_sent ON marketing_broadcast_recipients (tenant_id, sent_at DESC) WHERE sent_at IS NOT NULL`,
     ]) {
       await clientOrPool.query(ddl);
     }
@@ -267,6 +278,11 @@ const normalizeCampaignFields = async ({ tenantId, input = {} }) => {
     templateId,
     templateVariables,
     frequencyCapDays: Math.max(1, int(input.frequencyCapDays, DEFAULT_FREQUENCY_CAP_DAYS)),
+    // Reply handling. A flow only answers replies on the official number, so it is kept for
+    // template campaigns alone; the AI instructions and lead generation apply to both kinds.
+    chatbotFlowId: channelMode === "template" ? int(input.chatbotFlowId, 0) || null : null,
+    aiInstructions: text(input.aiInstructions).slice(0, 2000),
+    autoLeadGeneration: input.autoLeadGeneration !== false && input.autoLeadGeneration !== "false",
   };
 };
 
@@ -281,18 +297,22 @@ export const createBroadcast = async ({
   templateId = null,
   templateVariables = [],
   groupName = "",
+  chatbotFlowId = null,
+  aiInstructions = "",
+  autoLeadGeneration = true,
 } = {}) => {
   await ensureBroadcastSchema();
   const fields = await normalizeCampaignFields({
     tenantId,
-    input: { messageBody, audience, frequencyCapDays, channelMode, templateId, templateVariables, groupName },
+    input: { messageBody, audience, frequencyCapDays, channelMode, templateId, templateVariables, groupName, chatbotFlowId, aiInstructions, autoLeadGeneration },
   });
   const result = await db.query(
     `
     INSERT INTO marketing_broadcasts
       (tenant_id, name, status, audience, message_body, frequency_cap_days, created_by,
-       channel_mode, template_id, template_variables, group_name)
-    VALUES ($1, $2, 'draft', $3::jsonb, $4, $5, $6, $7, $8, $9::jsonb, $10)
+       channel_mode, template_id, template_variables, group_name,
+       chatbot_flow_id, ai_instructions, auto_lead_generation)
+    VALUES ($1, $2, 'draft', $3::jsonb, $4, $5, $6, $7, $8, $9::jsonb, $10, $11, $12, $13)
     RETURNING *
     `,
     [
@@ -306,6 +326,9 @@ export const createBroadcast = async ({
       fields.templateId,
       JSON.stringify(fields.templateVariables),
       fields.groupName,
+      fields.chatbotFlowId,
+      fields.aiInstructions,
+      fields.autoLeadGeneration,
     ]
   );
   return result.rows[0];
@@ -334,6 +357,9 @@ export const updateBroadcast = async ({ tenantId, broadcastId, input = {} } = {}
       templateId: input.templateId ?? current.template_id,
       templateVariables: input.templateVariables ?? current.template_variables,
       groupName: input.groupName ?? current.group_name,
+      chatbotFlowId: input.chatbotFlowId === undefined ? current.chatbot_flow_id : input.chatbotFlowId,
+      aiInstructions: input.aiInstructions ?? current.ai_instructions,
+      autoLeadGeneration: input.autoLeadGeneration ?? current.auto_lead_generation,
     },
   });
   const result = await db.query(
@@ -341,6 +367,7 @@ export const updateBroadcast = async ({ tenantId, broadcastId, input = {} } = {}
     UPDATE marketing_broadcasts
        SET name = $3, audience = $4::jsonb, message_body = $5, frequency_cap_days = $6,
            channel_mode = $7, template_id = $8, template_variables = $9::jsonb, group_name = $10,
+           chatbot_flow_id = $11, ai_instructions = $12, auto_lead_generation = $13,
            updated_at = NOW()
      WHERE tenant_id = $1 AND id = $2 AND status IN ('draft', 'scheduled')
     RETURNING *
@@ -356,6 +383,9 @@ export const updateBroadcast = async ({ tenantId, broadcastId, input = {} } = {}
       fields.templateId,
       JSON.stringify(fields.templateVariables),
       fields.groupName,
+      fields.chatbotFlowId,
+      fields.aiInstructions,
+      fields.autoLeadGeneration,
     ]
   );
   if (!result.rows[0]) throw Object.assign(new Error("Broadcast changed while saving"), { status: 409 });

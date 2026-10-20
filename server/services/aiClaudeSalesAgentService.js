@@ -322,7 +322,7 @@ const memoryLines = (memory = {}) => {
   ].filter(Boolean);
 };
 
-export const buildDynamicContext = ({ customerName = "", customerPhone = "", channel = "", gender = "unknown", customerCard = "", memory = {} } = {}) => {
+export const buildDynamicContext = ({ customerName = "", customerPhone = "", channel = "", gender = "unknown", customerCard = "", memory = {}, campaignInstructions = "" } = {}) => {
   const state = memoryLines(memory);
   return [
     "<dynamic_context>",
@@ -335,6 +335,9 @@ export const buildDynamicContext = ({ customerName = "", customerPhone = "", cha
     "</gender_and_address>",
     text(customerCard) ? `<customer_history>\n${text(customerCard)}\n</customer_history>` : "",
     state.length ? `<conversation_state>\n${state.join("\n")}\n</conversation_state>` : "",
+    // The Meta ad / WhatsApp campaign this chat came from may carry the owner's own instructions
+    // (meta_ads_ai_instructions, marketing_broadcasts.ai_instructions) — campaignAttribution/attribution.js.
+    text(campaignInstructions) ? `<campaign_instructions>\n${text(campaignInstructions)}\n</campaign_instructions>` : "",
     "</dynamic_context>",
   ].filter(Boolean).join("\n");
 };
@@ -737,7 +740,7 @@ export const runClaudeSalesAgent = async ({
   const customerPhone = text(inbound.metadata?.customer_phone || inbound.externalCustomerId);
 
   try {
-    const [persona, kb, history, customerCard] = await Promise.all([
+    const [persona, kb, history, customerCard, campaignInstructions] = await Promise.all([
       (loaders.persona || (() => loadPersona({ tenantId })))().catch(() => DEFAULT_PERSONA),
       (loaders.knowledgeBase || (() => loadSupportKnowledgeBase({ tenantId })))()
         .then((loaded) => ({ ...(loaded?.knowledge_base || {}), branches: asArray(loaded?.branches) }))
@@ -753,6 +756,10 @@ export const runClaudeSalesAgent = async ({
         const profile = await customer360.loadCustomer360({ tenantId, phone: customerPhone });
         return profile?.found ? customer360.summarizeCustomer360(profile) : "";
       })))().catch(() => ""),
+      // A chat from an ad or a WhatsApp campaign: that campaign's active AI instructions ("" when none).
+      (loaders.campaignInstructions || (() => (tenantId && sessionId
+        ? import("../modules/campaignAttribution/attribution.js").then((m) => m.loadCampaignAiInstructions({ tenantId, sessionId }))
+        : Promise.resolve(""))))().catch(() => ""),
     ]);
 
     const preparedCards = asArray(decision.product_cards);
@@ -912,6 +919,7 @@ export const runClaudeSalesAgent = async ({
       gender: customerGender,
       customerCard,
       memory,
+      campaignInstructions,
     });
     const findings = findingsFor({ decision, preparedCards, safeProductFacts, mustKeepFacts });
     const toolTrace = [];

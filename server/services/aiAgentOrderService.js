@@ -28,6 +28,7 @@ import {
 } from "./aiSalesOrchestratorService.js";
 import { resolveAiSalesConversationState } from "./aiSalesConversationEngineService.js";
 import { normalizeChannel, isLikelyMessageLikeName } from "./aiChannelAdapterService.js";
+import { mergeOrderAttribution, orderAttributionForConversation } from "../modules/campaignAttribution/attribution.js";
 
 let schemaReadyPromise = null;
 let schemaEnsured = false;
@@ -759,12 +760,22 @@ const loadExistingDraft = async ({ tenantId, conversationId }) => {
   return result.rows[0] || null;
 };
 
+// The campaign the chat came from (a Meta ad, a WhatsApp campaign) rides onto the order in the
+// same marketing_* columns tracking links fill, so campaign revenue reports count a sale closed in
+// the inbox. Fills only what the caller left empty and never blocks the order.
+const withConversationCampaign = async (order = {}) => {
+  const sessionId = text(order.ai_agent_conversation_id);
+  if (!sessionId || text(order.marketing_campaign)) return order;
+  const fields = await orderAttributionForConversation({ tenantId: order.tenant_id, sessionId }).catch(() => null);
+  return mergeOrderAttribution(order, fields);
+};
+
 const insertOrderWithItems = async (client, payload = {}) => {
   const orderColumns = await tableColumns(client, "orders");
   const itemColumns = await tableColumns(client, "order_items");
   const columns = [];
   const values = [];
-  Object.entries(payload.order).forEach(([column, value]) => addValue(columns, values, orderColumns, column, value));
+  Object.entries(await withConversationCampaign(payload.order)).forEach(([column, value]) => addValue(columns, values, orderColumns, column, value));
   const placeholders = values.map((_, index) => `$${index + 1}`);
   assertInsertShape({ table: "orders", context: "insertAiAgentOrder", columns, placeholders, params: values });
   const orderResult = await client.query(

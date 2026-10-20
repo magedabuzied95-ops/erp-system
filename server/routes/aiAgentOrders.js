@@ -205,6 +205,7 @@ import { autoRegisterWhatsappCustomer } from "../services/whatsappCustomerAutoRe
 import { dispatchWhatsappCloudWebhookEvents } from "../services/whatsappApiAccessService.js";
 import { recordWhatsappOrders } from "../services/whatsappCatalogService.js";
 import { interceptWaOfficialInbound } from "../modules/whatsappOfficial/inboundIntercept.js";
+import { getConversationAttribution } from "../modules/campaignAttribution/attribution.js";
 import { dispatchWabaEvents } from "../modules/whatsappOfficial/connect/wabaEvents.js";
 import { normalizeWhatsappLid, normalizeWhatsappPhone, normalizeWhatsappRemoteJid } from "../utils/whatsappIdentity.js";
 import { normalizeAiInboxConversationLabels } from "../../shared/aiInboxConversationLabels.js";
@@ -6190,6 +6191,17 @@ router.get("/conversations/:conversationId/orders", protect, inboxView(), async 
     return res.json({ success: true, orders });
   } catch (error) {
     return sendError(res, error, "Failed to load the customer orders");
+  }
+});
+
+// Where the conversation came from (GENI's "Campaign Tracking" tab): the Meta ad or WhatsApp
+// campaign, first/last touch and the ad clicks. { attribution: null } when it came from nowhere.
+router.get("/conversations/:conversationId/attribution", protect, inboxView(), async (req, res) => {
+  try {
+    const attribution = await getConversationAttribution({ tenantId: toTenantId(req), sessionId: decodeRouteId(req.params.conversationId) });
+    return res.json({ success: true, attribution });
+  } catch (error) {
+    return sendError(res, error, "Failed to load the conversation attribution");
   }
 });
 

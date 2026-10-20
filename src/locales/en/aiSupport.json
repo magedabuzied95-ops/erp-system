@@ -2023,6 +2023,8 @@
     "author": {
       "chatbot": "Chatbot",
       "chatbotFlow": "Chatbot: {{flow}}",
+      "campaign": "Campaign",
+      "campaignNamed": "Campaign: {{name}}",
       "autoReply": "Auto-reply",
       "ai": "AI",
       "staff": "Staff",
@@ -3582,6 +3584,67 @@
       "scheduleRequired": "Pick the send time.",
       "headerMediaMissing": "This template has an image or video header with no media link saved. Upload the media on the Templates page first.",
       "countFirst": "Count the audience before sending."
+    },
+    "replies": {
+      "title": "Replies to this campaign",
+      "chatbotFlow": "Chatbot flow",
+      "chatbotFlowHint": "Optional chatbot flow that answers a customer's reply to this campaign (official number only).",
+      "noFlow": "No flow — the usual chatbot / AI answers",
+      "aiInstructions": "AI instructions",
+      "aiInstructionsHint": "Optional instructions the AI follows when a customer replies to this campaign (for 7 days after the reply).",
+      "aiInstructionsPlaceholder": "e.g. Customers replying here get 10% off the new collection with code SPRING10.",
+      "autoLead": "Auto lead generation",
+      "autoLeadHint": "Create/update a lead for each recipient when this campaign sends: the message shows in their conversation and the chat is linked to the campaign."
+    }
+  },
+  "attribution": {
+    "title": "Campaign tracking",
+    "close": "Close",
+    "chip": {
+      "metaAd": "From ad: {{name}}",
+      "metaAdUnnamed": "From an ad",
+      "whatsappCampaign": "From WhatsApp campaign: {{name}}",
+      "whatsappCampaignUnnamed": "From a WhatsApp campaign",
+      "link": "From link: {{name}}",
+      "linkUnnamed": "From a tracking link"
+    },
+    "whatsappSection": "WhatsApp campaign",
+    "metaSection": "Meta attribution",
+    "clicksSection": "Ad clicks ({{count}})",
+    "viewAd": "View ad",
+    "fields": {
+      "utmSource": "UTM source",
+      "utmMedium": "UTM medium",
+      "utmCampaign": "UTM campaign",
+      "adHeadline": "Ad headline",
+      "adBody": "Ad body",
+      "adSourceUrl": "Ad source URL",
+      "campaign": "Campaign",
+      "via": "Linked by",
+      "at": "At",
+      "metaCampaign": "Meta campaign",
+      "metaAdSet": "Meta ad set",
+      "metaAd": "Meta ad",
+      "adChannel": "Ad channel",
+      "attribution": "Attribution",
+      "adClicks": "Ad clicks",
+      "firstClick": "First ad click",
+      "lastClick": "Last ad click",
+      "clickId": "Click ID (ctwa_clid)"
+    },
+    "status": {
+      "resolved": "Resolved",
+      "unknownAd": "Unknown ad"
+    },
+    "via": {
+      "send": "Campaign sent",
+      "reply": "Customer replied",
+      "quotedReply": "Customer replied to the campaign message"
+    },
+    "channel": {
+      "whatsapp": "WhatsApp",
+      "instagram": "Instagram",
+      "messenger": "Messenger"
     }
   }
 }

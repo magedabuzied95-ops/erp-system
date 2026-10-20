@@ -2031,6 +2031,8 @@
     "author": {
       "chatbot": "شات بوت",
       "chatbotFlow": "شات بوت: {{flow}}",
+      "campaign": "حملة",
+      "campaignNamed": "حملة: {{name}}",
       "autoReply": "رد تلقائي",
       "ai": "AI",
       "staff": "موظف",
@@ -3590,6 +3592,67 @@
       "scheduleRequired": "اختار ميعاد الإرسال.",
       "headerMediaMissing": "القالب ده فيه صورة أو فيديو في الهيدر ومفيش لينك محفوظ ليه. ارفع الميديا من صفحة القوالب الأول.",
       "countFirst": "احسب عدد العملاء الأول قبل الإرسال."
+    },
+    "replies": {
+      "title": "الردود على الحملة",
+      "chatbotFlow": "فلو الشات بوت",
+      "chatbotFlowHint": "اختياري: فلو شات بوت يرد على العميل لما يرد على الحملة دي (الرقم الرسمي بس).",
+      "noFlow": "من غير فلو — الشات بوت أو الـAI العادي يرد",
+      "aiInstructions": "تعليمات للـAI",
+      "aiInstructionsHint": "اختياري: تعليمات الـAI يمشي عليها لما العميل يرد على الحملة دي (لمدة 7 أيام من رده).",
+      "aiInstructionsPlaceholder": "مثلاً: اللي بيرد على الحملة دي له خصم 10% على الكوليكشن الجديد بكود SPRING10.",
+      "autoLead": "إنشاء ليد تلقائي",
+      "autoLeadHint": "لكل عميل تتبعتله الحملة: الرسالة تظهر في محادثته والمحادثة تتربط بالحملة كليد."
+    }
+  },
+  "attribution": {
+    "title": "تتبع الحملة",
+    "close": "قفل",
+    "chip": {
+      "metaAd": "من إعلان: {{name}}",
+      "metaAdUnnamed": "من إعلان",
+      "whatsappCampaign": "من حملة واتساب: {{name}}",
+      "whatsappCampaignUnnamed": "من حملة واتساب",
+      "link": "من لينك: {{name}}",
+      "linkUnnamed": "من لينك تتبع"
+    },
+    "whatsappSection": "حملة واتساب",
+    "metaSection": "إسناد ميتا",
+    "clicksSection": "نقرات الإعلان ({{count}})",
+    "viewAd": "شوف الإعلان",
+    "fields": {
+      "utmSource": "مصدر UTM",
+      "utmMedium": "وسيط UTM",
+      "utmCampaign": "حملة UTM",
+      "adHeadline": "عنوان الإعلان",
+      "adBody": "نص الإعلان",
+      "adSourceUrl": "رابط الإعلان",
+      "campaign": "الحملة",
+      "via": "اتربطت عن طريق",
+      "at": "الوقت",
+      "metaCampaign": "حملة ميتا",
+      "metaAdSet": "مجموعة الإعلانات",
+      "metaAd": "الإعلان",
+      "adChannel": "قناة الإعلان",
+      "attribution": "الإسناد",
+      "adClicks": "عدد النقرات",
+      "firstClick": "أول نقرة",
+      "lastClick": "آخر نقرة",
+      "clickId": "معرّف النقرة (ctwa_clid)"
+    },
+    "status": {
+      "resolved": "معروف",
+      "unknownAd": "إعلان مش معروف"
+    },
+    "via": {
+      "send": "اتبعتله الحملة",
+      "reply": "العميل رد",
+      "quotedReply": "العميل رد على رسالة الحملة"
+    },
+    "channel": {
+      "whatsapp": "واتساب",
+      "instagram": "إنستجرام",
+      "messenger": "ماسنجر"
     }
   }
 }

@@ -101,6 +101,7 @@ import TranscriptMessage, { INSTAGRAM_MESSAGE_REACTIONS, MESSENGER_MESSAGE_REACT
 import { cascadeDeliveryStatuses } from "../components/DeliveryTicks.jsx";
 import ProductCardPicker from "../components/ProductCardPicker";
 import OriginPostCard from "../components/OriginPostCard.jsx";
+import { CampaignAttributionCard, CampaignAttributionChip } from "../components/CampaignAttribution.jsx";
 import InboxControlCenter from "../components/controlCenter/lazyInboxControlCenter";
 import { CONTROL_CENTER_SECTIONS } from "../components/controlCenter/InboxControlCenter.jsx";
 // One composer, both surfaces — see components/InboxOrderComposer.jsx.
@@ -2568,6 +2569,8 @@ function InboxChatHeader({
                   {sourceLabel}
                 </span>
               </Pill>
+              {/* The ad / WhatsApp campaign this chat came from (GENI's megaphone line). */}
+              <CampaignAttributionChip conversation={conversation} variant="desktop" />
             </div>
           </div>
         </div>
@@ -4128,6 +4131,8 @@ function CustomerProfilePanel({ conversation, canSyncMessenger = false, syncing 
           </div>
         </div>
       ) : null}
+      {/* "تتبع الحملة": hidden when the chat came from no campaign. */}
+      <CampaignAttributionCard conversation={conversation} variant="desktop" />
       <details className="rounded-2xl border border-white/10 bg-white/[0.03] p-3">
         <summary className="cursor-pointer list-none text-[11px] font-black uppercase tracking-[0.14em] text-slate-500">{t("aiSupport.inbox.ui.moreCustomerMemory")}</summary>
         <div className="mt-3 space-y-2">

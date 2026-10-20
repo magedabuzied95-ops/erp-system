@@ -41,6 +41,10 @@ const EMPTY_FORM = Object.freeze({
   audience: EMPTY_AUDIENCE,
   when: "now",
   scheduled_local: "",
+  // Replies (GENI's Chatbot Flow / AI Workflow / Auto Lead Generation).
+  chatbot_flow_id: "",
+  ai_instructions: "",
+  auto_lead_generation: true,
 });
 
 const numericAudience = (audience) => ({
@@ -76,6 +80,9 @@ const formFromBroadcast = (row) => {
     },
     when: row.status === "scheduled" ? "schedule" : "now",
     scheduled_local: row.scheduled_at ? instantToWallClock(row.scheduled_at) : "",
+    chatbot_flow_id: row.chatbot_flow_id ? String(row.chatbot_flow_id) : "",
+    ai_instructions: row.ai_instructions || "",
+    auto_lead_generation: row.auto_lead_generation !== false,
   };
 };
 
@@ -161,6 +168,7 @@ export default function BroadcastsPanel({ headers, tenantId }) {
   const [broadcasts, setBroadcasts] = useState([]);
   const [templates, setTemplates] = useState([]);
   const [groups, setGroups] = useState([]);
+  const [flows, setFlows] = useState([]);
   const [loading, setLoading] = useState(true);
   const [busy, setBusy] = useState("");
   const [error, setError] = useState("");
@@ -198,6 +206,13 @@ export default function BroadcastsPanel({ headers, tenantId }) {
     api.get("/inbox-config/org/groups", { headers, suppressErrorStatuses: [403, 404, 500, 502] })
       .then((payload) => setGroups(Array.isArray(payload?.groups) ? payload.groups : []))
       .catch(() => setGroups([]));
+  }, [headers]);
+
+  // The official number's chatbot flows, for "a flow answers replies to this campaign".
+  useEffect(() => {
+    api.get("/whatsapp-official/flows", { headers, suppressErrorStatuses: [403, 404, 500, 502] })
+      .then((payload) => setFlows(Array.isArray(payload?.flows) ? payload.flows : []))
+      .catch(() => setFlows([]));
   }, [headers]);
 
   const patch = (updates) => {
@@ -262,6 +277,9 @@ export default function BroadcastsPanel({ headers, tenantId }) {
     group_name: current.group_name,
     audience: numericAudience(current.audience),
     frequency_cap_days: current.frequency_cap_days,
+    chatbot_flow_id: current.channel_mode === "template" ? Number(current.chatbot_flow_id) || null : null,
+    ai_instructions: current.ai_instructions,
+    auto_lead_generation: current.auto_lead_generation !== false,
   });
 
   const formError = useMemo(() => {
@@ -584,6 +602,50 @@ export default function BroadcastsPanel({ headers, tenantId }) {
               />
             </Field>
           )}
+
+          {/* Replies: who answers a customer who writes back (GENI: Chatbot Flow, AI Workflow,
+              Auto Lead Generation). Handled server-side by modules/campaignAttribution. Template
+              campaigns only: a text broadcast leaves through WhatsApp Web, where neither the
+              send nor the reply can be tied back to the campaign. */}
+          {isTemplate ? (
+          <div className="grid gap-3 rounded-2xl border border-white/10 bg-white/[0.02] p-3">
+            <div className="text-xs font-black text-white">{t("aiSupport.campaigns.replies.title")}</div>
+            <Field label={t("aiSupport.campaigns.replies.chatbotFlow")} hint={t("aiSupport.campaigns.replies.chatbotFlowHint")}>
+              <ThemedSelect
+                value={String(form.chatbot_flow_id || "")}
+                onChange={(value) => patch({ chatbot_flow_id: value })}
+                options={[
+                  { value: "", label: t("aiSupport.campaigns.replies.noFlow") },
+                  ...flows.map((flow) => ({ value: String(flow.id), label: `${flow.name}${flow.status && flow.status !== "active" ? ` · ${flow.status}` : ""}` })),
+                ]}
+                triggerClassName={selectTrigger}
+              />
+            </Field>
+            <Field label={t("aiSupport.campaigns.replies.aiInstructions")} hint={t("aiSupport.campaigns.replies.aiInstructionsHint")}>
+              <textarea
+                rows={3}
+                dir="auto"
+                maxLength={2000}
+                value={form.ai_instructions}
+                placeholder={t("aiSupport.campaigns.replies.aiInstructionsPlaceholder")}
+                onChange={(event) => patch({ ai_instructions: event.target.value })}
+                className={textareaClass}
+              />
+            </Field>
+            <label className="flex cursor-pointer items-start gap-2.5">
+              <input
+                type="checkbox"
+                checked={form.auto_lead_generation !== false}
+                onChange={(event) => patch({ auto_lead_generation: event.target.checked })}
+                className="mt-0.5 h-4 w-4 shrink-0 accent-cyan-400"
+              />
+              <span className="min-w-0">
+                <span className="block text-xs font-black text-white">{t("aiSupport.campaigns.replies.autoLead")}</span>
+                <span className="mt-0.5 block text-[11px] leading-5 text-slate-500">{t("aiSupport.campaigns.replies.autoLeadHint")}</span>
+              </span>
+            </label>
+          </div>
+          ) : null}
 
           <Field label={t("aiSupport.campaigns.fields.group")} hint={t("aiSupport.campaigns.fields.groupHint")}>
             <div className="flex flex-wrap gap-1.5" aria-label={t("aiSupport.inboxOrg.groups.pickForCampaign")}>

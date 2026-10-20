@@ -96,6 +96,10 @@ const campaignInput = (body = {}) => ({
   templateId: body.template_id,
   templateVariables: body.template_variables,
   groupName: body.group_name,
+  // Reply handling (GENI's Chatbot Flow / AI Workflow / Auto Lead Generation).
+  chatbotFlowId: body.chatbot_flow_id,
+  aiInstructions: body.ai_instructions,
+  autoLeadGeneration: body.auto_lead_generation,
 });
 
 router.post("/", protect, permit("settings", "edit"), async (req, res) => {
@@ -112,6 +116,9 @@ router.post("/", protect, permit("settings", "edit"), async (req, res) => {
       templateId: input.templateId,
       templateVariables: input.templateVariables,
       groupName: input.groupName,
+      chatbotFlowId: input.chatbotFlowId,
+      aiInstructions: input.aiInstructions,
+      autoLeadGeneration: input.autoLeadGeneration,
     });
     return res.status(201).json({ success: true, broadcast });
   } catch (error) {

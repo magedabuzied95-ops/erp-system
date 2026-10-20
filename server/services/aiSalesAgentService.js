@@ -1071,6 +1071,8 @@ export const inboxMessageAuthorKind = (row = {}) => {
   // detected_intent too: rows a Cloud status tick re-stamped (source_path became
   // whatsapp_cloud_status_webhook) still say the chatbot wrote them there.
   if (marker.includes("wa_chatbot_flow") || lower(row.detected_intent) === "wa_chatbot_flow") return "chatbot";
+  // A template campaign's send (campaignAttribution/campaignInbox.js); its name is staff_user_name.
+  if (marker.includes("wa_campaign") || lower(row.detected_intent) === "wa_campaign") return "campaign";
   // The away message only — "whatsapp_ai_auto_reply" / "meta_ai_auto_reply" are the AI's own replies.
   if (marker.includes("wa_official_auto_reply")) return "auto_reply";
   if (["staff", "agent", "human"].includes(senderType)) return "staff";
