@@ -679,6 +679,7 @@ const { startAmazonScheduler } = await import("./modules/amazon/amazonScheduler.
 const { default: metaAdsRoutes, metaAdsPublicRoutes } = await import("./modules/metaAds/metaAds.routes.js");
 const { ensureMetaAdsSchema } = await import("./modules/metaAds/metaAdsSchema.js");
 const { startMetaAdsScheduler } = await import("./modules/metaAds/metaAdsScheduler.js");
+const { default: waOfficialRoutes, waOfficialPublicRoutes } = await import("./modules/whatsappOfficial/waOfficial.routes.js");
 const { ensureOrderIdentityAlertsSchema, startOrderIdentitySweeper } = await import("./modules/orders/addressIdentityAlerts.js");
 const { ensureTikTokEventsSchema, startTikTokEventsWorker } = await import("./modules/tiktok/tiktokEventsApi.js");
 const { default: brandsRoutes } = await import("./routes/brands.js");
@@ -2018,6 +2019,9 @@ app.use("/api/amazon", amazonRoutes);
 // The public router carries only the OAuth callback and the signature-checked webhook.
 app.use("/api/meta-ads-public", metaAdsPublicRoutes);
 app.use("/api/meta-ads", metaAdsRoutes);
+// Official WhatsApp (Cloud API) menu sections: accounts settings, connect, analytics, chatbot flows.
+app.use("/api/whatsapp-official-public", waOfficialPublicRoutes);
+app.use("/api/whatsapp-official", waOfficialRoutes);
 app.use("/api/brands", brandsRoutes);
 app.use("/api/manufacturers", manufacturersRoutes);
 app.use("/api/purchases", purchaseRoutes);
