@@ -45,3 +45,36 @@ test("a reply carrying cards is sent as a product reply; an order answer gets a 
   const gateway = read("../../server/services/whatsappGatewayService.js");
   assert.match(gateway, /const trackingCta = generated\.aiPayload\?\.order_tracking_cta;\s*if \(text\(trackingCta\?\.url\) && replyParts\.length <= 1\) \{\s*try \{\s*result = await sendCtaUrlMessage\(\{/);
 });
+
+test("a model shown in one grade brings its other grades along, unless the customer named a grade", async () => {
+  const agent = await import("../../server/services/aiClaudeSalesAgentService.js");
+  const { safeProductFacts } = await import("../../server/services/aiUnifiedDecisionService.js");
+  const saved = { enabled: process.env.AI_CLAUDE_AGENT_ENABLED, key: process.env.ANTHROPIC_API_KEY, scope: process.env.AI_SALES_AGENT_SCOPE, provider: process.env.AI_SALES_AGENT_PROVIDER };
+  Object.assign(process.env, { AI_CLAUDE_AGENT_ENABLED: "true", ANTHROPIC_API_KEY: "k", AI_SALES_AGENT_SCOPE: "all", AI_SALES_AGENT_PROVIDER: "anthropic" });
+  const card = (id, color, grade) => ({ product_id: id, id, color, title: `New Balance 530 - ${color}`, grade, price: 800, image_url: `https://x/${id}${color}.jpg` });
+  const pool = [card("180", "Navy", "egyptian"), card("180", "Beige", "egyptian"), card("140", "White & Navy", "vietnamese"), card("141", "Grey", "mirror"), { ...card("999", "Black", "mirror"), title: "Nike Dunk - Black" }];
+  const run = async (message) => {
+    const replies = [
+      { stop_reason: "tool_use", content: [{ type: "tool_use", id: "s", name: "search_products", input: { query: "New Balance 530" } }], usage: {} },
+      { stop_reason: "tool_use", content: [{ type: "tool_use", id: "p", name: "show_products", input: { product_ids: ["180"] } }], usage: {} },
+      { stop_reason: "end_turn", content: [{ type: "text", text: "أيوه متاح 👇" }], usage: {} },
+    ];
+    agent.__setAgentClientForTests({ beta: { messages: { create: async () => replies.shift() } } });
+    return agent.runClaudeSalesAgent({
+      decision: { intent: "general", detected_intent: "general", text: "x", product_cards: [] },
+      inbound: { channel: "whatsapp", text: message, originalText: message, customerName: "Maged", externalConversationId: "", metadata: {} },
+      helpers: { safeProductFacts, searchCards: async () => pool },
+      loaders: { persona: async () => ({}), knowledgeBase: async () => ({}), history: async () => [], customerCard: async () => "" },
+    });
+  };
+  try {
+    const all = await run("فيه نيوبالانس 530");
+    assert.deepEqual(all.product_cards.map((c) => `${c.product_id}:${c.color}`), ["180:Navy", "180:Beige", "140:White & Navy", "141:Grey"], "every grade of the same model, never another model");
+    assert.equal(all.detected_intent, "product_search", "WhatsApp sends cards only for product intents");
+    const mirror = await run("فيه نيوبالانس 530 مصري");
+    assert.deepEqual(mirror.product_cards.map((c) => c.product_id), ["180", "180"], "a named grade is respected");
+  } finally {
+    Object.assign(process.env, { AI_CLAUDE_AGENT_ENABLED: saved.enabled ?? "", ANTHROPIC_API_KEY: saved.key ?? "", AI_SALES_AGENT_SCOPE: saved.scope ?? "", AI_SALES_AGENT_PROVIDER: saved.provider ?? "" });
+    agent.__setAgentClientForTests(null);
+  }
+});

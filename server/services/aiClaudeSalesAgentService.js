@@ -528,6 +528,8 @@ const findingsFor = ({ decision, preparedCards, safeProductFacts, mustKeepFacts 
 };
 
 const cardId = (card = {}) => text(card.product_id || card.id);
+// The customer asked for one grade by name — then only that grade is shown.
+const NAMED_GRADE = /(ميرور|مرور|فيتنام|مستورد|مصري|اوريجينال|أوريجينال|اورجينال|أصلي|اصلي|mirror|original|vietnam|egypt)/i;
 
 const deadlineLeft = (deadline) => {
   const remaining = deadline - Date.now();
@@ -723,8 +725,32 @@ export const runClaudeSalesAgent = async ({
             if (!matches.length) unknown.push(id);
             for (const card of matches) if (!picked.includes(card)) picked.push(card);
           }
-          chosenCards = picked.slice(0, 10);
-          return { ok: true, will_send: picked.length, unknown_ids: unknown.length ? unknown : undefined };
+          // The model in its other grades rides along unless the customer named one: «فيه نيوبالانس 530»
+          // came back Egyptian-only while the Vietnamese and mirror pairs sat in the same search
+          // (owner, 2026-10-20). Same model = same name before " - <colour>".
+          const gradesAdded = [];
+          if (picked.length && !NAMED_GRADE.test(customerMessage)) {
+            const gradeOf = (card) => text(safeProductFacts(card).grade).toLowerCase();
+            const baseOf = (card) => text(safeProductFacts(card).name).toLowerCase().split(" - ")[0].replace(/\s+/g, " ").trim();
+            const shownGrades = new Set(picked.map(gradeOf).filter(Boolean));
+            const bases = new Set(picked.map(baseOf).filter(Boolean));
+            const perGrade = new Map();
+            for (const card of cardPool.values()) {
+              const grade = gradeOf(card);
+              if (!grade || shownGrades.has(grade) || picked.includes(card) || !bases.has(baseOf(card))) continue;
+              if ((perGrade.get(grade) || 0) >= 3) continue;
+              perGrade.set(grade, (perGrade.get(grade) || 0) + 1);
+              picked.push(card);
+              if (!gradesAdded.includes(grade)) gradesAdded.push(grade);
+            }
+          }
+          chosenCards = picked.slice(0, 12);
+          return {
+            ok: true,
+            will_send: chosenCards.length,
+            unknown_ids: unknown.length ? unknown : undefined,
+            other_grades_added: gradesAdded.length ? gradesAdded.map((grade) => chosenCards.map((card) => safeProductFacts(card)).find((facts) => text(facts.grade).toLowerCase() === grade)?.grade_label || grade) : undefined,
+          };
         }
         case "escalate_to_human":
           escalation = { reason: text(input.reason) || "agent_escalation" };
@@ -845,7 +871,16 @@ export const runClaudeSalesAgent = async ({
       text: reply,
       answer: reply,
       ...(cardsChanged
-        ? { products: cards, suggested_products: cards, product_cards: cards, images, image_cards: images, active_product_id: activeProductId || decision.active_product_id }
+        ? {
+            products: cards,
+            suggested_products: cards,
+            product_cards: cards,
+            images,
+            image_cards: images,
+            active_product_id: activeProductId || decision.active_product_id,
+            // Graded runs pass the channels' default 6; the senders cap by this (as brain V2 does).
+            ...(cards.length > 6 ? { metadata: { ...(decision.metadata || {}), product_card_limit: cards.length } } : {}),
+          }
         : {}),
       memoryUpdates,
       memory_updates: memoryUpdates,
