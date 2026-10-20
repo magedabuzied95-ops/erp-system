@@ -1990,7 +1990,10 @@
         "waWebhooks": "API webhooks",
         "teams": "Teams",
         "groups": "Customer groups",
-        "shifts": "Shifts"
+        "shifts": "Shifts",
+        "tags": "Tags",
+        "presence": "Presence log",
+        "backups": "Chat backups"
       }
     }
   },
@@ -3108,6 +3111,106 @@
         "messenger": "Messenger",
         "instagram": "Instagram",
         "telegram": "Telegram"
+      }
+    }
+  },
+  "inboxConfig": {
+    "tags": {
+      "subtitle": "Every tag that can be put on a conversation. Edits here also update conversations that already carry the tag.",
+      "search": "Search tags",
+      "new": "New tag",
+      "edit": "Edit tag",
+      "delete": "Delete tag",
+      "name": "Name",
+      "description": "Description",
+      "color": "Colour",
+      "preview": "Preview",
+      "save": "Save",
+      "cancel": "Cancel",
+      "saved": "Tag saved",
+      "deleted": "Tag deleted",
+      "confirmDelete": "Delete this tag?",
+      "confirmDeleteUsed": "{{count}} conversations carry this tag. They keep it, but it leaves the picker. Delete it?",
+      "pipelineHint": "A sales-pipeline stage: rename or recolour it, but it can't be deleted.",
+      "bySystem": "System",
+      "byImport": "Imported from conversations",
+      "empty": "No tags yet",
+      "loadFailed": "Couldn't load tags",
+      "actionFailed": "That didn't work",
+      "columns": {
+        "name": "Tag",
+        "description": "Description",
+        "uses": "Conversations",
+        "createdBy": "Created by",
+        "createdAt": "Created",
+        "actions": "Actions"
+      }
+    },
+    "presence": {
+      "subtitle": "Who had the inbox open, and when. Recorded automatically.",
+      "today": "Today",
+      "last7": "Last 7 days",
+      "custom": "Custom",
+      "from": "From",
+      "to": "To",
+      "user": "Staff member",
+      "allUsers": "All staff",
+      "refresh": "Refresh",
+      "onlineNow": "Online now",
+      "sessionsCount": "{{count}} sessions",
+      "hoursMinutes": "{{hours}}h {{minutes}}m",
+      "minutes": "{{minutes}}m",
+      "lessThanMinute": "< 1m",
+      "yes": "Yes",
+      "no": "No",
+      "empty": "Nobody was online in this range",
+      "loadFailed": "Couldn't load the presence log",
+      "columns": {
+        "user": "User",
+        "onlineFrom": "Online from",
+        "offlineAt": "Offline at",
+        "duration": "Duration",
+        "online": "Currently online",
+        "busy": "Busy"
+      }
+    },
+    "backups": {
+      "subtitle": "A zip of conversations, messages and media, downloadable for 7 days.",
+      "backupAll": "Backup all",
+      "filtered": "Filtered backup",
+      "requestFiltered": "Request backup",
+      "channel": "Channel",
+      "allChannels": "All channels",
+      "from": "From",
+      "to": "To",
+      "refresh": "Refresh",
+      "download": "Download",
+      "requested": "Backup requested — it's being prepared in the background",
+      "preparing": "A backup is being prepared…",
+      "scopeAll": "All conversations",
+      "empty": "No backups yet",
+      "loadFailed": "Couldn't load backups",
+      "actionFailed": "Couldn't request the backup",
+      "downloadFailed": "Download failed",
+      "status": {
+        "queued": "Queued",
+        "running": "Preparing",
+        "ready": "Ready",
+        "failed": "Failed",
+        "expired": "Expired"
+      },
+      "columns": {
+        "download": "Download",
+        "requestedAt": "Requested at",
+        "status": "Status",
+        "requestedBy": "Requested by",
+        "scope": "Scope",
+        "conversations": "Conversations",
+        "messages": "Messages",
+        "files": "Files",
+        "missingFiles": "Missing files",
+        "size": "Size",
+        "availableUntil": "Available until"
       }
     }
   }

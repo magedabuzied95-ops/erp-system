@@ -1998,7 +1998,10 @@
         "waWebhooks": "Webhooks",
         "teams": "الفرق",
         "groups": "مجموعات العملاء",
-        "shifts": "الشيفتات"
+        "shifts": "الشيفتات",
+        "tags": "التاجات",
+        "presence": "سجل التواجد",
+        "backups": "نسخ احتياطية للشات"
       }
     }
   },
@@ -3116,6 +3119,106 @@
         "messenger": "ماسنجر",
         "instagram": "إنستجرام",
         "telegram": "تليجرام"
+      }
+    }
+  },
+  "inboxConfig": {
+    "tags": {
+      "subtitle": "كل التاجز اللي بتتحط على المحادثات. التعديل هنا بيتطبق على المحادثات القديمة كمان.",
+      "search": "دوّر على تاج",
+      "new": "تاج جديد",
+      "edit": "تعديل التاج",
+      "delete": "مسح التاج",
+      "name": "الاسم",
+      "description": "الوصف",
+      "color": "اللون",
+      "preview": "معاينة",
+      "save": "حفظ",
+      "cancel": "إلغاء",
+      "saved": "اتحفظ التاج",
+      "deleted": "اتمسح التاج",
+      "confirmDelete": "تمسح التاج ده؟",
+      "confirmDeleteUsed": "التاج ده على {{count}} محادثة. هيفضل عليهم بس مش هيظهر في الاختيارات. تمسحه؟",
+      "pipelineHint": "ده من مراحل البيع، ممكن تغيّر اسمه ولونه بس ماينفعش يتمسح.",
+      "bySystem": "النظام",
+      "byImport": "متاخد من المحادثات",
+      "empty": "مفيش تاجز لسه",
+      "loadFailed": "معرفناش نحمّل التاجز",
+      "actionFailed": "العملية ما نجحتش",
+      "columns": {
+        "name": "التاج",
+        "description": "الوصف",
+        "uses": "المحادثات",
+        "createdBy": "عمله",
+        "createdAt": "اتعمل في",
+        "actions": "إجراءات"
+      }
+    },
+    "presence": {
+      "subtitle": "مين كان فاتح الإنبوكس وإمتى. بيتسجل لوحده من غير ما حد يعمل حاجة.",
+      "today": "النهارده",
+      "last7": "آخر ٧ أيام",
+      "custom": "فترة مخصوصة",
+      "from": "من",
+      "to": "لحد",
+      "user": "الموظف",
+      "allUsers": "كل الموظفين",
+      "refresh": "تحديث",
+      "onlineNow": "أونلاين دلوقتي",
+      "sessionsCount": "{{count}} مرة",
+      "hoursMinutes": "{{hours}} س {{minutes}} د",
+      "minutes": "{{minutes}} د",
+      "lessThanMinute": "أقل من دقيقة",
+      "yes": "أيوه",
+      "no": "لأ",
+      "empty": "مفيش حد دخل في الفترة دي",
+      "loadFailed": "معرفناش نحمّل سجل التواجد",
+      "columns": {
+        "user": "الموظف",
+        "onlineFrom": "أونلاين من",
+        "offlineAt": "خرج الساعة",
+        "duration": "المدة",
+        "online": "أونلاين دلوقتي",
+        "busy": "مشغول"
+      }
+    },
+    "backups": {
+      "subtitle": "نسخة من المحادثات والرسايل والميديا في ملف zip، متاحة للتحميل ٧ أيام.",
+      "backupAll": "نسخة لكل حاجة",
+      "filtered": "نسخة بفلتر",
+      "requestFiltered": "اطلب النسخة",
+      "channel": "القناة",
+      "allChannels": "كل القنوات",
+      "from": "من",
+      "to": "لحد",
+      "refresh": "تحديث",
+      "download": "تحميل",
+      "requested": "اتطلبت النسخة، هتجهز في الخلفية",
+      "preparing": "في نسخة بتتجهز دلوقتي…",
+      "scopeAll": "كل المحادثات",
+      "empty": "مفيش نسخ لسه",
+      "loadFailed": "معرفناش نحمّل النسخ",
+      "actionFailed": "معرفناش نطلب النسخة",
+      "downloadFailed": "التحميل ما نجحش",
+      "status": {
+        "queued": "مستنية",
+        "running": "بتتجهز",
+        "ready": "جاهزة",
+        "failed": "فشلت",
+        "expired": "انتهت"
+      },
+      "columns": {
+        "download": "تحميل",
+        "requestedAt": "اتطلبت في",
+        "status": "الحالة",
+        "requestedBy": "طلبها",
+        "scope": "النطاق",
+        "conversations": "المحادثات",
+        "messages": "الرسايل",
+        "files": "الملفات",
+        "missingFiles": "ملفات ناقصة",
+        "size": "الحجم",
+        "availableUntil": "متاحة لحد"
       }
     }
   }

@@ -745,6 +745,9 @@ const { default: whatsappUsageRoutes } = await import("./routes/whatsappUsage.js
 const { default: whatsappApiAccessRoutes } = await import("./routes/whatsappApiAccess.js");
 const { default: whatsappPublicApiRoutes } = await import("./routes/whatsappPublicApi.js");
 const { default: inboxTeamsRoutes } = await import("./routes/inboxTeams.js");
+const { default: inboxTagsRoutes } = await import("./routes/inboxTags.js");
+const { default: inboxPresenceRoutes } = await import("./routes/inboxPresence.js");
+const { default: chatBackupsRoutes } = await import("./routes/chatBackups.js");
 const { default: marketingBroadcastRoutes } = await import("./routes/marketingBroadcasts.js");
 const { startWhatsappQueueWorker } = await import("./services/whatsappQueue/worker.js");
 const { ensureProductSchema, ensureProductVariantSchema, warmProductsMetadataCache } = await import("./controllers/productsController.js");
@@ -1945,6 +1948,9 @@ const uploadsStaticOptions = {
   },
 };
 
+// Chat backups hold every conversation; they are downloaded only through the authenticated
+// /api/inbox-config/backups/:id/download route, never as a public static file.
+app.use("/uploads/chat-backups", (req, res) => res.status(404).end());
 app.use("/uploads", express.static(path.join(process.cwd(), "uploads"), uploadsStaticOptions));
 app.use("/uploads", express.static(path.join(currentDir, "uploads"), uploadsStaticOptions));
 app.use("/uploads", express.static(path.join(currentDir, "..", "uploads"), uploadsStaticOptions));
@@ -2099,6 +2105,9 @@ app.use("/api/whatsapp/usage", whatsappUsageRoutes);
 app.use("/api/whatsapp/developer", whatsappApiAccessRoutes);
 app.use("/api/public/whatsapp", whatsappPublicApiRoutes);
 app.use("/api/inbox-config/org", inboxTeamsRoutes);
+app.use("/api/inbox-config/tags", inboxTagsRoutes);
+app.use("/api/inbox-config/presence", inboxPresenceRoutes);
+app.use("/api/inbox-config/backups", chatBackupsRoutes);
 app.use("/api/marketing/broadcasts", marketingBroadcastRoutes);
 app.use("/api/whatsapp", whatsappGatewayRoutes);
 app.use("/api/debug/whatsapp", whatsappDebugRoutes);

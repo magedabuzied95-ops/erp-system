@@ -91,9 +91,12 @@ const MENUS = [
       { key: "actions", section: "actions" },
       { key: "playground", section: "playground" },
       { key: "quickReplies", section: "quick_replies" },
+      { key: "tags", section: "cfg_tags" },
       { key: "teams", section: "cfg_teams" },
       { key: "groups", section: "cfg_groups" },
       { key: "shifts", section: "cfg_shifts" },
+      { key: "presence", section: "cfg_presence" },
+      { key: "backups", section: "cfg_backups" },
       { key: "performance", section: "performance" },
       { key: "connections", section: "overview" },
     ],
@@ -138,6 +141,9 @@ const itemLabel = (t, key) => {
     case "actions": return t("aiSupport.inbox.topbar.items.actions");
     case "playground": return t("aiSupport.inbox.topbar.items.playground");
     case "quickReplies": return t("aiSupport.inbox.topbar.items.quickReplies");
+    case "tags": return t("aiSupport.inbox.topbar.items.tags");
+    case "presence": return t("aiSupport.inbox.topbar.items.presence");
+    case "backups": return t("aiSupport.inbox.topbar.items.backups");
     case "teams": return t("aiSupport.inbox.topbar.items.teams");
     case "groups": return t("aiSupport.inbox.topbar.items.groups");
     case "shifts": return t("aiSupport.inbox.topbar.items.shifts");

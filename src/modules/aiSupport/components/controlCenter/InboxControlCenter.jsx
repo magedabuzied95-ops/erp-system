@@ -21,6 +21,8 @@ import {
   BarChart3,
   Bot,
   CalendarClock,
+  Clock3,
+  DatabaseBackup,
   FileText,
   KeyRound,
   Gauge,
@@ -34,6 +36,7 @@ import {
   Receipt,
   Smartphone,
   SlidersHorizontal,
+  Tag,
   Users,
   UsersRound,
   Webhook,
@@ -67,6 +70,9 @@ const WhatsAppDeveloperPanel = lazy(() => import("./WhatsAppDeveloperPanel.jsx")
 const InboxTeamsPanel = lazy(() => import("./InboxTeamsPanel.jsx"));
 const CustomerGroupsPanel = lazy(() => import("./CustomerGroupsPanel.jsx"));
 const InboxShiftsPanel = lazy(() => import("./InboxShiftsPanel.jsx"));
+const InboxTagsPanel = lazy(() => import("./InboxTagsPanel.jsx"));
+const PresenceLogPanel = lazy(() => import("./PresenceLogPanel.jsx"));
+const ChatBackupsPanel = lazy(() => import("./ChatBackupsPanel.jsx"));
 
 const MetaGlyph = () => (
   <span className="relative inline-flex h-4 w-5 items-center" aria-hidden="true">
@@ -80,7 +86,7 @@ export const CONTROL_CENTER_GROUPS = [
   { key: "workspace", sections: ["quick_replies", "comments", "invoice_messages"] },
   { key: "whatsapp_official", sections: ["wa_templates", "wa_usage", "wa_api_keys", "wa_webhooks"] },
   { key: "growth", sections: ["broadcasts", "sequences"] },
-  { key: "team", sections: ["cfg_teams", "cfg_groups", "cfg_shifts"] },
+  { key: "team", sections: ["cfg_tags", "cfg_teams", "cfg_groups", "cfg_shifts", "cfg_presence", "cfg_backups"] },
   { key: "insight", sections: ["performance"] },
   { key: "connections", sections: ["overview", "meta", "whatsapp", "whatsapp_web", "automations", "queue", "tiktok"] },
 ];
@@ -106,6 +112,9 @@ const SECTION_ICON = {
   invoice_messages: Receipt,
   wa_templates: FileText,
   wa_usage: Receipt,
+  cfg_tags: Tag,
+  cfg_presence: Clock3,
+  cfg_backups: DatabaseBackup,
   cfg_teams: Users,
   cfg_groups: UsersRound,
   cfg_shifts: CalendarClock,
@@ -133,6 +142,9 @@ const sectionLabel = (t, key) => {
   if (key === "comments") return t("aiSupport.commentsSettings.title");
   if (key === "invoice_messages") return t("aiSupport.aiSettings.variants.menuTitle");
   if (key === "wa_templates") return t("aiSupport.waTemplates.title");
+  if (key === "cfg_tags") return t("aiSupport.inbox.topbar.items.tags");
+  if (key === "cfg_presence") return t("aiSupport.inbox.topbar.items.presence");
+  if (key === "cfg_backups") return t("aiSupport.inbox.topbar.items.backups");
   if (key === "cfg_teams") return t("aiSupport.inbox.topbar.items.teams");
   if (key === "cfg_groups") return t("aiSupport.inbox.topbar.items.groups");
   if (key === "cfg_shifts") return t("aiSupport.inbox.topbar.items.shifts");
@@ -229,6 +241,9 @@ export default function InboxControlCenter({
       {section === "comments" ? <CommentsSettingsPanel {...(commentsProps || {})} light={false} /> : null}
       {section === "invoice_messages" ? <WhatsappMessageVariantsEditor initialType="invoice_receipt" /> : null}
       {section === "wa_templates" ? <WhatsAppTemplatesPanel headers={headers} /> : null}
+      {section === "cfg_tags" ? <InboxTagsPanel headers={headers} /> : null}
+      {section === "cfg_presence" ? <PresenceLogPanel headers={headers} /> : null}
+      {section === "cfg_backups" ? <ChatBackupsPanel headers={headers} /> : null}
       {section === "cfg_teams" ? <InboxTeamsPanel headers={headers} /> : null}
       {section === "cfg_groups" ? <CustomerGroupsPanel headers={headers} /> : null}
       {section === "cfg_shifts" ? <InboxShiftsPanel headers={headers} /> : null}
