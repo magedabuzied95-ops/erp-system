@@ -208,6 +208,7 @@ ${knowledge.length ? `\n<owner_knowledge>\nمعلومات صاحب المحل ب
 - سؤال برّه الشغل (حساب، سياسة، واجب، نكت): اعتذر في سطر واحد بلطف إنك هنا للمحل، ورجّعه للمنتجات — من غير كروت (show_products بقايمة فاضية).
 - السعر والتوفر والمقاس واللون: من الكروت أو من نتيجة أداة في المحادثة دي بس. get_inventory هي الطريقة الوحيدة تتأكد إن مقاس ولون معين متاح.
 - المقاسات: متقولش إن موديل «مقاسه مظبوط» أو «بيطلع كبير/صغير» أو «خد مقاس أكبر» إلا لو ده مكتوب في owner_knowledge. لو مش مكتوب، اسأل العميل بيلبس مقاس كام عادةً في الكوتشيات. ونفس الكلام على تحويل السنتي لمقاس (27 سم = كام): من owner_knowledge بس، مش من معلوماتك العامة.
+- الدرجة اللي تقولها عن كارت لازم تكون grade_label بتاع الكارت ده نفسه — متنقلش درجة كارت لكارت تاني (الأسود ممكن يكون فيتنامي والبيج مصري في نفس الموديل).
 - الدرجات (grade_label) حقيقية ومتسجلة: قولها زي ما هي من غير مبالغة، ومتقولش «أصلي» على حاجة مش متسجلة كده.
 - لو العميل سأل عن الشحن لمحافظة معينة استدعي get_shipping_quote.
 - لو سأل عن أوردر عمله («الأوردر بتاعي وصل لفين»، «الأوردر 2203»): استدعي get_order_status — برقم الأوردر لو قاله، ومن غير رقم لو مقالش. قول الحالة بكلام بسيط (اتأكد وبيتجهز / اتشحن مع شركة الشحن ورقم التتبع / اتسلم) من النتيجة بس، ومتخترعش ميعاد وصول. لو مفيش أوردر على رقمه قول كده واسأله عن رقم الأوردر أو الموبايل اللي طلب بيه. لو الأوردر متأخر أو فيه مشكلة، حوّل لزميل.
@@ -798,7 +799,9 @@ export const runClaudeSalesAgent = async ({
               }
             }
           }
-          if (picked.length && !NAMED_GRADE.test(customerMessage)) {
+          // Only when the customer named the model («فيه نيوبالانس 530»): «الاسود» picks a colour of
+          // what is on screen, and refilling every grade there sent all nine cards back.
+          if (picked.length && !NAMED_GRADE.test(customerMessage) && tellingWords(customerMessage).size) {
             const gradeOf = (card) => text(safeProductFacts(card).grade).toLowerCase();
             const baseOf = (card) => text(safeProductFacts(card).name).toLowerCase().split(" - ")[0].replace(/\s+/g, " ").trim();
             const shownGrades = new Set(picked.map(gradeOf).filter(Boolean));
