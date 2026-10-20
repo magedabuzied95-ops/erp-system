@@ -167,6 +167,8 @@ const scheduleDebouncedGeneration = (args) => {
 // existing pipeline (no send). Every early return is a deliberate, documented skip.
 export const handleInboundMessageIntake = async ({ tenantId, channel, conversationId, canonicalMessageId = null, providerMessageId = "", text = "", fromMe = false, autoReplyMode = "", autoSent = false } = {}) => {
   const startedAt = Date.now();
+  // Inbox teams: hand a new unassigned chat to a team member (round robin / least busy). Fire-and-forget, never throws, off unless an auto team exists.
+  if (!fromMe && tenantId && conversationId) import("./inboxTeamsService.js").then((teams) => teams.autoDistributeConversation({ tenantId, channel, conversationId, autoSent, autoReplyMode })).catch(() => {});
   try {
     if (!isInboundWorkflowsEnabled()) return { skipped: true, reason: "global_disabled" };
     if (!tenantId || !channel || !conversationId) return { skipped: true, reason: "missing_context" };

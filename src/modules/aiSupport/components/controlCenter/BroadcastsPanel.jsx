@@ -141,6 +141,17 @@ export default function BroadcastsPanel({ headers, tenantId }) {
     setPreview(null);
   };
 
+  // Customer groups (Config → Groups) are tags, so a group is picked by adding its name to the tags line.
+  const [groups, setGroups] = useState([]);
+  useEffect(() => {
+    api.get("/inbox-config/org/groups", { headers, suppressErrorStatuses: [403, 404, 500, 502] })
+      .then((payload) => setGroups(Array.isArray(payload?.groups) ? payload.groups : []))
+      .catch(() => setGroups([]));
+  }, [headers]);
+  const audienceTags = String(form.audience.tags || "").split(/[,،\n]/).map((item) => item.trim()).filter(Boolean);
+  const toggleGroupTag = (name) =>
+    patchAudience({ tags: (audienceTags.includes(name) ? audienceTags.filter((tag) => tag !== name) : [...audienceTags, name]).join(", ") });
+
   const canSend = useMemo(
     () => Boolean(status?.enabled) && Boolean(preview?.total) && String(form.message_body || "").trim().length > 0,
     [form.message_body, preview, status]
@@ -222,6 +233,20 @@ export default function BroadcastsPanel({ headers, tenantId }) {
                   onChange={(event) => patchAudience({ tags: event.target.value })}
                   placeholder={t("aiSupport.teamTools.tags.placeholder")}
                 />
+                {groups.length ? (
+                  <div className="mt-1.5 flex flex-wrap gap-1" aria-label={t("aiSupport.inboxOrg.groups.pickForCampaign")}>
+                    {groups.slice(0, 30).map((group) => (
+                      <button
+                        key={group.name}
+                        type="button"
+                        onClick={() => toggleGroupTag(group.name)}
+                        className={`h-7 rounded-full border px-2.5 text-[11px] font-black transition ${audienceTags.includes(group.name) ? "border-cyan-300/40 bg-cyan-400/10 text-cyan-100" : "border-white/10 bg-white/[0.04] text-slate-300 hover:bg-white/[0.08]"}`}
+                      >
+                        <span dir="auto">{group.name}</span> · {group.customers}
+                      </button>
+                    ))}
+                  </div>
+                ) : null}
               </Field>
               <Field label={t("aiSupport.controlCenter.broadcasts.frequencyCap")} hint={t("aiSupport.controlCenter.broadcasts.frequencyCapHint")}>
                 <SelectInput

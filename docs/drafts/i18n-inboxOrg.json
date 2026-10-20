@@ -1,0 +1,288 @@
+{
+  "ar": {
+    "teams": {
+      "subtitle": "فرق الرد: مين في كل فريق، القنوات اللي بيستلمها، وإزاي المحادثات الجديدة بتتوزع عليهم.",
+      "new": "فريق جديد",
+      "backToList": "كل الفرق",
+      "save": "حفظ",
+      "saved": "اتحفظ الفريق",
+      "delete": "مسح",
+      "deleted": "اتمسح الفريق",
+      "confirmDelete": "تمسح الفريق ده؟ المحادثات المتوزعة قبل كده هتفضل مع أصحابها.",
+      "loadFailed": "مقدرناش نحمّل الفرق",
+      "actionFailed": "العملية مكملتش، جرّب تاني",
+      "empty": "مفيش فرق لسه. اعمل أول فريق.",
+      "noStaff": "مفيش موظفين مفعّل عندهم الرسائل.",
+      "allChannels": "كل القنوات",
+      "active": "شغال",
+      "inactive": "متوقف",
+      "columns": {
+        "name": "اسم الفريق",
+        "distribution": "التوزيع",
+        "members": "الأعضاء",
+        "channels": "القنوات",
+        "status": "الحالة"
+      },
+      "distribution": {
+        "manual": "يدوي",
+        "roundRobin": "بالدور",
+        "leastBusy": "الأقل شغل",
+        "broadcast": "للكل"
+      },
+      "distributionHint": {
+        "manual": "مفيش توزيع تلقائي، حد بيحوّل المحادثة بإيده.",
+        "roundRobin": "كل محادثة جديدة بتروح للي عليه الدور من الموجودين في الشيفت.",
+        "leastBusy": "كل محادثة جديدة بتروح للي عنده أقل محادثات مفتوحة دلوقتي.",
+        "broadcast": "المحادثة بتفضل للكل ومحدش بيتعيّن عليها تلقائي."
+      },
+      "fields": {
+        "name": "اسم الفريق",
+        "distribution": "طريقة التوزيع",
+        "channels": "القنوات",
+        "channelsHint": "لو مختارتش قناة، الفريق بيستلم من كل القنوات.",
+        "active": "الفريق شغال",
+        "activeHint": "الفريق المتوقف مبيستلمش محادثات تلقائي.",
+        "members": "الأعضاء",
+        "membersHint": "لو العضو له شيفت، مش هيستلم غير وهو في الشيفت. اللي ملوش شيفت متاح على طول."
+      },
+      "channel": {
+        "whatsapp": "واتساب",
+        "messenger": "ماسنجر",
+        "instagram": "إنستجرام",
+        "telegram": "تليجرام"
+      }
+    },
+    "groups": {
+      "subtitle": "مجموعات العملاء للحملات. المجموعة هي نفس تاج العميل، فتقدر تبعتلها حملة على طول.",
+      "new": "مجموعة جديدة",
+      "created": "اتعملت المجموعة",
+      "backToList": "كل المجموعات",
+      "delete": "مسح المجموعة",
+      "deleted": "اتمسحت المجموعة",
+      "confirmDelete": "تمسح المجموعة؟ التاج هيتشال من {{count}} عميل.",
+      "renameAction": "تغيير الاسم",
+      "renamed": "اتغيّر الاسم",
+      "add": "إضافة",
+      "remove": "شيل من المجموعة",
+      "customerAdded": "العميل اتضاف",
+      "customerRemoved": "العميل اتشال",
+      "inGroup": "موجود",
+      "count": "{{count}} عميل",
+      "loadFailed": "مقدرناش نحمّل المجموعات",
+      "actionFailed": "العملية مكملتش، جرّب تاني",
+      "empty": "مفيش مجموعات لسه.",
+      "noCustomers": "مفيش عملاء في المجموعة دي لسه.",
+      "searchPlaceholder": "دوّر على عميل بالاسم أو الرقم",
+      "campaignHint": "عشان تبعت للمجموعة دي: الحملات ← العملاء اللي عليهم تاج ← اختار اسمها.",
+      "pickForCampaign": "اختار مجموعة",
+      "columns": {
+        "name": "المجموعة",
+        "customers": "عدد العملاء",
+        "customer": "العميل",
+        "phone": "الرقم"
+      },
+      "fields": {
+        "name": "اسم المجموعة",
+        "namePlaceholder": "مثلا: عملاء VIP",
+        "rename": "اسم المجموعة",
+        "phone": "ضيف برقم الموبايل"
+      }
+    },
+    "shifts": {
+      "subtitle": "مواعيد الرد: مين متاح يستلم محادثات وإمتى. التوقيت بتوقيت القاهرة.",
+      "new": "شيفت جديد",
+      "backToList": "كل الشيفتات",
+      "save": "حفظ",
+      "saved": "اتحفظ الشيفت",
+      "delete": "مسح",
+      "deleted": "اتمسح الشيفت",
+      "confirmDelete": "تمسح الشيفت ده؟",
+      "loadFailed": "مقدرناش نحمّل الشيفتات",
+      "actionFailed": "العملية مكملتش، جرّب تاني",
+      "empty": "مفيش شيفتات لسه.",
+      "noStaff": "مفيش موظفين مفعّل عندهم الرسائل.",
+      "allAccounts": "كل الحسابات",
+      "active": "شغال",
+      "inactive": "متوقف",
+      "columns": {
+        "name": "اسم الشيفت",
+        "hours": "المواعيد",
+        "days": "الأيام",
+        "appliesTo": "على",
+        "members": "الأعضاء",
+        "status": "الحالة"
+      },
+      "fields": {
+        "name": "اسم الشيفت",
+        "start": "من",
+        "end": "لحد",
+        "cairoTime": "بتوقيت القاهرة",
+        "overnight": "بيعدّي نص الليل ويخلص تاني يوم",
+        "days": "الأيام",
+        "appliesTo": "ينطبق على",
+        "active": "الشيفت شغال",
+        "activeHint": "الشيفت المتوقف كأنه مش موجود.",
+        "members": "الأعضاء",
+        "membersHint": "الفرق بتوزّع على دول بس وهم في الشيفت."
+      },
+      "days": {
+        "sat": "السبت",
+        "sun": "الحد",
+        "mon": "الاتنين",
+        "tue": "التلات",
+        "wed": "الأربع",
+        "thu": "الخميس",
+        "fri": "الجمعة"
+      },
+      "channel": {
+        "whatsapp": "واتساب",
+        "messenger": "ماسنجر",
+        "instagram": "إنستجرام",
+        "telegram": "تليجرام"
+      }
+    }
+  },
+  "en": {
+    "teams": {
+      "subtitle": "Reply teams: who is in each team, which channels it takes, and how new chats are shared out.",
+      "new": "New team",
+      "backToList": "All teams",
+      "save": "Save",
+      "saved": "Team saved",
+      "delete": "Delete",
+      "deleted": "Team deleted",
+      "confirmDelete": "Delete this team? Chats it already assigned stay with their owners.",
+      "loadFailed": "Couldn't load teams",
+      "actionFailed": "That didn't work, try again",
+      "empty": "No teams yet. Create the first one.",
+      "noStaff": "No staff have the inbox switched on.",
+      "allChannels": "All channels",
+      "active": "Active",
+      "inactive": "Paused",
+      "columns": {
+        "name": "Team name",
+        "distribution": "Distribution",
+        "members": "Members",
+        "channels": "Channels",
+        "status": "Status"
+      },
+      "distribution": {
+        "manual": "Manual",
+        "roundRobin": "Round robin",
+        "leastBusy": "Least busy",
+        "broadcast": "Broadcast"
+      },
+      "distributionHint": {
+        "manual": "No auto assignment; someone hands chats over by hand.",
+        "roundRobin": "Each new chat goes to the next on-shift member in turn.",
+        "leastBusy": "Each new chat goes to the member with the fewest open chats.",
+        "broadcast": "Chats stay shared with everyone; nobody is auto-assigned."
+      },
+      "fields": {
+        "name": "Team name",
+        "distribution": "Distribution strategy",
+        "channels": "Channels",
+        "channelsHint": "Pick none and the team takes every channel.",
+        "active": "Team is active",
+        "activeHint": "A paused team gets no automatic chats.",
+        "members": "Members",
+        "membersHint": "A member with a shift only gets chats while on shift. No shift = always available."
+      },
+      "channel": {
+        "whatsapp": "WhatsApp",
+        "messenger": "Messenger",
+        "instagram": "Instagram",
+        "telegram": "Telegram"
+      }
+    },
+    "groups": {
+      "subtitle": "Customer groups for campaigns. A group is a customer tag, so you can send it a campaign right away.",
+      "new": "New group",
+      "created": "Group created",
+      "backToList": "All groups",
+      "delete": "Delete group",
+      "deleted": "Group deleted",
+      "confirmDelete": "Delete this group? The tag is removed from {{count}} customers.",
+      "renameAction": "Rename",
+      "renamed": "Renamed",
+      "add": "Add",
+      "remove": "Remove from group",
+      "customerAdded": "Customer added",
+      "customerRemoved": "Customer removed",
+      "inGroup": "In group",
+      "count": "{{count}} customers",
+      "loadFailed": "Couldn't load groups",
+      "actionFailed": "That didn't work, try again",
+      "empty": "No groups yet.",
+      "noCustomers": "No customers in this group yet.",
+      "searchPlaceholder": "Search a customer by name or phone",
+      "campaignHint": "To message this group: Campaigns → customers tagged → pick its name.",
+      "pickForCampaign": "Pick a group",
+      "columns": {
+        "name": "Group",
+        "customers": "Customers",
+        "customer": "Customer",
+        "phone": "Phone"
+      },
+      "fields": {
+        "name": "Group name",
+        "namePlaceholder": "e.g. VIP customers",
+        "rename": "Group name",
+        "phone": "Add by mobile number"
+      }
+    },
+    "shifts": {
+      "subtitle": "Reply hours: who is available to take chats, and when. Times are Cairo time.",
+      "new": "New shift",
+      "backToList": "All shifts",
+      "save": "Save",
+      "saved": "Shift saved",
+      "delete": "Delete",
+      "deleted": "Shift deleted",
+      "confirmDelete": "Delete this shift?",
+      "loadFailed": "Couldn't load shifts",
+      "actionFailed": "That didn't work, try again",
+      "empty": "No shifts yet.",
+      "noStaff": "No staff have the inbox switched on.",
+      "allAccounts": "All accounts",
+      "active": "Active",
+      "inactive": "Paused",
+      "columns": {
+        "name": "Shift name",
+        "hours": "Hours",
+        "days": "Days",
+        "appliesTo": "Applies to",
+        "members": "Members",
+        "status": "Status"
+      },
+      "fields": {
+        "name": "Shift name",
+        "start": "From",
+        "end": "To",
+        "cairoTime": "Cairo time",
+        "overnight": "Runs past midnight into the next day",
+        "days": "Days",
+        "appliesTo": "Applies to",
+        "active": "Shift is active",
+        "activeHint": "A paused shift counts as no shift.",
+        "members": "Members",
+        "membersHint": "Teams only assign to these people while they are on shift."
+      },
+      "days": {
+        "sat": "Sat",
+        "sun": "Sun",
+        "mon": "Mon",
+        "tue": "Tue",
+        "wed": "Wed",
+        "thu": "Thu",
+        "fri": "Fri"
+      },
+      "channel": {
+        "whatsapp": "WhatsApp",
+        "messenger": "Messenger",
+        "instagram": "Instagram",
+        "telegram": "Telegram"
+      }
+    }
+  }
+}
