@@ -16,12 +16,9 @@ const MINUTE = 60_000;
 const HOUR = 60 * MINUTE;
 const DAY = 24 * HOUR;
 
-const tone = (ms) =>
-  ms >= HOUR
-    ? "text-rose-500 dark:text-rose-400"
-    : ms >= 15 * MINUTE
-      ? "text-amber-500 dark:text-amber-300"
-      : "text-emerald-600 dark:text-emerald-400";
+// Inline colours: the M1 theme remaps Tailwind text colours (in dark mode the
+// rose/amber utilities came out white), and this signal is the colour.
+const toneColor = (ms) => (ms >= HOUR ? "#ef4444" : ms >= 15 * MINUTE ? "#f59e0b" : "#10b981");
 
 function relativeWait(ms, language, t) {
   // Latin digits, like the rest of the inbox.
@@ -58,9 +55,10 @@ export default function ReplyWaitClock({ since = 0 }) {
       tabIndex={0}
       aria-label={label}
       data-reply-wait-clock="true"
-      className={`group relative mb-1 grid h-8 w-8 shrink-0 place-items-center rounded-lg outline-none transition hover:bg-slate-200/70 focus-visible:bg-slate-200/70 dark:hover:bg-white/10 dark:focus-visible:bg-white/10 ${tone(waitMs)}`}
+      className="group relative mb-1 grid h-8 w-8 shrink-0 place-items-center rounded-lg outline-none transition hover:bg-slate-200/70 focus-visible:bg-slate-200/70 dark:hover:bg-white/10 dark:focus-visible:bg-white/10"
+      style={{ color: toneColor(waitMs) }}
     >
-      <Clock3 className="h-5 w-5" />
+      <Clock3 className="h-5 w-5" style={{ color: toneColor(waitMs), stroke: toneColor(waitMs) }} />
       <span
         aria-hidden="true"
         className="pointer-events-none absolute bottom-full left-1/2 z-30 mb-2 -translate-x-1/2 whitespace-nowrap rounded-md px-2.5 py-1.5 text-xs font-semibold opacity-0 shadow-lg transition-opacity group-hover:opacity-100 group-focus-visible:opacity-100"
