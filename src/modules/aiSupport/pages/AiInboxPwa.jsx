@@ -9313,6 +9313,8 @@ export default function AiInboxPwa({ portal = null } = {}) {
           onClose={closeReplyCorrection}
           onChange={patchReplyCorrection}
           onSave={saveReplyCorrection}
+          headers={headers}
+          tenantId={tenantId}
         />
         <Customer360Drawer
           open={customerDrawer.open}

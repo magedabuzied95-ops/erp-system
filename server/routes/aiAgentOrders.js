@@ -9066,6 +9066,29 @@ router.patch("/knowledge/:id", protect, permit("settings", "edit"), async (req, 
   }
 });
 
+/*
+ * "This reply was wrong — teach the agent": the model proposes one lesson (a new owner-knowledge
+ * line or an edit to the line behind the mistake). Proposal only; saving goes through the
+ * knowledge routes above, so the same permission and validation apply.
+ */
+router.post("/feedback/propose-lesson", protect, permit("settings", "edit"), async (req, res) => {
+  try {
+    const tenantId = toTenantId(req);
+    const { proposeAgentLesson } = await import("../services/aiClaudeSalesAgentService.js");
+    const lesson = await proposeAgentLesson({
+      tenantId,
+      customerQuestion: req.body?.customer_question,
+      aiReply: req.body?.ai_reply,
+      correctReply: req.body?.correct_reply,
+      correctionType: req.body?.correction_type,
+      feedback: req.body?.feedback,
+    });
+    return res.json({ success: true, lesson });
+  } catch (error) {
+    return sendError(res, error, "Failed to propose a lesson");
+  }
+});
+
 router.delete("/knowledge/:id", protect, permit("settings", "edit"), async (req, res) => {
   try {
     const tenantId = toTenantId(req);

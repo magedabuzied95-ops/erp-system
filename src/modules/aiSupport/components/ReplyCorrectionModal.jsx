@@ -5,10 +5,120 @@
  * desktop, so a wrong answer spotted on the phone had nowhere to go and the
  * learning loop simply lost it.
  */
+import { useEffect, useState } from "react";
 import { useTranslation } from "react-i18next";
-import { CheckCircle2, Loader2, XCircle } from "lucide-react";
+import { CheckCircle2, GraduationCap, Loader2, XCircle } from "lucide-react";
 
+import { api } from "../../../shared/api/api";
 import { asArray, clean, normalizeProductCardsValue } from "../lib/conversationHelpers";
+
+/*
+ * GENI's "AI Feedback" → prompt fixer: the model proposes ONE lesson for the agent's owner
+ * knowledge (a new line, or an edit to the line behind the mistake). The owner approves it here;
+ * it is saved through the ordinary knowledge routes. Shown only when the page passes its headers.
+ */
+function TeachAgentSection({ draft, headers, tenantId }) {
+  const { t } = useTranslation();
+  const [feedback, setFeedback] = useState("");
+  const [lesson, setLesson] = useState(null);
+  const [state, setState] = useState("idle"); // idle | proposing | saving | saved | error
+
+  useEffect(() => {
+    setFeedback("");
+    setLesson(null);
+    setState("idle");
+  }, [draft.messageId]);
+
+  const propose = async () => {
+    setState("proposing");
+    setLesson(null);
+    try {
+      const payload = await api.post("/ai-agent/feedback/propose-lesson", {
+        tenant_id: tenantId,
+        customer_question: draft.customerQuestion,
+        ai_reply: draft.aiWrongAnswer,
+        correct_reply: draft.employeeCorrectAnswer,
+        correction_type: draft.correctionType,
+        feedback,
+      }, { headers });
+      setLesson(payload?.lesson || null);
+      setState("idle");
+    } catch {
+      setState("error");
+    }
+  };
+
+  const approve = async () => {
+    if (!lesson || lesson.action === "none") return;
+    setState("saving");
+    try {
+      const body = { tenant_id: tenantId, kind: "knowledge", title: lesson.title, triggers: lesson.triggers, answer: lesson.answer, enabled: true };
+      if (lesson.action === "update" && lesson.entry_id) await api.patch(`/ai-agent/knowledge/${lesson.entry_id}`, body, { headers });
+      else await api.post("/ai-agent/knowledge", body, { headers });
+      setState("saved");
+    } catch {
+      setState("error");
+    }
+  };
+
+  const canPropose = clean(draft.aiWrongAnswer) && (clean(draft.employeeCorrectAnswer) || clean(feedback));
+  return (
+    <div className="mt-4 rounded-2xl border border-violet-300/20 bg-violet-400/[0.06] p-3" data-teach-agent="true">
+      <div className="flex items-center gap-2 text-sm font-black text-violet-100">
+        <GraduationCap className="h-4 w-4" />
+        {t("aiSupport.inbox.panel.teachAgent.title")}
+      </div>
+      <div className="mt-1 text-xs leading-6 text-violet-100/70">{t("aiSupport.inbox.panel.teachAgent.hint")}</div>
+      <div className="mt-3 flex flex-col gap-2 sm:flex-row">
+        <input
+          value={feedback}
+          onChange={(event) => setFeedback(event.target.value)}
+          placeholder={t("aiSupport.inbox.panel.teachAgent.feedbackPlaceholder")}
+          aria-label={t("aiSupport.inbox.panel.teachAgent.feedback")}
+          className="h-11 min-w-0 flex-1 rounded-2xl border border-white/10 bg-slate-950/80 px-3 text-sm text-white outline-none placeholder:text-slate-600 focus:border-violet-300/40"
+        />
+        <button
+          type="button"
+          onClick={propose}
+          disabled={!canPropose || state === "proposing" || state === "saving"}
+          className="inline-flex h-11 shrink-0 items-center justify-center gap-2 rounded-2xl bg-violet-300 px-4 text-sm font-black text-slate-950 disabled:opacity-50"
+        >
+          {state === "proposing" ? <Loader2 className="h-4 w-4 animate-spin" /> : <GraduationCap className="h-4 w-4" />}
+          {state === "proposing" ? t("aiSupport.inbox.panel.teachAgent.proposing") : t("aiSupport.inbox.panel.teachAgent.propose")}
+        </button>
+      </div>
+      {state === "error" ? <div className="mt-2 text-xs font-bold text-rose-200">{t("aiSupport.inbox.panel.teachAgent.error")}</div> : null}
+      {lesson ? (
+        <div className="mt-3 space-y-2 rounded-2xl border border-white/10 bg-slate-950/60 p-3 text-sm">
+          <div className="text-[11px] font-black uppercase tracking-[0.14em] text-violet-200">{t(`aiSupport.inbox.panel.teachAgent.${lesson.action}`)}</div>
+          {lesson.explanation ? <div className="leading-7 text-slate-200">{lesson.explanation}</div> : null}
+          {lesson.action === "update" && lesson.previous_answer ? (
+            <div className="rounded-xl bg-rose-500/10 p-2 leading-7 text-rose-100 line-through decoration-rose-300/50">
+              <span className="me-1 text-[10px] font-black no-underline">{t("aiSupport.inbox.panel.teachAgent.before")}:</span>{lesson.previous_answer}
+            </div>
+          ) : null}
+          {lesson.action !== "none" ? (
+            <div className="rounded-xl bg-emerald-500/10 p-2 leading-7 text-emerald-50">
+              <span className="me-1 text-[10px] font-black">{t("aiSupport.inbox.panel.teachAgent.after")}:</span>{lesson.answer}
+            </div>
+          ) : null}
+          {lesson.action !== "none" && state !== "saved" ? (
+            <button
+              type="button"
+              onClick={approve}
+              disabled={state === "saving"}
+              className="inline-flex h-10 items-center justify-center gap-2 rounded-2xl bg-emerald-300 px-4 text-sm font-black text-slate-950 disabled:opacity-50"
+            >
+              {state === "saving" ? <Loader2 className="h-4 w-4 animate-spin" /> : <CheckCircle2 className="h-4 w-4" />}
+              {t("aiSupport.inbox.panel.teachAgent.approve")}
+            </button>
+          ) : null}
+          {state === "saved" ? <div className="text-xs font-bold text-emerald-200">{t("aiSupport.inbox.panel.teachAgent.saved")}</div> : null}
+        </div>
+      ) : null}
+    </div>
+  );
+}
 
 // A filter descriptor carries either a translation key or a literal label.
 const filterLabel = (t, item = {}) => (item.labelKey ? t(item.labelKey) : item.label || "");
@@ -52,7 +162,7 @@ export const buildReplyCorrectionDraft = ({ conversation = {}, message = {} } = 
   };
 };
 
-function ReplyCorrectionModal({ open, draft, saving, onClose, onChange, onSave }) {
+function ReplyCorrectionModal({ open, draft, saving, onClose, onChange, onSave, headers = null, tenantId = null }) {
   const { t } = useTranslation();
   if (!open) return null;
   return (
@@ -125,6 +235,8 @@ function ReplyCorrectionModal({ open, draft, saving, onClose, onChange, onSave }
             </div>
           </div>
         </div>
+
+        {headers ? <TeachAgentSection draft={draft} headers={headers} tenantId={tenantId} /> : null}
 
         <div className="mt-4 flex flex-wrap items-center justify-end gap-2">
           <button type="button" onClick={onClose} className="inline-flex h-10 items-center justify-center rounded-2xl border border-white/10 bg-white/[0.06] px-4 text-sm font-black text-slate-100">

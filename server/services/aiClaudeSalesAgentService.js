@@ -702,4 +702,100 @@ export const writeFollowUpMessage = async ({
   }
 };
 
-export const __testing = { AGENT_TOOLS, findingsFor, cardSummary };
+/*
+ * GENI's "AI Feedback" → prompt fixer, here: a colleague marks a reply as wrong and says why; the
+ * model proposes ONE precise lesson — a new line of owner knowledge, or an edit to the line that
+ * caused it. Nothing is saved until the owner approves it in the inbox. The lesson lands in
+ * ai_agent_knowledge, which every reply already reads as <owner_knowledge>.
+ */
+const LESSON_SCHEMA = {
+  type: "object",
+  additionalProperties: false,
+  required: ["action", "entry_id", "title", "triggers", "answer", "explanation"],
+  properties: {
+    action: { type: "string", enum: ["create", "update", "none"] },
+    entry_id: { type: ["integer", "null"], description: "The knowledge entry to edit when action is update." },
+    title: { type: "string" },
+    triggers: { type: "array", items: { type: "string" } },
+    answer: { type: "string", description: "The lesson, written as one or two lines the agent will read before every reply." },
+    explanation: { type: "string", description: "One line, in Egyptian Arabic, for the owner: what was wrong and what this changes." },
+  },
+};
+
+export const isClaudeConfigured = () => Boolean(text(process.env.ANTHROPIC_API_KEY));
+
+export const proposeAgentLesson = async ({
+  tenantId = null,
+  customerQuestion = "",
+  aiReply = "",
+  correctReply = "",
+  correctionType = "other",
+  feedback = "",
+  loaders = {},
+} = {}) => {
+  if (!isClaudeConfigured()) throw Object.assign(new Error("ANTHROPIC_API_KEY is not set"), { status: 503, code: "AI_NOT_CONFIGURED" });
+  if (!text(aiReply) || !(text(correctReply) || text(feedback))) {
+    throw Object.assign(new Error("The wrong reply and what was wrong with it are both needed"), { status: 400 });
+  }
+  const entries = await (loaders.knowledge || (async () => {
+    const { listAgentKnowledge } = await import("./aiAgentKnowledgeService.js");
+    return listAgentKnowledge({ tenantId, kind: "knowledge" });
+  }))().catch(() => []);
+  const current = asArray(entries)
+    .filter((entry) => entry && entry.enabled !== false)
+    .slice(0, 60)
+    .map((entry) => ({ id: entry.id, title: text(entry.title), answer: text(entry.answer).slice(0, 600) }));
+
+  const response = await client().messages.create(
+    {
+      model: agentModel(),
+      max_tokens: 2_000,
+      system: [
+        "إنت بتصلّح تعليمات موظف مبيعات (AI) في متجر مصري أونلاين. التعليمات الثابتة مش في إيدك؛ اللي في إيدك «معلومات صاحب المحل» (owner_knowledge): سطور قصيرة الإيجنت بيقراها قبل كل رد.",
+        "زميل في المتجر علّم على رد غلط وقال الصح. اقترح تعديل واحد بس:",
+        "- update: لو فيه سطر موجود هو اللي سبّب الغلط أو ناقص — عدّل السطر ده (entry_id) بالصيغة الجديدة كاملة.",
+        "- create: لو مفيش سطر يخص الموضوع — سطر جديد.",
+        "- none: لو الغلط مش معلومة ناقصة (مثلا مشكلة سعر أو مخزون في السيستم نفسه) — وقول ده في explanation.",
+        "السطر لازم يكون قاعدة عامة تنفع لكل عميل، مش رد على العميل ده بالذات. قصير، محدد، بالعامية المصرية. متخترعش أرقام مش موجودة في كلام الزميل.",
+        "triggers: 2–6 كلمات أو عبارات قصيرة العميل ممكن يقولها في الموضوع ده.",
+      ].join("\n"),
+      messages: [
+        {
+          role: "user",
+          content: JSON.stringify({
+            customer_question: text(customerQuestion).slice(0, 1500),
+            wrong_ai_reply: text(aiReply).slice(0, 1500),
+            correct_reply_from_colleague: text(correctReply).slice(0, 1500),
+            what_was_wrong: text(feedback).slice(0, 800),
+            correction_type: text(correctionType),
+            current_owner_knowledge: current,
+          }, null, 1),
+        },
+      ],
+      output_config: { effort: "medium", format: { type: "json_schema", schema: LESSON_SCHEMA } },
+    },
+    { timeout: 45_000 }
+  );
+  if (response.stop_reason === "refusal") throw Object.assign(new Error("The model declined"), { status: 422 });
+  const raw = asArray(response.content).filter((block) => block.type === "text").map((block) => block.text).join("");
+  let lesson;
+  try {
+    lesson = JSON.parse(raw);
+  } catch {
+    throw Object.assign(new Error("The model's proposal could not be read"), { status: 502 });
+  }
+  const known = new Map(current.map((entry) => [Number(entry.id), entry]));
+  // An edit to a line that does not exist becomes a new line rather than a silent no-op.
+  if (lesson.action === "update" && !known.has(Number(lesson.entry_id))) lesson.action = "create";
+  return {
+    action: ["create", "update", "none"].includes(lesson.action) ? lesson.action : "none",
+    entry_id: lesson.action === "update" ? Number(lesson.entry_id) : null,
+    previous_answer: lesson.action === "update" ? known.get(Number(lesson.entry_id))?.answer || "" : "",
+    title: text(lesson.title).slice(0, 160),
+    triggers: asArray(lesson.triggers).map(text).filter(Boolean).slice(0, 12),
+    answer: text(lesson.answer).slice(0, 2000),
+    explanation: text(lesson.explanation).slice(0, 600),
+  };
+};
+
+export const __testing = { AGENT_TOOLS, findingsFor, cardSummary, LESSON_SCHEMA };

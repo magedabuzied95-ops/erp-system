@@ -180,3 +180,43 @@ test("the unified decision hands every channel's reply to the agent first", () =
   const ignore = read("../../.gitignore");
   assert.match(ignore, /^!server\/services\/aiClaudeSalesAgentService\.js$/m, "a gitignored service never deploys");
 });
+
+test("a wrong reply becomes one proposed lesson; an edit to a missing line becomes a new one", async () => {
+  const { proposeAgentLesson } = await import("../../server/services/aiClaudeSalesAgentService.js");
+  const saved = process.env.ANTHROPIC_API_KEY;
+  process.env.ANTHROPIC_API_KEY = "test-key";
+  const seen = [];
+  const answer = (lesson) => ({ messages: { create: async (params) => { seen.push(params); return { stop_reason: "end_turn", content: [{ type: "text", text: JSON.stringify(lesson) }] }; } } });
+  const knowledge = async () => [{ id: 7, title: "الشحن", answer: "الشحن لكل المحافظات 75 جنيه", enabled: true }];
+  try {
+    __setAgentClientForTests(answer({ action: "update", entry_id: 7, title: "الشحن", triggers: ["شحن", "اسوان"], answer: "الشحن 75 جنيه، والصعيد الجواني (أسوان والأقصر) 95", explanation: "السطر القديم كان بيقول 75 لكل مكان" }));
+    const lesson = await proposeAgentLesson({ aiReply: "الشحن لأسوان 75", correctReply: "الشحن لأسوان 95", loaders: { knowledge } });
+    assert.equal(lesson.action, "update");
+    assert.equal(lesson.entry_id, 7);
+    assert.equal(lesson.previous_answer, "الشحن لكل المحافظات 75 جنيه", "the owner sees before and after");
+    assert.equal(seen[0].output_config.format.type, "json_schema");
+    assert.match(seen[0].messages[0].content, /الشحن لكل المحافظات 75 جنيه/, "the current lines go to the model");
+
+    __setAgentClientForTests(answer({ action: "update", entry_id: 999, title: "x", triggers: [], answer: "سطر", explanation: "" }));
+    const orphan = await proposeAgentLesson({ aiReply: "a", feedback: "b", loaders: { knowledge } });
+    assert.equal(orphan.action, "create");
+    assert.equal(orphan.entry_id, null);
+
+    await assert.rejects(proposeAgentLesson({ aiReply: "", correctReply: "x", loaders: { knowledge } }), /both needed/);
+  } finally {
+    process.env.ANTHROPIC_API_KEY = saved ?? "";
+    __setAgentClientForTests(null);
+  }
+});
+
+test("both inboxes offer the lesson, through the knowledge routes the owner already uses", () => {
+  const modal = read("../../src/modules/aiSupport/components/ReplyCorrectionModal.jsx");
+  assert.match(modal, /api\.post\("\/ai-agent\/feedback\/propose-lesson"/);
+  assert.match(modal, /api\.patch\(`\/ai-agent\/knowledge\/\$\{lesson\.entry_id\}`/);
+  for (const page of ["AiInbox", "AiInboxPwa"]) {
+    const source = read(`../../src/modules/aiSupport/pages/${page}.jsx`);
+    assert.match(source, /onSave=\{saveReplyCorrection\}\s*headers=\{headers\}\s*tenantId=\{tenantId\}/, page);
+  }
+  const routes = read("../../server/routes/aiAgentOrders.js");
+  assert.match(routes, /router\.post\("\/feedback\/propose-lesson", protect, permit\("settings", "edit"\)/);
+});

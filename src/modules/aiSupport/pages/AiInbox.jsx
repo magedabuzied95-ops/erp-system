@@ -9665,6 +9665,8 @@ export default function AiInbox({ reviewerMode = false }) {
         onClose={closeReplyCorrection}
         onChange={patchReplyCorrection}
         onSave={saveReplyCorrection}
+        headers={headers}
+        tenantId={tenantId}
       />
       <div ref={fullscreenHostRef} className={`${conversationExpanded ? "conversation-expanded fixed inset-0 z-[9999] flex h-[100vh] w-[100vw] max-w-none flex-col overflow-hidden bg-[radial-gradient(circle_at_12%_8%,rgba(34,211,238,0.14),transparent_28%),linear-gradient(180deg,#020617,#0f172a)] p-0" : "ai-omni-frame flex w-full min-w-0 flex-col gap-2 overflow-hidden"}`}>
         {!import.meta.env.PROD ? (
