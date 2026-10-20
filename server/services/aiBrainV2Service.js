@@ -700,7 +700,18 @@ const buildFollowupDecisionFromMemoryV2 = ({ message = "", memory = {}, followup
   }
 
   if (type === "buying_followup") {
-    const confirmation = buildPostProductOrderConfirmationFromMemoryV2({ message: "تمام", memory });
+    // "عايز اغير المقاس 43 بدل 42" reads as buying intent too: the size it names replaces the one in
+    // memory, or the summary repeats the old size (playground scenario run, 2026-10-20).
+    const requestedSize = extractRequestedSize(message);
+    const memoryForSummary = requestedSize
+      ? {
+          ...memory,
+          activeSize: requestedSize,
+          selectedSize: requestedSize,
+          preferences: { ...(memory?.preferences || {}), activeSize: requestedSize, selectedSize: requestedSize },
+        }
+      : memory;
+    const confirmation = buildPostProductOrderConfirmationFromMemoryV2({ message: "تمام", memory: memoryForSummary });
     if (confirmation) return confirmation;
   }
 
