@@ -131,6 +131,10 @@ const itemLabel = (t, key) => {
     case "waUsage": return t("aiSupport.inbox.topbar.items.waUsage");
     case "waApiKeys": return t("aiSupport.inbox.topbar.items.waApiKeys");
     case "waWebhooks": return t("aiSupport.inbox.topbar.items.waWebhooks");
+    case "waConnect": return t("aiSupport.inbox.topbar.items.waConnect");
+    case "waTemplateAnalytics": return t("aiSupport.inbox.topbar.items.waTemplateAnalytics");
+    case "waChatbotFlows": return t("aiSupport.inbox.topbar.items.waChatbotFlows");
+    case "waApiGuide": return t("aiSupport.inbox.topbar.items.waApiGuide");
     case "webConnection": return t("aiSupport.inbox.topbar.items.webConnection");
     case "webQueue": return t("aiSupport.inbox.topbar.items.webQueue");
     case "webAutomations": return t("aiSupport.inbox.topbar.items.webAutomations");
