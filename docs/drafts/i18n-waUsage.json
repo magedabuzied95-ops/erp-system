@@ -1,0 +1,122 @@
+{
+  "ar": {
+    "subtitle": "استهلاك رسايل واتساب وتكلفتها شهر بشهر، زي ما ميتا بتحسبها.",
+    "connected": "متوصل بميتا",
+    "notConnected": "مش متوصل",
+    "sync": "تحديث من ميتا",
+    "synced": "اتحدّث {{months}} شهر من ميتا",
+    "loadFailed": "معرفناش نحمّل الاستهلاك",
+    "actionFailed": "حصلت مشكلة، جرّب تاني",
+    "notConnectedTitle": "مفيش رقم واتساب رسمي متوصل",
+    "notConnectedHint": "وصّل الرقم من واتساب ← الحساب الرسمي عشان نجيب التكلفة من ميتا. لحد ساعتها بنعرض عدد الرسايل اللي بعتناها من عندنا بس.",
+    "lastSyncFailed": "آخر تحديث فشل:",
+    "sourceLabel": "المصدر:",
+    "lastSync": "آخر تحديث:",
+    "never": "لسه محصلش",
+    "closed": "مقفول",
+    "open": "جاري",
+    "empty": "مفيش بيانات لسه. دوس «تحديث من ميتا».",
+    "localTitle": "عدّنا إحنا (عدد محلي)",
+    "localHint": "الرسايل اللي البوت والفريق بعتوها على واتساب من الإنبوكس. ده عدّ تقريبي، مش فاتورة.",
+    "alertsTitle": "تنبيه الاستهلاك",
+    "alertsHint": "حط ميزانية شهرية بالدولار، وهننبهك لما الصرف يوصل للنسبة اللي تختارها.",
+    "budgetLabel": "الميزانية الشهرية (دولار)",
+    "percentLabel": "نبّهني عند (%)",
+    "saveAlerts": "حفظ التنبيه",
+    "alertsSaved": "اتحفظ التنبيه",
+    "source": {
+      "pricing": "ميتا (تسعير بالرسالة)",
+      "conversation": "ميتا (تسعير بالمحادثة)",
+      "local": "عدد محلي"
+    },
+    "alert": {
+      "ok": "تمام",
+      "warning": "قرّب يخلص",
+      "over": "عدّى الميزانية",
+      "none": "من غير ميزانية"
+    },
+    "cards": {
+      "messages": "رسايل الشهر ده",
+      "messagesHint": "حسب ميتا",
+      "cost": "تكلفة الشهر ده",
+      "costHint": "بالدولار، حسب ميتا",
+      "local": "اتبعت من عندنا",
+      "localHint": "عدد محلي للشهر ده",
+      "budget": "الميزانية",
+      "noBudget": "مفيش ميزانية متحددة. حطها تحت عشان يشتغل التنبيه."
+    },
+    "columns": {
+      "month": "الشهر",
+      "account": "الحساب",
+      "service": "رسايل خدمة",
+      "freeUsed": "المجاني المستخدم",
+      "passedFreeAt": "عدّى المجاني يوم",
+      "paidService": "خدمة مدفوعة",
+      "marketing": "قوالب تسويق",
+      "utility": "قوالب خدمية",
+      "authentication": "قوالب تحقق",
+      "cost": "التكلفة (دولار)",
+      "closed": "الحالة"
+    }
+  },
+  "en": {
+    "subtitle": "WhatsApp message usage and cost per month, as Meta bills it.",
+    "connected": "Connected to Meta",
+    "notConnected": "Not connected",
+    "sync": "Sync from Meta",
+    "synced": "Synced {{months}} months from Meta",
+    "loadFailed": "Couldn't load usage",
+    "actionFailed": "Something went wrong, try again",
+    "notConnectedTitle": "No official WhatsApp number is connected",
+    "notConnectedHint": "Connect one from WhatsApp → Official account to pull costs from Meta. Until then only our own sent-message count is shown.",
+    "lastSyncFailed": "Last sync failed:",
+    "sourceLabel": "Source:",
+    "lastSync": "Last sync:",
+    "never": "Never",
+    "closed": "Closed",
+    "open": "Open",
+    "empty": "No data yet. Press “Sync from Meta”.",
+    "localTitle": "Our count (local)",
+    "localHint": "Messages the bot and the team sent on WhatsApp from the inbox. An estimate, not a bill.",
+    "alertsTitle": "Usage alert",
+    "alertsHint": "Set a monthly budget in USD and get warned when spend reaches the percentage you choose.",
+    "budgetLabel": "Monthly budget (USD)",
+    "percentLabel": "Warn at (%)",
+    "saveAlerts": "Save alert",
+    "alertsSaved": "Alert saved",
+    "source": {
+      "pricing": "Meta (per-message pricing)",
+      "conversation": "Meta (per-conversation pricing)",
+      "local": "Local count"
+    },
+    "alert": {
+      "ok": "On track",
+      "warning": "Nearing budget",
+      "over": "Over budget",
+      "none": "No budget"
+    },
+    "cards": {
+      "messages": "Messages this month",
+      "messagesHint": "Per Meta",
+      "cost": "Cost this month",
+      "costHint": "USD, per Meta",
+      "local": "Sent by us",
+      "localHint": "Local count this month",
+      "budget": "Budget",
+      "noBudget": "No budget set. Add one below to turn the alert on."
+    },
+    "columns": {
+      "month": "Month",
+      "account": "Account",
+      "service": "Service messages",
+      "freeUsed": "Free used",
+      "passedFreeAt": "Passed free limit",
+      "paidService": "Paid service",
+      "marketing": "Marketing templates",
+      "utility": "Utility templates",
+      "authentication": "Authentication templates",
+      "cost": "Total cost (USD)",
+      "closed": "Status"
+    }
+  }
+}
