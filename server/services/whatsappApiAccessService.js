@@ -431,7 +431,17 @@ export const resolveSendCredentials = async ({ tenantId, phoneNumberId = "" }) =
     const token = text(integrationAccessToken(match));
     if (token) return { accessToken: token, phoneNumberId: text(match.phone_number_id), graphVersion: env.graphVersion };
   }
-  if (env.accessToken && env.phoneNumberId && (!wanted || wanted === env.phoneNumberId)) {
+  // A connected number wired without its own token (Meta's test number) sends with the server
+  // token. It wins over env WHATSAPP_PHONE_NUMBER_ID, which can still name a number whose Cloud
+  // integration is disconnected (M1 Store went back to Evolution) — a campaign must never leave
+  // from a line the owner switched off.
+  const envWired = rows.filter((row) => row.status === "connected" && text(row.phone_number_id) && !row.access_token_encrypted);
+  const envMatch = wanted ? envWired.find((row) => text(row.phone_number_id) === wanted) : envWired[0];
+  if (env.accessToken && envMatch) {
+    return { accessToken: env.accessToken, phoneNumberId: text(envMatch.phone_number_id), graphVersion: env.graphVersion };
+  }
+  const envNumberDisconnected = rows.some((row) => text(row.phone_number_id) === env.phoneNumberId && row.status !== "connected");
+  if (env.accessToken && env.phoneNumberId && !envNumberDisconnected && (!wanted || wanted === env.phoneNumberId)) {
     return { accessToken: env.accessToken, phoneNumberId: env.phoneNumberId, graphVersion: env.graphVersion };
   }
   throw httpError(

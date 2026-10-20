@@ -83,8 +83,12 @@ export const resolveTemplateCredentials = async (tenantId) => {
   if (connected && token) {
     return { accessToken: token, wabaId: text(connected.waba_id), graphVersion: env.graphVersion, source: "embedded_signup" };
   }
-  if (env.accessToken && env.businessAccountId) {
-    return { accessToken: env.accessToken, wabaId: env.businessAccountId, graphVersion: env.graphVersion, source: "env" };
+  // A number wired without its own token (Meta's test number) sends with the server token, and
+  // its templates live on ITS WABA — the env WHATSAPP_BUSINESS_ACCOUNT_ID can name an older one
+  // that number is not on, which made every sync fail with "object does not exist".
+  const envWired = rows.find((row) => row.status === "connected" && text(row.waba_id) && !row.access_token_encrypted);
+  if (env.accessToken && (envWired || env.businessAccountId)) {
+    return { accessToken: env.accessToken, wabaId: envWired ? text(envWired.waba_id) : env.businessAccountId, graphVersion: env.graphVersion, source: "env" };
   }
   throw httpError(
     "No official WhatsApp account is connected. Connect one from WhatsApp → Official account first.",
