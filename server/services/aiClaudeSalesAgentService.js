@@ -24,6 +24,7 @@ import db from "../database/db.js";
 import { addressRulesFor, inferCustomerGender } from "../utils/customerGender.js";
 import { buildToolRegistry } from "./aiToolRegistryService.js";
 import { findCustomerOrders } from "./aiBusinessToolsService.js";
+import { expandSearchAliasTerms } from "./productAliasEngine.js";
 import { buildOrderTrackingUrl } from "../utils/whatsapp.js";
 import { loadPersona, DEFAULT_PERSONA } from "./aiPersonaService.js";
 import { loadSupportKnowledgeBase } from "./aiSupportKnowledgeBaseService.js";
@@ -528,6 +529,28 @@ const findingsFor = ({ decision, preparedCards, safeProductFacts, mustKeepFacts 
 };
 
 const cardId = (card = {}) => text(card.product_id || card.id);
+
+// Words too common to tell one model from another («air» is in Air Max and Air Force alike).
+const GENERIC_MODEL_WORDS = new Set(["air", "new", "nike", "adidas", "puma", "four", "one", "two", "low", "high", "mid", "men", "women", "kids", "shoes", "sneakers", "the", "and", "for"]);
+/*
+ * Brain V2's cards, kept only when they name the model the customer named. «عندكم جوردن 4؟» came
+ * with ASICS and a Nike B347 among twelve Jordan 4 cards (live re-test, 2026-10-20). No telling
+ * word in the message (a generic «عايز كوتشي») → the cards stay as they were; nothing would remain
+ * → they stay too.
+ */
+export const cardsNamingTheModel = (cards = [], message = "") => {
+  const words = new Set(
+    expandSearchAliasTerms(message)
+      .flatMap((term) => String(term).toLowerCase().split(/[^a-z]+/))
+      .filter((word) => word.length >= 3 && !GENERIC_MODEL_WORDS.has(word))
+  );
+  if (!words.size || !asArray(cards).length) return cards;
+  const kept = cards.filter((card) => {
+    const name = text(card.title || card.name || card.product_name).toLowerCase();
+    return [...words].some((word) => name.includes(word));
+  });
+  return kept.length ? kept : cards;
+};
 // The customer asked for one grade by name — then only that grade is shown.
 const NAMED_GRADE = /(ميرور|مرور|فيتنام|مستورد|مصري|اوريجينال|أوريجينال|اورجينال|أصلي|اصلي|mirror|original|vietnam|egypt)/i;
 
@@ -810,7 +833,7 @@ export const runClaudeSalesAgent = async ({
     reply = reply.replace(/\*\*/g, "").replace(/^#+\s*/gm, "").trim();
     if (!reply) throw Object.assign(new Error("empty"), { reason: "empty_reply" });
     // A hand-over line goes alone: cards under "a colleague will take over" read as a sales push.
-    const cards = escalation && chosenCards === null ? [] : chosenCards ?? preparedCards;
+    const cards = escalation && chosenCards === null ? [] : chosenCards ?? cardsNamingTheModel(preparedCards, customerMessage);
     const images = cards
       .map((card) => ({
         id: text(card.image_id || card.image_url || card.product_id || card.id),
@@ -819,7 +842,7 @@ export const runClaudeSalesAgent = async ({
         product_id: text(card.product_id || card.id),
       }))
       .filter((image) => image.url);
-    const cardsChanged = chosenCards !== null || Boolean(escalation && preparedCards.length);
+    const cardsChanged = chosenCards !== null || Boolean(escalation && preparedCards.length) || cards.length !== preparedCards.length;
     const activeProductId = cardId(cards[0] || {});
     const memoryPatch = cardsChanged && cards.length
       ? { active_product_id: activeProductId, selected_product_id: activeProductId, last_product_id: activeProductId, last_product_cards: cards }

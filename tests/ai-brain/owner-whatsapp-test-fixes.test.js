@@ -78,3 +78,13 @@ test("a model shown in one grade brings its other grades along, unless the custo
     agent.__setAgentClientForTests(null);
   }
 });
+
+test("prepared cards that don't name the asked model are dropped; a generic request keeps them", async () => {
+  const { cardsNamingTheModel } = await import("../../server/services/aiClaudeSalesAgentService.js");
+  const c = (title) => ({ title });
+  const jordan = cardsNamingTheModel([c("Air Jordan 4  Sneakers for Men - Black"), c("Jordan 4 - Black"), c("ASICS  Q054-T123 - White"), c("Nike  B347 - Q069 - White")], "عندكم جوردن 4؟");
+  assert.deepEqual(jordan.map((card) => card.title), ["Air Jordan 4  Sneakers for Men - Black", "Jordan 4 - Black"]);
+  assert.deepEqual(cardsNamingTheModel([c("Nike Air Force 1 - White"), c("Nike Air Max - Black")], "عايز اير فورس").map((card) => card.title), ["Nike Air Force 1 - White"]);
+  assert.equal(cardsNamingTheModel([c("A"), c("B")], "عايز كوتشي رجالي").length, 2);
+  assert.equal(cardsNamingTheModel([c("Puma Suede")], "عندكم جوردن").length, 1, "nothing would remain → unchanged");
+});
