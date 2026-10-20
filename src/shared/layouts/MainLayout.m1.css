@@ -21,6 +21,8 @@
 html[data-theme="dark"] .m1-topbar-create-menu{border-color:var(--border);background:var(--card);box-shadow:0 18px 48px rgba(0,0,0,.5)}html[data-theme="dark"] .m1-topbar-create-menu button{color:var(--text)}html[data-theme="dark"] .m1-topbar-create-menu button:hover{background:#343430!important}html[data-theme="dark"] .m1-topbar-create-menu svg{color:var(--primary)}
 [dir="rtl"] .m1-shell-root{font-family:var(--font-ar);font-kerning:normal}[dir="rtl"] .m1-shell-sidebar nav>div>button{font-size:12px!important}[dir="rtl"] .m1-shell-sidebar nav a{letter-spacing:0!important}
 .m1-shell-content{padding:22px var(--page-inline) 42px!important;background:var(--bg)}
+/* The AI Inbox is an edge-to-edge workspace: no page gutter around it. */
+.m1-shell-content.m1-shell-content--flush,html[data-density="compact"] .m1-shell-content.m1-shell-content--flush{padding:0!important}
 html[data-density="compact"] .m1-shell-sidebar nav a{min-height:37px!important;font-size:12px!important}html[data-density="compact"] .m1-shell-content{padding-top:16px!important}
 @media(min-width:1024px){.m1-shell-root{grid-template-columns:260px minmax(0,1fr)!important}}
 /* Auto-hide sidebar: a 64px rail of every module icon (no brand card, folded

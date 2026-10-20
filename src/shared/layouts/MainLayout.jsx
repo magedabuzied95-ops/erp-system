@@ -914,7 +914,9 @@ function MainLayout() {
         className="min-h-screen w-full min-w-0 overflow-x-hidden"
       >
         <div className="flex min-h-screen w-full min-w-0 max-w-none flex-col overflow-x-hidden">
-          <div className="m1-shell-topbar sticky top-0 z-30 border-b border-[var(--border)] bg-[var(--surface)]/90 backdrop-blur-2xl lg:top-0" style={{ "--topbar-height": "64px" }}>
+          {/* The inbox is a full-screen workspace on desktop: no shell topbar
+              there. Phones keep it — it carries the menu button. */}
+          <div className={`m1-shell-topbar ${isAiInboxWorkspace ? "lg:hidden" : ""} sticky top-0 z-30 border-b border-[var(--border)] bg-[var(--surface)]/90 backdrop-blur-2xl lg:top-0`} style={{ "--topbar-height": "64px" }}>
             <div className="pointer-events-none absolute inset-0" aria-hidden="true" />
             <div className="relative z-10 flex items-center justify-between gap-3 px-3 py-3 sm:px-4 lg:px-6 xl:px-8 lg:py-5">
               <div className="flex min-w-0 items-center gap-3 lg:hidden">
@@ -1033,7 +1035,7 @@ function MainLayout() {
           </div>
 
           <div className={isAiInboxWorkspace
-            ? "m1-shell-content w-full max-w-none flex-1 overflow-hidden p-0"
+            ? "m1-shell-content m1-shell-content--flush w-full max-w-none flex-1 overflow-hidden p-0"
             : "m1-shell-content w-full max-w-none flex-1 overflow-x-hidden p-3 sm:p-4 lg:p-6 xl:p-8 2xl:p-10"}>
             {passwordNotice && !isAiInboxWorkspace && location.pathname !== "/settings/account-security" ? (
               <div className="mb-3 flex flex-wrap items-center justify-between gap-2 rounded-[var(--radius-card)] border border-amber-500/40 bg-amber-500/10 px-4 py-3 text-sm font-semibold text-[var(--text)]">

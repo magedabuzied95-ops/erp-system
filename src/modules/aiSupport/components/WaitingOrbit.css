@@ -37,8 +37,10 @@
   --spin: 140s;
   position: relative;
   aspect-ratio: 1 / 1;
-  width: min(86%, 68vh, 600px);
-  margin-inline: auto;
+  width: min(80%, 62vh, 600px);
+  /* Outer-ring orbs (and their wait label) hang ~40px past the stage edge;
+     the block margin keeps them off the greeting and the chips. */
+  margin: 36px auto;
   container-type: size;
 }
 

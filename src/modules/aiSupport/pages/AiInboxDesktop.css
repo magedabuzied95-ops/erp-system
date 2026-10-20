@@ -1,12 +1,14 @@
 .ai-inbox-desktop {
-  --ai-omni-gap: 0.5rem;
-  height: calc(100dvh - 88px);
+  --ai-omni-gap: 0.375rem;
+  /* The shell topbar is hidden on this route at lg+, so the inbox owns the
+     whole viewport height. */
+  height: 100dvh;
   min-height: 0;
 }
 
 .ai-inbox-desktop .ai-omni-frame {
   height: 100%;
-  padding: 0.5rem;
+  padding: 0.25rem;
 }
 
 .ai-inbox-desktop .ai-omni-workspace {
