@@ -129,6 +129,7 @@ import Customer360Drawer from "../components/Customer360Drawer.jsx";
 import AvatarZoom from "../components/AvatarZoom.jsx";
 import CustomerAvatar from "../components/CustomerAvatar.jsx";
 import WaitingOrbit from "../components/WaitingOrbit.jsx";
+import ReplyWaitClock from "../components/ReplyWaitClock.jsx";
 import InboxTopBar from "../components/InboxTopBar.jsx";
 import { chromeModeFor, platformCanvas, resolveMessagePlatform } from "../components/messagePlatform.js";
 import { useTheme } from "../../../theme/useTheme";
@@ -200,6 +201,7 @@ import {
   transcriptDayLabel,
   transcriptRowTime,
   EMPTY_CONVERSATION_METADATA,
+  customerWaitingSince,
 } from "../lib/conversationHelpers";
 import { attachmentFilesFromTransfer, attachmentKindOf, attachmentProblem, prepareOutboundImage } from "../utils/outboundAttachment.js";
 import { isScrollerNearBottom, pinScrollerToBottom } from "../utils/transcriptScroll.js";
@@ -3037,6 +3039,7 @@ function ManualReplyComposer({
   getForwardTargets,
   attachmentSending = false,
   onAttachmentRejected,
+  customerWaitingSinceAt = 0,
 }) {
   const { t } = useTranslation();
   const imageInputRef = useRef(null);
@@ -3377,6 +3380,7 @@ function ManualReplyComposer({
             placeholder={noteMode ? t("aiSupport.inbox.composer.writeInternalNote") : canSendLive ? t("aiSupport.inbox.composer.placeholder") : t("aiSupport.inbox.composer.notePlaceholder")}
             className="min-h-10 min-w-0 flex-1 resize-none overflow-hidden border-0 bg-transparent px-2 py-2 text-sm font-medium leading-6 text-slate-900 outline-none placeholder:text-slate-400 dark:text-slate-100 dark:placeholder:text-slate-500"
           />
+          {!noteMode && !isCommentConversation ? <ReplyWaitClock since={customerWaitingSinceAt} /> : null}
           {quickReplies.length > 0 && !noteMode ? (
             <button
               type="button"
@@ -7003,6 +7007,7 @@ export default function AiInbox({ reviewerMode = false }) {
     transcriptRowCacheRef.current = nextRows;
     return rows;
   }, [selectedConversation?.channel, selectedConversation?.source, selectedConversation?.messages, selectedConversation?.whatsapp_numbers, selectedConversation?.channel_metadata, selectedConversation?.metadata]);
+  const selectedCustomerWaitingSince = useMemo(() => customerWaitingSince(selectedTranscriptRows), [selectedTranscriptRows]);
   const selectedTranscriptEvents = useMemo(() => asArray(selectedConversation?.system_events), [selectedConversation?.system_events]);
   const lastCustomerMessage = useMemo(
     () => latestCustomerText(selectedConversation?.messages),
@@ -10265,6 +10270,7 @@ export default function AiInbox({ reviewerMode = false }) {
                         onAttachmentRejected={handleAttachmentRejected}
                         onOpenProductPicker={() => openProductCardPicker()}
                         onOpenAvailableBySizePicker={() => openProductCardPicker({ sizeMode: true, allowMultiple: true })}
+                        customerWaitingSinceAt={selectedCustomerWaitingSince}
                         onCreateCustomer={createLeadCustomer}
                         onLoadDraft={(text) => setReplyText(text)}
                         onCopyDraft={copySuggestedReply}
@@ -10872,6 +10878,7 @@ export default function AiInbox({ reviewerMode = false }) {
                         onAttachmentRejected={handleAttachmentRejected}
                         onOpenProductPicker={() => openProductCardPicker()}
                         onOpenAvailableBySizePicker={() => openProductCardPicker({ sizeMode: true, allowMultiple: true })}
+                        customerWaitingSinceAt={selectedCustomerWaitingSince}
                         onCreateCustomer={createLeadCustomer}
                         onLoadDraft={(text) => setReplyText(text)}
                         onCopyDraft={copySuggestedReply}

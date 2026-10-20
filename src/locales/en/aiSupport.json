@@ -613,6 +613,7 @@
     },
     "composer": {
       "placeholder": "Type your message...",
+      "customerWaiting": "Customer waiting for a reply ({{time}})",
       "notePlaceholder": "Write an internal note. It will not be sent yet.",
       "attachProduct": "Attach product",
       "emoji": "Emoji",

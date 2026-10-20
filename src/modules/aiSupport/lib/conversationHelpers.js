@@ -325,3 +325,29 @@ export const transcriptRowTime = (row = {}) =>
 // ledger: opening the same thread on the desktop and then on the PWA in one tab
 // is one ask, not two.
 export const avatarRefreshRequested = new Set();
+
+// When the customer in a thread started waiting for an answer, in ms (0 when
+// nobody is waiting). The inbox's unread rule: customer messages newer than the
+// last outbound of any kind (staff, AI, product card) — the wait runs from the
+// FIRST of those. rows are the transcript rows a thread renders ({ kind, message }).
+// The reply-box clock reads it.
+const WAIT_ENDING_KINDS = new Set(["staff", "ai", "product_card"]);
+
+const waitRowMs = (row) => {
+  const at = new Date(row?.message?.created_at || row?.created_at || 0).getTime();
+  return Number.isFinite(at) && at > 0 ? at : 0;
+};
+
+export function customerWaitingSince(rows = []) {
+  let lastOutboundAt = 0;
+  for (const row of rows) {
+    if (WAIT_ENDING_KINDS.has(row?.kind)) lastOutboundAt = Math.max(lastOutboundAt, waitRowMs(row));
+  }
+  let since = 0;
+  for (const row of rows) {
+    if (row?.kind !== "customer") continue;
+    const at = waitRowMs(row);
+    if (at > lastOutboundAt && (!since || at < since)) since = at;
+  }
+  return since;
+}

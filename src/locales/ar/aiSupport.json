@@ -613,6 +613,7 @@
     },
     "composer": {
       "placeholder": "اكتب رسالتك...",
+      "customerWaiting": "العميل مستني رد ({{time}})",
       "notePlaceholder": "اكتب ملاحظة داخلية. لن تُرسل بعد.",
       "attachProduct": "إرفاق منتج",
       "emoji": "إيموجي",
