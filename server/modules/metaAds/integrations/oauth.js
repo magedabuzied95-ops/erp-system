@@ -75,12 +75,42 @@ export const connectSetupStatus = (req) => {
   };
 };
 
+// The page that clicked "Continue with Facebook" is where the user must land again.
+// PUBLIC_APP_URL is the STOREFRONT (m1store-egy.com), whose router has no /meta-ads,
+// so the browser's own origin wins — but only a host on the configured domain
+// (e.g. erp.m1store-egy.com), never an arbitrary Origin header (open redirect).
+const hostOf = (value) => {
+  try {
+    return new URL(value).hostname.toLowerCase();
+  } catch {
+    return "";
+  }
+};
+export const adminOriginFor = (req = null) => {
+  const candidate = text(req?.get?.("origin")) || (() => {
+    try {
+      const referer = new URL(text(req?.get?.("referer")));
+      return `${referer.protocol}//${referer.host}`;
+    } catch {
+      return "";
+    }
+  })();
+  const host = hostOf(candidate);
+  if (!host) return "";
+  const allowed = [process.env.META_ADS_ADMIN_URL, process.env.PUBLIC_APP_URL, process.env.FRONTEND_URL, getPublicAppUrl()]
+    .map(hostOf)
+    .filter(Boolean)
+    .map((value) => value.replace(/^www\./, ""));
+  const ok = allowed.some((base) => host === base || host.endsWith(`.${base}`)) || host === "localhost" || host === "127.0.0.1";
+  return ok ? trimSlash(candidate) : "";
+};
+
 export const startOAuth = async (req, tenantId) => {
   const { appId, appSecret } = metaAppConfig();
   if (!appId || !appSecret) throw httpError(500, "Facebook login is not configured on the server (META_APP_ID / META_APP_SECRET).", "META_ADS_APP_NOT_CONFIGURED");
   const state = crypto.randomBytes(24).toString("hex");
   const redirectUri = adsRedirectUri(req);
-  const returnTo = `${frontendOrigin(req)}${CONNECT_PATH}`;
+  const returnTo = `${adminOriginFor(req) || frontendOrigin(req)}${CONNECT_PATH}`;
   await db.query(`DELETE FROM meta_ads_oauth_states WHERE created_at < NOW() - INTERVAL '1 day'`);
   await db.query(
     `INSERT INTO meta_ads_oauth_states (state, tenant_id, user_id, return_to, redirect_uri) VALUES ($1,$2,$3,$4,$5)`,
