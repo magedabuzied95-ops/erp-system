@@ -102,7 +102,10 @@ const textareaClass =
   "w-full rounded-xl border border-white/10 bg-slate-950/70 px-3 py-2 text-sm font-bold leading-6 text-white outline-none transition placeholder:text-slate-600 focus:border-cyan-300/40 disabled:opacity-60";
 const selectTrigger = "h-10 w-full rounded-xl border border-white/10 bg-slate-950/70 px-3 text-sm font-bold text-white";
 
-// The phone on the right: what the customer will see, with examples filled in.
+// The phone on the right: what the customer will see, with examples filled in. Colours are
+// inline on purpose: the M1 theme remaps Tailwind's white/slate utilities, which turned the
+// bubble dark — WhatsApp's own colours must not follow the app theme.
+const WA = { chat: "#efe7dd", bar: "#075e54", bubble: "#ffffff", ink: "#111b21", muted: "#667781", link: "#00a5f4", notice: "#fdf4c5", media: "#d1d7db", line: "#e9edef" };
 function TemplatePreview({ draft }) {
   const { t } = useTranslation();
   const body = fillVariables(draft.body_text, draft.body_examples);
@@ -110,8 +113,8 @@ function TemplatePreview({ draft }) {
   const MediaIcon = draft.header_format === "VIDEO" ? Video : draft.header_format === "DOCUMENT" ? FileText : ImageIcon;
   return (
     <div className="mx-auto w-full max-w-[300px] rounded-[34px] border-[6px] border-slate-800 bg-slate-900 p-1 shadow-[0_24px_60px_rgba(0,0,0,0.5)]">
-      <div className="overflow-hidden rounded-[26px] bg-[#efe7dd]">
-        <div className="flex items-center gap-2 bg-[#075e54] px-3 py-2.5 text-white">
+      <div className="overflow-hidden rounded-[26px]" style={{ background: WA.chat }}>
+        <div className="flex items-center gap-2 px-3 py-2.5" style={{ background: WA.bar, color: "#ffffff" }}>
           <span className="grid h-8 w-8 place-items-center rounded-full bg-white/20 text-xs font-black">M1</span>
           <div className="min-w-0">
             <div className="truncate text-[13px] font-bold">{t("aiSupport.waTemplates.preview.business")}</div>
@@ -119,25 +122,25 @@ function TemplatePreview({ draft }) {
           </div>
         </div>
         <div className="min-h-[360px] space-y-2 p-3">
-          <div className="mx-auto w-fit rounded-md bg-[#fdf4c5] px-2 py-1 text-center text-[10px] text-slate-600">{t("aiSupport.waTemplates.preview.encrypted")}</div>
-          <div className="max-w-[92%] overflow-hidden rounded-lg rounded-tl-none bg-white text-slate-900 shadow-sm">
+          <div className="mx-auto w-fit rounded-md px-2 py-1 text-center text-[10px]" style={{ background: WA.notice, color: WA.muted }}>{t("aiSupport.waTemplates.preview.encrypted")}</div>
+          <div className="max-w-[92%] overflow-hidden rounded-lg rounded-tl-none shadow-sm" style={{ background: WA.bubble, color: WA.ink }}>
             {["IMAGE", "VIDEO", "DOCUMENT"].includes(draft.header_format) ? (
               draft.header_media_url && draft.header_format === "IMAGE" ? (
                 <img src={draft.header_media_url} alt="" className="h-36 w-full object-cover" />
               ) : (
-                <div className="grid h-28 place-items-center bg-slate-200 text-slate-500"><MediaIcon className="h-8 w-8" aria-hidden="true" /></div>
+                <div className="grid h-28 place-items-center" style={{ background: WA.media, color: WA.muted }}><MediaIcon className="h-8 w-8" aria-hidden="true" /></div>
               )
             ) : null}
             <div className="px-2.5 pb-1.5 pt-2">
               {header ? <div dir="auto" className="mb-1 text-[13px] font-black">{header}</div> : null}
-              <div dir="auto" className="whitespace-pre-wrap text-[13px] leading-5">{body || <span className="text-slate-400">{t("aiSupport.waTemplates.preview.bodyPlaceholder")}</span>}</div>
-              {draft.footer_text ? <div dir="auto" className="mt-1 text-[11px] text-slate-500">{draft.footer_text}</div> : null}
-              <div className="mt-0.5 text-end text-[10px] text-slate-400">12:00</div>
+              <div dir="auto" className="whitespace-pre-wrap text-[13px] leading-5">{body || <span style={{ color: WA.muted }}>{t("aiSupport.waTemplates.preview.bodyPlaceholder")}</span>}</div>
+              {draft.footer_text ? <div dir="auto" className="mt-1 text-[11px]" style={{ color: WA.muted }}>{draft.footer_text}</div> : null}
+              <div className="mt-0.5 text-end text-[10px]" style={{ color: WA.muted }}>12:00</div>
             </div>
             {draft.buttons.length ? (
-              <div className="border-t border-slate-200">
+              <div style={{ borderTop: `1px solid ${WA.line}` }}>
                 {draft.buttons.map((button, index) => (
-                  <div key={index} dir="auto" className="border-b border-slate-100 py-2 text-center text-[13px] font-bold text-[#00a5f4] last:border-b-0">
+                  <div key={index} dir="auto" className="py-2 text-center text-[13px] font-bold" style={{ color: WA.link, borderTop: index ? `1px solid ${WA.line}` : "none" }}>
                     {button.type === "COPY_CODE" ? t("aiSupport.waTemplates.buttons.copyCodeLabel") : button.text || buttonTypeLabel(t, button.type)}
                   </div>
                 ))}
