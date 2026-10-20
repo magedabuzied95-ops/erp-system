@@ -5826,7 +5826,7 @@ export default function AiInboxPwa({ portal = null } = {}) {
     );
     // Which of our WhatsApp numbers each message went through — "" unless the thread spans two.
     const numberLabelFor = isWhatsappChannel(selectedConversation?.channel || selectedConversation?.source)
-      ? whatsappNumberLabeler(messages, selectedConversation?.whatsapp_numbers)
+      ? whatsappNumberLabeler(messages, selectedConversation?.whatsapp_numbers, (name) => t("aiSupport.inbox.number.web", { name }))
       : () => "";
     // A reaction is a row of its own in the log, but it belongs ON the message it
     // targets. Without this fold the phone drew a customer's ❤️ as a standalone
@@ -5915,7 +5915,7 @@ export default function AiInboxPwa({ portal = null } = {}) {
   // customer's newest message decides). Shown read-only above the composer.
   const replyFromLabel = useMemo(() => {
     if (!selectedConversation || !isWhatsappChannel(selectedConversation.channel || selectedConversation.source)) return "";
-    return whatsappNumberLabel(whatsappReplyInstance(selectedConversation), selectedConversation.whatsapp_numbers) || t("aiSupport.inbox.number.replyFromDefault");
+    return whatsappNumberLabel(whatsappReplyInstance(selectedConversation), selectedConversation.whatsapp_numbers, (name) => t("aiSupport.inbox.number.web", { name })) || t("aiSupport.inbox.number.replyFromDefault");
   }, [selectedConversation, t]);
 
   useEffect(() => {

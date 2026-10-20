@@ -2036,6 +2036,7 @@
       "system": "السيستم"
     },
     "number": {
+      "web": "واتساب ويب · {{name}}",
       "replyFrom": "هترد من: {{label}}",
       "replyFromDefault": "الرقم الافتراضي",
       "chipTitle": "رقمنا اللي الرسالة عدت عليه"

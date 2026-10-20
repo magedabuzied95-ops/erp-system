@@ -2028,6 +2028,7 @@
       "system": "System"
     },
     "number": {
+      "web": "WhatsApp Web · {{name}}",
       "replyFrom": "Replying from: {{label}}",
       "replyFromDefault": "Default number",
       "chipTitle": "Our number this message went through"

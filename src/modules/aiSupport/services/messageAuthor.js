@@ -35,20 +35,23 @@ const isCustomerRow = (message = {}) =>
 
 // Label for one of our numbers: the server's mapping, else the instance itself without the
 // "cloud:" prefix noise.
-export const whatsappNumberLabel = (instance = "", labels = {}) => {
+// An unmapped non-cloud instance is a WhatsApp Web (Evolution) line; webLabel(name) lets the
+// caller say so in the UI language.
+export const whatsappNumberLabel = (instance = "", labels = {}, webLabel = null) => {
   const key = clean(instance);
   if (!key) return "";
   const mapped = clean(labels && typeof labels === "object" ? labels[key] : "");
   if (mapped) return mapped;
-  return key.toLowerCase().startsWith("cloud:") ? `Cloud ${key.slice("cloud:".length)}` : key;
+  if (key.toLowerCase().startsWith("cloud:")) return `Cloud ${key.slice("cloud:".length)}`;
+  return typeof webLabel === "function" ? webLabel(key) : key;
 };
 
 // Returns fn(message) -> number label, or "" for every message when the thread only ever went
 // through one of our numbers (the chip would say nothing new).
-export const whatsappNumberLabeler = (messages = [], labels = {}) => {
+export const whatsappNumberLabeler = (messages = [], labels = {}, webLabel = null) => {
   const instances = new Set(asArray(messages).map((message) => clean(message?.whatsapp_instance)).filter(Boolean));
   if (instances.size < 2) return () => "";
-  return (message = {}) => whatsappNumberLabel(message.whatsapp_instance, labels);
+  return (message = {}) => whatsappNumberLabel(message.whatsapp_instance, labels, webLabel);
 };
 
 // The number a hand reply leaves from, the way the server resolves it: the customer's newest

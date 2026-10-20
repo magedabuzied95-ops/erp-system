@@ -3018,7 +3018,7 @@ function ManualReplyComposer({
   // WhatsApp: the number this reply will leave from, resolved the way the server resolves it
   // (the customer's newest message decides). Read-only.
   const replyFromLabel = !isCommentConversation && isWhatsappChannel(conversation?.channel || conversation?.source)
-    ? whatsappNumberLabel(whatsappReplyInstance(conversation), conversation?.whatsapp_numbers) || t("aiSupport.inbox.number.replyFromDefault")
+    ? whatsappNumberLabel(whatsappReplyInstance(conversation), conversation?.whatsapp_numbers, (name) => t("aiSupport.inbox.number.web", { name })) || t("aiSupport.inbox.number.replyFromDefault")
     : "";
   /*
    * Copy a photo, click the composer, Ctrl+V. Until now that did nothing at all:
@@ -6855,7 +6855,7 @@ export default function AiInbox({ reviewerMode = false }) {
     );
     // Which of our WhatsApp numbers each message went through — "" unless the thread spans two.
     const numberLabelFor = isWhatsappChannel(selectedConversation?.channel || selectedConversation?.source)
-      ? whatsappNumberLabeler(messages, selectedConversation?.whatsapp_numbers)
+      ? whatsappNumberLabeler(messages, selectedConversation?.whatsapp_numbers, (name) => t("aiSupport.inbox.number.web", { name }))
       : () => "";
     const reactionsByTarget = new Map();
     messages.forEach((message) => {
