@@ -125,6 +125,7 @@ import SocialCommentsWorkspace from "../components/SocialCommentsWorkspace.jsx";
 import Customer360Drawer from "../components/Customer360Drawer.jsx";
 import AvatarZoom from "../components/AvatarZoom.jsx";
 import CustomerAvatar from "../components/CustomerAvatar.jsx";
+import WaitingOrbit from "../components/WaitingOrbit.jsx";
 import { chromeModeFor, platformCanvas, resolveMessagePlatform } from "../components/messagePlatform.js";
 import { useTheme } from "../../../theme/useTheme";
 import { isMetaDmConversation, metaCustomerDisplayName } from "../lib/customerIdentity.js";
@@ -808,6 +809,13 @@ const channelLabel = (value = "") => {
   if (key === "telegram") return "تيليجرام";
   if (key === "web_chat") return "دردشة الويب";
   return key || "قناة غير معروفة";
+};
+const WAITING_ORBIT_CHANNEL_COLORS = {
+  whatsapp: "#25D366",
+  messenger: "#0084FF",
+  instagram: "#E1306C",
+  telegram: "#229ED9",
+  web: "#64748b",
 };
 const channelBadgeLabel = (value = "") => {
   const key = clean(value).toLowerCase();
@@ -5010,9 +5018,8 @@ export default function AiInbox({ reviewerMode = false }) {
         setMobileView("chat");
         deepLinkConversationRef.current = "";
       }
-      if (!deepLinkedConversation && activeSection === "conversations" && !activeConversationSelectedId && nextConversations[0]?.conversation_key) {
-        setSelectedSessionId(nextConversations[0].conversation_key);
-      }
+      // No conversation opens on its own: with nothing selected the main pane
+      // shows the waiting-customers orbit, which leads with the longest wait.
       // Conversation list is usable now — unblock render BEFORE fetching the
       // non-essential secondary data so it never gates the list.
       if (!silent) setLoading(false);
@@ -5733,7 +5740,6 @@ export default function AiInbox({ reviewerMode = false }) {
   const selectedConversationThread = useMemo(
     () => conversations.find((item) => item.conversation_key === selectedSessionId || item.session_id === selectedSessionId || conversationKey(item) === clean(selectedSessionId)) ||
       (selectedConversationCacheRef.current?.conversation_key === selectedSessionId ? selectedConversationCacheRef.current : null) ||
-      conversations[0] ||
       null,
     [conversations, selectedSessionId]
   );
@@ -5774,9 +5780,39 @@ export default function AiInbox({ reviewerMode = false }) {
   const activeMainItem = isSocialMode
     ? (selectedSocialComment || visibleSocialComments[0] || null)
     : isConversationMode
-      ? (selectedConversationThread || visibleConversations[0] || null)
+      ? (selectedSessionId ? selectedConversationThread : null)
       : null;
   const selectedConversation = isConversationMode ? activeMainItem : null;
+  // The orbit shown while no conversation is open: the customers in the
+  // current channel/account view who are waiting for a reply, by the same
+  // rule as the unread filter.
+  const waitingOrbit = useMemo(() => {
+    if (!isConversationMode || selectedSessionId) return null;
+    const items = visibleConversations
+      .filter((conversation) => Number(conversation.unread_count || conversation.unread || 0) > 0 || conversation.manually_unread === true)
+      .map((conversation) => {
+        const channel = normalizeConversationChannel(conversation);
+        return {
+          key: clean(conversation.conversation_key || conversationKey(conversation) || conversation.session_id),
+          conversation,
+          name: getConversationDisplayName(conversation) || "Customer",
+          avatarUrl: customerAvatarUrl(conversation),
+          preview: shortText(conversationPreview(conversation), 120),
+          channel,
+          channelLabel: channelBadgeLabel(channel),
+          color: WAITING_ORBIT_CHANNEL_COLORS[channel] || "#94a3b8",
+          unread: Number(conversation.unread_count || conversation.unread || 0),
+          waitingSince: conversation.last_message_at || conversation.last_activity_at || conversation.updated_at,
+        };
+      })
+      .filter((item) => item.key && item.waitingSince);
+    const byChannel = new Map();
+    items.forEach((item) => byChannel.set(item.channel, (byChannel.get(item.channel) || 0) + 1));
+    const channels = [...byChannel.entries()]
+      .sort((a, b) => b[1] - a[1])
+      .map(([key, count]) => ({ key, count, label: channelBadgeLabel(key), color: WAITING_ORBIT_CHANNEL_COLORS[key] || "#94a3b8" }));
+    return { items, channels };
+  }, [isConversationMode, selectedSessionId, visibleConversations]);
   // Staff presence: tell the team what is open here, hear what they have open.
   const staffPresence = useStaffPresence({ sessionId: selectedConversation?.session_id || "", enabled: !reviewerMode });
   const transcriptCanvas = platformCanvas(
@@ -6187,17 +6223,15 @@ export default function AiInbox({ reviewerMode = false }) {
       return;
     }
 
-    const nextSelected = visibleConversations[0] || null;
     const selectedKey = clean(selectedSessionIdRef.current);
     const hasActiveSelection = selectedKey && visibleConversations.some((item) => item.conversation_key === selectedKey || item.session_id === selectedKey || conversationKey(item) === selectedKey);
     if (!visibleConversations.length) {
       if (selectedSessionIdRef.current) setSelectedSessionId("");
       return;
     }
-    if (!hasActiveSelection && nextSelected?.conversation_key) {
-      setSelectedSessionId(nextSelected.conversation_key);
-      setSelectedSocialCommentId("");
-    }
+    // A selection the filters just hid goes back to the orbit rather than
+    // jumping to whichever thread now sorts first.
+    if (selectedKey && !hasActiveSelection) setSelectedSessionId("");
   }, [inboxSection, socialCommentIdentity, visibleConversations, visibleSocialComments]);
   const selectedConversationRouteId = useMemo(
     () => clean(selectedConversation?.session_id || selectedConversation?.conversation_key || selectedConversation?.conversation_id || conversationKey(selectedConversation || {})),
@@ -9101,7 +9135,7 @@ export default function AiInbox({ reviewerMode = false }) {
           setInboxSection("conversations");
           setSelectedSocialCommentId("");
           setSelectedSocialThread({ post: null, comments: [], loading: false, error: "" });
-          setSelectedSessionId(conversationPanelConversations[0]?.conversation_key || "");
+          setSelectedSessionId("");
           setMobileView("list");
         }}
         className={`inline-flex h-9 items-center justify-center gap-2 rounded-xl px-3 text-[11px] font-black transition ${
@@ -10171,6 +10205,13 @@ export default function AiInbox({ reviewerMode = false }) {
                   </div>
                 ) : null}
               </div>
+            ) : waitingOrbit ? (
+              <WaitingOrbit
+                items={waitingOrbit.items}
+                channels={waitingOrbit.channels}
+                operatorName={inboxMe.name}
+                onOpen={handleSelectConversation}
+              />
             ) : (
               <EmptyBlock text="لا توجد محادثات حاليًا" />
             )}

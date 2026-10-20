@@ -1929,6 +1929,24 @@
       "whatsappTitle": "WhatsApp is disconnected",
       "whatsappBody": "New WhatsApp messages will not reach the inbox until the session is paired again.",
       "stateLabel": "State"
+    },
+    "orbit": {
+      "greetMorning": "Good morning, {{name}}",
+      "greetEvening": "Good evening, {{name}}",
+      "waiting": "Awaiting reply",
+      "longest": "Longest wait: {{time}}",
+      "calm": "Nobody is waiting",
+      "more": "+{{count}} more",
+      "waitingFor": "{{name}} — waiting {{time}}",
+      "waitingSince": "waiting {{time}}",
+      "messages": "{{count}} messages",
+      "hint": "Click a customer to open the conversation",
+      "now": "now",
+      "minutes": "{{count}}m",
+      "hours": "{{count}}h",
+      "days": "{{count}}d",
+      "greetMorningPlain": "Good morning",
+      "greetEveningPlain": "Good evening"
     }
   },
   "integrations": {

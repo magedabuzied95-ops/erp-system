@@ -1937,6 +1937,24 @@
       "whatsappTitle": "واتساب غير متصل",
       "whatsappBody": "الرسائل الجديدة مش هتوصل الصندوق لحد ما تربط الجلسة تاني.",
       "stateLabel": "الحالة"
+    },
+    "orbit": {
+      "greetMorning": "صباح الخير يا {{name}}",
+      "greetEvening": "مساء الخير يا {{name}}",
+      "waiting": "في انتظار الرد",
+      "longest": "أطول انتظار: {{time}}",
+      "calm": "مفيش حد مستني رد",
+      "more": "+{{count}} كمان",
+      "waitingFor": "{{name}} — مستني من {{time}}",
+      "waitingSince": "مستني من {{time}}",
+      "messages": "{{count}} رسائل",
+      "hint": "دوس على أي عميل تفتح محادثته",
+      "now": "دلوقتي",
+      "minutes": "{{count}} د",
+      "hours": "{{count}} س",
+      "days": "{{count}} ي",
+      "greetMorningPlain": "صباح الخير",
+      "greetEveningPlain": "مساء الخير"
     }
   },
   "integrations": {
