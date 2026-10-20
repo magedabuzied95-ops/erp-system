@@ -526,6 +526,24 @@ export const resolveWhatsappConversationInstance = async ({ tenantId, conversati
   const safeTenantId = Number(tenantId);
   const sessionId = normalizeWhatsappSessionId(conversationId);
   if (!Number.isInteger(safeTenantId) || safeTenantId <= 0 || !sessionId) return "";
+  /*
+   * The number the customer LAST WROTE TO wins. A customer can talk to two of our numbers (the
+   * Evolution line and an official Cloud number); an employee's reply must leave from the number
+   * the customer is currently using. The conversation's stored instance can lag (a reply sent on
+   * the old line writes the old line back), so the newest inbound row is asked first.
+   */
+  const lastInbound = await db.query(
+    `
+    SELECT whatsapp_instance
+    FROM ai_support_messages
+    WHERE tenant_id = $1 AND session_id = $2 AND sender_type = 'customer' AND COALESCE(whatsapp_instance, '') <> ''
+    ORDER BY id DESC
+    LIMIT 1
+    `,
+    [safeTenantId, sessionId]
+  ).catch(() => ({ rows: [] }));
+  const fromLastInbound = text(lastInbound.rows[0]?.whatsapp_instance);
+  if (fromLastInbound) return fromLastInbound;
   const conversation = await db.query(
     `
     SELECT COALESCE(NULLIF(metadata->>'whatsapp_instance', ''), NULLIF(metadata->>'instance', '')) AS instance

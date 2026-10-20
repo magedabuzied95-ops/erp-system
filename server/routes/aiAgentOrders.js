@@ -6798,8 +6798,10 @@ router.post("/conversations/:conversationId/send", protect, inboxReply(), async 
        * predates this still routes correctly. Empty means "use the environment default", which is
        * what every automation continues to do.
        */
-      const conversationInstance = envText(conversation?.channel_metadata?.whatsapp_instance || conversation?.channel_metadata?.instance)
-        || envText(await resolveWhatsappConversationInstance({ tenantId, conversationId }).catch(() => ""));
+      // The number the customer last wrote to first (resolver reads the live rows); the cached
+      // inbox snapshot only as a fallback — it lagged and sent a Cloud customer's reply on Evolution.
+      const conversationInstance = envText(await resolveWhatsappConversationInstance({ tenantId, conversationId }).catch(() => ""))
+        || envText(conversation?.channel_metadata?.whatsapp_instance || conversation?.channel_metadata?.instance);
       sendResult = await sendWhatsAppCloudReply({
         to: recipientId,
         reply: { text: messageText },

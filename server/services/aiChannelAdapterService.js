@@ -1801,7 +1801,7 @@ const visualAttachmentImageUrls = (reply = {}) =>
  * Never throws: an unresolved instance is the old behaviour, not a lost message.
  */
 export const lastKnownWhatsappInstance = async (recipient = "") => {
-  const phone = toText(recipient).replace(/D/g, "");
+  const phone = toText(recipient).replace(/\D/g, "");
   if (!phone) return "";
   try {
     const { rows } = await db.query(
