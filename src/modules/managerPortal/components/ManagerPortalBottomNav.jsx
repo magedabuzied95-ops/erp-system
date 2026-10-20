@@ -1,6 +1,7 @@
 import { ClipboardCheck, ClipboardList, Settings, ShoppingCart, Store, Truck, Users } from "lucide-react";
 
 import i18n from "../../../i18n/i18n";
+import useVisualViewportBottomShift from "../../../shared/hooks/useVisualViewportBottomShift";
 
 const tt = (key, options) => i18n.t(key, options);
 
@@ -24,8 +25,11 @@ const TAB_META = {
  * The parent must sit inside `.manager-portal-shell` for the M1 colours to apply.
  */
 export default function ManagerPortalBottomNav({ activeTab = "", onSelect, unreadCount = 0, pendingInventoryCount = 0, formatCount = defaultFormatCount }) {
+  // iPhone can strand this bar mid-screen while scrolling up (most often after the
+  // keyboard closed); the shift pins it back to the bottom the person sees.
+  const bottomShift = useVisualViewportBottomShift();
   return (
-    <nav className="manager-bottom-nav-safe-padding manager-bottom-nav-shell fixed inset-x-3 z-40 mx-auto max-w-2xl rounded-[1.4rem] border border-slate-800 bg-[linear-gradient(180deg,#020617,#0f172a)] shadow-2xl shadow-slate-900/30 lg:hidden">
+    <nav style={bottomShift ? { transform: `translate3d(0, ${bottomShift}px, 0)` } : undefined} className="manager-bottom-nav-safe-padding manager-bottom-nav-shell fixed inset-x-3 z-40 mx-auto max-w-2xl rounded-[1.4rem] border border-slate-800 bg-[linear-gradient(180deg,#020617,#0f172a)] shadow-2xl shadow-slate-900/30 lg:hidden">
       <div className="grid grid-cols-7 gap-0.5 px-1.5 py-1.5">
         {MANAGER_PORTAL_BOTTOM_TABS.map((tab) => {
           const active = activeTab === tab;
