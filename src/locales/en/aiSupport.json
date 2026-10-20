@@ -2312,6 +2312,18 @@
         "abandoned_cart": {
           "title": "Abandoned cart message",
           "description": "One reminder carrying the saved cart's products, after it has sat untouched for the configured delay."
+        },
+        "restock": {
+          "title": "Back-in-stock message",
+          "description": "Tells the customer on WhatsApp when the size they asked for is back in stock. It has more than on and off, so it is set in its own window.",
+          "open": "Settings",
+          "pendingApproval": "{{n}} awaiting approval",
+          "mode": {
+            "manual": "Manual",
+            "preview": "Preview only",
+            "approval": "Staff approval",
+            "auto": "Automatic"
+          }
         }
       }
     }

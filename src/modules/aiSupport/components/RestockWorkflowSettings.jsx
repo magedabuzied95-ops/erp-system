@@ -37,6 +37,17 @@ const PLACEHOLDER_HINT_KEY = {
 };
 const RECOVER_TOOL = "restock.recover";
 
+// What actually happens when a size comes back, given every gate. Exported so the control
+// center's automatic-messages row reads the same verdict this modal paints.
+export const restockEffectiveMode = ({ automation, workflow, mode } = {}) => {
+  const pipelineLive = Boolean(automation?.global_enabled) && Boolean(automation?.tenant_enabled) && Boolean(workflow?.enabled) && Boolean(workflow?.granted);
+  if (!pipelineLive) return "manual";
+  if (mode === "auto_send") return "auto";
+  if (mode === "approval_send") return "approval";
+  if (mode === "preview_only") return "preview";
+  return "manual";
+};
+
 const Toggle = ({ on, busy, disabled, onClick, label }) => (
   <button
     type="button"
@@ -102,12 +113,18 @@ export default function RestockWorkflowSettings({ open = false, onClose = null }
 
   useEffect(() => { if (open) void load(); }, [open, load]);
 
-  // Escape closes, like every other dialog in the inbox.
+  // Escape closes, like every other dialog in the inbox — this one only. Captured and stopped,
+  // because the host it sits on (the control center, the customer drawer) listens for Escape on
+  // window too and would close underneath it.
   useEffect(() => {
     if (!open) return undefined;
-    const onKey = (event) => { if (event.key === "Escape") onClose?.(); };
-    window.addEventListener("keydown", onKey);
-    return () => window.removeEventListener("keydown", onKey);
+    const onKey = (event) => {
+      if (event.key !== "Escape") return;
+      event.stopPropagation();
+      onClose?.();
+    };
+    window.addEventListener("keydown", onKey, true);
+    return () => window.removeEventListener("keydown", onKey, true);
   }, [open, onClose]);
 
   const run = async (key, action) => {
@@ -172,20 +189,12 @@ export default function RestockWorkflowSettings({ open = false, onClose = null }
   const tenantOn = Boolean(automation.tenant_enabled);
   const workflowOn = Boolean(workflow?.enabled);
   const granted = Boolean(workflow?.granted);
-  const pipelineLive = globalOn && tenantOn && workflowOn && granted;
-  const effective = !pipelineLive
-    ? "manual"
-    : state.mode === "auto_send"
-      ? "auto"
-      : state.mode === "approval_send"
-        ? "approval"
-        : state.mode === "preview_only"
-          ? "preview"
-          : "manual";
+  const effective = restockEffectiveMode(state);
   const effectiveTone = effective === "auto" ? "border-emerald-300/60 bg-emerald-500/10 text-emerald-700" : effective === "approval" ? "border-amber-300/60 bg-amber-500/10 text-amber-700" : "border-[var(--border)] bg-[var(--surface)] text-[var(--text-secondary)]";
 
+  // z-[300]: it also opens from the inbox control center, which sits at z-[260].
   return createPortal(
-    <div className="m1-customer-360 fixed inset-0 z-[90] flex items-center justify-center bg-black/55 p-3 backdrop-blur-[2px]" onMouseDown={(event) => { if (event.target === event.currentTarget) onClose?.(); }}>
+    <div className="m1-customer-360 fixed inset-0 z-[300] flex items-center justify-center bg-black/55 p-3 backdrop-blur-[2px]" onMouseDown={(event) => { if (event.target === event.currentTarget) onClose?.(); }}>
       <div role="dialog" aria-modal="true" aria-label={t("aiSupport.inbox.customer360.restockSettingsTitle")} className="flex max-h-[92vh] w-full max-w-xl flex-col overflow-hidden rounded-3xl border border-[var(--border)] bg-[var(--surface-soft)] text-[var(--text)] shadow-[0_30px_80px_rgba(0,0,0,0.45)]">
         <div className="flex items-center justify-between gap-2 border-b border-[var(--border)] px-4 py-3">
           <div>
