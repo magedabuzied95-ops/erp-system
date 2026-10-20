@@ -1,0 +1,202 @@
+{
+  "ar": {
+    "catalogs": {
+      "subtitle": "الكتالوجات اللي بتبيع منها على واتساب: اللي في الإعدادات واللي ميتا رابطاها برقمك الرسمي.",
+      "sync": "تحديث من ميتا",
+      "synced": "اتحدّث {{count}} كتالوج من ميتا",
+      "loadFailed": "معرفناش نحمّل الكتالوجات",
+      "actionFailed": "ميتا رفضت الطلب",
+      "settingsSaved": "اتحفظ على واتساب",
+      "empty": "مفيش كتالوج لسه. حط رقم الكتالوج في الإعدادات أو اربطه برقم واتساب من Commerce Manager، وبعدين دوس تحديث من ميتا.",
+      "unnamed": "كتالوج من غير اسم",
+      "uploadErrors": "{{count}} غلطة في آخر رفع",
+      "columns": {
+        "name": "الاسم",
+        "account": "الحساب",
+        "catalogId": "رقم الكتالوج",
+        "status": "الحالة",
+        "products": "المنتجات",
+        "lastSynced": "آخر مزامنة"
+      },
+      "status": {
+        "active": "شغال",
+        "warning": "فيه تحذيرات",
+        "error": "مش قادرين نقراه",
+        "unknown": "مش معروف"
+      },
+      "source": {
+        "settings": "من الإعدادات",
+        "waba": "مربوط برقم واتساب"
+      },
+      "commerceTitle": "التسوق جوه واتساب",
+      "showCatalog": "اعرض الكتالوج في واتساب",
+      "showCatalogHint": "زرار المتجر يظهر للعميل في الشات وفي بروفايل الرقم.",
+      "enableCart": "شغّل السلة",
+      "enableCartHint": "العميل يقدر يجمع كذا منتج ويبعتهم طلب واحد يوصلك في صفحة الطلبات.",
+      "noNumber": "مفيش رقم واتساب رسمي متوصل، فمش هينفع نغيّر الإعدادات دي من هنا.",
+      "feedUrl": "رابط فيد المنتجات",
+      "feedHint": "حط الرابط ده في Commerce Manager ← مصادر البيانات ← فيد مجدول، علشان منتجات المحل تتحدث في الكتالوج لوحدها.",
+      "copy": "انسخ"
+    },
+    "products": {
+      "search": "دوّر بالاسم أو الـ SKU",
+      "loadFailed": "معرفناش نحمّل المنتجات من ميتا",
+      "noCatalog": "مفيش كتالوج. اعمل تحديث من صفحة الكتالوجات الأول.",
+      "empty": "مفيش منتجات",
+      "notMapped": "مش مربوط",
+      "previous": "السابق",
+      "next": "التالي",
+      "page": "صفحة {{page}}",
+      "columns": {
+        "name": "المنتج",
+        "retailerId": "رقم المنتج / SKU",
+        "price": "السعر",
+        "availability": "التوفر",
+        "erp": "في السيستم"
+      },
+      "availability": {
+        "inStock": "متوفر",
+        "outOfStock": "خلصان",
+        "preorder": "حجز مسبق",
+        "availableForOrder": "متاح للطلب"
+      }
+    },
+    "orders": {
+      "subtitle": "السلات اللي العملاء بعتوها من كتالوج واتساب. افتح المحادثة، اعمل الأوردر، وبعدين علّم عليه إنه اتحوّل.",
+      "loadFailed": "معرفناش نحمّل الطلبات",
+      "actionFailed": "معرفناش نغيّر الحالة",
+      "statusSaved": "الحالة اتغيرت",
+      "empty": "مفيش طلبات من واتساب لسه",
+      "all": "الكل",
+      "search": "دوّر بالاسم أو الرقم",
+      "loadMore": "اعرض أكتر",
+      "backToList": "الطلبات",
+      "openConversation": "افتح المحادثة",
+      "markConverted": "اتحوّل لأوردر",
+      "markCancelled": "اتلغى",
+      "reopen": "رجّعه جديد",
+      "erpOrder": "أوردر السيستم",
+      "itemCount": "{{count}} قطعة",
+      "columns": {
+        "customer": "العميل",
+        "catalog": "الكتالوج",
+        "status": "الحالة",
+        "total": "الإجمالي",
+        "currency": "العملة",
+        "date": "التاريخ"
+      },
+      "status": {
+        "new": "جديد",
+        "converted": "اتحوّل",
+        "cancelled": "اتلغى"
+      },
+      "items": {
+        "product": "المنتج",
+        "quantity": "الكمية",
+        "price": "سعر القطعة",
+        "lineTotal": "الإجمالي",
+        "notMapped": "مش مربوط بمنتج في السيستم"
+      }
+    }
+  },
+  "en": {
+    "catalogs": {
+      "subtitle": "The catalogs you sell from on WhatsApp: the one in Settings and the ones Meta links to your official number.",
+      "sync": "Sync from Meta",
+      "synced": "Synced {{count}} catalog(s) from Meta",
+      "loadFailed": "Couldn't load catalogs",
+      "actionFailed": "Meta rejected the request",
+      "settingsSaved": "Saved on WhatsApp",
+      "empty": "No catalogs yet. Put the catalog ID in Settings or link one to a WhatsApp number in Commerce Manager, then sync from Meta.",
+      "unnamed": "Unnamed catalog",
+      "uploadErrors": "{{count}} error(s) in the last upload",
+      "columns": {
+        "name": "Name",
+        "account": "Account",
+        "catalogId": "Catalog ID",
+        "status": "Status",
+        "products": "Products",
+        "lastSynced": "Last synced"
+      },
+      "status": {
+        "active": "Active",
+        "warning": "Warnings",
+        "error": "Unreadable",
+        "unknown": "Unknown"
+      },
+      "source": {
+        "settings": "From settings",
+        "waba": "Linked to a WhatsApp number"
+      },
+      "commerceTitle": "Shopping in WhatsApp",
+      "showCatalog": "Show catalog in WhatsApp",
+      "showCatalogHint": "The shop button appears in the chat and on the number's profile.",
+      "enableCart": "Enable cart",
+      "enableCartHint": "Customers can add several items and send them as one order, which lands on the Orders page.",
+      "noNumber": "No official WhatsApp number is connected, so these settings can't be changed from here.",
+      "feedUrl": "Product feed URL",
+      "feedHint": "Paste this URL in Commerce Manager → Data sources → Scheduled feed so the shop's products update in the catalog on their own.",
+      "copy": "Copy"
+    },
+    "products": {
+      "search": "Search by name or SKU",
+      "loadFailed": "Couldn't load products from Meta",
+      "noCatalog": "No catalog. Sync from the Catalogs page first.",
+      "empty": "No products",
+      "notMapped": "Not linked",
+      "previous": "Previous",
+      "next": "Next",
+      "page": "Page {{page}}",
+      "columns": {
+        "name": "Product",
+        "retailerId": "Retailer ID / SKU",
+        "price": "Price",
+        "availability": "Availability",
+        "erp": "In ERP"
+      },
+      "availability": {
+        "inStock": "In stock",
+        "outOfStock": "Out of stock",
+        "preorder": "Preorder",
+        "availableForOrder": "Available for order"
+      }
+    },
+    "orders": {
+      "subtitle": "Carts customers sent from the WhatsApp catalog. Open the conversation, create the order, then mark it converted.",
+      "loadFailed": "Couldn't load orders",
+      "actionFailed": "Couldn't change the status",
+      "statusSaved": "Status updated",
+      "empty": "No WhatsApp orders yet",
+      "all": "All",
+      "search": "Search by name or phone",
+      "loadMore": "Load more",
+      "backToList": "Orders",
+      "openConversation": "Open conversation",
+      "markConverted": "Mark converted",
+      "markCancelled": "Mark cancelled",
+      "reopen": "Reopen as new",
+      "erpOrder": "ERP order",
+      "itemCount": "{{count}} item(s)",
+      "columns": {
+        "customer": "Customer",
+        "catalog": "Catalog",
+        "status": "Status",
+        "total": "Total",
+        "currency": "Currency",
+        "date": "Date"
+      },
+      "status": {
+        "new": "New",
+        "converted": "Converted",
+        "cancelled": "Cancelled"
+      },
+      "items": {
+        "product": "Product",
+        "quantity": "Qty",
+        "price": "Unit price",
+        "lineTotal": "Line total",
+        "notMapped": "Not linked to an ERP product"
+      }
+    }
+  }
+}
