@@ -17,8 +17,25 @@ const clean = (value = "") => String(value ?? "").trim();
 const CHANNEL_LABEL = { whatsapp: "WhatsApp", instagram: "Instagram", facebook_messenger: "Messenger", telegram: "Telegram" };
 const ALL_CHANNELS = ["whatsapp", "instagram", "facebook_messenger", "telegram"];
 
-const emptyStep = () => ({ delay_minutes: 120, body: "", media: [] });
-const emptyForm = () => ({ name: "", trigger_type: "manual", is_active: true, channels: [...ALL_CHANNELS], cooldown_days: 14, stop_on_reply: true, stop_on_purchase: true, steps: [emptyStep()] });
+// The inbox's CRM stages (aiInboxLeadActionsService LEAD_STATUSES).
+const STAGES = ["new", "contacted", "interested", "negotiation", "won", "lost"];
+
+const emptyStep = () => ({ delay_minutes: 120, mode: "text", ai_instruction: "", body: "", media: [] });
+const emptyForm = () => ({
+  name: "",
+  trigger_type: "manual",
+  is_active: true,
+  channels: [...ALL_CHANNELS],
+  cooldown_days: 14,
+  stop_on_reply: true,
+  stop_on_purchase: true,
+  trigger_stage: "interested",
+  move_to_if_replied: "",
+  move_to_if_no_reply: "",
+  finalize_after_minutes: 24 * 60,
+  steps: [emptyStep()],
+});
+const stepHasContent = (step = {}) => clean(step.body) || asArray(step.media).length || (step.mode === "ai" && clean(step.ai_instruction));
 
 const delayParts = (minutes) => {
   const total = Math.max(1, Number(minutes) || 1);
@@ -97,8 +114,19 @@ function StepEditor({ step, index, total, onChange, onRemove, onMove, headers, l
           </div>
         </Field>
       </div>
-      <div className="mt-3">
-        <Field label={t("aiSupport.teamTools.sequencesPanel.body")} hint={t("aiSupport.teamTools.sequencesPanel.bodyHint")}>
+      <div className="mt-3 space-y-3">
+        <Field label={t("aiSupport.teamTools.sequencesPanel.stepMode")}>
+          <SelectInput value={step.mode === "ai" ? "ai" : "text"} onChange={(event) => onChange({ ...step, mode: event.target.value })}>
+            <option value="text">{t("aiSupport.teamTools.sequencesPanel.modes.text")}</option>
+            <option value="ai">{t("aiSupport.teamTools.sequencesPanel.modes.ai")}</option>
+          </SelectInput>
+        </Field>
+        {step.mode === "ai" ? (
+          <Field label={t("aiSupport.teamTools.sequencesPanel.aiInstruction")} hint={t("aiSupport.teamTools.sequencesPanel.aiInstructionHint")}>
+            <TextArea value={step.ai_instruction || ""} maxLength={1000} onChange={(event) => onChange({ ...step, ai_instruction: event.target.value })} placeholder={t("aiSupport.teamTools.sequencesPanel.aiInstructionPlaceholder")} />
+          </Field>
+        ) : null}
+        <Field label={step.mode === "ai" ? t("aiSupport.teamTools.sequencesPanel.fallbackBody") : t("aiSupport.teamTools.sequencesPanel.body")} hint={step.mode === "ai" ? null : t("aiSupport.teamTools.sequencesPanel.bodyHint")}>
           <TextArea value={step.body} maxLength={2000} onChange={(event) => onChange({ ...step, body: event.target.value })} placeholder={t("aiSupport.teamTools.sequencesPanel.bodyPlaceholder")} />
         </Field>
       </div>
@@ -146,7 +174,11 @@ export default function SequencesPanel({ headers, tenantId }) {
       cooldown_days: sequence.cooldown_days ?? 14,
       stop_on_reply: sequence.stop_on_reply !== false,
       stop_on_purchase: sequence.stop_on_purchase !== false,
-      steps: asArray(sequence.steps).length ? sequence.steps.map((step) => ({ ...step, media: asArray(step.media) })) : [emptyStep()],
+      trigger_stage: sequence.trigger_stage || "interested",
+      move_to_if_replied: sequence.move_to_if_replied || "",
+      move_to_if_no_reply: sequence.move_to_if_no_reply || "",
+      finalize_after_minutes: sequence.finalize_after_minutes || 24 * 60,
+      steps: asArray(sequence.steps).length ? sequence.steps.map((step) => ({ mode: "text", ai_instruction: "", ...step, media: asArray(step.media) })) : [emptyStep()],
     });
     setEditing(sequence.id);
   };
@@ -166,7 +198,7 @@ export default function SequencesPanel({ headers, tenantId }) {
 
   const save = async () => {
     if (!clean(form.name)) return setError(t("aiSupport.teamTools.sequencesPanel.nameRequired"));
-    if (!form.steps.some((step) => clean(step.body) || asArray(step.media).length)) return setError(t("aiSupport.teamTools.sequencesPanel.stepRequired"));
+    if (!form.steps.some(stepHasContent)) return setError(t("aiSupport.teamTools.sequencesPanel.stepRequired"));
     setSaving(true);
     setError("");
     try {
@@ -210,7 +242,15 @@ export default function SequencesPanel({ headers, tenantId }) {
   const triggerLabel = useMemo(() => ({
     manual: t("aiSupport.teamTools.sequencesPanel.triggers.manual"),
     inquiry_no_purchase: t("aiSupport.teamTools.sequencesPanel.triggers.inquiryNoPurchase"),
+    lead_stage: t("aiSupport.teamTools.sequencesPanel.triggers.leadStage"),
   }), [t]);
+  const stageLabel = (stage) => (stage ? t(`aiSupport.teamTools.sequencesPanel.stages.${stage}`) : t("aiSupport.teamTools.sequencesPanel.noMove"));
+  const triggerHint = form.trigger_type === "inquiry_no_purchase"
+    ? t("aiSupport.teamTools.sequencesPanel.triggers.inquiryHint")
+    : form.trigger_type === "lead_stage"
+      ? t("aiSupport.teamTools.sequencesPanel.triggers.leadStageHint")
+      : t("aiSupport.teamTools.sequencesPanel.triggers.manualHint");
+  const finalizeParts = delayParts(form.finalize_after_minutes);
 
   return (
     <div className="space-y-4" data-sequences-panel="true">
@@ -228,11 +268,45 @@ export default function SequencesPanel({ headers, tenantId }) {
               <Field label={t("aiSupport.teamTools.sequencesPanel.name")}>
                 <TextInput value={form.name} maxLength={120} onChange={(event) => setForm((c) => ({ ...c, name: event.target.value }))} placeholder={t("aiSupport.teamTools.sequencesPanel.namePlaceholder")} />
               </Field>
-              <Field label={t("aiSupport.teamTools.sequencesPanel.trigger")} hint={form.trigger_type === "inquiry_no_purchase" ? t("aiSupport.teamTools.sequencesPanel.triggers.inquiryHint") : t("aiSupport.teamTools.sequencesPanel.triggers.manualHint")}>
+              <Field label={t("aiSupport.teamTools.sequencesPanel.trigger")} hint={triggerHint}>
                 <SelectInput value={form.trigger_type} onChange={(event) => setForm((c) => ({ ...c, trigger_type: event.target.value }))}>
                   <option value="manual">{triggerLabel.manual}</option>
                   <option value="inquiry_no_purchase">{triggerLabel.inquiry_no_purchase}</option>
+                  <option value="lead_stage">{triggerLabel.lead_stage}</option>
                 </SelectInput>
+              </Field>
+            </div>
+            {form.trigger_type === "lead_stage" ? (
+              <Field label={t("aiSupport.teamTools.sequencesPanel.stage")}>
+                <SelectInput value={form.trigger_stage} onChange={(event) => setForm((c) => ({ ...c, trigger_stage: event.target.value }))}>
+                  {STAGES.map((stage) => <option key={stage} value={stage}>{stageLabel(stage)}</option>)}
+                </SelectInput>
+              </Field>
+            ) : null}
+            <div className="grid gap-4 sm:grid-cols-3">
+              <Field label={t("aiSupport.teamTools.sequencesPanel.moveIfReplied")}>
+                <SelectInput value={form.move_to_if_replied} onChange={(event) => setForm((c) => ({ ...c, move_to_if_replied: event.target.value }))}>
+                  <option value="">{stageLabel("")}</option>
+                  {STAGES.map((stage) => <option key={stage} value={stage}>{stageLabel(stage)}</option>)}
+                </SelectInput>
+              </Field>
+              <Field label={t("aiSupport.teamTools.sequencesPanel.moveIfNoReply")}>
+                <SelectInput value={form.move_to_if_no_reply} onChange={(event) => setForm((c) => ({ ...c, move_to_if_no_reply: event.target.value }))}>
+                  <option value="">{stageLabel("")}</option>
+                  {STAGES.map((stage) => <option key={stage} value={stage}>{stageLabel(stage)}</option>)}
+                </SelectInput>
+              </Field>
+              <Field label={t("aiSupport.teamTools.sequencesPanel.finalizeAfter")} hint={t("aiSupport.teamTools.sequencesPanel.finalizeHint")}>
+                <div className="flex gap-2">
+                  <TextInput inputMode="numeric" value={finalizeParts.value} onChange={(event) => setForm((c) => ({ ...c, finalize_after_minutes: minutesFrom(event.target.value.replace(/\D/g, ""), finalizeParts.unit) }))} className="!w-20" />
+                  <div className="min-w-0 flex-1">
+                    <SelectInput value={finalizeParts.unit} onChange={(event) => setForm((c) => ({ ...c, finalize_after_minutes: minutesFrom(finalizeParts.value, event.target.value) }))}>
+                      <option value="minutes">{t("aiSupport.teamTools.sequencesPanel.units.minutes")}</option>
+                      <option value="hours">{t("aiSupport.teamTools.sequencesPanel.units.hours")}</option>
+                      <option value="days">{t("aiSupport.teamTools.sequencesPanel.units.days")}</option>
+                    </SelectInput>
+                  </div>
+                </div>
               </Field>
             </div>
             <Field label={t("aiSupport.teamTools.sequencesPanel.channels")}>
@@ -286,12 +360,20 @@ export default function SequencesPanel({ headers, tenantId }) {
                   <div className="min-w-0 flex-1">
                     <div className="flex flex-wrap items-center gap-2">
                       <span className="text-sm font-black text-white">{sequence.name}</span>
-                      <span className={`rounded-full px-2 py-0.5 text-[10px] font-black ${sequence.trigger_type === "inquiry_no_purchase" ? "bg-emerald-400/15 text-emerald-200" : "bg-white/[0.06] text-slate-300"}`}>{triggerLabel[sequence.trigger_type] || sequence.trigger_type}</span>
+                      <span className={`rounded-full px-2 py-0.5 text-[10px] font-black ${sequence.trigger_type === "manual" ? "bg-white/[0.06] text-slate-300" : "bg-emerald-400/15 text-emerald-200"}`}>
+                        {triggerLabel[sequence.trigger_type] || sequence.trigger_type}
+                        {sequence.trigger_type === "lead_stage" && sequence.trigger_stage ? ` · ${stageLabel(sequence.trigger_stage)}` : ""}
+                      </span>
                       {sequence.is_active === false ? <span className="rounded-full bg-slate-500/15 px-2 py-0.5 text-[10px] font-black text-slate-400">{t("aiSupport.teamTools.sequencesPanel.paused")}</span> : null}
                     </div>
                     <div className="mt-1 text-[11px] text-slate-400">
-                      {asArray(sequence.steps).map((step, index) => `${index + 1}. ${describeDelay(t, step.delay_minutes)}`).join(" ← ")}
+                      {asArray(sequence.steps).map((step, index) => `${index + 1}. ${describeDelay(t, step.delay_minutes)}${step.mode === "ai" ? " ✨" : ""}`).join(" ← ")}
                     </div>
+                    {sequence.move_to_if_replied || sequence.move_to_if_no_reply ? (
+                      <div className="mt-1 text-[11px] text-cyan-200/80">
+                        {t("aiSupport.teamTools.sequencesPanel.movesTo", { replied: stageLabel(sequence.move_to_if_replied), noReply: stageLabel(sequence.move_to_if_no_reply) })}
+                      </div>
+                    ) : null}
                     <div className="mt-1 text-[11px] text-slate-500">
                       {asArray(sequence.channels).map((channel) => CHANNEL_LABEL[channel] || channel).join(" · ")}
                       {" · "}

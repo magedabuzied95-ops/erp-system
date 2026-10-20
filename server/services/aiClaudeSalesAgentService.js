@@ -21,7 +21,7 @@
  */
 import Anthropic from "@anthropic-ai/sdk";
 import db from "../database/db.js";
-import { addressRulesFor } from "../utils/customerGender.js";
+import { addressRulesFor, inferCustomerGender } from "../utils/customerGender.js";
 import { buildToolRegistry } from "./aiToolRegistryService.js";
 import { loadPersona, DEFAULT_PERSONA } from "./aiPersonaService.js";
 import { loadSupportKnowledgeBase } from "./aiSupportKnowledgeBaseService.js";
@@ -635,6 +635,70 @@ export const runClaudeSalesAgent = async ({
     const reason = error?.reason || (error instanceof Anthropic.APIError ? `api_${error.status}` : "error");
     console.warn("[claude-agent] skipped — brain V2 reply kept", { session_id: sessionId, intent, reason, message: error?.message, ms: Date.now() - startedAt });
     return null;
+  }
+};
+
+/**
+ * One follow-up message for a customer who went quiet — a message sequence's "ai" step. Written
+ * from the same prompt and the same conversation as a live reply, so the nudge picks up where the
+ * talk stopped ("لسه حابب الإير فورس الأبيض مقاس 42؟") instead of a generic "لسه مهتم؟".
+ *
+ * @returns {Promise<string>} the text, or "" so the sequence falls back to its fixed text.
+ */
+export const writeFollowUpMessage = async ({
+  tenantId = null,
+  sessionId = "",
+  customerName = "",
+  instruction = "",
+  stepNumber = 1,
+  totalSteps = 1,
+  loaders = {},
+} = {}) => {
+  if (!isClaudeAgentEnabled() || !text(instruction)) return "";
+  const startedAt = Date.now();
+  try {
+    const [persona, kb, history] = await Promise.all([
+      (loaders.persona || (() => loadPersona({ tenantId })))().catch(() => DEFAULT_PERSONA),
+      (loaders.knowledgeBase || (() => loadSupportKnowledgeBase({ tenantId })))()
+        .then((loaded) => ({ ...(loaded?.knowledge_base || {}), branches: asArray(loaded?.branches) }))
+        .catch(() => ({})),
+      (loaders.history || (() => loadHistory({ tenantId, sessionId, currentMessage: "" })))().catch(() => []),
+    ]);
+    const task = [
+      "<follow_up_task>",
+      "الرسالة دي من المتجر ليك إنت، مش من العميل. العميل بطّل يرد من آخر رسالة.",
+      `المطلوب في المتابعة دي: ${text(instruction)}`,
+      `دي متابعة رقم ${stepNumber} من ${totalSteps}.`,
+      "اكتب رسالة متابعة واحدة قصيرة (سطر أو اتنين) طبيعية، مبنية على اللي اتكلمتوا فيه فعلًا — اذكر الموديل أو المقاس لو كانوا اتقالوا.",
+      "من غير ضغط ولا إلحاح، ومتكررش متابعة قديمة بنفس الكلام. متخترعش عرض ولا خصم ولا سعر مش مكتوب.",
+      "اكتب نص الرسالة بس.",
+      "</follow_up_task>",
+    ].join("\n");
+    const response = await client().beta.messages.create(
+      {
+        model: agentModel(),
+        max_tokens: 600,
+        system: [
+          { type: "text", text: buildStablePrompt({ kb, persona }), cache_control: { type: "ephemeral" } },
+          { type: "text", text: buildDynamicContext({ customerName, channel: "", gender: inferCustomerGender(customerName).gender }) },
+        ],
+        // The task closes the transcript as a user turn: the API needs one last, and the system half
+        // above says it is the store speaking.
+        messages: [...history, { role: "user", content: task }],
+        output_config: { effort: agentEffort() },
+        betas: ["server-side-fallback-2026-07-01"],
+        fallbacks: "default",
+      },
+      { timeout: agentDeadlineMs() }
+    );
+    if (response.stop_reason === "refusal" || response.stop_reason === "max_tokens") return "";
+    const written = asArray(response.content).filter((block) => block.type === "text").map((block) => block.text).join("\n")
+      .replace(/\*\*/g, "").replace(/^#+\s*/gm, "").trim();
+    console.info("[claude-agent] follow-up written", { session_id: sessionId, step: stepNumber, ms: Date.now() - startedAt, chars: written.length });
+    return written;
+  } catch (error) {
+    console.warn("[claude-agent] follow-up not written", { session_id: sessionId, message: error?.message, ms: Date.now() - startedAt });
+    return "";
   }
 };
 

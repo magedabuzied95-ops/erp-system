@@ -34,6 +34,9 @@ import {
   enrollSessionInSequence,
   listMessageSequences,
   listSessionEnrollments,
+  onLeadStageChanged,
+  SEQUENCE_STAGES,
+  STEP_MODES,
   stopEnrollment,
   updateMessageSequence,
 } from "../services/messageSequencesService.js";
@@ -8543,6 +8546,9 @@ router.patch("/inbox/:conversationId/lead-status", protect, inboxReply(), async 
       reason: "lead_status_updated",
       at: new Date().toISOString(),
     });
+    // The stage's follow-up sequence starts (and another stage's stops). Never holds the response.
+    onLeadStageChanged({ tenantId, sessionId: conversation.session_id || conversationId, stage: nextLeadStatus, channel: conversation.channel || "" })
+      .catch((error) => console.warn("[message-sequence:stage-hook-failed]", { conversation_id: conversationId, message: error?.message }));
 
     return res.json({
       success: true,
@@ -8616,6 +8622,10 @@ router.patch("/inbox/:conversationId/labels", protect, inboxReply(), async (req,
       return sendError(res, Object.assign(new Error(`Conversation not found for tenant ${tenantId}: ${conversationId}`), { status: 404, code: "AI_INBOX_CONVERSATION_NOT_FOUND" }), "Conversation not found");
     }
     const nextLeadStatus = conversation.lead_status || requestedLeadStatus || "new";
+    if (requestedLeadStatus) {
+      onLeadStageChanged({ tenantId, sessionId: conversationId, stage: nextLeadStatus, channel: conversation.channel || "" })
+        .catch((error) => console.warn("[message-sequence:stage-hook-failed]", { conversation_id: conversationId, message: error?.message }));
+    }
 
     emitToRooms([`tenant:${tenantId}`], "ai_inbox:refresh", {
       tenant_id: tenantId,
@@ -8901,7 +8911,7 @@ router.get("/sequences", protect, inboxView(), async (req, res) => {
   try {
     const tenantId = toTenantId(req);
     const sequences = await listMessageSequences({ tenantId });
-    return res.json({ success: true, sequences, channels: SEQUENCE_CHANNELS, triggers: SEQUENCE_TRIGGERS });
+    return res.json({ success: true, sequences, channels: SEQUENCE_CHANNELS, triggers: SEQUENCE_TRIGGERS, stages: SEQUENCE_STAGES, step_modes: STEP_MODES });
   } catch (error) {
     return sendError(res, error, "Failed to load message sequences");
   }

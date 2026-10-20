@@ -2699,8 +2699,34 @@
         "manual": "Manually from the inbox",
         "manualHint": "An operator starts it from the conversation.",
         "inquiryNoPurchase": "Automatic: asked but did not buy",
-        "inquiryHint": "Any customer who writes in on the selected channels is enrolled. The clock starts from their last message."
+        "inquiryHint": "Any customer who writes in on the selected channels is enrolled. The clock starts from their last message.",
+        "leadStage": "Automatic: when the lead enters a stage",
+        "leadStageHint": "Moving a conversation into this stage starts the follow-up; moving it to another stage stops it."
       },
+      "stage": "Stage that starts it",
+      "moveIfReplied": "If they reply, move to",
+      "moveIfNoReply": "If no reply, move to",
+      "finalizeAfter": "Decide \"no reply\" after the last step by",
+      "finalizeHint": "How long to wait after the last follow-up before moving the lead.",
+      "noMove": "Don't move",
+      "movesTo": "Reply → {{replied}} · No reply → {{noReply}}",
+      "stages": {
+        "new": "New",
+        "contacted": "Contacted",
+        "interested": "Interested",
+        "negotiation": "Negotiation",
+        "won": "Won",
+        "lost": "Lost"
+      },
+      "stepMode": "Message",
+      "modes": {
+        "text": "Fixed text",
+        "ai": "Written by the AI from the conversation"
+      },
+      "aiInstruction": "What this follow-up should do",
+      "aiInstructionHint": "The AI writes the message at send time from this conversation (the model, colour and size they talked about).",
+      "aiInstructionPlaceholder": "Remind them of the model they asked about and ask if they need help with the size",
+      "fallbackBody": "Fallback text (if the AI is unavailable)",
       "channels": "Channels",
       "stopOnReply": "Stop when the customer replies",
       "stopOnReplyHint": "After the first sequence message, any reply from the customer ends it.",
