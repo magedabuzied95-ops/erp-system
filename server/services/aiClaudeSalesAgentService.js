@@ -31,7 +31,6 @@ import {
   isTextGenerationAvailable,
   noteOpenAiFailure,
   noteOpenAiSuccess,
-  resolveSupportModel,
   resolveSupportSamplingParams,
 } from "./openaiSupportService.js";
 
@@ -44,6 +43,11 @@ const positiveNumber = (value, fallback) => {
 };
 
 export const DEFAULT_AGENT_MODEL = "claude-sonnet-5-5";
+// Picked on the playground scenario run (2026-10-20): gpt-4o and gpt-5.1 invented grades, lost the
+// model across turns and skipped tool calls; gpt-5.5 searched, offered the closest model honestly and
+// quoted grades and prices from the data. Only the sales agent uses it — every other AI path keeps
+// AI_SUPPORT_MODEL. AI_SALES_AGENT_OPENAI_MODEL overrides.
+export const DEFAULT_OPENAI_AGENT_MODEL = "gpt-5.5";
 const MAX_TOOL_ROUNDS = 5;
 const DEFAULT_DEADLINE_MS = 25_000;
 const HISTORY_ROWS = 24;
@@ -107,7 +111,7 @@ export const agentAppliesTo = async (inbound = {}, { loadTestContacts } = {}) =>
 
 const agentModel = () =>
   agentProvider() === "openai"
-    ? text(process.env.AI_SALES_AGENT_OPENAI_MODEL) || resolveSupportModel()
+    ? text(process.env.AI_SALES_AGENT_OPENAI_MODEL) || DEFAULT_OPENAI_AGENT_MODEL
     : text(process.env.AI_CLAUDE_AGENT_MODEL) || DEFAULT_AGENT_MODEL;
 // Chat is a low-effort workload: at "low" the model skips thinking on simple turns, which is what
 // a customer waiting on WhatsApp feels.
