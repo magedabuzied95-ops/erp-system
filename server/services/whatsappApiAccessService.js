@@ -34,10 +34,12 @@ import {
   tryDecryptWhatsappCloudSecret,
 } from "./whatsappCloudCryptoService.js";
 import { integrationAccessToken, listIntegrations } from "./whatsappEmbeddedSignupService.js";
+import { ensureWhatsappTemplateSchema } from "./whatsappTemplateStudioService.js";
 
 export const API_KEY_PREFIX = "m1wa_";
 export const API_KEY_RANDOM_LENGTH = 40;
-export const WEBHOOK_EVENTS = Object.freeze(["message.received", "message.status", "message.sent"]);
+// template.status — a template's review state changed on Meta (approved / rejected / paused …).
+export const WEBHOOK_EVENTS = Object.freeze(["message.received", "message.status", "message.sent", "template.status"]);
 export const WEBHOOK_AUTO_DISABLE_AFTER = 20;
 export const WEBHOOK_TIMEOUT_MS = 5000;
 const LAST_USED_THROTTLE_MS = 60 * 1000;
@@ -92,6 +94,27 @@ export const ensureWhatsappApiAccessSchema = () => {
       )
     `);
     await db.query(`CREATE INDEX IF NOT EXISTS idx_whatsapp_api_webhooks_tenant ON whatsapp_api_webhooks (tenant_id, is_active)`);
+    // Every message sent through the public API, so GET /messages/:wamid can answer its status.
+    // Meta's status webhooks move it forward (accepted → sent → delivered → read, or failed).
+    await db.query(`
+      CREATE TABLE IF NOT EXISTS whatsapp_api_messages (
+        id BIGSERIAL PRIMARY KEY,
+        tenant_id INTEGER NOT NULL,
+        api_key_id INTEGER,
+        wamid VARCHAR(200) NOT NULL,
+        phone_number_id VARCHAR(64) NOT NULL DEFAULT '',
+        to_phone VARCHAR(32) NOT NULL DEFAULT '',
+        type VARCHAR(24) NOT NULL DEFAULT 'text',
+        template_name VARCHAR(512) NOT NULL DEFAULT '',
+        status VARCHAR(16) NOT NULL DEFAULT 'accepted',
+        failure_reason TEXT NOT NULL DEFAULT '',
+        status_at TIMESTAMPTZ,
+        created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+        updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+      )
+    `);
+    await db.query(`CREATE UNIQUE INDEX IF NOT EXISTS uq_whatsapp_api_messages_wamid ON whatsapp_api_messages (wamid)`);
+    await db.query(`CREATE INDEX IF NOT EXISTS idx_whatsapp_api_messages_tenant ON whatsapp_api_messages (tenant_id, created_at DESC)`);
   })().catch((error) => {
     schemaReady = null;
     throw error;
@@ -418,7 +441,22 @@ export const resolveSendCredentials = async ({ tenantId, phoneNumberId = "" }) =
   );
 };
 
-const postCloudMessage = async ({ tenantId, phoneNumberId, message }) => {
+const recordApiMessage = async ({ tenantId, apiKeyId = null, messageId, phoneNumberId, message }) => {
+  if (!messageId) return;
+  try {
+    await ensureWhatsappApiAccessSchema();
+    await db.query(
+      `INSERT INTO whatsapp_api_messages (tenant_id, api_key_id, wamid, phone_number_id, to_phone, type, template_name)
+       VALUES ($1, $2, $3, $4, $5, $6, $7)
+       ON CONFLICT (wamid) DO NOTHING`,
+      [tenantOf(tenantId), idOf(apiKeyId) || null, messageId, text(phoneNumberId), text(message?.to).slice(0, 32), text(message?.type).slice(0, 24) || "text", text(message?.template?.name).slice(0, 512)]
+    );
+  } catch (error) {
+    console.warn("[whatsapp-public-api:record-failed]", { message: error?.message || String(error) });
+  }
+};
+
+const postCloudMessage = async ({ tenantId, phoneNumberId, message, apiKeyId = null }) => {
   const credentials = await resolveSendCredentials({ tenantId, phoneNumberId });
   const result = await graphRequest({
     path: `/${credentials.graphVersion}/${credentials.phoneNumberId}/messages`,
@@ -427,16 +465,17 @@ const postCloudMessage = async ({ tenantId, phoneNumberId, message }) => {
     accessToken: credentials.accessToken,
   });
   const messageId = text(result?.messages?.[0]?.id);
+  await recordApiMessage({ tenantId, apiKeyId, messageId, phoneNumberId: credentials.phoneNumberId, message });
   void dispatchWhatsappEvent({
     tenantId,
     event: "message.sent",
     phoneNumberId: credentials.phoneNumberId,
     payload: { to: message.to, message_id: messageId, type: message.type, timestamp: Math.floor(Date.now() / 1000) },
   }).catch(() => {});
-  return { message_id: messageId, phone_number_id: credentials.phoneNumberId };
+  return { message_id: messageId, phone_number_id: credentials.phoneNumberId, status: "accepted" };
 };
 
-export const sendApiText = async ({ tenantId, phoneNumberId = "", to, text: body }) => {
+export const sendApiText = async ({ tenantId, phoneNumberId = "", to, text: body, apiKeyId = null }) => {
   const recipient = toGraphRecipient(to);
   const message = String(body ?? "");
   if (!recipient || recipient.length < 8) throw httpError("`to` must be a phone number in international format", 400, "WHATSAPP_PHONE_REQUIRED");
@@ -445,23 +484,288 @@ export const sendApiText = async ({ tenantId, phoneNumberId = "", to, text: body
   return postCloudMessage({
     tenantId,
     phoneNumberId,
+    apiKeyId,
     message: { messaging_product: "whatsapp", recipient_type: "individual", to: recipient, type: "text", text: { preview_url: false, body: message } },
   });
 };
 
-export const buildTemplateMessage = ({ to, templateName, language = "ar", variables = [] }) => {
+/*
+ * Session media by public URL (image / video / audio / document). Like text, it only reaches
+ * the customer inside Meta's 24-hour service window (131047 otherwise, passed through).
+ */
+export const API_MEDIA_TYPES = Object.freeze(["image", "video", "audio", "document"]);
+
+export const buildMediaMessage = ({ to, type, url, caption = "", filename = "" }) => {
+  const recipient = toGraphRecipient(to);
+  const kind = text(type).toLowerCase();
+  const link = text(url);
+  if (!recipient || recipient.length < 8) throw httpError("`to` must be a phone number in international format", 400, "WHATSAPP_PHONE_REQUIRED");
+  if (!API_MEDIA_TYPES.includes(kind)) throw httpError("`type` must be text, image, video, audio or document", 400, "WHATSAPP_MESSAGE_TYPE_INVALID");
+  if (!/^https?:\/\//i.test(link) || link.length > 2000) throw httpError("`url` must be a public http(s) link to the file", 400, "WHATSAPP_MEDIA_URL_INVALID");
+  const media = { link };
+  const note = String(caption ?? "").trim();
+  if (note && kind !== "audio") {
+    if (note.length > 1024) throw httpError("`caption` is longer than 1024 characters", 400, "WHATSAPP_CAPTION_TOO_LONG");
+    media.caption = note;
+  }
+  if (kind === "document" && text(filename)) media.filename = text(filename).slice(0, 240);
+  return { messaging_product: "whatsapp", recipient_type: "individual", to: recipient, type: kind, [kind]: media };
+};
+
+export const sendApiMedia = async ({ tenantId, phoneNumberId = "", to, type, url, caption, filename, apiKeyId = null }) =>
+  postCloudMessage({ tenantId, phoneNumberId, apiKeyId, message: buildMediaMessage({ to, type, url, caption, filename }) });
+
+const HEADER_MEDIA = ["image", "video", "document"];
+
+// `variables` may be a list (positional {{1}}, {{2}}…) or an object: numeric keys are positional
+// ("1", "2"…, sent in order), any other key is a named parameter ({{first_name}}).
+export const templateBodyParameters = (variables) => {
+  if (Array.isArray(variables)) return variables.map((item) => ({ type: "text", text: String(item ?? "") }));
+  if (!variables || typeof variables !== "object") return [];
+  const entries = Object.entries(variables);
+  const positional = entries.filter(([key]) => /^\d+$/.test(key)).sort((a, b) => Number(a[0]) - Number(b[0]));
+  const named = entries.filter(([key]) => !/^\d+$/.test(key));
+  return [
+    ...positional.map(([, value]) => ({ type: "text", text: String(value ?? "") })),
+    ...named.map(([key, value]) => ({ type: "text", parameter_name: key, text: String(value ?? "") })),
+  ];
+};
+
+// `buttons_variables`: { "<button index>": "value" } or [{ index, value }]. The index is the
+// button's position in the template (0-based). URL buttons take the dynamic URL suffix; copy-code
+// buttons take the coupon code. `buttonTypes` (from the stored template) picks the sub_type.
+export const templateButtonComponents = (buttonsVariables, buttonTypes = []) => {
+  const pairs = Array.isArray(buttonsVariables)
+    ? buttonsVariables.map((item) => [item?.index, item?.value ?? item?.text])
+    : buttonsVariables && typeof buttonsVariables === "object"
+      ? Object.entries(buttonsVariables)
+      : [];
+  return pairs
+    .filter(([index]) => /^\d+$/.test(String(index ?? "")))
+    .sort((a, b) => Number(a[0]) - Number(b[0]))
+    .map(([index, value]) => {
+      const kind = text(buttonTypes[Number(index)]).toUpperCase();
+      if (kind === "COPY_CODE") {
+        return { type: "button", sub_type: "copy_code", index: String(index), parameters: [{ type: "coupon_code", coupon_code: String(value ?? "") }] };
+      }
+      return { type: "button", sub_type: "url", index: String(index), parameters: [{ type: "text", text: String(value ?? "") }] };
+    });
+};
+
+/**
+ * Graph template message. The original shape ({ to, templateName, language, variables[] }) is
+ * unchanged; `buttonsVariables`, `header` ({ type, url, filename } or { text }) and named
+ * variables are additive.
+ */
+export const buildTemplateMessage = ({ to, templateName, language = "ar", variables = [], buttonsVariables = null, header = null, headerFormat = "", buttonTypes = [] }) => {
   const recipient = toGraphRecipient(to);
   const name = text(templateName);
   if (!recipient || recipient.length < 8) throw httpError("`to` must be a phone number in international format", 400, "WHATSAPP_PHONE_REQUIRED");
   if (!/^[a-z0-9_]{1,512}$/.test(name)) throw httpError("`template_name` is invalid", 400, "WHATSAPP_TEMPLATE_NAME_INVALID");
-  const values = (Array.isArray(variables) ? variables : []).map((item) => String(item ?? ""));
   const template = { name, language: { code: text(language) || "ar" } };
-  if (values.length) template.components = [{ type: "body", parameters: values.map((value) => ({ type: "text", text: value })) }];
+  const components = [];
+  if (header && typeof header === "object") {
+    const kind = text(header.type || header.format || headerFormat).toLowerCase();
+    if (text(header.url)) {
+      const mediaKind = HEADER_MEDIA.includes(kind) ? kind : "image";
+      if (!/^https?:\/\//i.test(text(header.url))) throw httpError("`header.url` must be a public http(s) link", 400, "WHATSAPP_MEDIA_URL_INVALID");
+      const media = { link: text(header.url), ...(mediaKind === "document" && text(header.filename) ? { filename: text(header.filename).slice(0, 240) } : {}) };
+      components.push({ type: "header", parameters: [{ type: mediaKind, [mediaKind]: media }] });
+    } else if (header.text !== undefined && String(header.text ?? "") !== "") {
+      components.push({ type: "header", parameters: [{ type: "text", text: String(header.text) }] });
+    }
+  }
+  const body = templateBodyParameters(variables);
+  if (body.length) components.push({ type: "body", parameters: body });
+  components.push(...templateButtonComponents(buttonsVariables, buttonTypes));
+  if (components.length) template.components = components;
   return { messaging_product: "whatsapp", to: recipient, type: "template", template };
 };
 
-export const sendApiTemplate = async ({ tenantId, phoneNumberId = "", to, templateName, language, variables }) =>
-  postCloudMessage({ tenantId, phoneNumberId, message: buildTemplateMessage({ to, templateName, language, variables }) });
+// The stored templates this key may use: those of its number's WABA (or all, for an unpinned key).
+const storedTemplates = async ({ tenantId, phoneNumberId = "" }) => {
+  await ensureWhatsappTemplateSchema();
+  const result = await db.query(`SELECT * FROM whatsapp_message_templates WHERE tenant_id = $1 ORDER BY name, language`, [tenantOf(tenantId)]);
+  const pinned = text(phoneNumberId);
+  if (!pinned) return result.rows;
+  const rows = await listIntegrations({ tenantId }).catch(() => []);
+  const waba = text(rows.find((row) => text(row.phone_number_id) === pinned)?.waba_id) || (cloudConfig().phoneNumberId === pinned ? cloudConfig().businessAccountId : "");
+  return waba ? result.rows.filter((row) => !text(row.waba_id) || text(row.waba_id) === waba) : result.rows;
+};
+
+/**
+ * Picks the stored template a send refers to. `language` omitted: the one language it exists in,
+ * or 400 template_ambiguous when there are several. A name we do not hold locally is still sent
+ * (Meta decides) — with "ar" as before.
+ */
+export const resolveApiTemplate = async ({ tenantId, phoneNumberId = "", templateName = "", templateId = "", language = "" }) => {
+  const rows = await storedTemplates({ tenantId, phoneNumberId });
+  const wantedId = text(templateId);
+  let candidates = wantedId
+    ? rows.filter((row) => String(row.id) === wantedId || text(row.meta_template_id) === wantedId)
+    : rows.filter((row) => row.name === text(templateName));
+  if (wantedId && !candidates.length) throw httpError("Template not found", 404, "WHATSAPP_TEMPLATE_NOT_FOUND");
+  const lang = text(language);
+  if (lang) candidates = candidates.filter((row) => row.language === lang);
+  const approved = candidates.filter((row) => row.status === "APPROVED");
+  const pool = approved.length ? approved : candidates;
+  const languages = [...new Set(pool.map((row) => row.language))];
+  if (!lang && languages.length > 1) {
+    throw Object.assign(httpError("This template exists in several languages — pass `language`", 400, "WHATSAPP_TEMPLATE_AMBIGUOUS"), {
+      details: { languages },
+    });
+  }
+  const row = pool[0] || null;
+  return {
+    row,
+    name: row?.name || text(templateName),
+    language: lang || row?.language || "ar",
+  };
+};
+
+export const sendApiTemplate = async ({ tenantId, phoneNumberId = "", to, templateName, templateId = "", language, variables, buttonsVariables = null, header = null, apiKeyId = null }) => {
+  const usesStored = Boolean(text(templateId)) || !text(language) || Boolean(header) || Boolean(buttonsVariables);
+  const resolved = usesStored
+    ? await resolveApiTemplate({ tenantId, phoneNumberId, templateName, templateId, language })
+    : { row: null, name: text(templateName), language: text(language) };
+  const buttonTypes = Array.isArray(resolved.row?.buttons) ? resolved.row.buttons.map((button) => button?.type) : [];
+  return postCloudMessage({
+    tenantId,
+    phoneNumberId,
+    apiKeyId,
+    message: buildTemplateMessage({
+      to,
+      templateName: resolved.name,
+      language: resolved.language,
+      variables,
+      buttonsVariables,
+      header,
+      headerFormat: text(resolved.row?.header_format),
+      buttonTypes,
+    }),
+  });
+};
+
+/* ------------------------------------------------------------------ discovery + status (public API) */
+
+/** Accounts an API key can send from: its pinned number, or every connected number. */
+export const listApiAccounts = async ({ tenantId, phoneNumberId = "" }) => {
+  const accounts = await listWhatsappAccounts({ tenantId });
+  const pinned = text(phoneNumberId);
+  return accounts
+    .filter((item) => !pinned || item.phone_number_id === pinned)
+    .map((item) => ({
+      id: item.phone_number_id,
+      name: item.verified_name || item.display_phone_number || item.phone_number_id,
+      phone_number: item.display_phone_number,
+      verified_name: item.verified_name,
+      status: "connected",
+    }));
+};
+
+const variablesOf = (value = "") => [...new Set([...String(value).matchAll(/\{\{\s*([A-Za-z0-9_]+)\s*\}\}/g)].map((match) => match[1]))];
+
+/** Templates for GET /templates — what a caller needs to fill a send. */
+export const listApiTemplates = async ({ tenantId, phoneNumberId = "", status = "approved" }) => {
+  const rows = await storedTemplates({ tenantId, phoneNumberId });
+  const all = text(status).toLowerCase() === "all";
+  return rows
+    .filter((row) => all || row.status === "APPROVED")
+    .map((row) => {
+      const examples = Array.isArray(row.body_examples) ? row.body_examples : [];
+      const buttons = (Array.isArray(row.buttons) ? row.buttons : []).map((button, index) => {
+        const dynamic = button?.type === "URL" && /\{\{\s*1\s*\}\}/.test(text(button?.url));
+        return {
+          index,
+          type: text(button?.type),
+          text: text(button?.text),
+          url: text(button?.url),
+          phone_number: text(button?.phone_number),
+          is_dynamic_url: dynamic,
+          variable: dynamic || button?.type === "COPY_CODE" ? String(index) : null,
+        };
+      });
+      return {
+        id: text(row.meta_template_id) || String(row.id),
+        local_id: row.id,
+        name: row.name,
+        language: row.language,
+        status: text(row.status).toLowerCase(),
+        category: text(row.category).toLowerCase(),
+        header: { format: text(row.header_format).toLowerCase(), text: text(row.header_text) },
+        body: text(row.body_text),
+        variables: variablesOf(row.body_text).map((key, index) => ({ key, example: /^\d+$/.test(key) ? text(examples[Number(key) - 1]) : text(examples[index]) })),
+        buttons_variables: buttons.filter((button) => button.variable !== null).map((button) => ({ index: button.index, type: button.type, example: text(row.buttons?.[button.index]?.example) })),
+        footer: text(row.footer_text),
+        buttons,
+      };
+    });
+};
+
+/** GET /messages/:wamid — messages sent through the API first, then the inbox's own record. */
+export const getApiMessage = async ({ tenantId, wamid = "" }) => {
+  const id = text(wamid);
+  if (!id || id.length > 200) throw httpError("Message not found", 404, "WHATSAPP_MESSAGE_NOT_FOUND");
+  await ensureWhatsappApiAccessSchema();
+  const sent = await db.query(`SELECT * FROM whatsapp_api_messages WHERE tenant_id = $1 AND wamid = $2 LIMIT 1`, [tenantOf(tenantId), id]);
+  const row = sent.rows[0];
+  if (row) {
+    return {
+      id: row.wamid,
+      message_id: row.wamid,
+      direction: "outbound",
+      type: row.type,
+      to: row.to_phone,
+      status: row.status,
+      failure_reason: row.failure_reason || null,
+      timestamp: Math.floor(new Date(row.status_at || row.created_at).getTime() / 1000),
+    };
+  }
+  try {
+    const inbox = await db.query(
+      `SELECT message_type, sender_type, delivery_status, delivery_error, created_at, updated_at
+         FROM ai_support_messages
+        WHERE tenant_id = $1 AND (external_message_id = $2 OR provider_message_id = $2)
+        ORDER BY id DESC LIMIT 1`,
+      [tenantOf(tenantId), id]
+    );
+    const message = inbox.rows[0];
+    if (message) {
+      const inbound = text(message.sender_type) === "customer";
+      return {
+        id,
+        message_id: id,
+        direction: inbound ? "inbound" : "outbound",
+        type: text(message.message_type) || "text",
+        status: inbound ? "received" : text(message.delivery_status).toLowerCase() || "sent",
+        failure_reason: text(message.delivery_error) || null,
+        timestamp: Math.floor(new Date(message.updated_at || message.created_at).getTime() / 1000),
+      };
+    }
+  } catch {
+    /* the inbox table is optional here */
+  }
+  throw httpError("Message not found", 404, "WHATSAPP_MESSAGE_NOT_FOUND");
+};
+
+const STATUS_RANK = { accepted: 0, sent: 1, delivered: 2, read: 3 };
+
+/** Meta status webhook → whatsapp_api_messages. Only ever moves forward; failed always lands. */
+export const applyApiMessageStatus = async ({ tenantId, messageId, status, error = null }) => {
+  const next = text(status).toLowerCase();
+  if (!text(messageId) || !(next in STATUS_RANK || next === "failed")) return;
+  await ensureWhatsappApiAccessSchema();
+  await db.query(
+    `UPDATE whatsapp_api_messages
+        SET status = $3::varchar,
+            failure_reason = CASE WHEN $3::text = 'failed' THEN $4::text ELSE failure_reason END,
+            status_at = NOW(), updated_at = NOW()
+      WHERE tenant_id = $1 AND wamid = $2
+        AND ($3::text = 'failed' OR status <> 'failed')
+        AND (CASE status WHEN 'accepted' THEN 0 WHEN 'sent' THEN 1 WHEN 'delivered' THEN 2 WHEN 'read' THEN 3 ELSE 0 END) < $5::int`,
+    [tenantOf(tenantId), text(messageId), next, text(error?.title || error?.message).slice(0, 500), next === "failed" ? 99 : STATUS_RANK[next]]
+  );
+};
 
 /* ------------------------------------------------------------------ webhooks */
 
@@ -513,6 +817,21 @@ export const updateWebhook = async ({ tenantId, id, input = {} }) => {
   const result = await db.query(`UPDATE whatsapp_api_webhooks SET ${sets.join(", ")} WHERE tenant_id = $1 AND id = $2 RETURNING *`, params);
   if (!result.rows[0]) throw httpError("Webhook not found", 404, "WHATSAPP_WEBHOOK_NOT_FOUND");
   return publicWebhook(result.rows[0]);
+};
+
+/** Returns { webhook, secret } — a new signing secret, shown once; the old one stops working now. */
+export const rotateWebhookSecret = async ({ tenantId, id, phoneNumberId = "" }) => {
+  await ensureWhatsappApiAccessSchema();
+  const secret = generateWebhookSecret();
+  const pinned = text(phoneNumberId);
+  const result = await db.query(
+    `UPDATE whatsapp_api_webhooks SET secret = $3
+      WHERE tenant_id = $1 AND id = $2 AND ($4::text = '' OR phone_number_id = $4::text)
+      RETURNING *`,
+    [tenantOf(tenantId), idOf(id), sealSecret(secret), pinned]
+  );
+  if (!result.rows[0]) throw httpError("Webhook not found", 404, "WHATSAPP_WEBHOOK_NOT_FOUND");
+  return { webhook: publicWebhook(result.rows[0]), secret };
 };
 
 export const deleteWebhook = async ({ tenantId, id }) => {
@@ -579,17 +898,19 @@ const deliver = async (row, event, data) => {
  * webhook is pinned to a number, only for that number). Fire-and-forget: resolves when every
  * delivery settled, and swallows every failure.
  */
-export const dispatchWhatsappEvent = async ({ tenantId, event, payload = {}, phoneNumberId = "" } = {}) => {
+export const dispatchWhatsappEvent = async ({ tenantId, event, payload = {}, phoneNumberId = "", phoneNumberIds = [] } = {}) => {
   try {
     if (!WEBHOOK_EVENTS.includes(event)) return { delivered: 0 };
     const tenant = idOf(tenantId);
     if (!tenant) return { delivered: 0 };
     await ensureWhatsappApiAccessSchema();
+    // A WABA-level event (template.status) reaches webhooks pinned to any of the WABA's numbers.
+    const numbers = [...new Set([text(phoneNumberId), ...(Array.isArray(phoneNumberIds) ? phoneNumberIds : []).map((item) => text(item))].filter(Boolean))];
     const result = await db.query(
       `SELECT * FROM whatsapp_api_webhooks
         WHERE tenant_id = $1 AND is_active = TRUE AND events ? $2
-          AND (phone_number_id = '' OR phone_number_id = $3)`,
-      [tenant, event, text(phoneNumberId)]
+          AND (phone_number_id = '' OR phone_number_id = ANY($3::text[]))`,
+      [tenant, event, numbers]
     );
     if (!result.rows.length) return { delivered: 0 };
     const data = { ...payload, ...(text(phoneNumberId) ? { phone_number_id: text(phoneNumberId) } : {}) };
@@ -663,6 +984,12 @@ export const extractCloudWebhookEvents = (body = {}) => {
 export const dispatchWhatsappCloudWebhookEvents = async ({ tenantId, body } = {}) => {
   try {
     const events = extractCloudWebhookEvents(body);
+    // Statuses of messages sent through the public API feed GET /messages/:wamid.
+    await Promise.allSettled(
+      events
+        .filter((item) => item.event === "message.status" && idOf(tenantId))
+        .map((item) => applyApiMessageStatus({ tenantId, messageId: item.payload.message_id, status: item.payload.status, error: item.payload.error }))
+    );
     await Promise.allSettled(events.map((item) => dispatchWhatsappEvent({ tenantId, ...item })));
   } catch {
     /* never surfaces */
@@ -705,5 +1032,10 @@ export default {
   dispatchWhatsappCloudWebhookEvents,
   sendApiText,
   sendApiTemplate,
+  sendApiMedia,
   listWhatsappAccounts,
+  listApiAccounts,
+  listApiTemplates,
+  getApiMessage,
+  rotateWebhookSecret,
 };

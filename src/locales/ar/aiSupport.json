@@ -3024,7 +3024,8 @@
     "events": {
       "received": "رسالة جاية",
       "status": "حالة التوصيل",
-      "sent": "رسالة اتبعتت"
+      "sent": "رسالة اتبعتت",
+      "templateStatus": "حالة قالب"
     }
   },
   "inboxOrg": {

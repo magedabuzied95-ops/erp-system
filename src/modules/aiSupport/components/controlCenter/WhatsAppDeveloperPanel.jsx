@@ -14,13 +14,14 @@ import ThemedSelect from "../../../../shared/ui/ThemedSelect";
 import { ActionButton, CopyRow, PanelSkeleton, StatusPill, TextInput, clean, formatDateTime } from "../integrations/integrationsUi.jsx";
 
 const SUPPRESSED = { suppressErrorStatuses: [400, 401, 403, 404, 409, 500, 502] };
-const EVENTS = ["message.received", "message.status", "message.sent"];
+const EVENTS = ["message.received", "message.status", "message.sent", "template.status"];
 const selectTrigger = "h-10 w-full rounded-xl border border-white/10 bg-slate-950/70 px-3 text-sm font-bold text-white";
 
 // Literal keys so a missing translation stays greppable.
 const eventLabel = (t, event) => {
   if (event === "message.received") return t("aiSupport.waDeveloper.events.received");
   if (event === "message.status") return t("aiSupport.waDeveloper.events.status");
+  if (event === "template.status") return t("aiSupport.waDeveloper.events.templateStatus");
   return t("aiSupport.waDeveloper.events.sent");
 };
 

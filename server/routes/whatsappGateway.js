@@ -148,7 +148,9 @@ export const processWhatsappCloudWebhook = async (body = {}) => {
       // Which of our connected numbers this belongs to. A delivery for a number we do not know
       // is logged and dropped rather than guessed at.
       const integration = phoneNumberId ? await findIntegrationByPhoneNumberId(phoneNumberId) : null;
-      if (!integration) {
+      // WABA-level fields carry no phone number; they are handled by dispatchWabaEvents
+      // (server/modules/whatsappOfficial/connect/wabaEvents.js), so only message changes warn here.
+      if (!integration && String(change?.field || "messages") === "messages") {
         console.warn("[whatsapp:cloud-webhook-unknown-number]", {
           phone_number_id: phoneNumberId,
           waba_id: String(entry?.id || ""),

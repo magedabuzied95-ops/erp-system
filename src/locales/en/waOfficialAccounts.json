@@ -1,1 +1,202 @@
-{}
+{
+  "actions": {
+    "changeDisplayName": "Change Display Name",
+    "reregister": "Re-register Number",
+    "syncParticipants": "Sync Participants",
+    "save": "Save",
+    "saving": "Saving…",
+    "saved": "Settings saved",
+    "unsaved": "You have unsaved changes",
+    "cancel": "Cancel",
+    "actionFailed": "That did not work. Try again."
+  },
+  "statusBar": {
+    "label": "Account status",
+    "active": "Active",
+    "inactive": "Inactive",
+    "suspended": "Suspended",
+    "saved": "Status updated",
+    "offNote": "While the number is not active, the AI and the auto reply do not answer it — only your team does."
+  },
+  "general": {
+    "title": "General",
+    "accountName": "Account Name",
+    "teamBased": "Team-Based Distribution",
+    "teamBasedHint": "New conversations on this number go to a team instead of one person.",
+    "team": "Team",
+    "user": "User",
+    "userHint": "Who gets this number's conversations by default.",
+    "distribution": "Distribution Strategy",
+    "strategies": {
+      "broadcast_all": "Broadcast to All",
+      "round_robin": "Round Robin",
+      "least_busy": "Least Busy",
+      "manual": "Manual"
+    },
+    "admins": "Admins",
+    "addAdmin": "Add an admin…",
+    "removeAdmin": "Remove",
+    "branch": "Branch",
+    "messagingLimit": "Messaging Limit",
+    "messagingLimitHint": "Set by Meta — customers per 24 hours.",
+    "conversationMode": "Conversation Mode",
+    "modes": {
+      "single_thread": "Single Thread",
+      "per_session": "New thread per session"
+    },
+    "handledByAi": "Handled By AI",
+    "handledByAiHint": "Off = the AI never answers this number; your team does.",
+    "automaticLead": "Automatic Lead",
+    "automaticLeadHint": "Open a lead for every new customer who writes to this number.",
+    "none": "— None —"
+  },
+  "tabs": {
+    "status": "Status",
+    "usage": "Usage & Cost",
+    "chatbot": "Chatbot Flow",
+    "autoReply": "Auto Reply",
+    "stickers": "Stickers",
+    "credentials": "Credentials & Webhook",
+    "ai": "AI"
+  },
+  "status": {
+    "nameNotVerified": "Meta has not verified the display name \"{{name}}\" yet, so customers see the phone number instead of the name.",
+    "nameAutoVerify": "Meta verifies the display name automatically when the number reaches a higher messaging limit. The verification cannot be requested.",
+    "nameApproved": "Meta approved the display name \"{{name}}\" — customers see it instead of the phone number.",
+    "pendingName": "New display name \"{{name}}\" is waiting for Meta's review ({{status}}).",
+    "limitLine": "Messaging limit: {{limit}} customers per 24 hours, shared by all the numbers of the business portfolio.",
+    "raiseFirst": "To raise the limit to {{next}}: verify the business, or deliver {{next}} template messages to different customers within 30 days using high-quality templates.",
+    "raiseHigher": "To reach {{next}}: keep the quality rating above Low and message at least half of your current limit within 7 days.",
+    "metaSuspended": "Meta has suspended this number — it cannot send or receive messages until Meta restores it.",
+    "registrationError": "Last registration failed",
+    "nameRejected": "Meta rejected the requested display name: {{reason}}",
+    "unlimited": "Your number has no daily customer limit.",
+    "noLimitYet": "Press \"Test Connection\" to read the messaging limit from Meta.",
+    "displayName": "Display Name",
+    "nameStatus": "Display Name Status",
+    "phone": "Phone Number",
+    "quality": "Quality Rating",
+    "coexistence": "Coexistence",
+    "insights": "Insights Enabled",
+    "blueTick": "Blue Tick",
+    "disconnectReason": "Disconnect Reason",
+    "disconnectedAt": "Disconnected At",
+    "lastSync": "Last read from Meta",
+    "never": "Never",
+    "lastError": "Meta answered with an error",
+    "synced": "Status read from Meta",
+    "yes": "Yes",
+    "no": "No"
+  },
+  "profile": {
+    "title": "WhatsApp business profile",
+    "about": "About",
+    "address": "Address",
+    "description": "Description",
+    "email": "Email",
+    "websites": "Websites",
+    "vertical": "Category",
+    "fetchedAt": "Fetched",
+    "refreshed": "Profile and status refreshed from Meta",
+    "empty": "Press \"Sync Participants\" to read the profile from Meta."
+  },
+  "usage": {
+    "card": "Service messages: {{used}} of 1,000 free used this month. Paid templates: {{marketing}} marketing, {{utility}} utility, {{authentication}} authentication. Spent so far: {{spent}} (Meta's prices, USD).",
+    "history": "History by month",
+    "month": "Month",
+    "service": "Service",
+    "free": "Free used",
+    "marketing": "Marketing",
+    "utility": "Utility",
+    "authentication": "Authentication",
+    "cost": "Cost (USD)",
+    "noData": "No usage from Meta for this number yet. Open the full page and press \"Sync from Meta\".",
+    "usageAlerts": "Usage alerts",
+    "usageAlertsHint": "Warn the team when this number is close to the monthly budget set on the Usage & Cost page.",
+    "openFull": "Open Usage & Cost",
+    "loadFailed": "Could not load the usage."
+  },
+  "chatbot": {
+    "enabled": "Chatbot Flow",
+    "enabledHint": "Run a chatbot flow on new messages to this number before the AI.",
+    "flow": "Flow",
+    "noFlows": "No chatbot flows yet — build one under WhatsApp → Chatbot Flows.",
+    "sessionTtl": "Session TTL",
+    "ttl": {
+      "run_once": "Run Once (Never repeat)",
+      "1h": "Repeat after 1 hour",
+      "24h": "Repeat after 24 hours",
+      "7d": "Repeat after 7 days",
+      "always": "Every message"
+    },
+    "activeDuringCampaign": "Active During Campaign",
+    "activeDuringCampaignHint": "Also run the flow when a customer answers a campaign message."
+  },
+  "autoReply": {
+    "active": "Auto Reply Active",
+    "activeHint": "Outside working hours this message answers instead of the AI — once per conversation per away period.",
+    "message": "Auto Reply Message",
+    "placeholder": "I am currently unavailable. I will get back to you as soon as possible.",
+    "start": "Auto Reply Start Time",
+    "end": "Auto Reply End Time",
+    "hoursHint": "Working hours on Cairo time: the message goes out OUTSIDE start → end. Hours may cross midnight. Leave both empty to reply at any time.",
+    "needMessage": "Write the message before turning the auto reply on."
+  },
+  "stickers": {
+    "add": "Add files",
+    "hint": "The sticker library your team and the agent can send. WEBP 512×512 is what WhatsApp shows as a sticker; up to 1 MB each.",
+    "empty": "No stickers yet.",
+    "remove": "Remove sticker",
+    "confirmRemove": "Remove this sticker from the library?",
+    "uploaded": "Stickers added",
+    "removed": "Sticker removed"
+  },
+  "credentials": {
+    "appSecret": "App Secret",
+    "accessToken": "Access Token",
+    "masked": "Stored on the server (hidden)",
+    "missing": "Not stored",
+    "apiTitle": "API Credentials",
+    "webhookTitle": "Webhook"
+  },
+  "ai": {
+    "workflow": "AI Workflow",
+    "commentWorkflow": "Comment Workflow",
+    "followupWorkflow": "Follow-up Workflow",
+    "noWorkflow": "— Default —",
+    "language": "Language",
+    "languages": {
+      "default": "Inbox default",
+      "auto": "Same as the customer",
+      "ar": "Arabic",
+      "ar-EG": "Egyptian Arabic",
+      "en": "English"
+    },
+    "imageDescriber": "Image Describer",
+    "imageDescriberHint": "Describe customer photos to the AI.",
+    "audioTranscriber": "Audio Transcriber",
+    "audioTranscriberHint": "Turn voice notes into text for the AI.",
+    "imagePrompt": "Image Description Prompt",
+    "instructions": "Instructions",
+    "instructionsHint": "Extra instructions for the AI on this number only.",
+    "sendIds": "Send message IDs to AI",
+    "separateBubbles": "Send AI replies as separate bubbles"
+  },
+  "displayNameModal": {
+    "title": "Change Display Name",
+    "body": "Meta reviews every new display name (usually 1–3 days). Until it is approved customers keep seeing the current name or the phone number. The name must match your business and follow Meta's display-name rules.",
+    "current": "Current name",
+    "label": "New display name",
+    "submit": "Send for review",
+    "sent": "Sent — the new name is waiting for Meta's review"
+  },
+  "registerModal": {
+    "title": "Re-register Number",
+    "body": "Registers this number on the Cloud API again — use it after Meta reports the number as not registered, or after a migration. Enter the 6-digit two-step verification PIN of the number (or choose a new one if it never had a PIN). The PIN is sent to Meta and is not stored here.",
+    "coexistence": "This number also runs on the WhatsApp Business app (coexistence). The app keeps it registered, so it does not need — and must not get — a Cloud API registration.",
+    "pin": "6-digit PIN",
+    "pinInvalid": "The PIN must be exactly 6 digits.",
+    "submit": "Register",
+    "done": "Meta registered the number"
+  }
+}

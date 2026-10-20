@@ -12,6 +12,7 @@ import { FileText, Image as ImageIcon, Plus, RefreshCw, Save, Send, Trash2, Uplo
 import { api } from "../../../../shared/api/api";
 import ThemedSelect from "../../../../shared/ui/ThemedSelect";
 import { ActionButton, PanelSkeleton, TextInput, clean, formatDateTime } from "../integrations/integrationsUi.jsx";
+import TemplateAnalyticsView from "./whatsappTemplateAnalytics/TemplateAnalyticsView.jsx";
 
 const SUPPRESSED = { suppressErrorStatuses: [400, 403, 404, 409, 413, 500, 502] };
 
@@ -164,6 +165,8 @@ export default function WhatsAppTemplatesPanel({ headers }) {
   const [notice, setNotice] = useState(null);
   const mountedRef = useRef(true);
   const fileRef = useRef(null);
+  // Analytics tab: holds the id of the template whose analytics are showing (another draft → editor).
+  const [analyticsFor, setAnalyticsFor] = useState(null);
 
   useEffect(() => () => { mountedRef.current = false; }, []);
 
@@ -356,6 +359,19 @@ export default function WhatsAppTemplatesPanel({ headers }) {
       ) : null}
       {locked ? <p className="rounded-xl border border-amber-300/20 bg-amber-400/10 p-2.5 text-xs font-bold text-amber-100">{t("aiSupport.waTemplates.lockedPending")}</p> : null}
 
+      {draft.id && draft.meta_template_id ? (
+        <div className="flex gap-1 border-b border-white/10 text-xs font-black">
+          {[["editor", t("waOfficialAnalytics.tab.editor")], ["analytics", t("waOfficialAnalytics.tab.analytics")]].map(([key, label]) => {
+            const active = key === "analytics" ? analyticsFor === draft.id : analyticsFor !== draft.id;
+            return (
+              <button key={key} type="button" onClick={() => setAnalyticsFor(key === "analytics" ? draft.id : null)} className={`-mb-px border-b-2 px-3 py-2 transition ${active ? "border-cyan-300 text-cyan-100" : "border-transparent text-slate-400 hover:text-slate-200"}`}>
+                {label}
+              </button>
+            );
+          })}
+        </div>
+      ) : null}
+      {draft.id && draft.meta_template_id && analyticsFor === draft.id ? <TemplateAnalyticsView headers={headers} templateId={draft.id} /> : (
       <div className="grid gap-4 xl:grid-cols-[minmax(0,1fr)_320px]">
         <fieldset disabled={locked} className="grid gap-3 md:grid-cols-2">
           <TextInput
@@ -497,6 +513,7 @@ export default function WhatsAppTemplatesPanel({ headers }) {
         </fieldset>
         <TemplatePreview draft={draft} />
       </div>
+      )}
     </div>
   );
 }

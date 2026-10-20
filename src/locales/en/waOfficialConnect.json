@@ -1,1 +1,69 @@
-{}
+{
+  "card": {
+    "channel": "Channel",
+    "connectingTo": "Connecting to",
+    "quota": "{{connected}} of {{max}} connected",
+    "quotaFull": "You have reached the maximum number of connected WhatsApp numbers.",
+    "title": "Connect WhatsApp Business",
+    "subtitle": "Send and receive WhatsApp messages from your inbox.",
+    "check": {
+      "messages": "Send and receive messages from the CRM",
+      "templates": "Use message templates for marketing and notifications",
+      "coexistence": "Keep using the WhatsApp Business app alongside the API",
+      "admin": "Requires admin access to a Meta Business portfolio"
+    },
+    "continue": "Continue with Meta",
+    "metaWillAsk": "Meta will ask you to authorise the connection.",
+    "secured": "Secured by M1 Store"
+  },
+  "mode": {
+    "label": "Connection type",
+    "cloud": "New number (Cloud API)",
+    "cloudHint": "A number that is not on the WhatsApp app. You will set a 6-digit PIN to register it.",
+    "coexistence": "Keep using the WhatsApp Business app (Coexistence)",
+    "coexistenceHint": "Your number stays on the phone app; contacts and recent chats are synced."
+  },
+  "flow": {
+    "finishing": "Meta finished — completing the connection…",
+    "coexistenceDone": "Connected in coexistence mode. Your number stays on the WhatsApp Business app; contacts and chat history sync was requested.",
+    "connectedNeedsPin": "Connected. One last step: choose a 6-digit PIN to register the number on Cloud API."
+  },
+  "pin": {
+    "title": "Register {{phone}}",
+    "hint": "Pick a 6-digit two-step verification PIN. Keep it — Meta asks for it if the number is moved later.",
+    "label": "6-digit PIN",
+    "submit": "Register number",
+    "later": "Later",
+    "invalid": "The PIN must be exactly 6 digits.",
+    "done": "The number is registered and ready to send.",
+    "metaRefused": "Meta refused the registration: {{error}}"
+  },
+  "status": {
+    "connected": "Connected",
+    "suspended": "Suspended",
+    "disconnected": "Disconnected"
+  },
+  "list": {
+    "title": "Connected numbers",
+    "subtitle": "Every official WhatsApp number on this account.",
+    "reload": "Reload",
+    "openAccounts": "Open accounts",
+    "noName": "No display name",
+    "quality": "Quality",
+    "limit": "Limit",
+    "coexistence": "Coexistence",
+    "cloudOnly": "Cloud API",
+    "register": "Register (PIN)",
+    "refresh": "Refresh from Meta",
+    "empty": "No WhatsApp number is connected yet."
+  },
+  "errors": {
+    "load": "Could not load the connect page.",
+    "failed": "The WhatsApp connection could not be completed.",
+    "cancelled": "The Meta window was closed at step: {{step}}",
+    "noCode": "Meta did not return an authorisation code. The window was probably closed.",
+    "notConfigured": "Embedded Signup is not configured on the server (META_APP_ID, META_APP_SECRET, META_WHATSAPP_CONFIG_ID).",
+    "sdkBlocked": "The Facebook SDK could not load. Disable the ad blocker for this site and try again.",
+    "encryptionMissing": "The token encryption key is not configured ({{code}})."
+  }
+}

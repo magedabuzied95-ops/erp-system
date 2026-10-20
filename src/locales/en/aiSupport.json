@@ -3016,7 +3016,8 @@
     "events": {
       "received": "Message received",
       "status": "Delivery status",
-      "sent": "Message sent"
+      "sent": "Message sent",
+      "templateStatus": "Template status"
     }
   },
   "inboxOrg": {

@@ -1,1 +1,198 @@
-{}
+{
+  "subtitle": "Sent, delivered, read, clicks and cost per template (from Meta).",
+  "loadFailed": "Couldn't load template analytics.",
+  "syncFailed": "Couldn't sync analytics from Meta.",
+  "enableFailed": "Meta refused to enable template analytics.",
+  "exportFailed": "Couldn't export the analytics.",
+  "synced": "Statistics updated from Meta.",
+  "enabled": "Template analytics enabled. Click \"Sync now\" in a few minutes.",
+  "notConnected": "No official WhatsApp account is connected yet. Connect one from WhatsApp → Connect account to see statistics.",
+  "lastSynced": "Last synced",
+  "syncNow": "Sync now",
+  "export": "Export",
+  "filters": {
+    "account": "Account",
+    "allAccounts": "All accounts",
+    "campaigns": "Campaigns",
+    "campaignsPlaceholder": "Select campaigns",
+    "campaignsCount": "{{n}} campaigns",
+    "clearCampaigns": "Clear selection",
+    "noCampaigns": "No template campaigns yet.",
+    "from": "From",
+    "to": "To"
+  },
+  "error": {
+    "title": "Couldn't update statistics",
+    "body": "We couldn't fetch the latest statistics from WhatsApp. This is usually temporary — try refreshing in a few minutes. If it keeps happening, contact support.",
+    "disabled": "Template analytics are turned off for this WhatsApp Business Account, so Meta returns no template statistics. Enable them, then sync again in a few minutes.",
+    "enable": "Enable analytics",
+    "technical": "Technical details"
+  },
+  "activity": {
+    "title": "Account activity",
+    "subtitle": "Totals for the whole WhatsApp number, per day. Inbound service chat is excluded. Not broken down by template — WhatsApp does not report that at this level.",
+    "marketing": "Marketing",
+    "utility": "Utility",
+    "authentication": "Authentication",
+    "date": "Date",
+    "account": "Account",
+    "empty": "No account activity for this period. Click \"Sync now\" to fetch it from Meta."
+  },
+  "kpi": {
+    "sent": "Sent",
+    "delivered": "Delivered",
+    "read": "Read",
+    "readRate": "Read rate",
+    "ofSent": "{{value}} of sent",
+    "ofDelivered": "{{value}} of delivered",
+    "readOverSent": "read / sent",
+    "clicks": "Total clicks",
+    "ctr": "CTR: {{value}}",
+    "uniqueClicks": "Unique clicks",
+    "uniqueUnavailable": "Meta does not report unique clicks",
+    "deliveryRate": "Delivery rate",
+    "deliveredOverSent": "delivered / sent",
+    "readOverDelivered": "read / delivered"
+  },
+  "trend": {
+    "title": "Daily trend",
+    "clicks": "Clicks"
+  },
+  "buttons": {
+    "title": "Button clicks",
+    "button": "Button",
+    "type": "Type",
+    "clicks": "Clicks",
+    "empty": "No button clicks (only Marketing/Utility templates report clicks).",
+    "url": "Link",
+    "quickReply": "Quick reply",
+    "phone": "Call",
+    "copyCode": "Copy code",
+    "other": "Other"
+  },
+  "cost": {
+    "title": "Cost",
+    "amountSpent": "Amount spent",
+    "perDelivered": "Cost per delivered",
+    "perUrlClick": "Cost per URL button click",
+    "currencyNote": "In the WhatsApp Business Account's billing currency, as Meta reports it."
+  },
+  "comparison": {
+    "title": "Per-template comparison",
+    "template": "Template",
+    "deliveryPct": "Delivery %",
+    "readPct": "Read %",
+    "ctr": "CTR",
+    "empty": "No templates with statistics in this period."
+  },
+  "tab": {
+    "editor": "Template",
+    "analytics": "Analytics",
+    "refresh": "Refresh analytics",
+    "range": "{{from}} → {{to}}"
+  },
+  "guide": {
+    "copy": "Copy",
+    "copied": "Copied",
+    "intro": "Our REST API lets another system (your website, CRM or ERP) send WhatsApp messages through the shop's official WhatsApp number and receive its events. Create a key from WhatsApp → API Keys and an events URL from WhatsApp → API Webhooks.",
+    "baseUrl": "Base URL",
+    "format": "Requests and responses are JSON (Content-Type: application/json). Every response carries \"success\": true or false.",
+    "auth": {
+      "title": "Authentication",
+      "body": "Every request carries an API key. Keys start with m1wa_ and are shown only once, when created — store it on your server and never in a browser or mobile app.",
+      "point1": "Send the key in one of these headers:",
+      "point2": "A key can be pinned to one WhatsApp number; it then sends only from that number. An unpinned key sends from the default number unless you pass whatsapp_account_id.",
+      "point3": "A disabled or deleted key answers 401 immediately."
+    },
+    "accounts": {
+      "title": "Discover accounts",
+      "body": "Lists the WhatsApp numbers this key can send from. Use \"id\" (the phone number id) as whatsapp_account_id in other calls."
+    },
+    "templates": {
+      "title": "List templates",
+      "body": "Returns the templates saved in the system (approved only by default; status=all returns every status). Each template lists its body variables and which buttons take a variable (buttons_variables), so you know exactly what to send."
+    },
+    "sendTemplate": {
+      "title": "Send a template",
+      "body": "Templates are the only way to start a conversation or write to a customer more than 24 hours after their last message. The template must be approved by Meta.",
+      "fieldTo": "Recipient phone number in international format, digits only (e.g. 201000000000). A leading + is accepted.",
+      "fieldTemplate": "The template's name (template_name or template), or its id (template_id: our id or Meta's).",
+      "fieldLanguage": "Language code (e.g. ar, en). Optional when the template exists in one language only.",
+      "fieldVariables": "Body variable values: a list in order ({{1}}, {{2}}…) or an object (\"1\", \"2\"… or named keys).",
+      "fieldButtons": "Values for buttons that take a variable, keyed by the button's position (0-based): the dynamic part of a URL button, or a copy-code value.",
+      "fieldHeader": "Header value: { type: image|video|document, url, filename } for a media header, or { text } for a text header with a variable.",
+      "fieldAccount": "Optional: which number sends (phone number id from /accounts).",
+      "variablesTitle": "Variables",
+      "variablesBody": "A list is sent in order. An object with numeric keys is sorted by key; any other key is sent as a named parameter (for templates written with named placeholders).",
+      "languageTitle": "Templates in several languages",
+      "languageBody": "When the template exists in more than one language and you don't pass language, the request is refused with WHATSAPP_TEMPLATE_AMBIGUOUS and the available languages. A template name we don't have saved is still sent to Meta (language \"ar\" when not given).",
+      "mediaTitle": "Media header and dynamic URL buttons",
+      "mediaBody": "A media header needs a public https link to the file for every send. For a URL button like https://example.com/track/{{1}} send only the variable part in buttons_variables.",
+      "responseBody": "On success you get 201 with the WhatsApp message id (wamid). \"accepted\" means Meta took the message; delivery and read arrive later (poll the status or use webhooks)."
+    },
+    "session": {
+      "title": "Send a session message",
+      "body": "Free-form text, or a file by public URL: type text (default), image, video, audio or document, with an optional caption (not for audio) and filename (documents).",
+      "window": "Session messages only reach the customer within 24 hours of their last message. Outside that window Meta refuses with error 131047 — either straight away (the request fails as below) or later, as a message.status \"failed\" event with that code. Send a template instead."
+    },
+    "status": {
+      "title": "Poll message status",
+      "body": "Returns the latest status of a message: accepted → sent → delivered → read, or failed with failure_reason. Messages sent through this API are tracked from the moment they are sent; messages the inbox knows about (including inbound ones, status \"received\") are found too."
+    },
+    "webhooks": {
+      "title": "Webhooks",
+      "body": "Add an events URL from WhatsApp → API Webhooks and pick its events. The signing secret (whsec_…) is shown once, when the webhook is created. Each event is a POST with this body: event, created_at and data.",
+      "eventReceived": "A customer sent a message to the number.",
+      "eventStatus": "A sent message became sent, delivered, read or failed.",
+      "eventSent": "A message was sent through this API.",
+      "eventTemplate": "A template's review status changed on Meta (approved, rejected, paused, disabled…).",
+      "verifyTitle": "Verify the signature",
+      "verifyBody": "X-M1-Signature is sha256= followed by the hex HMAC-SHA256 of the raw request body with your secret. Compute it over the exact bytes received (before parsing JSON) and compare in constant time.",
+      "deliveryTitle": "Delivery, retries and disabling",
+      "delivery1": "Answer with any 2xx status within 5 seconds; do the heavy work afterwards.",
+      "delivery2": "Each event is delivered once — there are no automatic retries. Use GET /messages/{wamid} to fill any gap.",
+      "delivery3": "After 20 failed deliveries in a row the webhook is disabled automatically; enabling it again from the inbox resets the counter.",
+      "delivery4": "The URL must be public (no localhost or private addresses) and redirects are not followed.",
+      "rotateTitle": "Rotate the secret",
+      "rotateBody": "Issues a new signing secret and returns it once; the old one stops working immediately. A key pinned to a number can only rotate webhooks of that number."
+    },
+    "errors": {
+      "title": "Errors",
+      "body": "Every error returns success: false with a message, a stable code and, for WhatsApp errors, a short meaning.",
+      "keyMissing": "No API key in the request.",
+      "keyInvalid": "The key is wrong, disabled or deleted.",
+      "accountNotAllowed": "The key is pinned to another WhatsApp number.",
+      "phone": "\"to\" is missing or not a phone number.",
+      "text": "\"text\" is empty, or longer than 4096 characters.",
+      "type": "\"type\" is not text, image, video, audio or document.",
+      "media": "The file link is not a public http(s) URL, or the caption is longer than 1024 characters.",
+      "templateName": "The template name may only contain lowercase letters, digits and _.",
+      "ambiguous": "The template exists in several languages — pass language.",
+      "templateNotFound": "No template with that template_id.",
+      "messageNotFound": "No message with that wamid for this account.",
+      "webhookNotFound": "No webhook with that id (or not on this key's number).",
+      "notConnected": "No official WhatsApp number is connected (or the key's number was disconnected).",
+      "rateLimited": "Too many requests — wait for Retry-After seconds.",
+      "window": "Outside the 24-hour service window — send a template.",
+      "notApproved": "The template does not exist on Meta in that language, or is not approved.",
+      "paramCount": "The number of variables does not match the template.",
+      "recipient": "This number cannot receive WhatsApp messages.",
+      "token": "The WhatsApp connection's token expired — reconnect the number.",
+      "metaLimit": "Meta's own sending limits were reached — slow down and retry later.",
+      "metaOther": "Any other error from WhatsApp, passed through with its message.",
+      "timeout": "WhatsApp did not answer in time — retry."
+    },
+    "limits": {
+      "title": "Rate limits",
+      "point1": "60 requests per minute per API key, across all endpoints (a fixed one-minute window).",
+      "point2": "Every response reports the limit and what is left:",
+      "point3": "Over the limit you get 429 WHATSAPP_API_RATE_LIMITED with",
+      "point4": "Meta also limits sending per number and per recipient; those errors are passed through unchanged."
+    },
+    "table": {
+      "field": "Field",
+      "description": "Description",
+      "event": "Event"
+    }
+  }
+}

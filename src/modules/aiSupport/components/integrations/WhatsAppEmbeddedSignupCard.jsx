@@ -33,14 +33,14 @@ const SDK_SRC = "https://connect.facebook.net/en_US/sdk.js";
 
 // Meta's dialog posts from these origins. Anything else is not Meta and its payload is ignored:
 // without this check any page that can reach this tab could fake a FINISH.
-const TRUSTED_SIGNUP_ORIGINS = new Set([
+export const TRUSTED_SIGNUP_ORIGINS = new Set([
   "https://www.facebook.com",
   "https://web.facebook.com",
   "https://business.facebook.com",
   "https://m.facebook.com",
 ]);
 
-const loadFacebookSdk = ({ appId, graphVersion }) =>
+export const loadFacebookSdk = ({ appId, graphVersion }) =>
   new Promise((resolve, reject) => {
     if (typeof window === "undefined") {
       reject(new Error("NO_WINDOW"));

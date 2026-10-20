@@ -204,6 +204,7 @@ import { autoRegisterWhatsappCustomer } from "../services/whatsappCustomerAutoRe
 import { dispatchWhatsappCloudWebhookEvents } from "../services/whatsappApiAccessService.js";
 import { recordWhatsappOrders } from "../services/whatsappCatalogService.js";
 import { interceptWaOfficialInbound } from "../modules/whatsappOfficial/inboundIntercept.js";
+import { dispatchWabaEvents } from "../modules/whatsappOfficial/connect/wabaEvents.js";
 import { normalizeWhatsappLid, normalizeWhatsappPhone, normalizeWhatsappRemoteJid } from "../utils/whatsappIdentity.js";
 import { normalizeAiInboxConversationLabels } from "../../shared/aiInboxConversationLabels.js";
 import {
@@ -1789,6 +1790,9 @@ export const handleWhatsappCloudWebhookRequest = async (req, res) => {
     if (regressionBypass) {
       console.info("[ai-agent:whatsapp] regression key accepted, signature bypass enabled");
     }
+    // WABA-level fields (templates, quality, name, account, coexistence echoes/contacts): signed,
+    // detached, and before the tenant/ingest gates — they carry no phone_number_id metadata.
+    setImmediate(() => { dispatchWabaEvents({ body: req.body }).catch(() => {}); });
     const hasStatuses = req.body?.entry?.some?.((entry) =>
       entry?.changes?.some?.((change) => Array.isArray(change?.value?.statuses) && change.value.statuses.length > 0)
     );
