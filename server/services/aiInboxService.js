@@ -1058,7 +1058,9 @@ const addAiPayloadTraceSteps = async ({ traceId, aiPayload, messageText, replyTe
   }
 };
 
-const shouldAutoReplyToWhatsapp = async ({ tenantId, conversationId, phone = "", payload = {} } = {}) => {
+// Exported for the official (Cloud API) number's webhook, so both WhatsApp lines answer by the
+// same rule — test numbers included.
+export const shouldAutoReplyToWhatsapp = async ({ tenantId, conversationId, phone = "", payload = {} } = {}) => {
   const state = await getAiSupportConversationState({ tenantId, sessionId: conversationId }).catch(() => null);
   const status = text(state?.status || payload?.conversation_status).toLowerCase();
   const agentSettings = await getAiAgentSettings({ tenantId }).catch(() => ({}));

@@ -1967,13 +1967,28 @@ export const handleWhatsappCloudWebhookRequest = async (req, res) => {
         results.push(escalated.result);
         continue;
       }
+      /*
+       * The same gate the Evolution line uses (aiInboxService.shouldAutoReplyToWhatsapp). This path
+       * had its own copy that read only ai_channel_settings: it never knew the owner's test numbers
+       * (ai_channels.ai_test_contacts), so on the official number the owner's own messages got a
+       * suggestion that was never sent while the Evolution line answered the same phone.
+       */
+      const replyGate = await import("../services/aiInboxService.js")
+        .then((m) => m.shouldAutoReplyToWhatsapp({ tenantId, conversationId: message.external_conversation_id, phone: message.external_customer_id }))
+        .catch((error) => {
+          console.warn("[ai-agent:whatsapp] reply gate failed", { tenantId, message: error?.message });
+          return null;
+        });
       const preState = await getAiSupportConversationState({ tenantId, sessionId: message.external_conversation_id, channel: AI_AGENT_CHANNELS.WHATSAPP }).catch(() => null);
-      if (preState?.ai_enabled === false) {
+      const hardBlock = ["human_takeover", "paused", "conversation_ai_disabled"].includes(replyGate?.reason)
+        ? replyGate.reason
+        : !replyGate && preState?.ai_enabled === false ? "conversation_ai_disabled" : "";
+      if (hardBlock) {
         results.push({
           external_customer_id: message.external_customer_id,
           conversation_id: message.external_conversation_id,
           sent: false,
-          reason: "conversation_ai_disabled",
+          reason: hardBlock,
         });
         continue;
       }
@@ -2013,14 +2028,12 @@ export const handleWhatsappCloudWebhookRequest = async (req, res) => {
         results.push({ external_customer_id: message.external_customer_id, ai_error: error?.message || "AI flow failed" });
         continue;
       }
-      const channelSettings = await getChannelSettings({ tenantId, channel: AI_AGENT_CHANNELS.WHATSAPP }).catch(() => ({}));
-      const autoReplyMode = envText(channelSettings.auto_reply_mode || (channelSettings.ai_replies_enabled === true ? "fully_automatic" : "off")).toLowerCase();
-      if (channelSettings.ai_replies_enabled !== true || autoReplyMode !== "fully_automatic" || !shouldSendWhatsappReply(aiPayload)) {
+      if (!replyGate?.ok || !shouldSendWhatsappReply(aiPayload)) {
         results.push({
           external_customer_id: message.external_customer_id,
           conversation_id: message.external_conversation_id,
           sent: false,
-          reason: channelSettings.ai_replies_enabled === true ? autoReplyMode || "ai_paused" : "channel_ai_replies_disabled",
+          reason: replyGate?.ok ? "ai_paused" : replyGate?.reason || "reply_gate_unavailable",
         });
         continue;
       }
