@@ -268,10 +268,8 @@ export default function WhatsAppTemplatesPanel({ headers }) {
     return (
       <div className="space-y-3">
         <div className="flex flex-wrap items-center justify-between gap-2">
-          <div>
-            <h2 className="text-base font-black text-white">{t("aiSupport.waTemplates.title")}</h2>
-            <p className="text-xs text-slate-400">{t("aiSupport.waTemplates.subtitle")}</p>
-          </div>
+          {/* The page header already names the section; only the explainer here. */}
+          <p className="text-xs text-slate-400">{t("aiSupport.waTemplates.subtitle")}</p>
           <div className="flex gap-2">
             <ActionButton icon={RefreshCw} loading={busy === "sync"} onClick={sync}>{t("aiSupport.waTemplates.sync")}</ActionButton>
             <ActionButton tone="primary" icon={Plus} onClick={() => { setNotice(null); setDraft({ ...EMPTY }); }}>{t("aiSupport.waTemplates.new")}</ActionButton>
