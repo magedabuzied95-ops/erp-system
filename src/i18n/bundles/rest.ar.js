@@ -39,6 +39,10 @@ import salesAnalytics from "../../locales/ar/salesAnalytics.json";
 import suppliers from "../../locales/ar/suppliers.json";
 import surveillance from "../../locales/ar/surveillance.json";
 import transfers from "../../locales/ar/transfers.json";
+import waOfficialAccounts from "../../locales/ar/waOfficialAccounts.json";
+import waOfficialAnalytics from "../../locales/ar/waOfficialAnalytics.json";
+import waOfficialConnect from "../../locales/ar/waOfficialConnect.json";
+import waOfficialFlows from "../../locales/ar/waOfficialFlows.json";
 import warehouses from "../../locales/ar/warehouses.json";
 
 export default {
@@ -80,5 +84,9 @@ export default {
   "suppliers": suppliers,
   "surveillance": surveillance,
   "transfers": transfers,
+  "waOfficialAccounts": waOfficialAccounts,
+  "waOfficialAnalytics": waOfficialAnalytics,
+  "waOfficialConnect": waOfficialConnect,
+  "waOfficialFlows": waOfficialFlows,
   "warehouses": warehouses,
 };

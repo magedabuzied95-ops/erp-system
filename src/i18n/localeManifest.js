@@ -83,6 +83,10 @@ export const RESOURCE_BRANCHES = [
   { branch: "metaAdsWizard", file: "metaAdsWizard" },
   { branch: "metaAdsRecords", file: "metaAdsRecords" },
   { branch: "metaAdsConnect", file: "metaAdsConnect" },
+  { branch: "waOfficialAccounts", file: "waOfficialAccounts" },
+  { branch: "waOfficialConnect", file: "waOfficialConnect" },
+  { branch: "waOfficialAnalytics", file: "waOfficialAnalytics" },
+  { branch: "waOfficialFlows", file: "waOfficialFlows" },
 ];
 
 /**

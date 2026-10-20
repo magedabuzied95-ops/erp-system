@@ -2019,7 +2019,11 @@
         "presence": "سجل التواجد",
         "backups": "نسخ احتياطية للشات",
         "waCatalogs": "الكتالوجات",
-        "waProducts": "المنتجات"
+        "waProducts": "المنتجات",
+        "waConnect": "ربط الحساب",
+        "waTemplateAnalytics": "تحليلات القوالب",
+        "waChatbotFlows": "مسارات الشات بوت",
+        "waApiGuide": "دليل الـ API"
       }
     }
   },

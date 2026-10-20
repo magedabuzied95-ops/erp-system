@@ -26,15 +26,18 @@ const MENUS = [
     // Genie's order: accounts, templates, campaigns, usage, flows, catalog, orders, developer.
     items: [
       { key: "waAccounts", section: "wa_accounts" },
+      { key: "waConnect", section: "wa_connect" },
       { key: "waTemplates", section: "wa_templates" },
       { key: "waCampaigns", section: "broadcasts" },
+      { key: "waTemplateAnalytics", section: "wa_template_analytics" },
       { key: "waUsage", section: "wa_usage" },
-      { key: "flows", to: "/ai-studio/workflows" },
+      { key: "waChatbotFlows", section: "wa_flows" },
       { key: "waCatalogs", section: "wa_catalogs" },
       { key: "waProducts", section: "wa_products" },
       { key: "waOrders", section: "wa_orders" },
       { key: "waApiKeys", section: "wa_api_keys" },
       { key: "waWebhooks", section: "wa_webhooks" },
+      { key: "waApiGuide", section: "wa_api_guide" },
     ],
   },
   {

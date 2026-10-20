@@ -2011,7 +2011,11 @@
         "presence": "Presence log",
         "backups": "Chat backups",
         "waCatalogs": "Catalogs",
-        "waProducts": "Products"
+        "waProducts": "Products",
+        "waConnect": "Connect Account",
+        "waTemplateAnalytics": "Template Analytics",
+        "waChatbotFlows": "Chatbot Flows",
+        "waApiGuide": "API Guide"
       }
     }
   },

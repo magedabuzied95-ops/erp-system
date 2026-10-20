@@ -18,7 +18,9 @@
  *  - No session carousel. Carousels exist only as approved MARKETING templates.
  */
 
+import db from "../database/db.js";
 import { buildTemplateMessage } from "./whatsappTemplates.js";
+import { tryDecryptWhatsappCloudSecret } from "./whatsappCloudCryptoService.js";
 
 const text = (value, fallback = "") => String(value ?? fallback).trim();
 
@@ -155,8 +157,50 @@ export const graphRequest = async ({ path = "", method = "GET", body = null, acc
   return payload;
 };
 
+/*
+ * Each number connected through Embedded Signup carries its OWN token (a business-integration
+ * system-user token for that WABA). Sending a tenant's number with the env token only works for
+ * the one number the env token happens to cover, so a connected number's token wins and the env
+ * token is the fallback. Cached for a minute: this runs on every send.
+ */
+const NUMBER_TOKEN_TTL_MS = 60 * 1000;
+const numberTokenCache = new Map();
+
+export const resolveNumberAccessToken = async (phoneNumberId = "") => {
+  const id = text(phoneNumberId);
+  if (!id) return "";
+  const cached = numberTokenCache.get(id);
+  if (cached && cached.expiresAt > Date.now()) return cached.token;
+  let token = "";
+  try {
+    const { rows } = await db.query(
+      `SELECT id, access_token_encrypted FROM whatsapp_cloud_integrations
+        WHERE phone_number_id = $1 AND status = 'connected' AND COALESCE(access_token_encrypted, '') <> ''
+        ORDER BY updated_at DESC LIMIT 1`,
+      [id]
+    );
+    if (rows[0]) token = tryDecryptWhatsappCloudSecret(rows[0].access_token_encrypted, { integration_id: rows[0].id }) || "";
+  } catch {
+    // Table not created yet (integration never opened) — the env token is the only option.
+    token = "";
+  }
+  numberTokenCache.set(id, { token, expiresAt: Date.now() + NUMBER_TOKEN_TTL_MS });
+  return token;
+};
+
+export const forgetNumberAccessToken = (phoneNumberId = "") => numberTokenCache.delete(text(phoneNumberId));
+
+export const resolveCloudSendConfig = async ({ phoneNumberId = "" } = {}) => {
+  const ownToken = await resolveNumberAccessToken(phoneNumberId);
+  if (ownToken) {
+    const base = cloudConfig();
+    return { ...base, accessToken: ownToken, phoneNumberId: text(phoneNumberId) };
+  }
+  return requireCloudConfig({ phoneNumberId });
+};
+
 const postMessage = async ({ message, phoneNumberId = "" } = {}) => {
-  const config = requireCloudConfig({ phoneNumberId });
+  const config = await resolveCloudSendConfig({ phoneNumberId });
   const result = await graphRequest({
     path: `/${config.graphVersion}/${config.phoneNumberId}/messages`,
     method: "POST",
@@ -444,8 +488,19 @@ export const submitTemplate = async (payload = {}) => {
   });
 };
 
+/*
+ * Escape hatch for message shapes this file has no named helper for yet (lists, audio, sticker,
+ * location, interactive carousel, product messages…). Same token resolution, logging and error
+ * mapping as every named send. `message` is the full Graph body minus messaging_product.
+ */
+export const sendCloudPayload = ({ message = {}, phoneNumberId = "" } = {}) =>
+  postMessage({ message: { messaging_product: "whatsapp", recipient_type: "individual", ...message }, phoneNumberId });
+
 export default {
   cloudConfig,
+  resolveCloudSendConfig,
+  resolveNumberAccessToken,
+  sendCloudPayload,
   requireCloudConfig,
   isWithinServiceWindow,
   toGraphRecipient,

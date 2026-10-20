@@ -78,6 +78,10 @@ const WhatsAppAccountsPanel = lazy(() => import("./WhatsAppAccountsPanel.jsx"));
 const WhatsAppCatalogsPanel = lazy(() => import("./WhatsAppCatalogsPanel.jsx"));
 const WhatsAppProductsPanel = lazy(() => import("./WhatsAppProductsPanel.jsx"));
 const WhatsAppOrdersPanel = lazy(() => import("./WhatsAppOrdersPanel.jsx"));
+const WhatsAppConnectPanel = lazy(() => import("./WhatsAppConnectPanel.jsx"));
+const WhatsAppTemplateAnalyticsPanel = lazy(() => import("./WhatsAppTemplateAnalyticsPanel.jsx"));
+const WhatsAppFlowsPanel = lazy(() => import("./WhatsAppFlowsPanel.jsx"));
+const WhatsAppApiGuidePanel = lazy(() => import("./WhatsAppApiGuidePanel.jsx"));
 const PresenceLogPanel = lazy(() => import("./PresenceLogPanel.jsx"));
 const ChatBackupsPanel = lazy(() => import("./ChatBackupsPanel.jsx"));
 
@@ -91,7 +95,7 @@ const MetaGlyph = () => (
 export const CONTROL_CENTER_GROUPS = [
   { key: "agent", sections: ["agent", "teach", "actions", "playground"] },
   { key: "workspace", sections: ["quick_replies", "comments", "invoice_messages"] },
-  { key: "whatsapp_official", sections: ["wa_accounts", "wa_templates", "wa_usage", "wa_catalogs", "wa_products", "wa_orders", "wa_api_keys", "wa_webhooks"] },
+  { key: "whatsapp_official", sections: ["wa_accounts", "wa_connect", "wa_templates", "wa_template_analytics", "wa_usage", "wa_flows", "wa_catalogs", "wa_products", "wa_orders", "wa_api_keys", "wa_webhooks", "wa_api_guide"] },
   { key: "growth", sections: ["broadcasts", "sequences"] },
   { key: "team", sections: ["cfg_tags", "cfg_teams", "cfg_groups", "cfg_shifts", "cfg_presence", "cfg_backups"] },
   { key: "insight", sections: ["performance"] },
@@ -124,6 +128,10 @@ const SECTION_ICON = {
   wa_catalogs: LayoutGrid,
   wa_products: ShoppingBag,
   wa_orders: ShoppingCart,
+  wa_connect: () => <FaWhatsapp className="h-4 w-4 text-emerald-300" aria-hidden="true" />,
+  wa_template_analytics: FileText,
+  wa_flows: Workflow,
+  wa_api_guide: FileText,
   fb_pages: () => <FaFacebookF className="h-4 w-4 text-blue-300" aria-hidden="true" />,
   fb_connect: () => <FaFacebookF className="h-4 w-4 text-blue-300" aria-hidden="true" />,
   ig_accounts: () => <FaInstagram className="h-4 w-4 text-pink-300" aria-hidden="true" />,
@@ -170,6 +178,10 @@ const sectionLabel = (t, key) => {
   if (key === "cfg_shifts") return t("aiSupport.inbox.topbar.items.shifts");
   if (key === "wa_accounts") return t("aiSupport.waAccounts.title");
   if (key === "wa_catalogs") return t("aiSupport.inbox.topbar.items.waCatalogs");
+  if (key === "wa_connect") return t("aiSupport.inbox.topbar.items.waConnect");
+  if (key === "wa_template_analytics") return t("aiSupport.inbox.topbar.items.waTemplateAnalytics");
+  if (key === "wa_flows") return t("aiSupport.inbox.topbar.items.waChatbotFlows");
+  if (key === "wa_api_guide") return t("aiSupport.inbox.topbar.items.waApiGuide");
   if (key === "wa_products") return t("aiSupport.inbox.topbar.items.waProducts");
   if (key === "wa_orders") return t("aiSupport.inbox.topbar.items.waOrders");
   if (key === "wa_usage") return t("aiSupport.inbox.topbar.items.waUsage");
@@ -278,6 +290,10 @@ export default function InboxControlCenter({
       {section === "cfg_shifts" ? <InboxShiftsPanel headers={headers} /> : null}
       {section === "wa_accounts" ? <WhatsAppAccountsPanel headers={headers} onOpenSection={goTo} /> : null}
       {section === "wa_catalogs" ? <WhatsAppCatalogsPanel headers={headers} /> : null}
+      {section === "wa_connect" ? <WhatsAppConnectPanel headers={headers} onOpenSection={goTo} /> : null}
+      {section === "wa_template_analytics" ? <WhatsAppTemplateAnalyticsPanel headers={headers} /> : null}
+      {section === "wa_flows" ? <WhatsAppFlowsPanel headers={headers} /> : null}
+      {section === "wa_api_guide" ? <WhatsAppApiGuidePanel headers={headers} /> : null}
       {section === "wa_products" ? <WhatsAppProductsPanel headers={headers} /> : null}
       {section === "wa_orders" ? <WhatsAppOrdersPanel headers={headers} /> : null}
       {section === "wa_usage" ? <WhatsAppUsagePanel headers={headers} /> : null}

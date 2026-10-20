@@ -203,6 +203,7 @@ import { WHATSAPP_EDIT_WINDOW_MS, editWhatsappTextMessage, getStatus as getWhats
 import { autoRegisterWhatsappCustomer } from "../services/whatsappCustomerAutoRegistrationService.js";
 import { dispatchWhatsappCloudWebhookEvents } from "../services/whatsappApiAccessService.js";
 import { recordWhatsappOrders } from "../services/whatsappCatalogService.js";
+import { interceptWaOfficialInbound } from "../modules/whatsappOfficial/inboundIntercept.js";
 import { normalizeWhatsappLid, normalizeWhatsappPhone, normalizeWhatsappRemoteJid } from "../utils/whatsappIdentity.js";
 import { normalizeAiInboxConversationLabels } from "../../shared/aiInboxConversationLabels.js";
 import {
@@ -1897,6 +1898,19 @@ export const handleWhatsappCloudWebhookRequest = async (req, res) => {
       }).catch((error) => {
         console.warn("[ai-agent:whatsapp] mapping upsert skipped", { tenantId, message: error?.message });
       });
+      // Official-number chatbot flows / away auto-reply may take this message instead of the AI.
+      if (metadata?.phone_number_id) {
+        const intercepted = await interceptWaOfficialInbound({
+          tenantId,
+          phoneNumberId: String(metadata.phone_number_id),
+          message,
+          metadata,
+        }).catch(() => ({ handled: false }));
+        if (intercepted.handled) {
+          results.push({ external_customer_id: message.external_customer_id, conversation_id: message.external_conversation_id, sent: false, reason: `wa_official_${intercepted.by}` });
+          continue;
+        }
+      }
       const intentMessage = envText(message.normalized_for_intent || message.message_text || "");
       const escalation = detectEscalation(intentMessage);
       if (escalation.shouldEscalate) {
