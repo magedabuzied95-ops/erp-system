@@ -694,24 +694,13 @@ function MainLayout() {
         />
       ) : null}
 
-      {sidebarAutoHide ? (
-        <button
-          type="button"
-          data-sidebar-edge-strip="true"
-          onMouseEnter={() => scheduleSidebarPeek(true, 120)}
-          onMouseLeave={closeSidebarPeek}
-          onClick={() => scheduleSidebarPeek(true, 0)}
-          aria-label={t("sidebar.reveal")}
-          title={t("sidebar.reveal")}
-          className="m1-shell-sidebar-strip group/strip sticky top-0 hidden h-screen w-full place-items-center border-[var(--border)] bg-[var(--sidebar)] text-[var(--muted)] transition-colors hover:text-[var(--primary)] lg:grid border-e"
-        >
-          <span className="h-14 w-1 rounded-full bg-current opacity-50 transition-opacity group-hover/strip:opacity-100" aria-hidden="true" />
-        </button>
-      ) : null}
+      {/* The auto-hide sidebar is fixed, so this holds its rail's grid column. */}
+      {sidebarAutoHide ? <div className="hidden lg:block" aria-hidden="true" /> : null}
 
       <aside
         ref={sidebarRef}
-        onMouseEnter={sidebarAutoHide ? () => scheduleSidebarPeek(true, 0) : undefined}
+        data-sidebar-rail={sidebarHidden ? "true" : undefined}
+        onMouseEnter={sidebarAutoHide ? () => scheduleSidebarPeek(true, 120) : undefined}
         onMouseLeave={sidebarAutoHide ? closeSidebarPeek : undefined}
         onFocus={sidebarAutoHide ? () => scheduleSidebarPeek(true, 0) : undefined}
         onBlur={sidebarAutoHide ? (event) => {
@@ -720,7 +709,7 @@ function MainLayout() {
         className={[
           "m1-shell-sidebar sidebar-scroll fixed bottom-0 top-0 z-50 flex w-[min(85vw,340px)] flex-col overflow-hidden bg-[var(--surface)] p-4 shadow-2xl transition-all duration-300",
           sidebarAutoHide
-            ? ["m1-shell-sidebar--autohide lg:fixed lg:z-50 lg:h-screen", sidebarHidden ? (isRtl ? "lg:translate-x-full" : "lg:-translate-x-full") : "m1-shell-sidebar--peek lg:translate-x-0"].join(" ")
+            ? ["m1-shell-sidebar--autohide lg:fixed lg:z-50 lg:h-screen lg:translate-x-0", sidebarHidden ? "m1-shell-sidebar--rail" : "m1-shell-sidebar--peek"].join(" ")
             : "lg:sticky lg:top-0 lg:z-30 lg:h-screen lg:w-full lg:translate-x-0",
           mobileDrawerOpen ? "translate-x-0" : isRtl ? "translate-x-full" : "-translate-x-full",
           isRtl
@@ -747,11 +736,11 @@ function MainLayout() {
         </div>
 
         <div className="flex min-h-0 flex-1 flex-col">
-          <div className="mb-3 rounded-2xl border border-[var(--border)] bg-[var(--card)] p-3 shadow-sm">
+          <div className="m1-sidebar-brand mb-3 rounded-2xl border border-[var(--border)] bg-[var(--card)] p-3 shadow-sm">
             <div className="flex items-center justify-between gap-2">
               <div className="flex min-w-0 items-center gap-3">
                 <WorkspaceBrandMark name={workspaceName} logoUrl={workspaceLogoUrl} className="h-11 w-11 rounded-2xl bg-[var(--surface-soft)]" />
-                <div className="min-w-0">
+                <div className="m1-sidebar-fade min-w-0">
                   <h1 className="truncate text-2xl font-black tracking-tight text-[var(--text)]">{workspaceName}</h1>
                   <p className="mt-0.5 truncate text-xs text-[var(--muted)]">{t("sidebar.workspace")}</p>
                 </div>
@@ -760,7 +749,7 @@ function MainLayout() {
                 type="button"
                 onClick={toggleSidebarAutoHide}
                 aria-pressed={!sidebarAutoHide}
-                className="hidden h-[var(--control-height-sm)] w-8 shrink-0 place-items-center rounded-[var(--radius-control)] border border-[var(--border)] text-[var(--muted)] transition hover:bg-[var(--surface-soft)] hover:text-[var(--text)] lg:grid"
+                className="m1-sidebar-fade hidden h-[var(--control-height-sm)] w-8 shrink-0 place-items-center rounded-[var(--radius-control)] border border-[var(--border)] text-[var(--muted)] transition hover:bg-[var(--surface-soft)] hover:text-[var(--text)] lg:grid"
                 title={sidebarAutoHide ? t("sidebar.pin") : t("sidebar.autoHide")}
                 aria-label={sidebarAutoHide ? t("sidebar.pin") : t("sidebar.autoHide")}
               >
@@ -847,7 +836,7 @@ function MainLayout() {
                               <div className={`grid transition-[grid-template-rows,opacity] duration-200 ease-out ${nestedOpen ? "grid-rows-[1fr] opacity-100" : "grid-rows-[0fr] opacity-0"}`}>
                                 <div className="min-h-0 overflow-hidden">
                                   {nestedSection.title === "System Settings" ? (
-                                    <div className="mx-1 mb-1 rounded-[var(--radius-card)] border border-[var(--border)]/70 bg-[var(--surface)]/70 px-2 py-1.5">
+                                    <div className="m1-sidebar-fade mx-1 mb-1 rounded-[var(--radius-card)] border border-[var(--border)]/70 bg-[var(--surface)]/70 px-2 py-1.5">
                                       <div className="flex min-w-0 items-center gap-2">
                                         <span className="grid h-7 w-7 shrink-0 place-items-center rounded-lg bg-[var(--primary-soft)] text-[var(--primary)]">
                                           <User className="h-3.5 w-3.5" />
@@ -887,16 +876,16 @@ function MainLayout() {
             to="/settings/account-security"
             className="flex w-full items-center justify-center gap-2 rounded-[var(--radius-control)] border border-[var(--border)] bg-[var(--card)] px-3 py-2 text-sm font-bold text-[var(--text)]"
           >
-            <ShieldCheck className="h-4 w-4" />
-            {t("access.security.navLink")}
+            <ShieldCheck className="h-4 w-4 shrink-0" />
+            <span className="m1-sidebar-fade truncate">{t("access.security.navLink")}</span>
           </NavLink>
           <button
             type="button"
             onClick={handleLogout}
             className="flex w-full items-center justify-center gap-2 rounded-[var(--radius-control)] bg-[var(--danger)] px-3 py-2 text-sm font-black text-white shadow-lg"
           >
-            <LogOut className="h-4 w-4" />
-            {t("common.logout")}
+            <LogOut className="h-4 w-4 shrink-0" />
+            <span className="m1-sidebar-fade truncate">{t("common.logout")}</span>
           </button>
         </div>
       </aside>

@@ -10,11 +10,13 @@ test("auto-hide is the default and remembered per browser", () => {
   assert.match(layout, /writeSidebarJson\(SIDEBAR_AUTO_HIDE_STORAGE_KEY, sidebarAutoHide\)/);
 });
 
-test("hovering the edge strip slides the sidebar over the page", () => {
-  assert.match(layout, /data-sidebar-edge-strip="true"\s+onMouseEnter=\{\(\) => scheduleSidebarPeek\(true, 120\)\}/);
+test("the sidebar rests as an icon rail and widens over the page on hover", () => {
+  assert.match(layout, /onMouseEnter=\{sidebarAutoHide \? \(\) => scheduleSidebarPeek\(true, 120\) : undefined\}/);
   assert.match(layout, /onMouseLeave=\{sidebarAutoHide \? closeSidebarPeek : undefined\}/);
-  assert.match(layout, /sidebarHidden \? \(isRtl \? "lg:translate-x-full" : "lg:-translate-x-full"\)/);
-  assert.match(css, /\.m1-shell-root\.m1-shell-root--sidebar-autohide\{grid-template-columns:12px minmax\(0,1fr\)!important\}/);
+  assert.match(layout, /sidebarHidden \? "m1-shell-sidebar--rail" : "m1-shell-sidebar--peek"/);
+  assert.match(css, /\.m1-shell-root\.m1-shell-root--sidebar-autohide\{grid-template-columns:64px minmax\(0,1fr\)!important\}/);
+  assert.match(css, /\.m1-shell-sidebar--autohide\.m1-shell-sidebar--peek\{width:260px!important/);
+  assert.match(css, /\.m1-shell-sidebar--rail :is\(\.m1-sidebar-fade,nav a>span,nav button>\*\)\{opacity:0/);
 });
 
 test("typing in the module search keeps the peeked sidebar open", () => {
