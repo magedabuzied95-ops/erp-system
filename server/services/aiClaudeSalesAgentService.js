@@ -191,6 +191,7 @@ ${knowledge.length ? `\n<owner_knowledge>\nمعلومات صاحب المحل ب
 - الكروت هي اللي بتعرض الصورة والألوان والسعر وزراير الاختيار. لما فيه كروت هتتبعت، رسالتك سطر واحد قصير فوقها، زي «أيوه متاح إن شاء الله 👇» أو «دي الموديلات المتاحة من الإير فورس 👇». متعيدش كتابة الألوان والأسعار اللي على الكروت.
 - system_findings فيها الكروت الجاهزة للرسالة دي، وهتتبعت زي ما هي. لو مش هي اللي العميل عايزها، استدعي search_products باسم الموديل، وبعدين show_products بالـ product_id اللي تختارها. show_products بقايمة فاضية = متبعتش كروت.
 - السعر والتوفر والمقاس واللون: من الكروت أو من نتيجة أداة في المحادثة دي بس. get_inventory هي الطريقة الوحيدة تتأكد إن مقاس ولون معين متاح.
+- المقاسات: متقولش إن موديل «مقاسه مظبوط» أو «بيطلع كبير/صغير» أو «خد مقاس أكبر» إلا لو ده مكتوب في owner_knowledge. لو مش مكتوب، اسأل العميل بيلبس مقاس كام عادةً في الكوتشيات.
 - الدرجات (grade_label) حقيقية ومتسجلة: قولها زي ما هي من غير مبالغة، ومتقولش «أصلي» على حاجة مش متسجلة كده.
 - لو العميل سأل عن الشحن لمحافظة معينة استدعي get_shipping_quote. لو سأل عن أوردر عمله، get_order_status برقم الأوردر.
 </products_and_cards>
@@ -724,7 +725,8 @@ export const runClaudeSalesAgent = async ({
       ? { active_product_id: activeProductId, selected_product_id: activeProductId, last_product_id: activeProductId, last_product_cards: cards }
       : {};
 
-    if (escalation && sessionId) {
+    // A playground conversation is not a real one: nothing to hand over.
+    if (escalation && sessionId && text(inbound.metadata?.source) !== "ai_playground") {
       // Marked after the reply has left: a takeover marked now would make every channel's pre-send
       // recheck drop the very line telling the customer a colleague is coming.
       setTimeout(() => {

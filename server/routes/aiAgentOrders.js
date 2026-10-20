@@ -1528,6 +1528,9 @@ router.post("/test-reply", protect, permit("settings", "view"), async (req, res)
       finalReply,
       productCards,
       rewriteApplied: Boolean(output.debug?.grounded_rewrite_applied),
+      // Who wrote the words: the sales agent (provider, model, tools it called) or brain V2's template.
+      agent: output.debug?.claude_agent || null,
+      customerGender: output.debug?.customer_gender || "",
       needsHuman: output.needs_human_support === true,
       confidence: Number.isFinite(Number(output.confidence)) ? Number(output.confidence) : null,
       elapsedMs: Date.now() - startedAt,
