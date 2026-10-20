@@ -21,7 +21,7 @@ const SECTION_TITLE_KEYS = {
 };
 
 const ITEM_LABEL_KEYS = {
-  "Meta Ads": "metaAds.nav.sidebar",
+  "Meta Ads": "sidebar.metaAds",
   Amazon: "sidebar.amazon",
   Dashboard: "sidebar.dashboard",
   Notifications: "sidebar.notifications",

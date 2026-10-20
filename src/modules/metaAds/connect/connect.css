@@ -1,0 +1,409 @@
+/* "ربط الحساب" — the onboarding card (as Meta reviewers see it) + connected accounts. */
+
+.mac-page {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 20px;
+  padding: 24px 0 32px;
+  min-width: 0;
+}
+
+.mac-notice {
+  display: flex;
+  align-items: flex-start;
+  gap: 10px;
+  width: 100%;
+  max-width: 920px;
+  padding: 10px 14px;
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  background: var(--surface);
+  color: var(--text);
+  font-size: 0.875rem;
+}
+
+.mac-notice--danger {
+  border-color: var(--danger);
+  color: var(--danger);
+}
+
+.mac-notice--success {
+  border-color: var(--success);
+}
+
+.mac-notice > span {
+  flex: 1 1 auto;
+  min-width: 0;
+  overflow-wrap: anywhere;
+}
+
+.mac-notice button {
+  flex: 0 0 auto;
+  border: 0;
+  background: transparent;
+  color: inherit;
+  cursor: pointer;
+  padding: 0;
+}
+
+/* ---------------------------------------------------------------- card */
+
+.mac-onboard {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 14px;
+  width: 100%;
+  max-width: 400px;
+}
+
+.mac-logo {
+  width: 40px;
+  height: 40px;
+  border-radius: 10px;
+  overflow: hidden;
+  background: #0f172a;
+  box-shadow: 0 1px 2px rgb(15 23 42 / 0.15);
+}
+
+.mac-logo img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  display: block;
+}
+
+.mac-chips {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto minmax(0, 1fr);
+  align-items: center;
+  gap: 6px;
+  width: 100%;
+}
+
+.mac-chip {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  min-width: 0;
+  padding: 8px 10px;
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  background: var(--surface);
+}
+
+.mac-chip--end {
+  justify-content: flex-end;
+  text-align: end;
+}
+
+.mac-chip__icon {
+  flex: 0 0 auto;
+  display: grid;
+  place-items: center;
+  width: 24px;
+  height: 24px;
+  border-radius: 7px;
+}
+
+.mac-chip__icon--meta {
+  background: linear-gradient(135deg, #2563eb, #7c3aed);
+  color: #fff;
+}
+
+.mac-chip__icon--home {
+  background: var(--surface-soft);
+  color: var(--muted);
+}
+
+.mac-chip__text {
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+}
+
+.mac-chip__label {
+  font-size: 0.625rem;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: var(--muted);
+}
+
+.mac-chip__value {
+  font-size: 0.8125rem;
+  font-weight: 600;
+  color: var(--text);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.mac-dots {
+  display: flex;
+  align-items: center;
+  gap: 3px;
+  color: var(--muted);
+}
+
+.mac-dots i {
+  width: 3px;
+  height: 3px;
+  border-radius: 50%;
+  background: currentColor;
+  opacity: 0.45;
+}
+
+.mac-dots i:last-child {
+  width: 5px;
+  height: 5px;
+  background: #2563eb;
+  opacity: 1;
+}
+
+.mac-card {
+  width: 100%;
+  padding: 22px 20px 16px;
+  border: 1px solid var(--border);
+  border-radius: 14px;
+  background: var(--surface);
+  box-shadow: 0 1px 3px rgb(15 23 42 / 0.06);
+}
+
+.mac-card h1 {
+  margin: 0 0 6px;
+  font-size: 1.25rem;
+  font-weight: 700;
+  color: var(--text);
+}
+
+.mac-card__subtitle {
+  margin: 0 0 14px;
+  font-size: 0.875rem;
+  color: var(--muted);
+}
+
+.mac-checks {
+  list-style: none;
+  margin: 0 0 18px;
+  padding: 0;
+}
+
+.mac-checks li {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 9px 0;
+  font-size: 0.875rem;
+  color: var(--text);
+  border-bottom: 1px solid var(--border);
+}
+
+.mac-checks li:last-child {
+  border-bottom: 0;
+}
+
+.mac-checks svg {
+  flex: 0 0 auto;
+  color: #2563eb;
+}
+
+.mac-fb-button {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  width: 100%;
+  min-height: 44px;
+  border: 0;
+  border-radius: 10px;
+  background: linear-gradient(90deg, #1d63ff 0%, #9b3cf5 100%);
+  color: #fff;
+  font: inherit;
+  font-size: 0.9375rem;
+  font-weight: 600;
+  cursor: pointer;
+  transition: filter 0.15s ease;
+}
+
+.mac-fb-button:hover:not(:disabled) {
+  filter: brightness(1.06);
+}
+
+.mac-fb-button:disabled {
+  opacity: 0.6;
+  cursor: progress;
+}
+
+.mac-card__hint {
+  margin: 12px 0 0;
+  text-align: center;
+  font-size: 0.75rem;
+  color: var(--muted);
+}
+
+.mac-secured {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 0.75rem;
+  color: var(--muted);
+}
+
+/* ---------------------------------------------------------------- accounts */
+
+.mac-accounts {
+  width: 100%;
+  max-width: 920px;
+  min-width: 0;
+}
+
+.mac-accounts__header {
+  margin-bottom: 10px;
+}
+
+.mac-accounts__header h2 {
+  margin: 0;
+  font-size: 1rem;
+  font-weight: 700;
+  color: var(--text);
+}
+
+.mac-accounts__header p {
+  margin: 4px 0 0;
+  font-size: 0.8125rem;
+  color: var(--muted);
+}
+
+.mac-account-list {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.mac-account {
+  display: grid;
+  grid-template-columns: minmax(0, 1.4fr) minmax(0, 1fr) minmax(0, 1fr) auto;
+  gap: 12px;
+  align-items: center;
+  padding: 12px 14px;
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  background: var(--surface);
+  min-width: 0;
+}
+
+.mac-account__cell {
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+  min-width: 0;
+  font-size: 0.8125rem;
+  color: var(--text);
+}
+
+.mac-account__cell > * {
+  overflow-wrap: anywhere;
+}
+
+.mac-account__name {
+  font-weight: 700;
+  font-size: 0.9375rem;
+}
+
+.mac-account__muted {
+  color: var(--muted);
+  font-size: 0.75rem;
+}
+
+.mac-account__error {
+  color: var(--danger);
+  font-size: 0.75rem;
+}
+
+.mac-account__label {
+  color: var(--muted);
+  font-size: 0.6875rem;
+}
+
+.mac-account__actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  justify-content: flex-end;
+}
+
+.mac-ltr {
+  direction: ltr;
+  unicode-bidi: isolate;
+}
+
+@media (max-width: 760px) {
+  .mac-account {
+    grid-template-columns: minmax(0, 1fr);
+  }
+
+  .mac-account__actions {
+    justify-content: flex-start;
+  }
+}
+
+/* ---------------------------------------------------------------- picker */
+
+.mac-picker {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.mac-picker__user {
+  font-size: 0.8125rem;
+  color: var(--muted);
+}
+
+.mac-picker__row {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  padding: 12px;
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  background: var(--surface);
+}
+
+.mac-picker__row--on {
+  border-color: var(--primary);
+  background: var(--primary-soft, var(--surface-soft));
+}
+
+.mac-picker__head {
+  display: flex;
+  align-items: flex-start;
+  gap: 10px;
+  min-width: 0;
+}
+
+.mac-picker__meta {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  min-width: 0;
+  font-size: 0.75rem;
+  color: var(--muted);
+}
+
+.mac-picker__meta strong {
+  font-size: 0.875rem;
+  color: var(--text);
+  overflow-wrap: anywhere;
+}
+
+.mac-picker__page {
+  padding-inline-start: 30px;
+}
+
+.mac-picker__ig {
+  margin-top: 4px;
+  font-size: 0.75rem;
+  color: var(--muted);
+}

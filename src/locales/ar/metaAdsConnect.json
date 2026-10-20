@@ -1,1 +1,77 @@
-{}
+{
+  "card": {
+    "channel": "Channel",
+    "channelName": "Meta Ads",
+    "connectingTo": "Connecting to",
+    "title": "Connect Meta Ads",
+    "subtitle": "Manage campaigns, leads and audiences from your CRM.",
+    "check1": "Read campaign and audience performance",
+    "check2": "Bring lead-form submissions in as contacts",
+    "check3": "Connect every ad account in one step",
+    "check4": "Requires admin access to the ad account",
+    "button": "Continue with Facebook",
+    "hint": "Facebook will ask which ad accounts to share.",
+    "secured": "Secured by {{app}}",
+    "appName": "M1 Store"
+  },
+  "page": {
+    "redirecting": "جارٍ فتح فيسبوك…",
+    "notConfigured": "تسجيل الدخول بفيسبوك غير مُعدّ على الخادم بعد (META_APP_ID / META_APP_SECRET).",
+    "callbackError": "فشل الربط مع فيسبوك: {{message}}",
+    "startFailed": "تعذّر بدء الربط مع فيسبوك.",
+    "disconnected": "تم فصل الحساب. بياناته محفوظة.",
+    "dismiss": "إغلاق",
+    "connected": "الحسابات الإعلانية المربوطة: {{count}}. تتم مزامنة الحملات والجماهير ونماذج العملاء المحتملين في الخلفية."
+  },
+  "picker": {
+    "title": "اختر الحسابات الإعلانية المراد ربطها",
+    "description": "اختر كل حساب إعلاني وصفحة فيسبوك التي يُعلن لها.",
+    "metaUser": "مستخدم فيسبوك: {{name}}",
+    "loading": "جارٍ تحميل الحسابات التي شاركها فيسبوك…",
+    "expired": "انتهت صلاحية هذا الربط. ابدأ من جديد من \"Continue with Facebook\".",
+    "loadFailed": "تعذّر تحميل الحسابات التي شاركها فيسبوك.",
+    "noAccounts": "لم يشارك فيسبوك أي حساب إعلاني. ابدأ من جديد واختر الحسابات الإعلانية في شاشة فيسبوك.",
+    "alreadyConnected": "مربوط من قبل",
+    "page": "صفحة فيسبوك",
+    "noPage": "بدون صفحة",
+    "instagram": "إنستجرام: {{username}}",
+    "noInstagram": "لا يوجد حساب إنستجرام مرتبط بهذه الصفحة",
+    "business": "النشاط التجاري: {{name}}",
+    "selected": "تم اختيار {{count}}",
+    "connect": "ربط",
+    "cancel": "إلغاء",
+    "completeFailed": "تعذّر حفظ الربط."
+  },
+  "accounts": {
+    "title": "الحسابات الإعلانية المربوطة",
+    "subtitle": "يحتفظ كل حساب بحملاته وإحصاءاته وعملائه المحتملين وجماهيره حتى بعد فصله.",
+    "empty": "لا يوجد حساب إعلاني مربوط بعد.",
+    "loadFailed": "تعذّر تحميل الحسابات المربوطة.",
+    "name": "الحساب",
+    "actId": "معرّف الحساب الإعلاني",
+    "currency": "العملة",
+    "page": "الصفحة / إنستجرام",
+    "token": "رمز الوصول",
+    "lastSync": "آخر مزامنة",
+    "actions": "الإجراءات",
+    "never": "لم تتم",
+    "noPage": "بدون صفحة",
+    "reconnect": "إعادة الربط",
+    "disconnect": "فصل",
+    "open": "فتح السجل",
+    "connectedBy": "مستخدم فيسبوك: {{name}}",
+    "expires": "ينتهي {{date}}",
+    "lastError": "آخر خطأ: {{message}}",
+    "tokenStatus": {
+      "valid": "صالح",
+      "invalid": "يحتاج إعادة ربط",
+      "missing": "غير مربوط"
+    }
+  },
+  "disconnect": {
+    "title": "فصل هذا الحساب الإعلاني؟",
+    "body": "سيتم حذف رمز فيسبوك الخاص بـ \"{{name}}\" من النظام. الحملات والإحصاءات والعملاء المحتملون والجماهير المستوردة تبقى هنا. يمكنك إعادة الربط في أي وقت.",
+    "confirm": "فصل",
+    "failed": "تعذّر فصل الحساب."
+  }
+}

@@ -6194,6 +6194,15 @@ export const handleIncomingWebhook = async (payload = {}) => {
     };
   }
   const normalized = await extractIncomingWhatsapp(payload);
+  // Meta Ads click-to-WhatsApp attribution (contextInfo.externalAdReply). Fire-and-forget; never blocks or breaks the message.
+  if (isInboundMessagesUpsert && !normalized.isGroup) {
+    try {
+      const adsInput = { tenantId: tenantIdForWhatsapp(payload), payload, remoteJid: normalized.remoteJid || normalized.resolvedReplyJid, phone: normalized.resolvedPhone || normalized.phone, contactName: normalized.senderName };
+      void import("../modules/metaAds/integrations/adClicks.js").then((m) => m.recordEvolutionAdReferralSafe(adsInput)).catch(() => {});
+    } catch {
+      // never let attribution touch message handling
+    }
+  }
   if (reactionEvent.isReaction) {
     const tenantId = tenantIdForWhatsapp(payload);
     const sessionId = normalizeWhatsappSessionId(

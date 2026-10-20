@@ -1,1 +1,77 @@
-{}
+{
+  "card": {
+    "channel": "Channel",
+    "channelName": "Meta Ads",
+    "connectingTo": "Connecting to",
+    "title": "Connect Meta Ads",
+    "subtitle": "Manage campaigns, leads and audiences from your CRM.",
+    "check1": "Read campaign and audience performance",
+    "check2": "Bring lead-form submissions in as contacts",
+    "check3": "Connect every ad account in one step",
+    "check4": "Requires admin access to the ad account",
+    "button": "Continue with Facebook",
+    "hint": "Facebook will ask which ad accounts to share.",
+    "secured": "Secured by {{app}}",
+    "appName": "M1 Store"
+  },
+  "page": {
+    "redirecting": "Opening Facebook…",
+    "notConfigured": "Facebook login is not configured on the server yet (META_APP_ID / META_APP_SECRET).",
+    "callbackError": "Facebook connection failed: {{message}}",
+    "startFailed": "Could not start the Facebook connection.",
+    "disconnected": "The account was disconnected. Its data is kept.",
+    "dismiss": "Dismiss",
+    "connected": "Ad accounts connected: {{count}}. Campaigns, audiences and lead forms are syncing in the background."
+  },
+  "picker": {
+    "title": "Choose the ad accounts to connect",
+    "description": "Pick each ad account and the Facebook Page it advertises for.",
+    "metaUser": "Facebook user: {{name}}",
+    "loading": "Loading the accounts Facebook shared…",
+    "expired": "This connection has expired. Start again from \"Continue with Facebook\".",
+    "loadFailed": "Could not load the accounts Facebook shared.",
+    "noAccounts": "Facebook did not share any ad account. Start again and tick the ad accounts on the Facebook screen.",
+    "alreadyConnected": "Connected before",
+    "page": "Facebook Page",
+    "noPage": "No page",
+    "instagram": "Instagram: {{username}}",
+    "noInstagram": "No Instagram account linked to this page",
+    "business": "Business: {{name}}",
+    "selected": "{{count}} selected",
+    "connect": "Connect",
+    "cancel": "Cancel",
+    "completeFailed": "Could not save the connection."
+  },
+  "accounts": {
+    "title": "Connected ad accounts",
+    "subtitle": "Each account keeps its campaigns, insights, leads and audiences even after you disconnect it.",
+    "empty": "No ad account is connected yet.",
+    "loadFailed": "Could not load the connected accounts.",
+    "name": "Account",
+    "actId": "Ad account ID",
+    "currency": "Currency",
+    "page": "Page / Instagram",
+    "token": "Token",
+    "lastSync": "Last sync",
+    "actions": "Actions",
+    "never": "Never",
+    "noPage": "No page",
+    "reconnect": "Reconnect",
+    "disconnect": "Disconnect",
+    "open": "Open record",
+    "connectedBy": "Facebook user: {{name}}",
+    "expires": "Expires {{date}}",
+    "lastError": "Last error: {{message}}",
+    "tokenStatus": {
+      "valid": "Valid",
+      "invalid": "Reconnect needed",
+      "missing": "Disconnected"
+    }
+  },
+  "disconnect": {
+    "title": "Disconnect this ad account?",
+    "body": "The Facebook token of \"{{name}}\" is deleted from this system. Campaigns, insights, leads and audiences already imported stay here. You can reconnect at any time.",
+    "confirm": "Disconnect",
+    "failed": "Could not disconnect the account."
+  }
+}

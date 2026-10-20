@@ -9,15 +9,13 @@
 //   analyzeCompetitorAd(tenantId, adId)      (re)run the AI analysis for one competitor ad → { ai_angle, ai_offer, ai_hook, ai_summary }
 //   testConversionDataset(tenantId, datasetId)  send a test event → { ok, events_received }
 //   sendConversionEvent(tenantId, { datasetId, eventName, customerId, value, currency, eventId, channel })  → { id, status }
+//
+// Also available to the rest of the ERP:
+//   recordAdReferral({ tenantId, channel, conversationKey, senderId, contactName, referral, raw })  → click id | null
+//   getAdContextForConversation(tenantId, conversationKey)  → { click, instructions[], chat_team_id } | null
+//   handleLeadgenChange(tenantId|null, change.value)        one Page `leadgen` webhook change
 
-const notYet = (name) => async () => {
-  throw Object.assign(new Error(`${name} is not implemented yet`), { status: 501 });
-};
-
-export const subscribeAccountWebhooks = notYet("subscribeAccountWebhooks");
-export const subscribePageLeadgen = notYet("subscribePageLeadgen");
-export const syncLeadsForForm = notYet("syncLeadsForForm");
-export const scanCompetitor = notYet("scanCompetitor");
-export const analyzeCompetitorAd = notYet("analyzeCompetitorAd");
-export const testConversionDataset = notYet("testConversionDataset");
-export const sendConversionEvent = notYet("sendConversionEvent");
+export { subscribeAccountWebhooks, subscribePageLeadgen, syncLeadsForForm, handleLeadgenChange } from "./webhooks.js";
+export { scanCompetitor, analyzeCompetitorAd } from "./competitors.js";
+export { testConversionDataset, sendConversionEvent } from "./conversions.js";
+export { recordAdReferral, getAdContextForConversation } from "./adClicks.js";

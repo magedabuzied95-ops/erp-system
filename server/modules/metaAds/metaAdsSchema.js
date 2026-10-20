@@ -427,6 +427,23 @@ const STATEMENTS = [
     pending_accounts JSONB NOT NULL DEFAULT '[]'::jsonb,
     created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
   )`,
+  // integrations/: the redirect_uri sent to the OAuth dialog must be repeated verbatim
+  // at the code exchange, so it is kept with the state.
+  `ALTER TABLE meta_ads_oauth_states ADD COLUMN IF NOT EXISTS redirect_uri TEXT NULL`,
+  `ALTER TABLE meta_ads_oauth_states ADD COLUMN IF NOT EXISTS meta_user_id TEXT NULL`,
+  `ALTER TABLE meta_ads_oauth_states ADD COLUMN IF NOT EXISTS meta_user_name TEXT NULL`,
+  // integrations/: Conversions API "Purchase" job cursor (last order id looked at per tenant).
+  `CREATE TABLE IF NOT EXISTS meta_ads_capi_cursors (
+    tenant_id BIGINT PRIMARY KEY,
+    last_order_id BIGINT NOT NULL DEFAULT 0,
+    updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+  )`,
+  `CREATE INDEX IF NOT EXISTS meta_ads_ad_clicks_clid_idx ON meta_ads_ad_clicks (tenant_id, ctwa_clid) WHERE ctwa_clid IS NOT NULL`,
+  `CREATE INDEX IF NOT EXISTS meta_ads_conversion_events_retry_idx ON meta_ads_conversion_events (status, attempts) WHERE status = 'failed'`,
+  // records/: ad-account form fields "معرّف التطبيق", "سر التطبيق" (encrypted) and "رمز التحقق من Webhook".
+  `ALTER TABLE meta_ads_accounts ADD COLUMN IF NOT EXISTS app_id TEXT NULL`,
+  `ALTER TABLE meta_ads_accounts ADD COLUMN IF NOT EXISTS app_secret_encrypted TEXT NULL`,
+  `ALTER TABLE meta_ads_accounts ADD COLUMN IF NOT EXISTS webhook_verify_token TEXT NULL`,
 ];
 
 const run = async (db) => {

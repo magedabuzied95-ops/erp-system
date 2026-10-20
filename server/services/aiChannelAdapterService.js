@@ -612,6 +612,15 @@ export const extractWhatsAppWebhookMessages = ({ body = {}, tenantId = null } = 
       const contactsByWaId = new Map(asArray(value.contacts).map((contact) => [contact.wa_id, contact]));
       asArray(value.messages).forEach((message) => {
         const contact = contactsByWaId.get(message.from) || {};
+        // Meta Ads click-to-WhatsApp attribution. Fire-and-forget; never blocks or breaks the message.
+        if (message.referral && tenantId) {
+          try {
+            const adsInput = { tenantId, channel: "whatsapp", conversationKey: `whatsapp:${message.from}`, senderId: message.from, contactName: contact.profile?.name || "", referral: message.referral, raw: { referral: message.referral, metadata: value.metadata || {} } };
+            void import("../modules/metaAds/integrations/adClicks.js").then((m) => m.recordAdReferralSafe(adsInput)).catch(() => {});
+          } catch {
+            // never let attribution touch message handling
+          }
+        }
         messages.push(normalizeBaseIncomingMessage({
           tenantId,
           channel: AI_AGENT_CHANNELS.WHATSAPP,
@@ -901,6 +910,16 @@ export const extractMetaWebhookMessages = async ({ body = {}, tenantId = null } 
       const isPageOrigin = Boolean(isEcho || senderLooksLikePage);
       const customerId = isPageOrigin ? recipientId : senderId;
       if (!customerId) continue;
+      // Meta Ads click-to-message attribution. Fire-and-forget; never blocks or breaks the message.
+      const adReferral = isPageOrigin ? null : (event.referral || event.message?.referral || event.postback?.referral || null);
+      if (adReferral && tenantId) {
+        try {
+          const adsInput = { tenantId, channel, conversationKey: `${channel}:${customerId}`, senderId: customerId, referral: adReferral, raw: { referral: adReferral, page_id: pageId } };
+          void import("../modules/metaAds/integrations/adClicks.js").then((m) => m.recordAdReferralSafe(adsInput)).catch(() => {});
+        } catch {
+          // never let attribution touch message handling
+        }
+      }
       const messageText = extractMetaMessageText(event);
       const attachments = extractMetaAttachments(event);
       const externalMessageId = toText(event.message?.mid || event.message?.id || event.postback?.mid || event.postback?.payload || event.read?.watermark || event.delivery?.watermark);

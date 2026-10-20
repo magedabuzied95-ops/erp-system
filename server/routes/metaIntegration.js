@@ -499,6 +499,13 @@ webhookRouter.post("/webhook", async (req, res) => {
       if (forward.failed) return res.status(502).json({ success: false, message: "Forward to the other copy failed" });
       return res.json({ success: true, forwarded: forward.forwarded });
     }
+    // Meta Ads: Page `leadgen` changes → lead forms. Fire-and-forget; never blocks or breaks messaging.
+    try {
+      const adsHook = { body: req.body, rawBody: req.rawBody, signature: req.headers?.["x-hub-signature-256"] };
+      void import("../modules/metaAds/integrations/webhooks.js").then((m) => m.handlePageWebhookForAds(adsHook)).catch(() => {});
+    } catch {
+      // never let the Ads hook touch message handling
+    }
     const result = await processMetaWebhook({ req });
     res.json({ success: true, ...result });
   } catch (error) {

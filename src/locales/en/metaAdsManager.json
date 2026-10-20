@@ -1,1 +1,180 @@
-{}
+{
+  "title": "Ads Manager",
+  "accountSelect": "Ad account",
+  "create": "Create",
+  "sync": "Sync",
+  "syncing": "Syncing…",
+  "syncDone": "Synced: {{campaigns}} campaigns, {{adsets}} ad sets, {{ads}} ads",
+  "syncWarnings": "Synced with warnings: {{list}}",
+  "syncFailed": "Sync failed",
+  "rules": "Automated rules",
+  "datePreset": "Date range",
+  "presets": {
+    "all": "All time",
+    "7": "Last 7 days",
+    "30": "Last 30 days",
+    "90": "Last 90 days"
+  },
+  "tabs": {
+    "aria": "Ad levels",
+    "campaign": "Campaigns",
+    "adset": "Ad sets",
+    "ad": "Ads"
+  },
+  "searchPlaceholder": "Search by name",
+  "columnsButton": "Columns",
+  "columnPresets": {
+    "performance": "Performance",
+    "delivery": "Delivery",
+    "engagement": "Engagement"
+  },
+  "customizeColumns": "Customize columns",
+  "columns": {
+    "select": "Select",
+    "selectAll": "Select all",
+    "toggle": "Off/On",
+    "campaign": "Campaign",
+    "adset": "Ad set",
+    "ad": "Ad",
+    "delivery": "Delivery",
+    "objective": "Objective",
+    "goal": "Performance goal",
+    "creative": "Creative",
+    "budget": "Budget",
+    "results": "Results",
+    "reach": "Reach",
+    "impressions": "Impressions",
+    "spend": "Amount spent",
+    "end": "Ends",
+    "actions": "Actions"
+  },
+  "creativeTypes": {
+    "single_image": "Single image",
+    "video": "Video",
+    "carousel": "Carousel"
+  },
+  "draft": "Draft",
+  "perDay": "{{amount}} / day",
+  "lifetime": "{{amount}} lifetime",
+  "campaignBudget": "Campaign budget",
+  "ongoing": "Ongoing",
+  "empty": {
+    "campaign": "No campaigns yet. Press \"Create\" to start a new campaign or \"Sync\" to bring your campaigns from Meta.",
+    "adset": "No ad sets.",
+    "ad": "No ads.",
+    "search": "Nothing matches your search."
+  },
+  "filterChip": {
+    "campaign": "Campaign: {{name}}",
+    "adset": "Ad set: {{name}}",
+    "remove": "Remove filter"
+  },
+  "actions": {
+    "edit": "Edit",
+    "duplicate": "Duplicate",
+    "deleteDraft": "Delete draft",
+    "charts": "View charts",
+    "turnOn": "Turn on",
+    "turnOff": "Turn off"
+  },
+  "status": {
+    "turnedOn": "Turned on",
+    "turnedOff": "Paused",
+    "failed": "Could not change the status"
+  },
+  "duplicateDone": "A draft copy was created",
+  "duplicateFailed": "Could not duplicate",
+  "deleteConfirmTitle": "Delete draft",
+  "deleteConfirmBody": "The draft \"{{name}}\" and everything inside it will be deleted. This cannot be undone.",
+  "deleteDone": "Draft deleted",
+  "deleteFailed": "Could not delete the draft",
+  "loadFailed": "Could not load the data",
+  "retry": "Retry",
+  "noTokenBanner": "This ad account is not connected to Facebook, so it cannot sync or publish.",
+  "readOnly": "View only — you need the Meta Ads manage permission to change delivery.",
+  "charts": {
+    "title": "View charts",
+    "daily": "Daily performance",
+    "results": "Results",
+    "spend": "Amount spent",
+    "breakdown": "Breakdown",
+    "breakdowns": {
+      "age": "Age",
+      "gender": "Gender",
+      "platform": "Platform",
+      "country": "Country"
+    },
+    "values": {
+      "male": "Men",
+      "female": "Women",
+      "unknown": "Unknown",
+      "facebook": "Facebook",
+      "instagram": "Instagram",
+      "audience_network": "Audience Network",
+      "messenger": "Messenger",
+      "threads": "Threads",
+      "whatsapp": "WhatsApp"
+    },
+    "empty": "No data for this period yet. Sync to see the charts.",
+    "draftEmpty": "This draft is not published yet, so it has no performance data."
+  },
+  "rulesModal": {
+    "title": "Automated rules",
+    "empty": "No automated rules yet. Create a rule to pause or change ads automatically.",
+    "create": "Create rule",
+    "name": "Rule name",
+    "namePlaceholder": "Rule name",
+    "applyTo": "Apply to",
+    "window": "Time range",
+    "condition": "Condition",
+    "then": "Then",
+    "metric": "Metric",
+    "operator": "Comparison",
+    "value": "Value",
+    "hint": "Checked automatically every 15 minutes",
+    "cancel": "Cancel",
+    "save": "Save rule",
+    "saved": "Rule saved",
+    "saveFailed": "Could not save the rule",
+    "nameRequired": "Enter a rule name",
+    "valueRequired": "Enter a valid value",
+    "enabled": "Enabled",
+    "runNow": "Run now",
+    "edit": "Edit",
+    "delete": "Delete",
+    "deleteConfirm": "Delete the rule \"{{name}}\"?",
+    "deleted": "Rule deleted",
+    "runResult": "{{matched}} items matched, action taken on {{acted}}",
+    "runErrors": "The action failed on {{count}} items: {{message}}",
+    "lastRun": "Last run: {{when}}",
+    "neverRun": "Not run yet",
+    "levels": {
+      "campaign": "Campaigns",
+      "adset": "Ad sets",
+      "ad": "Ads"
+    },
+    "windows": {
+      "1": "Last 1 day",
+      "7": "Last 7 days",
+      "30": "Last 30 days",
+      "0": "All time"
+    },
+    "metrics": {
+      "spend": "Amount spent",
+      "clicks": "Clicks",
+      "impressions": "Impressions",
+      "reach": "Reach",
+      "cpc": "Cost per click",
+      "ctr": "CTR %"
+    },
+    "operators": {
+      "gt": "Greater than",
+      "lt": "Less than"
+    },
+    "actionsList": {
+      "pause": "Pause it",
+      "activate": "Turn it on",
+      "notify_only": "Notify only"
+    }
+  }
+}
