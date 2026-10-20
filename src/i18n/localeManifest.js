@@ -78,6 +78,10 @@ export const RESOURCE_BRANCHES = [
   { branch: "sales", file: "sales" },
   { branch: "surveillance", file: "surveillance" },
   { branch: "amazon", file: "amazon" },
+  { branch: "metaAds", file: "metaAds" },
+  { branch: "metaAdsManager", file: "metaAdsManager" },
+  { branch: "metaAdsRecords", file: "metaAdsRecords" },
+  { branch: "metaAdsConnect", file: "metaAdsConnect" },
 ];
 
 /**

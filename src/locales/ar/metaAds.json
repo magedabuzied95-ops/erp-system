@@ -1,0 +1,223 @@
+{
+  "nav": {
+    "sidebar": "إعلانات Meta",
+    "sections": {
+      "campaigns": "الحملات",
+      "leads": "العملاء المحتملون",
+      "audiences": "الجماهير والرؤى",
+      "attribution": "الإسناد",
+      "competitors": "المنافسون",
+      "settings": "الإعدادات"
+    },
+    "pages": {
+      "adsManager": "مدير الإعلانات",
+      "adAccounts": "الحسابات الإعلانية",
+      "connect": "ربط الحساب",
+      "campaigns": "الحملات",
+      "adsets": "المجموعات الإعلانية",
+      "ads": "الإعلانات",
+      "adEvents": "أحداث الإعلانات",
+      "leadForms": "نماذج العملاء المحتملين",
+      "leads": "العملاء المحتملون",
+      "audiences": "الجماهير",
+      "creatives": "تصاميم الإعلانات",
+      "adInsights": "إحصاءات الإعلانات",
+      "pageInsights": "إحصاءات الصفحة",
+      "adClicks": "نقرات الإعلان",
+      "conversionDatasets": "مجموعات بيانات التحويل",
+      "conversionEvents": "أحداث التحويل",
+      "competitors": "المنافسون",
+      "competitorAds": "إعلانات المنافسين",
+      "optimizationGoals": "أهداف التحسين",
+      "billingEvents": "أحداث الفوترة"
+    },
+    "menuAria": "أقسام إعلانات Meta"
+  },
+  "status": {
+    "ACTIVE": "نشط",
+    "PAUSED": "متوقف مؤقتًا",
+    "DRAFT": "مسودة",
+    "DELETED": "محذوف",
+    "ARCHIVED": "مؤرشف",
+    "IN_PROCESS": "قيد المعالجة",
+    "WITH_ISSUES": "به مشكلات",
+    "PENDING_REVIEW": "قيد المراجعة",
+    "PREAPPROVED": "موافق عليه مبدئيًا",
+    "DISAPPROVED": "مرفوض",
+    "CAMPAIGN_PAUSED": "الحملة متوقفة",
+    "ADSET_PAUSED": "المجموعة متوقفة",
+    "PENDING_BILLING_INFO": "بانتظار بيانات الدفع",
+    "active": "نشط",
+    "disabled": "معطّل",
+    "unsettled": "غير مسدد",
+    "unknown": "غير معروف"
+  },
+  "objectives": {
+    "OUTCOME_AWARENESS": {
+      "label": "التوعية",
+      "description": "اعرض إعلاناتك على الأشخاص الأكثر احتمالًا لتذكرها."
+    },
+    "OUTCOME_TRAFFIC": {
+      "label": "الزيارات",
+      "description": "أرسل الناس إلى وجهة مثل موقعك أو تطبيقك أو ملفك على إنستجرام."
+    },
+    "OUTCOME_ENGAGEMENT": {
+      "label": "التفاعل",
+      "description": "احصل على مزيد من الرسائل أو المشتريات عبر المراسلة أو مشاهدات الفيديو أو التفاعل مع المنشورات أو إعجابات الصفحة أو الاستجابة للفعاليات."
+    },
+    "OUTCOME_LEADS": {
+      "label": "العملاء المحتملون",
+      "description": "اجمع عملاء محتملين لنشاطك أو علامتك التجارية."
+    },
+    "OUTCOME_APP_PROMOTION": {
+      "label": "ترويج التطبيق",
+      "description": "اعثر على أشخاص جدد لتثبيت تطبيقك والاستمرار في استخدامه."
+    },
+    "OUTCOME_SALES": {
+      "label": "المبيعات",
+      "description": "اعثر على الأشخاص الأكثر احتمالًا لشراء منتجك أو خدمتك."
+    }
+  },
+  "goodFor": {
+    "reach": "مدى الوصول",
+    "brandAwareness": "الوعي بالعلامة التجارية",
+    "videoViews": "مشاهدات الفيديو",
+    "storeAwareness": "الوعي بموقع المتجر",
+    "linkClicks": "نقرات الرابط",
+    "landingPageViews": "مشاهدات صفحة الوصول",
+    "instagramProfileVisits": "زيارات الملف الشخصي على إنستجرام",
+    "calls": "المكالمات",
+    "messengerWhatsapp": "ماسنجر وواتساب",
+    "postEngagement": "التفاعل مع المنشور",
+    "eventResponses": "الاستجابة للفعاليات",
+    "instantForms": "النماذج الفورية",
+    "messengerInstagram": "ماسنجر وإنستجرام",
+    "conversions": "التحويلات",
+    "appInstalls": "تثبيتات التطبيق",
+    "appEvents": "أحداث التطبيق",
+    "catalogSales": "مبيعات الكتالوج"
+  },
+  "goals": {
+    "REACH": "Reach",
+    "IMPRESSIONS": "Impressions",
+    "LINK_CLICKS": "Link Clicks",
+    "LANDING_PAGE_VIEWS": "Landing Page Views",
+    "POST_ENGAGEMENT": "Post Engagement",
+    "PAGE_LIKES": "Page Likes",
+    "VIDEO_VIEWS": "Video Views",
+    "THRUPLAY": "ThruPlay",
+    "LEAD_GENERATION": "Lead Generation",
+    "OFFSITE_CONVERSIONS": "Conversions",
+    "APP_INSTALLS": "App Installs",
+    "VALUE": "Value",
+    "QUALITY_CALL": "Quality Call",
+    "CONVERSATIONS": "Conversations",
+    "AD_RECALL_LIFT": "Ad Recall Lift",
+    "REPLIES": "Replies"
+  },
+  "billingEvents": {
+    "IMPRESSIONS": "Impressions",
+    "LINK_CLICKS": "Link Clicks",
+    "VIDEO_VIEWS": "Video Views",
+    "THRUPLAY": "ThruPlay",
+    "POST_ENGAGEMENT": "Post Engagement",
+    "PAGE_LIKES": "Page Likes",
+    "APP_INSTALLS": "App Installs"
+  },
+  "bidStrategies": {
+    "LOWEST_COST_WITHOUT_CAP": "أعلى حجم",
+    "LOWEST_COST_WITHOUT_CAP_AUTO": "أعلى حجم (تلقائي)",
+    "COST_CAP": "هدف التكلفة لكل نتيجة",
+    "LOWEST_COST_WITH_BID_CAP": "حد المزايدة"
+  },
+  "specialCategories": {
+    "FINANCIAL_PRODUCTS_SERVICES": "المنتجات والخدمات المالية",
+    "EMPLOYMENT": "الوظائف",
+    "HOUSING": "الإسكان",
+    "ISSUES_ELECTIONS_POLITICS": "قضايا اجتماعية أو انتخابات أو سياسة",
+    "ONLINE_GAMBLING_AND_GAMING": "المقامرة والألعاب أونلاين"
+  },
+  "cta": {
+    "LEARN_MORE": "معرفة المزيد",
+    "SHOP_NOW": "تسوق الآن",
+    "SIGN_UP": "اشترك",
+    "BOOK_NOW": "احجز الآن",
+    "DOWNLOAD": "تنزيل",
+    "INSTALL_MOBILE_APP": "تثبيت التطبيق",
+    "USE_MOBILE_APP": "استخدام التطبيق",
+    "GET_DIRECTIONS": "الحصول على الاتجاهات",
+    "CONTACT_US": "تواصل معنا",
+    "APPLY_NOW": "قدّم الآن",
+    "BUY_NOW": "اشترِ الآن",
+    "GET_OFFER": "احصل على العرض",
+    "GET_QUOTE": "احصل على عرض سعر",
+    "CALL_NOW": "اتصل الآن",
+    "MESSAGE_PAGE": "إرسال الرسالة",
+    "SUBSCRIBE": "يشترك",
+    "WATCH_MORE": "شاهد المزيد",
+    "LISTEN_MUSIC": "استمع الآن",
+    "PLAY_GAME": "العب الآن",
+    "REQUEST_TIME": "اطلب موعدًا",
+    "SEE_MENU": "انظر القائمة",
+    "DONATE_NOW": "تبرّع الآن",
+    "ORDER_NOW": "اطلب الآن",
+    "WHATSAPP_MESSAGE": "إرسال رسالة واتساب",
+    "INSTAGRAM_MESSAGE": "إرسال رسالة",
+    "NO_BUTTON": "لا زر"
+  },
+  "levels": {
+    "account": "الحساب",
+    "campaign": "الحملة",
+    "adset": "المجموعة الإعلانية",
+    "ad": "الإعلان"
+  },
+  "channels": {
+    "whatsapp": "WhatsApp",
+    "messenger": "Messenger",
+    "instagram": "Instagram",
+    "website": "الموقع الإلكتروني"
+  },
+  "common": {
+    "loading": "جارٍ التحميل…",
+    "noData": "لا توجد بيانات متاحة",
+    "loadFailed": "تعذّر تحميل البيانات",
+    "save": "حفظ",
+    "cancel": "إلغاء",
+    "close": "إغلاق",
+    "edit": "تعديل",
+    "duplicate": "تكرار",
+    "delete": "حذف",
+    "sync": "مزامنة",
+    "syncing": "جارٍ المزامنة…",
+    "synced": "تمت المزامنة",
+    "search": "بحث…",
+    "searchByName": "بحث بالاسم",
+    "yes": "نعم",
+    "no": "لا",
+    "all": "الكل",
+    "choose": "اختر...",
+    "ongoing": "مستمر",
+    "perDay": "يوم",
+    "campaignBudget": "ميزانية الحملة",
+    "thousand": "ألف",
+    "million": "مليون",
+    "copy": "نسخ",
+    "copied": "تم النسخ",
+    "open": "فتح",
+    "saved": "تم الحفظ",
+    "deleted": "تم الحذف",
+    "confirmDelete": "هل تريد حذف هذا العنصر؟",
+    "adAccount": "حساب إعلاني",
+    "noAccountTitle": "لا يوجد حساب إعلاني مربوط",
+    "noAccountBody": "اربط حساب Meta الإعلاني لإدارة الحملات والعملاء المحتملين والجماهير من هنا.",
+    "connectAction": "ربط الحساب",
+    "notConnectedTitle": "الحساب غير مربوط بفيسبوك",
+    "notConnectedBody": "انتهت صلاحية الربط أو لم يتم بعد. أعد الربط من صفحة \"ربط الحساب\".",
+    "reconnect": "إعادة الربط",
+    "deniedTitle": "ليست لديك صلاحية",
+    "deniedBody": "تحتاج صلاحية إعلانات Meta لعرض هذه الصفحة.",
+    "notReadyTitle": "إعلانات Meta غير مهيأة",
+    "notReadyBody": "لم يتم تجهيز جداول إعلانات Meta على الخادم بعد.",
+    "metaError": "رد Meta: {{message}}"
+  }
+}

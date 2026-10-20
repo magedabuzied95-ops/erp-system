@@ -43,6 +43,7 @@ import {
   Network,
   ScrollText,
   ShoppingBasket,
+  Target,
 } from "lucide-react";
 
 import { getCurrentUser, getUserPermissions, isAdminUser } from "../../../shared/auth/authStorage.js";
@@ -117,11 +118,14 @@ export const MODULES = [
   // Amazon SP-API. view = read Amazon pages; manage = sync, SKU mapping, settings.
   // The API also requires MFA for both. Granted to admin roles only by default.
   { key: "amazon", label: "Amazon" },
+  // Meta Ads (Marketing API). view = read every Meta Ads screen; manage = create/publish/pause/sync/connect.
+  { key: "meta_ads", label: "Meta Ads" },
 ];
 
 export const MODULE_ACTIONS = Object.freeze({
   dashboard: ["view"],
   amazon: ["view", "manage"],
+  meta_ads: ["view", "manage"],
   products: ["view", "create", "edit", "delete", "view_cost", "barcode_shop"],
   pos: ["view", "create", "sell", "edit", "edit_old", "override_seller", "scan_product_qr"],
   "pos.expenses": ["create", "view_shift_total"],
@@ -529,6 +533,9 @@ const RAW_SIDEBAR_SECTIONS = [
     items: [
       { label: "Marketing", to: "/marketing", permission: "marketing.view", icon: Megaphone, devOnly: true },
       { label: "Coupons", to: "/marketing/coupons", permission: "marketing.view", icon: TicketPercent },
+      // ONE row: Ads Manager, campaigns, leads, audiences, attribution, competitors and settings
+      // are reached through the section bar on the page itself (MetaAdsLayout).
+      { label: "Meta Ads", to: "/meta-ads", permission: "meta_ads.view", icon: Target, keywords: "meta ads facebook instagram ads manager campaigns ad sets leads audiences pixel إعلانات ميتا فيسبوك حملات مدير الإعلانات" },
       { label: "AI Marketing Center", to: "/marketing/ai-center", permission: "marketing.view", icon: Sparkles },
       { label: "Social Calendar", to: "/marketing/social-calendar", permission: "marketing.view", icon: CalendarDays },
       { label: "Social Posts", to: "/marketing/posts", permission: "marketing.view", icon: Share2, devOnly: true },

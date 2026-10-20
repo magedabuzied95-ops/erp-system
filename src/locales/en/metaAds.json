@@ -1,0 +1,223 @@
+{
+  "nav": {
+    "sidebar": "Meta Ads",
+    "sections": {
+      "campaigns": "Campaigns",
+      "leads": "Leads",
+      "audiences": "Audiences & Insights",
+      "attribution": "Attribution",
+      "competitors": "Competitors",
+      "settings": "Settings"
+    },
+    "pages": {
+      "adsManager": "Ads Manager",
+      "adAccounts": "Ad Accounts",
+      "connect": "Connect Account",
+      "campaigns": "Campaigns",
+      "adsets": "Ad Sets",
+      "ads": "Ads",
+      "adEvents": "Ad Events",
+      "leadForms": "Lead Forms",
+      "leads": "Leads",
+      "audiences": "Audiences",
+      "creatives": "Ad Creatives",
+      "adInsights": "Ad Insights",
+      "pageInsights": "Page Insights",
+      "adClicks": "Ad Clicks",
+      "conversionDatasets": "Conversion Datasets",
+      "conversionEvents": "Conversion Events",
+      "competitors": "Competitors",
+      "competitorAds": "Competitor Ads",
+      "optimizationGoals": "Optimization Goals",
+      "billingEvents": "Billing Events"
+    },
+    "menuAria": "Meta Ads sections"
+  },
+  "status": {
+    "ACTIVE": "Active",
+    "PAUSED": "Paused",
+    "DRAFT": "Draft",
+    "DELETED": "Deleted",
+    "ARCHIVED": "Archived",
+    "IN_PROCESS": "In process",
+    "WITH_ISSUES": "With issues",
+    "PENDING_REVIEW": "In review",
+    "PREAPPROVED": "Pre-approved",
+    "DISAPPROVED": "Rejected",
+    "CAMPAIGN_PAUSED": "Campaign paused",
+    "ADSET_PAUSED": "Ad set paused",
+    "PENDING_BILLING_INFO": "Pending billing info",
+    "active": "Active",
+    "disabled": "Disabled",
+    "unsettled": "Unsettled",
+    "unknown": "Unknown"
+  },
+  "objectives": {
+    "OUTCOME_AWARENESS": {
+      "label": "Awareness",
+      "description": "Show your ads to people who are most likely to remember them."
+    },
+    "OUTCOME_TRAFFIC": {
+      "label": "Traffic",
+      "description": "Send people to a destination, like your website, app or Instagram profile."
+    },
+    "OUTCOME_ENGAGEMENT": {
+      "label": "Engagement",
+      "description": "Get more messages, purchases through messaging, video views, post engagement, Page likes or event responses."
+    },
+    "OUTCOME_LEADS": {
+      "label": "Leads",
+      "description": "Collect leads for your business or brand."
+    },
+    "OUTCOME_APP_PROMOTION": {
+      "label": "App promotion",
+      "description": "Find new people to install your app and continue using it."
+    },
+    "OUTCOME_SALES": {
+      "label": "Sales",
+      "description": "Find people likely to purchase your product or service."
+    }
+  },
+  "goodFor": {
+    "reach": "Reach",
+    "brandAwareness": "Brand awareness",
+    "videoViews": "Video views",
+    "storeAwareness": "Store location awareness",
+    "linkClicks": "Link clicks",
+    "landingPageViews": "Landing page views",
+    "instagramProfileVisits": "Instagram profile visits",
+    "calls": "Calls",
+    "messengerWhatsapp": "Messenger and WhatsApp",
+    "postEngagement": "Post engagement",
+    "eventResponses": "Event responses",
+    "instantForms": "Instant forms",
+    "messengerInstagram": "Messenger and Instagram",
+    "conversions": "Conversions",
+    "appInstalls": "App installs",
+    "appEvents": "App events",
+    "catalogSales": "Catalog sales"
+  },
+  "goals": {
+    "REACH": "Reach",
+    "IMPRESSIONS": "Impressions",
+    "LINK_CLICKS": "Link Clicks",
+    "LANDING_PAGE_VIEWS": "Landing Page Views",
+    "POST_ENGAGEMENT": "Post Engagement",
+    "PAGE_LIKES": "Page Likes",
+    "VIDEO_VIEWS": "Video Views",
+    "THRUPLAY": "ThruPlay",
+    "LEAD_GENERATION": "Lead Generation",
+    "OFFSITE_CONVERSIONS": "Conversions",
+    "APP_INSTALLS": "App Installs",
+    "VALUE": "Value",
+    "QUALITY_CALL": "Quality Call",
+    "CONVERSATIONS": "Conversations",
+    "AD_RECALL_LIFT": "Ad Recall Lift",
+    "REPLIES": "Replies"
+  },
+  "billingEvents": {
+    "IMPRESSIONS": "Impressions",
+    "LINK_CLICKS": "Link Clicks",
+    "VIDEO_VIEWS": "Video Views",
+    "THRUPLAY": "ThruPlay",
+    "POST_ENGAGEMENT": "Post Engagement",
+    "PAGE_LIKES": "Page Likes",
+    "APP_INSTALLS": "App Installs"
+  },
+  "bidStrategies": {
+    "LOWEST_COST_WITHOUT_CAP": "Highest volume",
+    "LOWEST_COST_WITHOUT_CAP_AUTO": "Highest volume (automatic)",
+    "COST_CAP": "Cost per result goal",
+    "LOWEST_COST_WITH_BID_CAP": "Bid cap"
+  },
+  "specialCategories": {
+    "FINANCIAL_PRODUCTS_SERVICES": "Financial products and services",
+    "EMPLOYMENT": "Employment",
+    "HOUSING": "Housing",
+    "ISSUES_ELECTIONS_POLITICS": "Social issues, elections or politics",
+    "ONLINE_GAMBLING_AND_GAMING": "Online gambling and gaming"
+  },
+  "cta": {
+    "LEARN_MORE": "Learn more",
+    "SHOP_NOW": "Shop now",
+    "SIGN_UP": "Sign up",
+    "BOOK_NOW": "Book now",
+    "DOWNLOAD": "Download",
+    "INSTALL_MOBILE_APP": "Install app",
+    "USE_MOBILE_APP": "Use app",
+    "GET_DIRECTIONS": "Get directions",
+    "CONTACT_US": "Contact us",
+    "APPLY_NOW": "Apply now",
+    "BUY_NOW": "Buy now",
+    "GET_OFFER": "Get offer",
+    "GET_QUOTE": "Get quote",
+    "CALL_NOW": "Call now",
+    "MESSAGE_PAGE": "Send message",
+    "SUBSCRIBE": "Subscribe",
+    "WATCH_MORE": "Watch more",
+    "LISTEN_MUSIC": "Listen now",
+    "PLAY_GAME": "Play game",
+    "REQUEST_TIME": "Request time",
+    "SEE_MENU": "See menu",
+    "DONATE_NOW": "Donate now",
+    "ORDER_NOW": "Order now",
+    "WHATSAPP_MESSAGE": "Send WhatsApp message",
+    "INSTAGRAM_MESSAGE": "Send message",
+    "NO_BUTTON": "No button"
+  },
+  "levels": {
+    "account": "Account",
+    "campaign": "Campaign",
+    "adset": "Ad set",
+    "ad": "Ad"
+  },
+  "channels": {
+    "whatsapp": "WhatsApp",
+    "messenger": "Messenger",
+    "instagram": "Instagram",
+    "website": "Website"
+  },
+  "common": {
+    "loading": "Loading…",
+    "noData": "No data available",
+    "loadFailed": "Could not load data",
+    "save": "Save",
+    "cancel": "Cancel",
+    "close": "Close",
+    "edit": "Edit",
+    "duplicate": "Duplicate",
+    "delete": "Delete",
+    "sync": "Sync",
+    "syncing": "Syncing…",
+    "synced": "Synced",
+    "search": "Search…",
+    "searchByName": "Search by name",
+    "yes": "Yes",
+    "no": "No",
+    "all": "All",
+    "choose": "Choose...",
+    "ongoing": "Ongoing",
+    "perDay": "day",
+    "campaignBudget": "Campaign budget",
+    "thousand": "K",
+    "million": "M",
+    "copy": "Copy",
+    "copied": "Copied",
+    "open": "Open",
+    "saved": "Saved",
+    "deleted": "Deleted",
+    "confirmDelete": "Delete this item?",
+    "adAccount": "Ad account",
+    "noAccountTitle": "No ad account connected",
+    "noAccountBody": "Connect your Meta ad account to manage campaigns, leads and audiences from here.",
+    "connectAction": "Connect account",
+    "notConnectedTitle": "Account not connected to Facebook",
+    "notConnectedBody": "The connection expired or was never completed. Reconnect from \"Connect Account\".",
+    "reconnect": "Reconnect",
+    "deniedTitle": "Access denied",
+    "deniedBody": "You need the Meta Ads permission to view this page.",
+    "notReadyTitle": "Meta Ads is not set up",
+    "notReadyBody": "The Meta Ads tables have not been created on the server yet.",
+    "metaError": "Meta said: {{message}}"
+  }
+}

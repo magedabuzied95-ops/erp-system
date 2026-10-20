@@ -224,6 +224,7 @@ const Permissions = lazy(() => import("./modules/permissions/pages/Permissions")
 const AccountSecurity = lazy(() => import("./modules/security/AccountSecurity"));
 const AmazonCenter = lazy(() => import("./modules/amazon/AmazonCenter"));
 const AmazonIntegrationSettings = lazy(() => import("./modules/amazon/AmazonCenter").then((module) => ({ default: module.AmazonIntegrationSettingsPage })));
+const MetaAdsModule = lazy(() => import("./modules/metaAds/MetaAdsModule"));
 
 import ProtectedRoute from "./shared/auth/ProtectedRoute";
 import DebugErrorBoundary from "./shared/components/DebugErrorBoundary";
@@ -2174,6 +2175,16 @@ function App() {
           element={
             <ProtectedRoute requiredPermissions={["amazon.view"]}>
               <AmazonIntegrationSettings />
+            </ProtectedRoute>
+          }
+        />
+
+        {/* Meta Ads (Marketing API). Ads Manager, wizard and every record page live under here. */}
+        <Route
+          path="meta-ads/*"
+          element={
+            <ProtectedRoute requiredPermissions={["meta_ads.view"]}>
+              <MetaAdsModule />
             </ProtectedRoute>
           }
         />

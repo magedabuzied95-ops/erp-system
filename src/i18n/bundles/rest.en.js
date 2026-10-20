@@ -20,6 +20,10 @@ import inventoryAnalytics from "../../locales/en/inventoryAnalytics.json";
 import loyalty from "../../locales/en/loyalty.json";
 import managerPortal from "../../locales/en/managerPortal.json";
 import marketing from "../../locales/en/marketing.json";
+import metaAds from "../../locales/en/metaAds.json";
+import metaAdsConnect from "../../locales/en/metaAdsConnect.json";
+import metaAdsManager from "../../locales/en/metaAdsManager.json";
+import metaAdsRecords from "../../locales/en/metaAdsRecords.json";
 import orders from "../../locales/en/orders.json";
 import overview from "../../locales/en/overview.json";
 import pos from "../../locales/en/pos.json";
@@ -56,6 +60,10 @@ export default {
   "loyalty": loyalty,
   "managerPortal": managerPortal,
   "marketing": marketing,
+  "metaAds": metaAds,
+  "metaAdsConnect": metaAdsConnect,
+  "metaAdsManager": metaAdsManager,
+  "metaAdsRecords": metaAdsRecords,
   "orders": orders,
   "overview": overview,
   "pos": pos,

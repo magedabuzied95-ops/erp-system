@@ -676,6 +676,9 @@ const { default: amazonRoutes } = await import("./modules/amazon/amazon.routes.j
 const { ensureAmazonSchema } = await import("./modules/amazon/amazonSchema.js");
 const { closeAbandonedRuns: closeAbandonedAmazonRuns } = await import("./modules/amazon/amazonSyncRuns.js");
 const { startAmazonScheduler } = await import("./modules/amazon/amazonScheduler.js");
+const { default: metaAdsRoutes, metaAdsPublicRoutes } = await import("./modules/metaAds/metaAds.routes.js");
+const { ensureMetaAdsSchema } = await import("./modules/metaAds/metaAdsSchema.js");
+const { startMetaAdsScheduler } = await import("./modules/metaAds/metaAdsScheduler.js");
 const { ensureOrderIdentityAlertsSchema, startOrderIdentitySweeper } = await import("./modules/orders/addressIdentityAlerts.js");
 const { ensureTikTokEventsSchema, startTikTokEventsWorker } = await import("./modules/tiktok/tiktokEventsApi.js");
 const { default: brandsRoutes } = await import("./routes/brands.js");
@@ -2000,6 +2003,10 @@ app.use("/api/users", usersRoutes);
 app.use("/api/security", securityRoutes);
 // Amazon SP-API (read-only). Every route requires amazon.view/manage + MFA.
 app.use("/api/amazon", amazonRoutes);
+// Meta Ads (Marketing API): Ads Manager, wizard, leads, audiences, attribution, competitors.
+// The public router carries only the OAuth callback and the signature-checked webhook.
+app.use("/api/meta-ads-public", metaAdsPublicRoutes);
+app.use("/api/meta-ads", metaAdsRoutes);
 app.use("/api/brands", brandsRoutes);
 app.use("/api/manufacturers", manufacturersRoutes);
 app.use("/api/purchases", purchaseRoutes);
@@ -2442,6 +2449,7 @@ const runDeferredStartupSyncs = async ({ skipStartupSyncs = false } = {}) => {
       startStoryAutopilotRunner();
       startSocialCommentJobWorker();
       startAmazonScheduler({ register: (interval) => backgroundIntervals.add(interval) });
+      startMetaAdsScheduler({ register: (interval) => backgroundIntervals.add(interval) });
 
       const safeRunDueStoryPublishes = () => {
         void runDueStoryPublishes().catch((error) => {
@@ -2704,6 +2712,10 @@ const bootstrapStartup = async () => {
       .then(() => closeAbandonedAmazonRuns())
       .then(() => console.log("[server] amazon schema ensured"))
       .catch((error) => console.error("[server] amazon schema failed; Amazon integration disabled", { message: error?.message || String(error) }));
+    // Meta Ads tables are new and self-contained: a failure disables the Meta Ads module only.
+    await ensureMetaAdsSchema(db)
+      .then(() => console.log("[server] meta ads schema ensured"))
+      .catch((error) => console.error("[server] meta ads schema failed; Meta Ads disabled", { message: error?.message || String(error) }));
     await ensureNotificationsSchema(db);
     // Same-address alerts: nullable columns + a trigger on orders and a new table. A failure (a
     // lock that does not come within 5s) turns the feature off for this boot, never the backend.

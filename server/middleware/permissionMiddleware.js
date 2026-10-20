@@ -10,6 +10,10 @@ const CORE_PERMISSIONS = [
   // requireAmazonAccess() additionally demands MFA. Admin roles receive them automatically.
   ["amazon", "view"],
   ["amazon", "manage"],
+  // Meta Ads (Marketing API). view = every Meta Ads screen; manage = create, publish,
+  // pause, sync, connect accounts, edit records. Admin roles receive both automatically.
+  ["meta_ads", "view"],
+  ["meta_ads", "manage"],
   ["ai_inbox_messenger", "view"],
   ["ai_inbox_messenger", "reply"],
   ["ai_inbox_instagram", "view"],
