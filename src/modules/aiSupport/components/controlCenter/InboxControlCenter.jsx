@@ -150,6 +150,9 @@ export default function InboxControlCenter({
   initialSection = "agent",
   quickReplies = null,
   commentsProps = null,
+  // "overlay" (default): the modal with its own section nav — the PWA uses it. "page": fills
+  // the desktop inbox under its top bar, Genie-style; the top bar is the nav, so there is none here.
+  variant = "overlay",
 }) {
   const { t } = useTranslation();
   const [section, setSection] = useState(
@@ -161,13 +164,14 @@ export default function InboxControlCenter({
   }, [initialSection, open]);
 
   useEffect(() => {
-    if (!open) return undefined;
+    // A page is not a dialog: Escape inside one of its forms must not throw the draft away.
+    if (!open || variant === "page") return undefined;
     const onKeyDown = (event) => {
       if (event.key === "Escape") onClose?.();
     };
     window.addEventListener("keydown", onKeyDown);
     return () => window.removeEventListener("keydown", onKeyDown);
-  }, [onClose, open]);
+  }, [onClose, open, variant]);
 
   const goTo = useCallback((next) => {
     if (CONTROL_CENTER_SECTIONS.includes(next)) setSection(next);
@@ -176,6 +180,63 @@ export default function InboxControlCenter({
   const panelProps = useMemo(() => ({ headers, tenantId }), [headers, tenantId]);
 
   if (!open) return null;
+
+  const panels = (
+    <Suspense fallback={<PanelFallback />}>
+      {section === "agent" ? <AgentBehaviourPanel {...panelProps} /> : null}
+      {section === "teach" ? <TeachAgentPanel {...panelProps} /> : null}
+      {section === "actions" ? <AgentActionsPanel {...panelProps} /> : null}
+      {section === "playground" ? <AgentPlaygroundPanel {...panelProps} /> : null}
+      {section === "quick_replies" ? (
+        <QuickRepliesPanel
+          mounted
+          replies={quickReplies?.quickReplies || []}
+          loading={quickReplies?.loading === true}
+          saving={quickReplies?.saving === true}
+          onCreate={quickReplies?.createReply}
+          onUpdate={quickReplies?.updateReply}
+          onDelete={quickReplies?.deleteReply}
+          onReorder={quickReplies?.reorderReplies}
+          light={false}
+        />
+      ) : null}
+      {section === "comments" ? <CommentsSettingsPanel {...(commentsProps || {})} light={false} /> : null}
+      {section === "invoice_messages" ? <WhatsappMessageVariantsEditor initialType="invoice_receipt" /> : null}
+      {section === "wa_templates" ? <WhatsAppTemplatesPanel headers={headers} /> : null}
+      {section === "broadcasts" ? <BroadcastsPanel {...panelProps} /> : null}
+      {section === "sequences" ? <SequencesPanel {...panelProps} /> : null}
+      {section === "performance" ? <TeamPerformancePanel {...panelProps} /> : null}
+      {section === "overview" ? <IntegrationsOverviewPanel headers={headers} onOpenSection={goTo} /> : null}
+      {section === "meta" ? <MetaIntegrationPanel /> : null}
+      {section === "whatsapp" ? <WhatsAppIntegrationPanel headers={headers} mode="cloud" /> : null}
+      {section === "whatsapp_web" ? <WhatsAppIntegrationPanel headers={headers} mode="web" /> : null}
+      {section === "automations" ? <WhatsAppAutomationsPanel headers={headers} /> : null}
+      {section === "queue" ? <WhatsAppQueuePanel headers={headers} /> : null}
+      {section === "tiktok" ? <TikTokIntegrationPanel /> : null}
+    </Suspense>
+  );
+
+  if (variant === "page") {
+    return (
+      <section className="ai-inbox-section-page flex min-h-0 flex-1 flex-col overflow-hidden rounded-[18px] border border-white/10 bg-[#0b1120] text-white">
+        <header className="flex items-center justify-between gap-3 border-b border-white/10 bg-white/[0.03] px-4 py-2.5">
+          <div className="flex min-w-0 items-center gap-2.5">
+            {(() => { const Icon = SECTION_ICON[section] || LayoutGrid; return <Icon className="h-4 w-4 text-cyan-200" aria-hidden="true" />; })()}
+            <h2 className="truncate text-base font-black">{sectionLabel(t, section)}</h2>
+          </div>
+          <button
+            type="button"
+            onClick={onClose}
+            aria-label={t("aiSupport.integrations.common.close")}
+            className="grid h-9 w-9 shrink-0 place-items-center rounded-xl bg-white/[0.06] text-slate-300 transition hover:bg-white/10 hover:text-white"
+          >
+            <X className="h-4 w-4" aria-hidden="true" />
+          </button>
+        </header>
+        <div className="min-h-0 min-w-0 flex-1 overflow-y-auto p-3 md:p-5">{panels}</div>
+      </section>
+    );
+  }
 
   return (
     <div
@@ -234,38 +295,7 @@ export default function InboxControlCenter({
           </nav>
 
           <div className="min-h-0 min-w-0 flex-1 overflow-y-auto p-3 md:p-4">
-            <Suspense fallback={<PanelFallback />}>
-              {section === "agent" ? <AgentBehaviourPanel {...panelProps} /> : null}
-              {section === "teach" ? <TeachAgentPanel {...panelProps} /> : null}
-              {section === "actions" ? <AgentActionsPanel {...panelProps} /> : null}
-              {section === "playground" ? <AgentPlaygroundPanel {...panelProps} /> : null}
-              {section === "quick_replies" ? (
-                <QuickRepliesPanel
-                  mounted
-                  replies={quickReplies?.quickReplies || []}
-                  loading={quickReplies?.loading === true}
-                  saving={quickReplies?.saving === true}
-                  onCreate={quickReplies?.createReply}
-                  onUpdate={quickReplies?.updateReply}
-                  onDelete={quickReplies?.deleteReply}
-                  onReorder={quickReplies?.reorderReplies}
-                  light={false}
-                />
-              ) : null}
-              {section === "comments" ? <CommentsSettingsPanel {...(commentsProps || {})} light={false} /> : null}
-              {section === "invoice_messages" ? <WhatsappMessageVariantsEditor initialType="invoice_receipt" /> : null}
-              {section === "wa_templates" ? <WhatsAppTemplatesPanel headers={headers} /> : null}
-              {section === "broadcasts" ? <BroadcastsPanel {...panelProps} /> : null}
-              {section === "sequences" ? <SequencesPanel {...panelProps} /> : null}
-              {section === "performance" ? <TeamPerformancePanel {...panelProps} /> : null}
-              {section === "overview" ? <IntegrationsOverviewPanel headers={headers} onOpenSection={goTo} /> : null}
-              {section === "meta" ? <MetaIntegrationPanel /> : null}
-              {section === "whatsapp" ? <WhatsAppIntegrationPanel headers={headers} mode="cloud" /> : null}
-              {section === "whatsapp_web" ? <WhatsAppIntegrationPanel headers={headers} mode="web" /> : null}
-              {section === "automations" ? <WhatsAppAutomationsPanel headers={headers} /> : null}
-              {section === "queue" ? <WhatsAppQueuePanel headers={headers} /> : null}
-              {section === "tiktok" ? <TikTokIntegrationPanel /> : null}
-            </Suspense>
+            {panels}
           </div>
         </div>
       </section>

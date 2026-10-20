@@ -9392,6 +9392,7 @@ export default function AiInbox({ reviewerMode = false }) {
         <InboxControlCenter
           open
           initialSection={controlCenterSection}
+          variant="page"
           headers={headers}
           tenantId={tenantId}
           onClose={() => setControlCenterOpen(false)}
@@ -9414,7 +9415,9 @@ export default function AiInbox({ reviewerMode = false }) {
     <InboxTopBar
       chatsActive={isConversationMode && !controlCenterOpen}
       availableSections={CONTROL_CENTER_SECTIONS}
+      activeSection={controlCenterOpen ? controlCenterSection : ""}
       onChats={() => {
+        setControlCenterOpen(false);
         setInboxSection("conversations");
         setChannelFilter("all");
         setSelectedSocialCommentId("");
@@ -9424,6 +9427,7 @@ export default function AiInbox({ reviewerMode = false }) {
       onOpenSection={openControlCenter}
       onNavigate={(path) => navigate(path)}
       onComments={(platform) => {
+        setControlCenterOpen(false);
         setInboxSection("social_comments");
         setSocialPostsPlatformFilter(platform);
         setSocialThreadPlatformFilter(platform);
@@ -9548,8 +9552,8 @@ export default function AiInbox({ reviewerMode = false }) {
         ) : null}
         <div className="flex h-full w-full min-w-0 flex-col gap-2 overflow-hidden p-2">
           {renderTopBar()}
-        <div className="flex min-h-0 w-full min-w-0 flex-1 gap-2 overflow-hidden">
           {renderControlCenter()}
+        <div className={`${controlCenterOpen ? "hidden" : "flex"} min-h-0 w-full min-w-0 flex-1 gap-2 overflow-hidden`}>
           <InboxChannelSidebar
             channels={[]}
             allUnread={channelSummaries.all.unread}
@@ -9663,7 +9667,6 @@ export default function AiInbox({ reviewerMode = false }) {
         onSave={saveReplyCorrection}
       />
       <div ref={fullscreenHostRef} className={`${conversationExpanded ? "conversation-expanded fixed inset-0 z-[9999] flex h-[100vh] w-[100vw] max-w-none flex-col overflow-hidden bg-[radial-gradient(circle_at_12%_8%,rgba(34,211,238,0.14),transparent_28%),linear-gradient(180deg,#020617,#0f172a)] p-0" : "ai-omni-frame flex w-full min-w-0 flex-col gap-2 overflow-hidden"}`}>
-        {renderControlCenter()}
         {!import.meta.env.PROD ? (
           <div data-debug-ai-inbox-section style={{ display: "none" }}>
             {inboxSection}:{visibleConversations.length}:{visibleSocialComments.length}
@@ -9747,7 +9750,10 @@ export default function AiInbox({ reviewerMode = false }) {
             the list stretched edge to edge and the chat disappeared. Fullscreen
             is purely the outer wrapper's job now. */}
         {conversationExpanded ? null : renderTopBar()}
-        <section className="ai-omni-workspace relative">
+        {/* A top-bar page takes the workspace's place, Genie-style. The workspace stays mounted
+            underneath (hidden) so returning to Chats keeps the open thread, draft and scroll. */}
+        {conversationExpanded ? null : renderControlCenter()}
+        <section className={`ai-omni-workspace relative ${controlCenterOpen && !conversationExpanded ? "!hidden" : ""}`}>
           {/* Expanding scales up the WHOLE workspace — channel rail, conversation
               list and chat. It used to hide the rail, which turned "expand" into
               "chat only" and cost you channel switching at the exact moment you

@@ -139,6 +139,7 @@ export default function InboxTopBar({
   onNavigate,
   onComments,
   availableSections = null,
+  activeSection = "",
 }) {
   const { t } = useTranslation();
   const [openMenu, setOpenMenu] = useState("");
@@ -158,6 +159,9 @@ export default function InboxTopBar({
       window.removeEventListener("keydown", close);
     };
   }, [openMenu]);
+
+  // The menu that owns the open page (the first one, where two share a section).
+  const activeMenu = activeSection ? MENUS.find((menu) => menu.items.some((item) => item.section === activeSection))?.key || "" : "";
 
   const run = (item) => {
     setOpenMenu("");
@@ -187,7 +191,7 @@ export default function InboxTopBar({
             <button
               type="button"
               onClick={() => setOpenMenu(open ? "" : menu.key)}
-              className={`ai-inbox-topbar__tab ${open ? "is-open" : ""}`}
+              className={`ai-inbox-topbar__tab ${open ? "is-open" : ""} ${activeMenu === menu.key ? "is-active" : ""}`}
               aria-haspopup="menu"
               aria-expanded={open}
             >
@@ -198,7 +202,7 @@ export default function InboxTopBar({
             {open ? (
               <div role="menu" className="ai-inbox-topbar__dropdown">
                 {items.map((item) => (
-                  <button key={`${menu.key}:${item.key}`} type="button" role="menuitem" onClick={() => run(item)} className="ai-inbox-topbar__item">
+                  <button key={`${menu.key}:${item.key}`} type="button" role="menuitem" onClick={() => run(item)} className={`ai-inbox-topbar__item ${item.section && item.section === activeSection ? "is-current" : ""}`}>
                     {itemLabel(t, item.key)}
                   </button>
                 ))}
