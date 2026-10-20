@@ -91,6 +91,9 @@ const MENUS = [
       { key: "actions", section: "actions" },
       { key: "playground", section: "playground" },
       { key: "quickReplies", section: "quick_replies" },
+      { key: "teams", section: "cfg_teams" },
+      { key: "groups", section: "cfg_groups" },
+      { key: "shifts", section: "cfg_shifts" },
       { key: "performance", section: "performance" },
       { key: "connections", section: "overview" },
     ],
@@ -135,6 +138,9 @@ const itemLabel = (t, key) => {
     case "actions": return t("aiSupport.inbox.topbar.items.actions");
     case "playground": return t("aiSupport.inbox.topbar.items.playground");
     case "quickReplies": return t("aiSupport.inbox.topbar.items.quickReplies");
+    case "teams": return t("aiSupport.inbox.topbar.items.teams");
+    case "groups": return t("aiSupport.inbox.topbar.items.groups");
+    case "shifts": return t("aiSupport.inbox.topbar.items.shifts");
     case "performance": return t("aiSupport.inbox.topbar.items.performance");
     default: return t("aiSupport.inbox.topbar.items.connections");
   }
