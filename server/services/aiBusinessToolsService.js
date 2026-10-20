@@ -359,7 +359,9 @@ export const findCustomerOrders = async ({ tenantId, orderNumber = "", phone = "
   let numberClause = "";
   if (number) {
     params.push(number);
-    numberClause = `AND (o.invoice_number = $3 OR o.public_order_number = $3 OR o.display_order_number = $3 OR o.id::text = $3 OR $3 = ('WEB-' || o.id::text))`;
+    // Customers type the digits only: «2203» is stored as «INV-2203».
+    numberClause = `AND (o.invoice_number = $3 OR o.public_order_number = $3 OR o.display_order_number = $3 OR o.id::text = $3 OR $3 = ('WEB-' || o.id::text)
+      OR ($3 ~ '^[0-9]+$' AND regexp_replace(COALESCE(o.invoice_number, ''), '[^0-9]', '', 'g') = $3))`;
   }
   params.push(Math.max(1, Math.min(5, Number(limit) || 3)));
   const result = await db.query(
