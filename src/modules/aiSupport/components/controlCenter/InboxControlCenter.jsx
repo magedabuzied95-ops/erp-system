@@ -72,6 +72,7 @@ const CustomerGroupsPanel = lazy(() => import("./CustomerGroupsPanel.jsx"));
 const InboxShiftsPanel = lazy(() => import("./InboxShiftsPanel.jsx"));
 const InboxTagsPanel = lazy(() => import("./InboxTagsPanel.jsx"));
 const MetaAccountsPanel = lazy(() => import("./MetaAccountsPanel.jsx"));
+const WhatsAppAccountsPanel = lazy(() => import("./WhatsAppAccountsPanel.jsx"));
 const PresenceLogPanel = lazy(() => import("./PresenceLogPanel.jsx"));
 const ChatBackupsPanel = lazy(() => import("./ChatBackupsPanel.jsx"));
 
@@ -85,7 +86,7 @@ const MetaGlyph = () => (
 export const CONTROL_CENTER_GROUPS = [
   { key: "agent", sections: ["agent", "teach", "actions", "playground"] },
   { key: "workspace", sections: ["quick_replies", "comments", "invoice_messages"] },
-  { key: "whatsapp_official", sections: ["wa_templates", "wa_usage", "wa_api_keys", "wa_webhooks"] },
+  { key: "whatsapp_official", sections: ["wa_accounts", "wa_templates", "wa_usage", "wa_api_keys", "wa_webhooks"] },
   { key: "growth", sections: ["broadcasts", "sequences"] },
   { key: "team", sections: ["cfg_tags", "cfg_teams", "cfg_groups", "cfg_shifts", "cfg_presence", "cfg_backups"] },
   { key: "insight", sections: ["performance"] },
@@ -113,6 +114,7 @@ const SECTION_ICON = {
   comments: MessageSquareText,
   invoice_messages: Receipt,
   wa_templates: FileText,
+  wa_accounts: () => <FaWhatsapp className="h-4 w-4 text-emerald-300" aria-hidden="true" />,
   wa_usage: Receipt,
   fb_pages: () => <FaFacebookF className="h-4 w-4 text-blue-300" aria-hidden="true" />,
   fb_connect: () => <FaFacebookF className="h-4 w-4 text-blue-300" aria-hidden="true" />,
@@ -158,6 +160,7 @@ const sectionLabel = (t, key) => {
   if (key === "cfg_teams") return t("aiSupport.inbox.topbar.items.teams");
   if (key === "cfg_groups") return t("aiSupport.inbox.topbar.items.groups");
   if (key === "cfg_shifts") return t("aiSupport.inbox.topbar.items.shifts");
+  if (key === "wa_accounts") return t("aiSupport.waAccounts.title");
   if (key === "wa_usage") return t("aiSupport.inbox.topbar.items.waUsage");
   if (key === "wa_api_keys") return t("aiSupport.inbox.topbar.items.waApiKeys");
   if (key === "wa_webhooks") return t("aiSupport.inbox.topbar.items.waWebhooks");
@@ -262,6 +265,7 @@ export default function InboxControlCenter({
       {section === "cfg_teams" ? <InboxTeamsPanel headers={headers} /> : null}
       {section === "cfg_groups" ? <CustomerGroupsPanel headers={headers} /> : null}
       {section === "cfg_shifts" ? <InboxShiftsPanel headers={headers} /> : null}
+      {section === "wa_accounts" ? <WhatsAppAccountsPanel headers={headers} onOpenSection={goTo} /> : null}
       {section === "wa_usage" ? <WhatsAppUsagePanel headers={headers} /> : null}
       {section === "wa_api_keys" ? <WhatsAppDeveloperPanel headers={headers} mode="keys" /> : null}
       {section === "wa_webhooks" ? <WhatsAppDeveloperPanel headers={headers} mode="webhooks" /> : null}

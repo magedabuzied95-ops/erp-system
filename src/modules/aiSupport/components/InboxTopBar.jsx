@@ -23,16 +23,15 @@ const MENUS = [
     key: "whatsapp",
     icon: FaWhatsapp,
     tone: "text-emerald-300",
+    // Genie's order: accounts, templates, campaigns, usage, flows, catalog, orders, developer.
     items: [
-      { key: "waAccount", section: "whatsapp" },
+      { key: "waAccounts", section: "wa_accounts" },
       { key: "waTemplates", section: "wa_templates" },
       { key: "waCampaigns", section: "broadcasts" },
-      { key: "waSequences", section: "sequences" },
-      { key: "waInvoiceMessages", section: "invoice_messages" },
+      { key: "waUsage", section: "wa_usage" },
       { key: "flows", to: "/ai-studio/workflows" },
       { key: "waCatalog", to: "/settings" },
       { key: "waOrders", to: "/orders" },
-      { key: "waUsage", section: "wa_usage" },
       { key: "waApiKeys", section: "wa_api_keys" },
       { key: "waWebhooks", section: "wa_webhooks" },
     ],
@@ -91,6 +90,8 @@ const MENUS = [
       { key: "actions", section: "actions" },
       { key: "playground", section: "playground" },
       { key: "quickReplies", section: "quick_replies" },
+      { key: "waSequences", section: "sequences" },
+      { key: "waInvoiceMessages", section: "invoice_messages" },
       { key: "tags", section: "cfg_tags" },
       { key: "teams", section: "cfg_teams" },
       { key: "groups", section: "cfg_groups" },
@@ -115,7 +116,7 @@ const menuLabel = (t, key) => {
 
 const itemLabel = (t, key) => {
   switch (key) {
-    case "waAccount": return t("aiSupport.inbox.topbar.items.waAccount");
+    case "waAccounts": return t("aiSupport.waAccounts.title");
     case "waTemplates": return t("aiSupport.inbox.topbar.items.waTemplates");
     case "waCampaigns": return t("aiSupport.inbox.topbar.items.waCampaigns");
     case "waSequences": return t("aiSupport.inbox.topbar.items.waSequences");

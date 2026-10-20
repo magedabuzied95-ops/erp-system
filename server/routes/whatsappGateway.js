@@ -1,4 +1,6 @@
 import express from "express";
+import { getPublicBackendUrl } from "../utils/publicUrl.js";
+import { cloudConfig } from "../services/whatsappCloudProvider.js";
 import db from "../database/db.js";
 import { protect } from "../middleware/authMiddleware.js";
 import permit from "../middleware/permissionMiddleware.js";
@@ -349,6 +351,62 @@ const connectedIntegrationFor = async (req) => {
   }
   return { row, accessToken };
 };
+
+// The WhatsApp → Accounts page (Genie parity): every official number the tenant has — the ones
+// connected through Embedded Signup and the one configured by environment — with what Meta says
+// about each right now. Live lookups are best-effort and cached briefly.
+const accountsLiveCache = new Map();
+const liveFor = async ({ key, accessToken, wabaId, phoneNumberId }) => {
+  const cached = accountsLiveCache.get(key);
+  if (cached && Date.now() - cached.at < 2 * 60 * 1000) return cached.value;
+  const value = await fetchLiveNumberStatus({ accessToken, wabaId, phoneNumberId })
+    .then((status) => ({ ok: true, ...status }))
+    .catch((error) => ({ ok: false, error: error?.message || "Meta did not answer" }));
+  accountsLiveCache.set(key, { at: Date.now(), value });
+  return value;
+};
+
+router.get("/embedded-signup/accounts", protect, permit("settings", "view"), async (req, res) => {
+  try {
+    if (req.query?.refresh === "1") accountsLiveCache.clear();
+    const rows = await listIntegrations({ tenantId: tenantScope(req) || 0 });
+    const accounts = await Promise.all(rows.map(async (row) => {
+      const token = row.status === "connected" ? integrationAccessToken(row) : "";
+      const live = token
+        ? await liveFor({ key: `int:${row.id}`, accessToken: token, wabaId: row.waba_id, phoneNumberId: row.phone_number_id })
+        : null;
+      return { ...publicIntegrationShape(row), source: "embedded_signup", live };
+    }));
+    const env = cloudConfig();
+    if (env.phoneNumberId && !accounts.some((account) => account.phone_number_id === env.phoneNumberId)) {
+      const live = env.accessToken
+        ? await liveFor({ key: "env", accessToken: env.accessToken, wabaId: env.businessAccountId, phoneNumberId: env.phoneNumberId })
+        : null;
+      accounts.push({
+        id: "env",
+        source: "env",
+        status: live?.ok ? "connected" : "error",
+        waba_id: env.businessAccountId,
+        phone_number_id: env.phoneNumberId,
+        display_phone_number: live?.display_phone_number || "",
+        verified_name: live?.verified_name || "",
+        coexistence_state: "",
+        live,
+      });
+    }
+    const backend = getPublicBackendUrl();
+    return res.json({
+      success: true,
+      accounts,
+      webhook: {
+        callback_url: backend ? `${backend}/api/whatsapp/webhook` : "/api/whatsapp/webhook",
+        verify_token_configured: Boolean(whatsappWebhookVerifyToken()),
+      },
+    });
+  } catch (error) {
+    return sendError(res, error, "Failed to list WhatsApp accounts");
+  }
+});
 
 router.get("/embedded-signup/live-status", protect, permit("settings", "view"), async (req, res) => {
   try {
