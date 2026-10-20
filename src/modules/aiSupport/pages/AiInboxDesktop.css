@@ -383,3 +383,4 @@ html.dark .ai-inbox-desktop .ai-omni-chat-panel [class*="bg-[#eefaf8]"] {
 .dark .ai-inbox-topbar__item:hover { background: rgba(34, 211, 238, 0.1); color: #fff; }
 .ai-inbox-topbar__item.is-current { background: #f2dfad; color: #6b4a00; }
 .dark .ai-inbox-topbar__item.is-current { background: rgba(34, 211, 238, 0.12); color: #cffafe; }
+.ai-inbox-topbar__tools { display: flex; flex: none; align-items: center; gap: 0.25rem; margin-inline-start: auto; }

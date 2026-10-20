@@ -1,7 +1,9 @@
 import { useEffect, useRef, useState } from "react";
 import { useTranslation } from "react-i18next";
-import { ChevronDown, MessagesSquare, Settings, Smartphone } from "lucide-react";
+import { ChevronDown, MessagesSquare, Moon, Settings, Smartphone, Sun } from "lucide-react";
 import { FaFacebookMessenger, FaInstagram, FaTiktok, FaWhatsapp } from "react-icons/fa";
+import LanguageSwitcher from "../../../shared/components/LanguageSwitcher";
+import { useTheme } from "../../../theme/useTheme";
 
 /*
  * The inbox's own top bar: one menu per channel plus Config, the way Genie ERP
@@ -142,6 +144,7 @@ export default function InboxTopBar({
   activeSection = "",
 }) {
   const { t } = useTranslation();
+  const { theme, setTheme } = useTheme();
   const [openMenu, setOpenMenu] = useState("");
   const barRef = useRef(null);
 
@@ -211,6 +214,20 @@ export default function InboxTopBar({
           </div>
         );
       })}
+      {/* The shell topbar is hidden on this route, and with it the language and theme
+          switches — so the inbox carries its own. */}
+      <div className="ai-inbox-topbar__tools">
+        <LanguageSwitcher compact className="shrink-0" />
+        <button
+          type="button"
+          onClick={() => setTheme(theme.mode === "dark" ? "light" : "dark")}
+          className="ai-inbox-topbar__tab"
+          aria-label={theme.mode === "dark" ? t("appearance.lightMode") : t("appearance.darkMode")}
+          title={theme.mode === "dark" ? t("appearance.lightMode") : t("appearance.darkMode")}
+        >
+          {theme.mode === "dark" ? <Sun className="h-4 w-4" aria-hidden="true" /> : <Moon className="h-4 w-4" aria-hidden="true" />}
+        </button>
+      </div>
     </nav>
   );
 }
