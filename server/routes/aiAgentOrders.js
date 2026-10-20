@@ -1516,6 +1516,8 @@ router.post("/test-reply", protect, permit("settings", "view"), async (req, res)
         source: "ai_playground",
         ai_memory: memory,
         agent_history: transcript.slice(-24),
+        // Admin-only comparison: run the sales agent on another model of the same provider.
+        agent_model: envText(req.body?.agent_model),
       },
     }, { tenantId, memory });
 

@@ -195,6 +195,10 @@ ${knowledge.length ? `\n<owner_knowledge>\nمعلومات صاحب المحل ب
 - «النية اللي النظام فهمها» تخمين، وممكن تكون غلط: «بكام الجوردن؟» سؤال سعر مش اعتراض. متردش على اعتراض العميل ما قالوش.
 - لو draft_answer سؤال خطوة (زي «مقاس كام؟» أو «تحب أنهي درجة؟»): يا تسأله بأسلوبك، يا تعرض كروت — مش الاتنين لازقين في جملة واحدة. لو بعت كروت، السؤال ييجي بعد سطر الكروت في سطر لوحده.
 - لما العميل يقول «بكام؟» أو «في منه أسود؟» أو «ده أصلي؟» من غير اسم موديل، يبقى يقصد آخر موديل اتكلمتوا عنه في المحادثة أو آخر كروت اتبعتت — متسألوش عن اسمه تاني.
+- لو الموديل اللي طلبه بالظبط مش موجود بس فيه قريب منه في نتيجة search_products (نفس الموديل بلون أو درجة تانية، أو نفس العيلة زي «Air Max» لما يطلب «Air Max 90»)، قول بصراحة إن المطلوب بالظبط مش موجود واعرض القريب بالاسم وابعته بـ show_products. متقولش «مش متوفر» وبس وفيه بديل قدامك.
+- سؤال السعر يتجاوب بالرقم من الكروت أو من search_products. لو الألوان/الدرجات أسعارها مختلفة قول من كام لكام.
+- الدرجة والـ«أصلي»: من grade_label بس. لو grade_label مش موجود في البيانات، متسميش أي درجة (ممنوع تألّف «درجة أولى» أو «هاي كوبي»)، وقول إنك هتأكدله التصنيف. ممنوع تقول «أصلي/أوريجينال» إلا لو grade_label بيقول كده.
+- سؤال برّه الشغل (حساب، سياسة، واجب، نكت): اعتذر في سطر واحد بلطف إنك هنا للمحل، ورجّعه للمنتجات — من غير كروت (show_products بقايمة فاضية).
 - السعر والتوفر والمقاس واللون: من الكروت أو من نتيجة أداة في المحادثة دي بس. get_inventory هي الطريقة الوحيدة تتأكد إن مقاس ولون معين متاح.
 - المقاسات: متقولش إن موديل «مقاسه مظبوط» أو «بيطلع كبير/صغير» أو «خد مقاس أكبر» إلا لو ده مكتوب في owner_knowledge. لو مش مكتوب، اسأل العميل بيلبس مقاس كام عادةً في الكوتشيات.
 - الدرجات (grade_label) حقيقية ومتسجلة: قولها زي ما هي من غير مبالغة، ومتقولش «أصلي» على حاجة مش متسجلة كده.
@@ -206,8 +210,11 @@ ${knowledge.length ? `\n<owner_knowledge>\nمعلومات صاحب المحل ب
 </faq>
 
 <tone_and_style>
+<language>
+رد بنفس لغة العميل: لو كتب إنجليزي رد إنجليزي بسيط ودود، ولو كتب فرانكو أو عربي رد بالعامية المصرية بالحروف العربي.
+</language>
 <egyptian_arabic_register>
-دافي بس محترم — عامية مصرية مهذبة، مش فصحى ومش سوقي.
+دافي بس محترم — عامية مصرية مهذبة، مش فصحى ومش سوقي. ممنوع الفصحى حتى لو بتنقل سياسة: لا «يمكنك» ولا «يجب» ولا «لديك» ولا «وفق الشروط» — «تقدر»، «لازم»، «عندك»، «بشرط».
 - عامية بس: «ابعت» مش «أرسل»، «تمام» مش «حسنًا»، «شوف» مش «انظر»، «عايز» مش «تريد».
 - كلمات أساسية: تمام / حاضر / مظبوط / بإذن الله / تحت أمرك / ماشي / تسلم.
 - روابط: علشان (مش لأن)، دلوقتي، كده.
@@ -217,12 +224,14 @@ ${knowledge.length ? `\n<owner_knowledge>\nمعلومات صاحب المحل ب
 <honorifics>
 - خاطب العميل بـ«حضرتك» مش «انت». «يا فندم» تنفع بس متكترش منها.
 - النوع (ذكر/أنثى) وصيغة الأفعال والألقاب: من gender_and_address بس. ممنوع تقرر النوع من الاسم.
-- اسم العميل يتكتب زي ما هو بالظبط، من غير ترجمة ولا تعديل. لو العميل قال «دكتور/دكتورة» عن نفسه، استخدمها.
+- اسم العميل يتكتب بنفس الحروف بالظبط: لو مكتوب بالإنجليزي «Nada» يفضل «Nada» — ممنوع تكتبه «ندى». لو الاسم يوزرنيم أو رموز، متقولوش خالص. لو العميل قال «دكتور/دكتورة» عن نفسه، استخدمها.
+- قبل ما تبعت، راجع كل فعل وضمير بيكلّم العميل إنه بنفس الصيغة من أول الرد لآخره (متخلطش «تقدر» مع «تستلميه»).
 </honorifics>
 <voice_rules>
 - اتكلم عن اللي هتعمله بالمستقبل: «هبعتلك»، «هأكدلك»، «هحوّلك» — مش أوامر.
 - لو العميل متضايق أو متردد، طمّنه في كلمتين قبل الحل.
-- اقفل الكلام اللي خلص بدفا: «ربنا يخليك»، «في خدمة حضرتك دايمًا».
+- اقفل الكلام اللي خلص بدفا: «ربنا يخليك»، «في خدمة حضرتك دايمًا» — بس لما المحادثة تخلص فعلًا. ممنوع جمل الحشو في آخر كل رسالة زي «لو في أي حاجة تانية أنا تحت أمرك» أو «عشان أقدر أساعدك بشكل أفضل».
+- الخصم وآخر سعر: جاوب من قواعد الخصومات في company_info. متوعدش إنك «هتشوف لو فيه خصم» ومتفاوضش على السعر.
 - لو العميل بيهزر أو بيدردش، رد على كلامه نفسه الأول («الحمد لله يا فندم، تسلم» على «عامل إيه؟»)، وبعدين رجّعه للي بيدوّر عليه.
 </voice_rules>
 <message_limit>
@@ -276,7 +285,7 @@ ${objections ? `<objection_replies>\nإزاي صاحب المحل بيرد عل�
 <critical_rules>
 - ردك هو الرسالة اللي هتتبعت للعميل بالظبط. ممنوع أي تحليل أو تخطيط أو تاجات أو كلام عن «النظام».
 - system_findings معلومات ليك إنت من النظام، مش كلام العميل.
-- لو system_findings فيها draft_answer و must_keep_facts = true: كل رقم ورابط وسياسة فيها لازم يتقال زي ما هو بالظبط؛ الصياغة بس هي اللي بإيدك.
+- لو system_findings فيها draft_answer و must_keep_facts = true: كل رقم ورابط ومدة وشرط فيها لازم يتقال زي ما هو بالظبط؛ الصياغة بس هي اللي بإيدك — بالعامية وباختصار، وبس الجزء اللي العميل سأل عنه (لو سأل عن الاستبدال، متسردش سياسة الاسترجاع كلها).
 - متقولش أبدًا إنك بوت أو ذكاء اصطناعي أو مساعد آلي.
 - لو الكلام ملخبط بجد (مثلًا العميل بيرد على حاجة مش واضحة)، اسأل سؤال واحد محدد بدل ما تخمن.
 </critical_rules>`;
@@ -510,7 +519,7 @@ const deadlineLeft = (deadline) => {
 };
 
 /** Claude: cached system block, findings as a mid-conversation system message, thinking passed back. */
-const runAnthropicTurns = async ({ stablePrompt, dynamicContext, findings, history, customerMessage, deadline, usage, executeCalls }) => {
+const runAnthropicTurns = async ({ model = agentModel(), stablePrompt, dynamicContext, findings, history, customerMessage, deadline, usage, executeCalls }) => {
   const system = [
     { type: "text", text: stablePrompt, cache_control: { type: "ephemeral" } },
     { type: "text", text: dynamicContext },
@@ -525,7 +534,7 @@ const runAnthropicTurns = async ({ stablePrompt, dynamicContext, findings, histo
   for (let round = 0; round < MAX_TOOL_ROUNDS; round += 1) {
     const response = await client().beta.messages.create(
       {
-        model: agentModel(),
+        model,
         max_tokens: 2_000,
         system,
         tools: AGENT_TOOLS,
@@ -567,8 +576,7 @@ const runAnthropicTurns = async ({ stablePrompt, dynamicContext, findings, histo
  * OpenAI (Responses API): the stable prompt is `instructions`, so its prefix caches automatically;
  * per-customer context and the findings ride as developer messages, never inside the customer's turn.
  */
-const runOpenAiTurns = async ({ stablePrompt, dynamicContext, findings, history, customerMessage, deadline, usage, executeCalls }) => {
-  const model = agentModel();
+const runOpenAiTurns = async ({ model = agentModel(), stablePrompt, dynamicContext, findings, history, customerMessage, deadline, usage, executeCalls }) => {
   const input = [
     { role: "developer", content: dynamicContext },
     ...history.map((turn) => ({ role: turn.role, content: turn.content })),
@@ -734,13 +742,16 @@ export const runClaudeSalesAgent = async ({
       return { call, result };
     }));
 
+    // The playground may try another model of the same provider, to compare before switching.
+    const model = (text(inbound.metadata?.source) === "ai_playground" && text(inbound.metadata?.agent_model)) || agentModel();
     let reply = agentProvider() === "openai"
-      ? await runOpenAiTurns({ stablePrompt, dynamicContext, findings, history, customerMessage, deadline, usage, executeCalls })
-      : await runAnthropicTurns({ stablePrompt, dynamicContext, findings, history, customerMessage, deadline, usage, executeCalls });
+      ? await runOpenAiTurns({ model, stablePrompt, dynamicContext, findings, history, customerMessage, deadline, usage, executeCalls })
+      : await runAnthropicTurns({ model, stablePrompt, dynamicContext, findings, history, customerMessage, deadline, usage, executeCalls });
 
     reply = reply.replace(/\*\*/g, "").replace(/^#+\s*/gm, "").trim();
     if (!reply) throw Object.assign(new Error("empty"), { reason: "empty_reply" });
-    const cards = chosenCards ?? preparedCards;
+    // A hand-over line goes alone: cards under "a colleague will take over" read as a sales push.
+    const cards = escalation && chosenCards === null ? [] : chosenCards ?? preparedCards;
     const images = cards
       .map((card) => ({
         id: text(card.image_id || card.image_url || card.product_id || card.id),
@@ -749,7 +760,7 @@ export const runClaudeSalesAgent = async ({
         product_id: text(card.product_id || card.id),
       }))
       .filter((image) => image.url);
-    const cardsChanged = chosenCards !== null;
+    const cardsChanged = chosenCards !== null || Boolean(escalation && preparedCards.length);
     const activeProductId = cardId(cards[0] || {});
     const memoryPatch = cardsChanged && cards.length
       ? { active_product_id: activeProductId, selected_product_id: activeProductId, last_product_id: activeProductId, last_product_cards: cards }
@@ -800,7 +811,7 @@ export const runClaudeSalesAgent = async ({
       reply_parts: undefined,
       debug: {
         ...(decision.debug || {}),
-        claude_agent: { applied: true, provider: agentProvider(), model: agentModel(), ms: Date.now() - startedAt, tools: toolTrace, escalated: Boolean(escalation), usage },
+        claude_agent: { applied: true, provider: agentProvider(), model, ms: Date.now() - startedAt, tools: toolTrace, escalated: Boolean(escalation), usage },
       },
     };
   } catch (error) {
