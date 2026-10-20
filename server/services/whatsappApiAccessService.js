@@ -398,7 +398,7 @@ export const verifyApiKey = async (raw = "") => {
 
 /* ------------------------------------------------------------------ sending through the official number */
 
-const resolveSendCredentials = async ({ tenantId, phoneNumberId = "" }) => {
+export const resolveSendCredentials = async ({ tenantId, phoneNumberId = "" }) => {
   const env = cloudConfig();
   const wanted = text(phoneNumberId);
   const rows = await listIntegrations({ tenantId }).catch(() => []);

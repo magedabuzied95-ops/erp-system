@@ -1,0 +1,158 @@
+{
+  "ar": {
+    "new": "حملة جديدة",
+    "count": "{{count}} حملة",
+    "edit": "تعديل",
+    "sendNow": "ابعت دلوقتي",
+    "cancelSchedule": "الغي الجدولة",
+    "log": "السجل",
+    "logEmpty": "لسه مفيش مستلمين في الحملة دي.",
+    "backToList": "رجوع للحملات",
+    "preview": "شكل الرسالة عند العميل",
+    "pickTemplateForPreview": "اختار قالب علشان تشوف شكل الرسالة.",
+    "saveDraft": "احفظ مسودة",
+    "saveAndSchedule": "احفظ وجدول",
+    "savedNotice": "الحملة اتحفظت كمسودة.",
+    "scheduledNotice": "الحملة اتجدولت: هتتبعت {{when}}.",
+    "scheduleCancelled": "الجدولة اتلغت والحملة رجعت مسودة.",
+    "confirmSendNow": "هتبعت الحملة دي دلوقتي لكل العملاء اللي فيها. متأكد؟",
+    "scheduleHint": "الوقت بتوقيت القاهرة. لو جه في ساعات الهدوء (10 بالليل لـ 9 الصبح) هتستنى لحد 9 الصبح.",
+    "whenNow": "دلوقتي",
+    "whenSchedule": "في ميعاد محدد",
+    "sentCount": "اتبعت {{count}}",
+    "failedCount": "فشل {{count}}",
+    "skippedCount": "اتعدّى {{count}}",
+    "pendingCount": "مستني {{count}}",
+    "columns": {
+      "name": "الاسم",
+      "status": "الحالة",
+      "group": "المجموعة",
+      "template": "القالب",
+      "scheduledAt": "ميعاد الإرسال",
+      "lastRun": "آخر تشغيل",
+      "results": "النتيجة",
+      "actions": "إجراءات"
+    },
+    "status": {
+      "draft": "مسودة",
+      "scheduled": "متجدولة",
+      "sending": "بتتبعت",
+      "completed": "خلصت",
+      "stopped": "اتوقفت",
+      "failed": "فشلت"
+    },
+    "type": {
+      "template": "قالب (واتساب الرسمي)",
+      "text": "نص (واتساب ويب)"
+    },
+    "fields": {
+      "name": "اسم الحملة",
+      "messageType": "نوع الرسالة",
+      "template": "القالب",
+      "templatePlaceholder": "اختار قالب متوافق عليه",
+      "templateHint": "بيظهر هنا القوالب اللي ميتا وافقت عليها بس.",
+      "noApprovedTemplates": "مفيش قوالب متوافق عليها لسه. اعمل قالب وابعته لميتا من صفحة القوالب.",
+      "group": "مجموعة العملاء",
+      "groupHint": "الحملة هتروح لعملاء المجموعة دي بس، ومن غير اللي لغوا الاشتراك.",
+      "allCustomers": "كل العملاء",
+      "moreFilters": "فلاتر زيادة",
+      "when": "إمتى تتبعت"
+    },
+    "variables": {
+      "title": "متغيرات القالب",
+      "customerName": "اسم العميل",
+      "customerPhone": "رقم العميل",
+      "static": "نص ثابت",
+      "staticPlaceholder": "اكتب النص اللي هيظهر",
+      "fallbackPlaceholder": "بديل لو الخانة فاضية (اختياري)",
+      "sampleName": "أحمد"
+    },
+    "errors": {
+      "nameRequired": "اكتب اسم للحملة.",
+      "templateRequired": "اختار قالب.",
+      "messageRequired": "اكتب نص الرسالة.",
+      "variableRequired": "كل متغير نوعه نص ثابت لازم يتكتب له قيمة.",
+      "scheduleRequired": "اختار ميعاد الإرسال.",
+      "headerMediaMissing": "القالب ده فيه صورة أو فيديو في الهيدر ومفيش لينك محفوظ ليه. ارفع الميديا من صفحة القوالب الأول.",
+      "countFirst": "احسب عدد العملاء الأول قبل الإرسال."
+    }
+  },
+  "en": {
+    "new": "New campaign",
+    "count": "{{count}} campaigns",
+    "edit": "Edit",
+    "sendNow": "Send now",
+    "cancelSchedule": "Cancel schedule",
+    "log": "Log",
+    "logEmpty": "No recipients for this campaign yet.",
+    "backToList": "Back to campaigns",
+    "preview": "What the customer sees",
+    "pickTemplateForPreview": "Pick a template to preview the message.",
+    "saveDraft": "Save draft",
+    "saveAndSchedule": "Save and schedule",
+    "savedNotice": "Campaign saved as a draft.",
+    "scheduledNotice": "Campaign scheduled for {{when}}.",
+    "scheduleCancelled": "Schedule cancelled; the campaign is a draft again.",
+    "confirmSendNow": "Send this campaign now to everyone in its audience?",
+    "scheduleHint": "Cairo time. Inside quiet hours (10 pm to 9 am) it waits until 9 am.",
+    "whenNow": "Now",
+    "whenSchedule": "At a set time",
+    "sentCount": "{{count}} sent",
+    "failedCount": "{{count}} failed",
+    "skippedCount": "{{count}} skipped",
+    "pendingCount": "{{count}} pending",
+    "columns": {
+      "name": "Name",
+      "status": "Status",
+      "group": "Group",
+      "template": "Template",
+      "scheduledAt": "Scheduled at",
+      "lastRun": "Last run",
+      "results": "Results",
+      "actions": "Actions"
+    },
+    "status": {
+      "draft": "Draft",
+      "scheduled": "Scheduled",
+      "sending": "Sending",
+      "completed": "Completed",
+      "stopped": "Stopped",
+      "failed": "Failed"
+    },
+    "type": {
+      "template": "Template (official WhatsApp)",
+      "text": "Text (WhatsApp Web)"
+    },
+    "fields": {
+      "name": "Campaign name",
+      "messageType": "Message type",
+      "template": "Template",
+      "templatePlaceholder": "Pick an approved template",
+      "templateHint": "Only templates Meta has approved are listed.",
+      "noApprovedTemplates": "No approved templates yet. Create one and submit it to Meta from the Templates page.",
+      "group": "Customer group",
+      "groupHint": "Only customers in this group receive it; opted-out customers are always excluded.",
+      "allCustomers": "All customers",
+      "moreFilters": "More filters",
+      "when": "When to send"
+    },
+    "variables": {
+      "title": "Template variables",
+      "customerName": "Customer name",
+      "customerPhone": "Customer phone",
+      "static": "Fixed text",
+      "staticPlaceholder": "Text to show",
+      "fallbackPlaceholder": "Fallback when empty (optional)",
+      "sampleName": "Ahmed"
+    },
+    "errors": {
+      "nameRequired": "Give the campaign a name.",
+      "templateRequired": "Pick a template.",
+      "messageRequired": "Write the message.",
+      "variableRequired": "Every fixed-text variable needs a value.",
+      "scheduleRequired": "Pick the send time.",
+      "headerMediaMissing": "This template has an image or video header with no media link saved. Upload the media on the Templates page first.",
+      "countFirst": "Count the audience before sending."
+    }
+  }
+}
