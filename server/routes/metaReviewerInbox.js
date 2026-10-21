@@ -6,7 +6,9 @@ import { isMetaReviewerRole, loadMetaReviewerScope, normalizeMetaReviewerChannel
 import { listMetaReviewerConversations, loadMetaReviewerMessages, sendMetaReviewerMessage } from "../services/metaReviewerInboxService.js";
 
 const router = express.Router();
-const modules = { messenger: "ai_inbox_messenger", instagram: "ai_inbox_instagram" };
+// ai_inbox_whatsapp is granted in code by metaReviewerBoundary.js (the WhatsApp test number tab);
+// the service still returns nothing unless META_REVIEWER_WHATSAPP_PHONE_NUMBER_IDS is configured.
+const modules = { messenger: "ai_inbox_messenger", instagram: "ai_inbox_instagram", whatsapp: "ai_inbox_whatsapp" };
 
 router.use(protect);
 router.use((req, res, next) => {

@@ -2028,7 +2028,8 @@
         "messenger": "Messenger",
         "instagram": "Instagram",
         "tiktok": "TikTok",
-        "config": "Config"
+        "config": "Config",
+        "metaAds": "Meta Ads"
       },
       "items": {
         "waAccount": "Official account & number",
@@ -2070,7 +2071,10 @@
         "waConnect": "Connect Account",
         "waTemplateAnalytics": "Template Analytics",
         "waChatbotFlows": "Chatbot Flows",
-        "waApiGuide": "API Guide"
+        "waApiGuide": "API Guide",
+        "waTestChats": "Test number chats",
+        "channelChats": "Conversations",
+        "metaAdsManager": "Ads Manager"
       }
     },
     "author": {

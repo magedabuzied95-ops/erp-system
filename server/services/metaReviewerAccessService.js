@@ -1,5 +1,6 @@
 import crypto from "node:crypto";
 import { emitToRooms } from "../utils/socket.js";
+import { canonicalPhoneKey } from "../utils/phoneSearch.js";
 
 const text = (value = "") => String(value ?? "").trim();
 const uniqueCsv = (value = "") => [...new Set(text(value).split(",").map(text).filter(Boolean))];
@@ -10,7 +11,10 @@ const isoDate = (value = "") => {
 };
 
 export const META_REVIEWER_ROLE = "meta_reviewer";
-export const META_REVIEWER_TABS = new Set(["messenger", "instagram"]);
+// WhatsApp is the official Cloud API test number only (cloud:<phone_number_id>); an Evolution line
+// is never a review tab, even when the same customer wrote to both numbers in one thread.
+export const META_REVIEWER_TABS = new Set(["messenger", "instagram", "whatsapp"]);
+export const META_REVIEWER_CLOUD_INSTANCE_PREFIX = "cloud:";
 
 export const normalizeMetaReviewerRole = (value = "") => text(value).toLowerCase().replace(/[\s-]+/g, "_");
 export const isMetaReviewerRole = (value = "") => normalizeMetaReviewerRole(value) === META_REVIEWER_ROLE;
@@ -19,6 +23,7 @@ export const normalizeMetaReviewerChannel = (value = "") => {
   const channel = text(value).toLowerCase().replace(/[\s-]+/g, "_");
   if (["facebook", "facebook_messenger", "messenger"].includes(channel)) return "messenger";
   if (["instagram", "instagram_dm"].includes(channel)) return "instagram";
+  if (["whatsapp", "whatsapp_cloud", "whatsapp_official"].includes(channel)) return "whatsapp";
   return channel;
 };
 
@@ -33,7 +38,7 @@ const channelScope = ({ assetId, allowedSenderIds, allowedSenderHmacs, visibleMe
 export const metaReviewerSenderScopeHmac = ({ tenantId, channel, assetId, senderScopedId } = {}, referenceSecret = "") => {
   const normalized = normalizeMetaReviewerChannel(channel);
   const secret = text(referenceSecret);
-  const sender = text(senderScopedId);
+  const sender = normalized === "whatsapp" ? canonicalPhoneKey(senderScopedId) : text(senderScopedId);
   const asset = text(assetId);
   if (!secret || !Number.isFinite(Number(tenantId)) || !META_REVIEWER_TABS.has(normalized) || !asset || !sender) return "";
   return crypto.createHmac("sha256", secret)
@@ -49,6 +54,28 @@ const safeDigestIncluded = (candidate = "", allowed = []) => {
     return expected.length === actual.length
       && crypto.timingSafeEqual(Buffer.from(expected), Buffer.from(actual));
   });
+};
+
+/*
+ * WhatsApp review scope: the official test number(s) by phone_number_id - default none, so the tab
+ * is closed until META_REVIEWER_WHATSAPP_PHONE_NUMBER_IDS is set. The customer-phone allowlist
+ * (raw digits or HMACs) is optional for reading the test number, but every action that SENDS to a
+ * phone outside an existing test thread (campaigns, flow tests) requires it.
+ */
+const whatsappChannelScope = (env = process.env) => {
+  const assetIds = uniqueCsv(env.META_REVIEWER_WHATSAPP_PHONE_NUMBER_IDS).filter((id) => /^[0-9]{5,32}$/.test(id));
+  const allowedSenderIds = [...new Set(uniqueCsv(env.META_REVIEWER_WHATSAPP_ALLOWED_PHONES).map((phone) => canonicalPhoneKey(phone)).filter(Boolean))];
+  const allowedSenderHmacs = uniqueCsv(env.META_REVIEWER_WHATSAPP_ALLOWED_PHONE_HMACS);
+  const visibleMessagesAfter = isoDate(env.META_REVIEWER_WHATSAPP_REVIEW_SESSION_STARTED_AT || env.META_REVIEWER_VISIBLE_MESSAGES_AFTER || env.META_REVIEWER_REVIEW_SESSION_STARTED_AT);
+  return {
+    enabled: assetIds.length > 0 && Boolean(visibleMessagesAfter),
+    assetId: assetIds[0] || "",
+    assetIds,
+    allowedSenderIds,
+    allowedSenderHmacs,
+    phoneRestricted: allowedSenderIds.length > 0 || allowedSenderHmacs.length > 0,
+    visibleMessagesAfter,
+  };
 };
 
 export const loadMetaReviewerScope = (env = process.env) => {
@@ -67,15 +94,17 @@ export const loadMetaReviewerScope = (env = process.env) => {
     allowedSenderHmacs: uniqueCsv(env.META_REVIEWER_ALLOWED_INSTAGRAM_SCOPED_USER_HMACS),
     visibleMessagesAfter: isoDate(env.META_REVIEWER_INSTAGRAM_REVIEW_SESSION_STARTED_AT),
   });
+  const whatsapp = whatsappChannelScope(env);
   if (!baseEnabled) {
     messenger.enabled = false;
     instagram.enabled = false;
+    whatsapp.enabled = false;
   }
   return {
-    enabled: baseEnabled && (messenger.enabled || instagram.enabled),
+    enabled: baseEnabled && (messenger.enabled || instagram.enabled || whatsapp.enabled),
     tenantId: baseEnabled ? tenantId : null,
     referenceSecret: baseEnabled ? referenceSecret : "",
-    channels: { messenger, instagram },
+    channels: { messenger, instagram, whatsapp },
     // Compatibility for the existing Messenger deployment and management script.
     pageId: messenger.assetId,
     allowedPsids: messenger.allowedSenderIds,
@@ -93,9 +122,51 @@ export const metaReviewerScopeIsClosed = (scope = loadMetaReviewerScope(), chann
   return !scope?.enabled || !channelConfig?.enabled;
 };
 
+export const metaReviewerWhatsappPhoneNumberAllowed = (phoneNumberId = "", scope = loadMetaReviewerScope()) => {
+  const config = getMetaReviewerChannelScope(scope, "whatsapp");
+  const id = text(phoneNumberId);
+  return Boolean(scope?.enabled && config?.enabled && id && Array.isArray(config.assetIds) && config.assetIds.includes(id));
+};
+
+// "cloud:<phone_number_id>" of an allow-listed test number. An Evolution instance name, an empty
+// instance or another Cloud number is never visible to the reviewer.
+export const metaReviewerWhatsappInstanceAllowed = (instance = "", scope = loadMetaReviewerScope()) => {
+  const value = text(instance);
+  if (!value.toLowerCase().startsWith(META_REVIEWER_CLOUD_INSTANCE_PREFIX)) return false;
+  return metaReviewerWhatsappPhoneNumberAllowed(value.slice(META_REVIEWER_CLOUD_INSTANCE_PREFIX.length), scope);
+};
+
+export const metaReviewerWhatsappInstances = (scope = loadMetaReviewerScope()) => {
+  const config = getMetaReviewerChannelScope(scope, "whatsapp");
+  return scope?.enabled && config?.enabled ? config.assetIds.map((id) => `${META_REVIEWER_CLOUD_INSTANCE_PREFIX}${id}`) : [];
+};
+
+/*
+ * Is this customer phone one of the allow-listed test phones? `requireList` (sending outside a
+ * test thread: campaigns, flow tests) fails closed when no phone allowlist is configured at all.
+ */
+export const metaReviewerWhatsappPhoneAllowed = (phone = "", scope = loadMetaReviewerScope(), { requireList = false } = {}) => {
+  const config = getMetaReviewerChannelScope(scope, "whatsapp");
+  if (!scope?.enabled || !config?.enabled) return false;
+  const key = canonicalPhoneKey(phone);
+  if (!key) return false;
+  if (!config.phoneRestricted) return !requireList;
+  if (config.allowedSenderIds.includes(key)) return true;
+  return config.assetIds.some((assetId) => safeDigestIncluded(
+    metaReviewerSenderScopeHmac({ tenantId: scope.tenantId, channel: "whatsapp", assetId, senderScopedId: key }, scope.referenceSecret),
+    config.allowedSenderHmacs,
+  ));
+};
+
 export const metaReviewerConversationAllowed = ({ tenantId, channel, assetId, senderScopedId, pageId, psid } = {}, scope = loadMetaReviewerScope()) => {
   const normalized = normalizeMetaReviewerChannel(channel);
   const channelConfig = getMetaReviewerChannelScope(scope, normalized);
+  if (normalized === "whatsapp") {
+    return Boolean(scope?.enabled && channelConfig?.enabled)
+      && Number(tenantId) === Number(scope.tenantId)
+      && metaReviewerWhatsappPhoneNumberAllowed(assetId || pageId, scope)
+      && metaReviewerWhatsappPhoneAllowed(senderScopedId || psid, scope);
+  }
   const resolvedAssetId = text(assetId || pageId);
   const resolvedSenderId = text(senderScopedId || psid);
   const senderHmac = metaReviewerSenderScopeHmac({
@@ -186,6 +257,9 @@ export const sanitizeMetaReviewerMessage = (message = {}) => ({
 export const metaReviewerMessageVisible = (message = {}, scope = loadMetaReviewerScope(), channel = "messenger") => {
   const channelConfig = getMetaReviewerChannelScope(scope, channel);
   if (!channelConfig?.enabled || !message?.created_at) return false;
+  // A WhatsApp row is visible only when it went through an allow-listed test number. The same
+  // thread can hold Evolution messages (the customer also wrote to the store's line): never those.
+  if (normalizeMetaReviewerChannel(channel) === "whatsapp" && !metaReviewerWhatsappInstanceAllowed(message.whatsapp_instance, scope)) return false;
   const createdAt = new Date(message.created_at);
   const visibleAfter = new Date(channelConfig.visibleMessagesAfter);
   return !Number.isNaN(createdAt.getTime()) && createdAt.getTime() >= visibleAfter.getTime();

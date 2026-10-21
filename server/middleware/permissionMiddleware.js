@@ -619,6 +619,17 @@ const permit = (
   ) => {
 
     try {
+      // The Meta review account holds route-scoped grants set by metaReviewerBoundary.js for the
+      // one request it vetted (WhatsApp test number pages, Meta Ads drafts). They never exist on
+      // any other request, and never for any other role.
+      if (
+        req.metaReviewerGrants instanceof Set &&
+        req.metaReviewerGrants.has(`${String(moduleName || "").trim()}.${String(action || "").trim()}`) &&
+        isMetaReviewerRole(req.user?.role || req.user?.role_name)
+      ) {
+        return next();
+      }
+
       const requested = normalizePermissionKey(moduleName, action);
       let normalizedModuleName = requested.moduleName;
       let normalizedAction = requested.action;

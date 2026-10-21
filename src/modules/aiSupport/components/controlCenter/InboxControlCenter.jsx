@@ -228,15 +228,22 @@ export default function InboxControlCenter({
   // "overlay" (default): the modal with its own section nav — the PWA uses it. "page": fills
   // the desktop inbox under its top bar, Genie-style; the top bar is the nav, so there is none here.
   variant = "overlay",
+  // A restricted reader (the Meta review account) passes the only sections it may open.
+  allowedSections = null,
 }) {
   const { t } = useTranslation();
+  const permitted = useMemo(
+    () => (Array.isArray(allowedSections) ? CONTROL_CENTER_SECTIONS.filter((key) => allowedSections.includes(key)) : CONTROL_CENTER_SECTIONS),
+    [allowedSections]
+  );
+  const fallbackSection = permitted.includes("agent") ? "agent" : permitted[0] || "agent";
   const [section, setSection] = useState(
-    CONTROL_CENTER_SECTIONS.includes(initialSection) ? initialSection : "agent"
+    permitted.includes(initialSection) ? initialSection : fallbackSection
   );
 
   useEffect(() => {
-    if (open && CONTROL_CENTER_SECTIONS.includes(initialSection)) setSection(initialSection);
-  }, [initialSection, open]);
+    if (open && permitted.includes(initialSection)) setSection(initialSection);
+  }, [initialSection, open, permitted]);
 
   useEffect(() => {
     // A page is not a dialog: Escape inside one of its forms must not throw the draft away.
@@ -249,8 +256,8 @@ export default function InboxControlCenter({
   }, [onClose, open, variant]);
 
   const goTo = useCallback((next) => {
-    if (CONTROL_CENTER_SECTIONS.includes(next)) setSection(next);
-  }, []);
+    if (permitted.includes(next)) setSection(next);
+  }, [permitted]);
 
   const panelProps = useMemo(() => ({ headers, tenantId }), [headers, tenantId]);
 
@@ -361,12 +368,12 @@ export default function InboxControlCenter({
 
         <div className="flex min-h-0 flex-1 flex-col md:flex-row">
           <nav className="flex shrink-0 gap-1.5 overflow-x-auto border-b border-white/10 bg-white/[0.02] p-2 md:w-60 md:flex-col md:overflow-y-auto md:border-b-0 md:border-s md:border-white/10">
-            {CONTROL_CENTER_GROUPS.map((group) => (
+            {CONTROL_CENTER_GROUPS.filter((group) => group.sections.some((key) => permitted.includes(key))).map((group) => (
               <div key={group.key} className="flex shrink-0 gap-1.5 md:mb-1 md:flex-col">
                 <div className="hidden px-3 pb-1 pt-2 text-[10px] font-black uppercase tracking-[0.16em] text-slate-600 md:block">
                   {groupLabel(t, group.key)}
                 </div>
-                {group.sections.map((key) => {
+                {group.sections.filter((key) => permitted.includes(key)).map((key) => {
                   const Icon = SECTION_ICON[key] || LayoutGrid;
                   const active = section === key;
                   return (

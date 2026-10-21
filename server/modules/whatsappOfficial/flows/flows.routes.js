@@ -128,9 +128,12 @@ router.post("/", protect, permit("settings", "edit"), async (req, res) => {
   try {
     await ensureChatbotFlowSchema();
     const name = str(req.body?.name).slice(0, 120) || "New flow";
+    // Optional: the numbers the new flow runs on (the Meta review account's flows are bound to
+    // the WhatsApp test number from the start). Absent = all numbers, as before.
+    const numbers = normalizeNumbers(req.body?.phone_number_ids);
     const result = await db.query(
-      `INSERT INTO wa_chatbot_flows (tenant_id, name, created_by) VALUES ($1, $2, $3) RETURNING *`,
-      [tenantOf(req), name, Number(req.user?.id) || null]
+      `INSERT INTO wa_chatbot_flows (tenant_id, name, created_by, phone_number_ids) VALUES ($1, $2, $3, $4::jsonb) RETURNING *`,
+      [tenantOf(req), name, Number(req.user?.id) || null, JSON.stringify(numbers)]
     );
     return res.status(201).json({ success: true, flow: publicFlow(result.rows[0]) });
   } catch (error) {

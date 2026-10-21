@@ -134,7 +134,7 @@ import ReplyWaitClock from "../components/ReplyWaitClock.jsx";
 import InboxFilterPanel from "../components/InboxFilterPanel.jsx";
 import ConversationCrmCard from "../components/ConversationCrmCard.jsx";
 import { EMPTY_PANEL_FILTERS, conversationMatchesPanelFilters, panelFilterCount, panelFilterParams } from "../lib/inboxFilterPanel.js";
-import InboxTopBar from "../components/InboxTopBar.jsx";
+import InboxTopBar, { META_REVIEWER_SECTIONS } from "../components/InboxTopBar.jsx";
 import { chromeModeFor, platformCanvas, resolveMessagePlatform } from "../components/messagePlatform.js";
 import { useTheme } from "../../../theme/useTheme";
 import { isMetaDmConversation, metaCustomerDisplayName } from "../lib/customerIdentity.js";
@@ -306,7 +306,15 @@ const buildMessageIdentityKey = ({ tenantId = "", sessionId = "", direction = "o
   const stableKey = clean(clientRequestId || providerMessageId || externalMessageId);
   return stableKey && canonicalSessionId ? `msg:${clean(tenantId)}|${canonicalSessionId}|${clean(direction || "outbound")}|${stableKey}` : "";
 };
-const metaReviewerChannel = (value = "") => clean(value).toLowerCase().includes("instagram") ? "instagram" : "messenger";
+// The review account's tabs: Messenger, Instagram and the official WhatsApp TEST number (the
+// server returns only cloud:<test phone_number_id> rows on that tab — never Evolution).
+const metaReviewerChannel = (value = "") => {
+  const channel = clean(value).toLowerCase();
+  if (channel.includes("instagram")) return "instagram";
+  if (channel.includes("whatsapp")) return "whatsapp";
+  return "messenger";
+};
+const META_REVIEWER_CHANNELS = ["whatsapp", "messenger", "instagram"];
 const metaReviewerConversationEndpoint = (channel = "messenger", conversationRef = "", suffix = "") =>
   `/meta-reviewer/inbox/channels/${metaReviewerChannel(channel)}/conversations${conversationRef ? `/${encodeConversationId(conversationRef)}` : ""}${suffix}`;
 const normalizeMetaReviewerConversation = (row = {}, fallbackChannel = "messenger") => {
@@ -4680,9 +4688,11 @@ export default function AiInbox({ reviewerMode = false }) {
   const [controlCenterOpen, setControlCenterOpen] = useState(() => Boolean(deepLinkSection));
   const [controlCenterSection, setControlCenterSection] = useState(() => deepLinkSection || "agent");
   const openControlCenter = useCallback((section = "agent") => {
+    // The review account opens only its WhatsApp test-number pages (the server refuses the rest).
+    if (reviewerMode && !META_REVIEWER_SECTIONS.includes(section)) return;
     setControlCenterSection(CONTROL_CENTER_SECTIONS.includes(section) ? section : "agent");
     setControlCenterOpen(true);
-  }, []);
+  }, [reviewerMode]);
   const [socialDrawerRequest, setSocialDrawerRequest] = useState({ kind: "", nonce: 0 });
   const [replyText, setReplyText] = useState("");
   useEffect(() => {
@@ -4917,7 +4927,7 @@ export default function AiInbox({ reviewerMode = false }) {
     // both the warm-cache read and the network round below need them.
     const deepLinkConversationId = clean(deepLinkConversationRef.current);
     const warmChannels = reviewerMode
-      ? (clean(channelFilter).toLowerCase().includes("instagram") ? ["instagram"] : clean(channelFilter).toLowerCase().includes("messenger") ? ["messenger"] : ["messenger", "instagram"])
+      ? (META_REVIEWER_CHANNELS.includes(clean(channelFilter).toLowerCase()) ? [clean(channelFilter).toLowerCase()] : META_REVIEWER_CHANNELS)
       : channelsForFilter(channelFilter);
     // Cache entries are per-channel (keyed by the backend channel name), never one
     // giant unscoped "all" blob — a merged blob would re-introduce exactly the
@@ -5092,7 +5102,7 @@ export default function AiInbox({ reviewerMode = false }) {
       if (reviewerMode) {
         setDrafts([]);
         setAnalytics({});
-        setChannelStatus({ messenger: { effective_enabled: true }, instagram: { effective_enabled: true } });
+        setChannelStatus({ messenger: { effective_enabled: true }, instagram: { effective_enabled: true }, whatsapp: { effective_enabled: true } });
         setAiAssistantGlobalEnabled(false);
         setEmployees([]);
         setSocialComments({ items: [], loading: false, error: "" });
@@ -5776,7 +5786,7 @@ export default function AiInbox({ reviewerMode = false }) {
     const byKey = new Map(channelSummaries.channels.map((item) => [item.key, item]));
 
     const fixedChannelOrder = reviewerMode
-      ? ["messenger", "instagram"]
+      ? META_REVIEWER_CHANNELS
       : inboxSection === "social_comments" ? socialCommentChannelOrder : conversationChannelOrder;
     return fixedChannelOrder.map((key) => ({
       key,
@@ -7504,11 +7514,7 @@ export default function AiInbox({ reviewerMode = false }) {
     const filterValue = clean(channelFilter).toLowerCase();
     // Anything that is not one of the two concrete tabs means "all channels in
     // review scope" — the server resolves that to every enabled reviewer room.
-    const requestedChannel = filterValue.includes("instagram")
-      ? "instagram"
-      : filterValue.includes("messenger")
-        ? "messenger"
-        : "all";
+    const requestedChannel = META_REVIEWER_CHANNELS.find((channel) => filterValue.includes(channel)) || "all";
     let attempts = 0;
     let retryTimer = 0;
     const join = () => {
@@ -9555,6 +9561,7 @@ export default function AiInbox({ reviewerMode = false }) {
         <InboxControlCenter
           open
           initialSection={controlCenterSection}
+          allowedSections={reviewerMode ? META_REVIEWER_SECTIONS : null}
           variant="page"
           headers={headers}
           tenantId={tenantId}
@@ -9577,7 +9584,15 @@ export default function AiInbox({ reviewerMode = false }) {
   const renderTopBar = () => (
     <InboxTopBar
       chatsActive={isConversationMode && !controlCenterOpen}
-      availableSections={CONTROL_CENTER_SECTIONS}
+      reviewerMode={reviewerMode}
+      onChannel={(channel) => {
+        setControlCenterOpen(false);
+        setInboxSection("conversations");
+        setChannelFilter(channel);
+        setSelectedSessionId("");
+        setMobileView("list");
+      }}
+      availableSections={reviewerMode ? META_REVIEWER_SECTIONS : CONTROL_CENTER_SECTIONS}
       activeSection={controlCenterOpen ? controlCenterSection : ""}
       onChats={() => {
         setControlCenterOpen(false);
@@ -9931,7 +9946,8 @@ export default function AiInbox({ reviewerMode = false }) {
               activeChannel={channelFilter}
               socialCommentsCount={socialCommentsPanelCount}
               socialCommentsActive={false}
-              onSelectSocialComments={() => {
+              // The review account's rail: Chats + its three test channels only (no comments).
+              onSelectSocialComments={reviewerMode ? undefined : () => {
                 setInboxSection("social_comments");
                 setSelectedSocialCommentId(socialCommentIdentity(visibleSocialComments[0] || {}));
                 setSelectedSessionId("");
@@ -9955,11 +9971,14 @@ export default function AiInbox({ reviewerMode = false }) {
 	                      <div className="text-[11px] font-black uppercase tracking-[0.16em] text-cyan-100">{t("aiSupport.inbox.rail.conversations")}</div>
 	                    </div>
 	                    <div className="flex shrink-0 items-center gap-2">
+	                      {reviewerMode ? null : (
 	                      <InboxNotificationBell
 	                        surface="/admin/ai-inbox"
 	                        buttonClassName="h-8 w-8 rounded-full border border-white/10 bg-slate-950/70 text-slate-300 hover:border-white/20 hover:text-white"
 	                        dotBorderClassName="border-slate-950"
 	                      />
+	                      )}
+	                      {reviewerMode ? null : (
 	                      <button
 	                        type="button"
 	                        onClick={() => void syncMetaConversations()}
@@ -9970,6 +9989,7 @@ export default function AiInbox({ reviewerMode = false }) {
 	                        {metaHistorySyncing ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <FaFacebookMessenger className="h-3.5 w-3.5" />}
 	                        Sync Meta
 	                      </button>
+	                      )}
 	                      <Pill tone="cyan">{filteredConversations.length}</Pill>
 	                    </div>
 	                  </div>

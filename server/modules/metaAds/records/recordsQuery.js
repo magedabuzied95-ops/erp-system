@@ -132,14 +132,22 @@ const catalogRows = (resource, query = {}) => {
 
 // ------------------------------------------------------------------ reads
 
-export const listRecords = async (tenantId, key, query = {}) => {
+// `scope` (optional, server-chosen, never from the request): (nextParamIndex) → { sql, params },
+// ANDed onto the WHERE — the Meta review account's narrowing (metaAdsReviewer.js).
+const withScope = (built, scope) => {
+  if (!scope) return built;
+  const extra = scope(built.params.length + 1);
+  return { where: `${built.where} AND (${extra.sql})`, params: [...built.params, ...(extra.params || [])] };
+};
+
+export const listRecords = async (tenantId, key, query = {}, { scope = null } = {}) => {
   const resource = getResource(key);
   const { page, pageSize } = pageOf(query);
   if (resource.catalog) {
     const all = catalogRows(resource, query);
     return { rows: all.slice((page - 1) * pageSize, page * pageSize), total: all.length, page, page_size: pageSize };
   }
-  const { where, params } = buildWhere(resource, tenantId, query);
+  const { where, params } = withScope(buildWhere(resource, tenantId, query), scope);
   const from = `FROM ${resource.table} t ${resource.joins || ""} WHERE ${where}`;
   const totalResult = await db.query(`SELECT COUNT(*) AS n ${from}`, params);
   const { rows } = await db.query(
@@ -183,9 +191,9 @@ const recordId = (value) => {
   return id;
 };
 
-const neighborsOf = async (resource, tenantId, id, query) => {
+const neighborsOf = async (resource, tenantId, id, query, scope = null) => {
   const run = async (filters) => {
-    const { where, params } = buildWhere(resource, tenantId, filters);
+    const { where, params } = withScope(buildWhere(resource, tenantId, filters), scope);
     params.push(id);
     const { rows } = await db.query(
       `WITH o AS (
@@ -207,7 +215,7 @@ const neighborsOf = async (resource, tenantId, id, query) => {
   return { index: Number(hit.rn), total: Number(hit.total), prev_id: hit.prev_id ? Number(hit.prev_id) : null, next_id: hit.next_id ? Number(hit.next_id) : null };
 };
 
-export const getRecord = async (tenantId, key, rawId, query = {}) => {
+export const getRecord = async (tenantId, key, rawId, query = {}, { scope = null } = {}) => {
   const resource = getResource(key);
   if (resource.catalog) {
     const all = catalogRows(resource, {});
@@ -220,9 +228,15 @@ export const getRecord = async (tenantId, key, rawId, query = {}) => {
     };
   }
   const id = recordId(rawId);
+  if (scope) {
+    // A record outside the scope does not exist for this reader.
+    const scoped = withScope({ where: "t.tenant_id = $1 AND t.id = $2", params: [tenantId, id] }, scope);
+    const { rows: visible } = await db.query(`SELECT 1 FROM ${resource.table} t ${resource.joins || ""} WHERE ${scoped.where} LIMIT 1`, scoped.params);
+    if (!visible[0]) throw httpError(404, "Record not found", "META_ADS_RECORD_NOT_FOUND");
+  }
   const row = await loadRow(resource, tenantId, id);
   const counts = resource.counts ? await resource.counts(tenantId, row) : {};
-  const neighbors = await neighborsOf(resource, tenantId, id, query);
+  const neighbors = await neighborsOf(resource, tenantId, id, query, scope);
   return { record: scrub(row), counts, neighbors };
 };
 

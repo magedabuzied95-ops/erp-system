@@ -491,7 +491,9 @@ function App() {
     );
   }
 
-  if (enableErpAppRoutes && getToken() && isMetaReviewerUser() && location.pathname !== "/admin/ai-inbox") {
+  // The Meta review account lives in the inbox and the Meta Ads module only (the API refuses the
+  // rest for it too).
+  if (enableErpAppRoutes && getToken() && isMetaReviewerUser() && location.pathname !== "/admin/ai-inbox" && !/^\/meta-ads(\/|$)/.test(location.pathname)) {
     return <Navigate to="/admin/ai-inbox" replace />;
   }
 

@@ -2040,7 +2040,8 @@
         "messenger": "ماسنجر",
         "instagram": "إنستجرام",
         "tiktok": "تيك توك",
-        "config": "الإعدادات"
+        "config": "الإعدادات",
+        "metaAds": "إعلانات ميتا"
       },
       "items": {
         "waAccount": "الحساب الرسمي وربط الرقم",
@@ -2082,7 +2083,10 @@
         "waConnect": "ربط الحساب",
         "waTemplateAnalytics": "تحليلات القوالب",
         "waChatbotFlows": "مسارات الشات بوت",
-        "waApiGuide": "دليل الـ API"
+        "waApiGuide": "دليل الـ API",
+        "waTestChats": "محادثات رقم الاختبار",
+        "channelChats": "المحادثات",
+        "metaAdsManager": "مدير الإعلانات"
       }
     },
     "author": {

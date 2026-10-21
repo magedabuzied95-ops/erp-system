@@ -18,6 +18,7 @@ import express from "express";
 
 import { handle, tenantOf } from "../metaAdsCore.js";
 import { metaAdsManage, metaAdsView } from "../metaAdsGuards.js";
+import { isMetaAdsReviewer, reviewerRecordScope } from "../metaAdsReviewer.js";
 import { runAction } from "./recordsActions.js";
 import {
   createRecord,
@@ -36,10 +37,13 @@ const userOf = (req) => req.user?.id || req.user?.userId || null;
 
 router.get("/lookups/:kind", ...metaAdsView, handle((req) => lookup(tenantOf(req), req.params.kind, req.query)));
 
-router.get("/:resource", ...metaAdsView, handle((req) => listRecords(tenantOf(req), req.params.resource, req.query)));
+// The Meta App Review account never reads real leads / clicks / conversion people (metaAdsReviewer.js).
+const readScope = (req) => ({ scope: isMetaAdsReviewer(req) ? reviewerRecordScope(req.params.resource) : null });
+
+router.get("/:resource", ...metaAdsView, handle((req) => listRecords(tenantOf(req), req.params.resource, req.query, readScope(req))));
 router.post("/:resource", ...metaAdsManage, handle((req) => createRecord(tenantOf(req), req.params.resource, req.body || {}, userOf(req))));
 
-router.get("/:resource/:id", ...metaAdsView, handle((req) => getRecord(tenantOf(req), req.params.resource, req.params.id, req.query)));
+router.get("/:resource/:id", ...metaAdsView, handle((req) => getRecord(tenantOf(req), req.params.resource, req.params.id, req.query, readScope(req))));
 router.put("/:resource/:id", ...metaAdsManage, handle((req) => updateRecord(tenantOf(req), req.params.resource, req.params.id, req.body || {})));
 router.delete("/:resource/:id", ...metaAdsManage, handle((req) => deleteRecord(tenantOf(req), req.params.resource, req.params.id)));
 

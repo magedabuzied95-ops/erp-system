@@ -8,6 +8,7 @@
 import express from "express";
 
 import { isMetaAdsSchemaReady } from "./metaAdsSchema.js";
+import { metaAdsReviewerGuard } from "./metaAdsReviewer.js";
 import managerRoutes from "./manager/manager.routes.js";
 import recordsRoutes from "./records/records.routes.js";
 import integrationsRoutes, { publicIntegrationsRoutes } from "./integrations/integrations.routes.js";
@@ -19,6 +20,8 @@ const notReady = (req, res, next) => {
 
 const router = express.Router();
 router.use(notReady);
+// Meta App Review account: drafts only, paused publish, no personal data (metaAdsReviewer.js).
+router.use(metaAdsReviewerGuard);
 router.use("/manager", managerRoutes);
 router.use("/records", recordsRoutes);
 router.use("/integrations", integrationsRoutes);

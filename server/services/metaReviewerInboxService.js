@@ -14,10 +14,13 @@ import {
   metaReviewerConversationRef,
   metaReviewerConversationRefMatches,
   metaReviewerRealtimeRoom,
+  metaReviewerWhatsappInstanceAllowed,
+  metaReviewerWhatsappInstances,
   normalizeMetaReviewerChannel,
   sanitizeMetaReviewerMessage,
   sanitizeMetaReviewerProductCards,
 } from "./metaReviewerAccessService.js";
+import { sendText as sendWhatsappCloudText } from "./whatsappCloudProvider.js";
 
 const text = (value = "") => String(value ?? "").trim();
 const int = (value, fallback = 0) => {
@@ -36,7 +39,91 @@ const CHANNEL_SQL = {
     asset: `COALESCE(NULLIF(c.metadata->>'instagram_business_account_id', ''), NULLIF(c.metadata->>'resolved_instagram_business_account_id', ''))`,
     outbound: "instagram",
   },
+  // WhatsApp is scoped per MESSAGE, not per conversation: a customer who wrote to both the test
+  // Cloud number and the store's Evolution line has one session holding both. Only rows whose
+  // whatsapp_instance is cloud:<allow-listed phone_number_id> ever leave this file.
+  whatsapp: {
+    outbound: "whatsapp",
+  },
 };
+
+/*
+ * WhatsApp list/resolve query. $1 tenant, $2 allowed instances (cloud:<id>[]), $3 visible-after,
+ * $4 search ('' = none). The latest VISIBLE message (test-number row after the cut-off) is both
+ * the preview and the existence check: a session with no such row is not returned at all.
+ */
+export const META_REVIEWER_WHATSAPP_SQL = `
+    SELECT
+      s.session_id,
+      COALESCE(NULLIF(c.customer_name, ''), NULLIF(s.customer_name, ''), 'WhatsApp test account') AS customer_name,
+      COALESCE(NULLIF(visible_message.customer_message, ''), NULLIF(visible_message.staff_message, ''), NULLIF(visible_message.message_text, ''), NULLIF(visible_message.ai_answer, ''), '') AS last_message,
+      visible_message.created_at AS last_message_at,
+      visible_message.whatsapp_instance AS resolved_instance,
+      visible_message.resolved_phone AS message_phone,
+      c.external_customer_id,
+      c.metadata AS channel_metadata,
+      (SELECT COUNT(*)::int FROM ai_support_messages unread_message
+       WHERE unread_message.tenant_id = s.tenant_id
+         AND unread_message.session_id = s.session_id
+         AND unread_message.sender_type = 'customer'
+         AND unread_message.whatsapp_instance = ANY($2::text[])
+         AND unread_message.created_at >= $3::timestamptz
+         AND unread_message.created_at > COALESCE(c.read_at, s.read_at, TIMESTAMP 'epoch')) AS unread_count
+    FROM ai_support_sessions s
+    JOIN LATERAL (
+      SELECT candidate_message.* FROM ai_support_messages candidate_message
+      WHERE candidate_message.tenant_id = s.tenant_id
+        AND candidate_message.session_id = s.session_id
+        AND candidate_message.whatsapp_instance = ANY($2::text[])
+        AND candidate_message.created_at >= $3::timestamptz
+      ORDER BY candidate_message.created_at DESC, candidate_message.id DESC LIMIT 1
+    ) visible_message ON TRUE
+    LEFT JOIN LATERAL (
+      SELECT channel_conversation.* FROM ai_channel_conversations channel_conversation
+      WHERE channel_conversation.tenant_id = s.tenant_id
+        AND channel_conversation.external_conversation_id = s.session_id
+        AND LOWER(channel_conversation.channel) = 'whatsapp'
+      ORDER BY channel_conversation.updated_at DESC, channel_conversation.id DESC LIMIT 1
+    ) c ON TRUE
+    WHERE s.tenant_id = $1::bigint
+      AND LOWER(COALESCE(s.thread_kind, c.thread_kind, 'dm')) <> 'comment'
+      AND ($4::text = '' OR LOWER(COALESCE(c.customer_name, s.customer_name, '')) LIKE $4::text OR EXISTS (
+        SELECT 1 FROM ai_support_messages search_message
+        WHERE search_message.tenant_id = s.tenant_id
+          AND search_message.session_id = s.session_id
+          AND search_message.whatsapp_instance = ANY($2::text[])
+          AND search_message.created_at >= $3::timestamptz
+          AND LOWER(COALESCE(search_message.customer_message, search_message.staff_message, search_message.message_text, search_message.ai_answer, '')) LIKE $4::text
+      ))
+    ORDER BY visible_message.created_at DESC NULLS LAST, s.session_id ASC
+    LIMIT 500
+`;
+
+/*
+ * Every phone a WhatsApp row names. All of them must be allow-listed (when a phone allowlist is
+ * configured) - one value disagreeing with the others is not a test thread.
+ */
+export const metaReviewerWhatsappIdentityPhones = (row = {}) => {
+  const metadata = row.channel_metadata || {};
+  return [...new Set([
+    row.external_customer_id,
+    metadata.phone,
+    metadata.resolved_phone,
+    row.message_phone,
+  ].map(text).filter((value) => /\d{6,}/.test(value)))];
+};
+
+export const metaReviewerWhatsappRowAllowed = (row = {}, scope = loadMetaReviewerScope()) => {
+  const instance = text(row.resolved_instance);
+  if (!metaReviewerWhatsappInstanceAllowed(instance, scope)) return false;
+  const phones = metaReviewerWhatsappIdentityPhones(row);
+  if (!phones.length) return false;
+  const phoneNumberId = instance.slice("cloud:".length);
+  return phones.every((phone) => metaReviewerConversationAllowed({ tenantId: scope.tenantId, channel: "whatsapp", assetId: phoneNumberId, senderScopedId: phone }, scope));
+};
+
+// The phone the reply goes to: the conversation's own customer id first (Cloud's wa_id).
+const whatsappRecipientPhone = (row = {}) => metaReviewerWhatsappIdentityPhones(row)[0] || "";
 
 const SENDER_MATCH_SQL = `ARRAY_REMOVE(ARRAY[
   NULLIF(c.external_customer_id, ''),
@@ -144,12 +231,32 @@ const channelContext = (scope, channel) => {
   return { normalized, config };
 };
 
+const loadWhatsappRows = async ({ scope, config, searchValue = "" }) => {
+  const instances = metaReviewerWhatsappInstances(scope);
+  if (!instances.length) return [];
+  const result = await db.query(META_REVIEWER_WHATSAPP_SQL, [scope.tenantId, instances, config.visibleMessagesAfter, searchValue ? `%${searchValue}%` : ""]);
+  return (Array.isArray(result.rows) ? result.rows : []).filter((row) => metaReviewerWhatsappRowAllowed(row, scope));
+};
+
 export const listMetaReviewerConversations = async ({ channel, search = "", limit = 50, scope = loadMetaReviewerScope() } = {}) => {
   const { normalized, config } = channelContext(scope, channel);
   if (!scope.enabled || !config?.enabled) return { enabled: false, channel: normalized, conversations: [], counts: { total: 0, unread: 0 } };
   await ensureInboxDependencies();
   const safeLimit = Math.min(100, Math.max(1, int(limit, 50)));
   const searchValue = text(search).toLowerCase();
+  if (normalized === "whatsapp") {
+    const rows = await loadWhatsappRows({ scope, config, searchValue });
+    const conversations = rows.slice(0, safeLimit).map((row) => ({
+      id: metaReviewerConversationRef(row.session_id, scope, normalized),
+      channel: normalized,
+      customer_name: text(row.customer_name || "WhatsApp test account"),
+      customer_avatar_url: "",
+      latest_message_preview: text(row.last_message),
+      last_message_at: row.last_message_at || null,
+      unread_count: Math.max(0, int(row.unread_count, 0)),
+    }));
+    return { enabled: true, channel: normalized, conversations, counts: { total: conversations.length, unread: conversations.reduce((sum, item) => sum + item.unread_count, 0) } };
+  }
   const useRawSenderSqlFilter = metaReviewerUsesRawSenderSqlFilter(config);
   const params = metaReviewerListQueryParams({ scope, config, searchValue, safeLimit, useRawSenderSqlFilter });
   const limitSql = useRawSenderSqlFilter ? " LIMIT $6::int" : "";
@@ -171,6 +278,17 @@ export const resolveMetaReviewerConversation = async ({ channel, conversationRef
   const { normalized, config } = channelContext(scope, channel);
   if (!scope.enabled || !config?.enabled) return null;
   await ensureInboxDependencies();
+  if (normalized === "whatsapp") {
+    const rows = await loadWhatsappRows({ scope, config });
+    const row = rows.find((candidate) => metaReviewerConversationRefMatches(conversationRef, candidate.session_id, scope, normalized));
+    if (!row || !metaReviewerWhatsappRowAllowed(row, scope)) return null;
+    return {
+      ...row,
+      assetId: text(row.resolved_instance).slice("cloud:".length),
+      senderScopedId: whatsappRecipientPhone(row),
+      normalizedChannel: normalized,
+    };
+  }
   const useRawSenderSqlFilter = metaReviewerUsesRawSenderSqlFilter(config);
   const result = await db.query(scopedConversationSql(normalized, { useRawSenderSqlFilter }), [scope.tenantId, config.assetId, config.allowedSenderIds, config.visibleMessagesAfter]);
   const row = authorizedConversationRows(result.rows, scope, normalized)
@@ -186,12 +304,40 @@ export const loadMetaReviewerMessages = async ({ channel, conversationRef, limit
   if (!conversation) return null;
   const config = getMetaReviewerChannelScope(scope, conversation.normalizedChannel);
   const safeLimit = Math.min(100, Math.max(1, int(limit, 50)));
-  const result = await db.query(`SELECT * FROM ai_support_messages WHERE tenant_id = $1::bigint AND session_id = $2::text AND created_at >= $3::timestamptz ORDER BY created_at DESC, id DESC LIMIT $4::int`, [scope.tenantId, conversation.session_id, config.visibleMessagesAfter, safeLimit]);
+  const result = conversation.normalizedChannel === "whatsapp"
+    // Mixed threads: the Evolution rows of the same session are excluded in SQL and again by
+    // filterMetaReviewerVisibleMessages below.
+    ? await db.query(`SELECT * FROM ai_support_messages WHERE tenant_id = $1::bigint AND session_id = $2::text AND created_at >= $3::timestamptz AND whatsapp_instance = ANY($5::text[]) ORDER BY created_at DESC, id DESC LIMIT $4::int`, [scope.tenantId, conversation.session_id, config.visibleMessagesAfter, safeLimit, metaReviewerWhatsappInstances(scope)])
+    : await db.query(`SELECT * FROM ai_support_messages WHERE tenant_id = $1::bigint AND session_id = $2::text AND created_at >= $3::timestamptz ORDER BY created_at DESC, id DESC LIMIT $4::int`, [scope.tenantId, conversation.session_id, config.visibleMessagesAfter, safeLimit]);
   return {
     conversation: { id: conversationRef, channel: conversation.normalizedChannel, customer_name: text(conversation.customer_name || "Meta test account"), customer_avatar_url: text(conversation.customer_avatar_url) },
     messages: filterMetaReviewerVisibleMessages(result.rows.reverse(), scope, conversation.normalizedChannel).map(sanitizeMetaReviewerMessage),
   };
 };
+
+/*
+ * A reviewer reply on WhatsApp leaves ONLY through the allow-listed test number that the thread's
+ * latest visible message used, and only to a phone that passes the review scope. Never Evolution,
+ * never the env default number: the phone_number_id is passed explicitly and re-checked here.
+ */
+export const sendWhatsappReviewerReply = async ({ conversation, scope, messageText, send = sendWhatsappCloudText }) => {
+  const phoneNumberId = text(conversation?.assetId);
+  const phone = text(conversation?.senderScopedId);
+  if (!metaReviewerWhatsappInstanceAllowed(`cloud:${phoneNumberId}`, scope)
+    || !metaReviewerConversationAllowed({ tenantId: scope.tenantId, channel: "whatsapp", assetId: phoneNumberId, senderScopedId: phone }, scope)) {
+    throw Object.assign(new Error("Conversation is outside the Meta review scope."), { status: 403 });
+  }
+  try {
+    const result = await send({ phone, message: messageText, phoneNumberId });
+    return { sent: true, delivery_status: "sent", message_id: result?.message_id || "" };
+  } catch (error) {
+    return { sent: false, delivery_status: "failed", delivery_error: text(error?.message).slice(0, 200) };
+  }
+};
+
+const whatsappReplyFields = (conversation = {}) => (conversation.normalizedChannel === "whatsapp"
+  ? { whatsappInstance: `cloud:${text(conversation.assetId)}`, resolvedPhone: text(conversation.senderScopedId) }
+  : {});
 
 export const sendMetaReviewerMessage = async ({ channel, conversationRef, message, actorUserId, scope = loadMetaReviewerScope() } = {}) => {
   const safeMessage = text(message);
@@ -203,7 +349,7 @@ export const sendMetaReviewerMessage = async ({ channel, conversationRef, messag
   if (!metaReviewerConversationAllowed({ tenantId: scope.tenantId, channel: normalized, assetId: conversation.assetId, senderScopedId: conversation.senderScopedId }, scope)) {
     throw Object.assign(new Error("Conversation is outside the Meta review scope."), { status: 403 });
   }
-  const sendResult = await sendMetaInboxOutboundMessage({
+  const sendResult = normalized === "whatsapp" ? await sendWhatsappReviewerReply({ conversation, scope, messageText: safeMessage }) : await sendMetaInboxOutboundMessage({
     tenantId: scope.tenantId,
     channel: CHANNEL_SQL[normalized].outbound,
     recipientId: conversation.senderScopedId,
@@ -230,6 +376,7 @@ export const sendMetaReviewerMessage = async ({ channel, conversationRef, messag
     externalMessageId: sendResult?.message_id || "",
     providerMessageId: sendResult?.message_id || "",
     redactSessionInLogs: true,
+    ...whatsappReplyFields(conversation),
   });
   const safeStored = sanitizeMetaReviewerMessage(stored);
   emitToRooms([metaReviewerRealtimeRoom(scope, normalized)], "meta_reviewer:message", { channel: normalized, conversation_id: conversationRef, message: safeStored, at: new Date().toISOString() });
@@ -252,7 +399,7 @@ export const sendMetaReviewerProductCards = async ({ channel, conversationRef, p
       .filter(Boolean);
     return details.join("\n");
   }).join("\n\n");
-  const sendResult = await sendMetaInboxOutboundMessage({
+  const sendResult = normalized === "whatsapp" ? await sendWhatsappReviewerReply({ conversation, scope, messageText: fallbackText }) : await sendMetaInboxOutboundMessage({
     tenantId: scope.tenantId,
     channel: CHANNEL_SQL[normalized].outbound,
     recipientId: conversation.senderScopedId,
@@ -283,6 +430,7 @@ export const sendMetaReviewerProductCards = async ({ channel, conversationRef, p
     externalMessageId: sendResult?.message_id || "",
     providerMessageId: sendResult?.message_id || "",
     redactSessionInLogs: true,
+    ...whatsappReplyFields(conversation),
   });
   const safeStored = sanitizeMetaReviewerMessage(stored);
   emitToRooms([metaReviewerRealtimeRoom(scope, normalized)], "meta_reviewer:message", { channel: normalized, conversation_id: conversationRef, message: safeStored, at: new Date().toISOString() });

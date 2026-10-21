@@ -467,8 +467,9 @@ io.on("connection", async (socket) => {
         // realtime path at all, so a DM on it only surfaced on a manual reload.
         // Anything that is not one of the two concrete tabs means "every channel
         // inside the review scope".
-        const requestedChannels = META_REVIEWER_TABS.has(channel) ? [channel] : ["messenger", "instagram"];
-        for (const candidate of ["messenger", "instagram"]) {
+        // WhatsApp joins its own `…:whatsapp-test` room (test number only), never the tenant room.
+        const requestedChannels = META_REVIEWER_TABS.has(channel) ? [channel] : [...META_REVIEWER_TABS];
+        for (const candidate of META_REVIEWER_TABS) {
           const room = metaReviewerRealtimeRoom(reviewScope, candidate);
           if (room) await socket.leave(room);
         }

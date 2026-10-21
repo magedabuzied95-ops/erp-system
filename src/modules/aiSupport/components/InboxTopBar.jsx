@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState } from "react";
 import { useTranslation } from "react-i18next";
-import { ChevronDown, MessagesSquare, Moon, Settings, Smartphone, Sun } from "lucide-react";
+import { ChevronDown, Megaphone, MessagesSquare, Moon, Settings, Smartphone, Sun } from "lucide-react";
 import { FaFacebookMessenger, FaInstagram, FaTiktok, FaWhatsapp } from "react-icons/fa";
 import LanguageSwitcher from "../../../shared/components/LanguageSwitcher";
 import { useTheme } from "../../../theme/useTheme";
@@ -108,8 +108,42 @@ const MENUS = [
   },
 ];
 
+/*
+ * The Meta App Review account sees ONLY what the review covers: the official WhatsApp test number
+ * (its chats + the WhatsApp Business Platform pages), Messenger, Instagram and Meta Ads. WhatsApp
+ * Web (Evolution), TikTok and Config are not rendered at all — and the server refuses their APIs
+ * for this account anyway (metaReviewerBoundary.js / metaReviewerRoutePolicy.js).
+ * `{ channel }` entries filter the inbox to that channel's test conversations.
+ */
+export const META_REVIEWER_SECTIONS = Object.freeze([
+  "wa_accounts", "wa_connect", "wa_templates", "broadcasts", "wa_template_analytics", "wa_usage", "wa_flows", "wa_api_guide",
+]);
+
+const REVIEWER_MENUS = [
+  {
+    key: "whatsapp",
+    icon: FaWhatsapp,
+    tone: "text-emerald-300",
+    items: [
+      { key: "waTestChats", channel: "whatsapp" },
+      { key: "waAccounts", section: "wa_accounts" },
+      { key: "waConnect", section: "wa_connect" },
+      { key: "waTemplates", section: "wa_templates" },
+      { key: "waCampaigns", section: "broadcasts" },
+      { key: "waTemplateAnalytics", section: "wa_template_analytics" },
+      { key: "waUsage", section: "wa_usage" },
+      { key: "waChatbotFlows", section: "wa_flows" },
+      { key: "waApiGuide", section: "wa_api_guide" },
+    ],
+  },
+  { key: "messenger", icon: FaFacebookMessenger, tone: "text-sky-300", items: [{ key: "channelChats", channel: "messenger" }] },
+  { key: "instagram", icon: FaInstagram, tone: "text-pink-300", items: [{ key: "channelChats", channel: "instagram" }] },
+  { key: "metaAds", icon: Megaphone, tone: "text-blue-300", items: [{ key: "metaAdsManager", to: "/meta-ads" }] },
+];
+
 // Literal keys so a missing translation stays greppable.
 const menuLabel = (t, key) => {
+  if (key === "metaAds") return t("aiSupport.inbox.topbar.menus.metaAds");
   if (key === "whatsapp") return t("aiSupport.inbox.topbar.menus.whatsapp");
   if (key === "whatsappWeb") return t("aiSupport.inbox.topbar.menus.whatsappWeb");
   if (key === "messenger") return t("aiSupport.inbox.topbar.menus.messenger");
@@ -120,6 +154,9 @@ const menuLabel = (t, key) => {
 
 const itemLabel = (t, key) => {
   switch (key) {
+    case "waTestChats": return t("aiSupport.inbox.topbar.items.waTestChats");
+    case "channelChats": return t("aiSupport.inbox.topbar.items.channelChats");
+    case "metaAdsManager": return t("aiSupport.inbox.topbar.items.metaAdsManager");
     case "waAccounts": return t("aiSupport.waAccounts.title");
     case "waTemplates": return t("aiSupport.inbox.topbar.items.waTemplates");
     case "waCampaigns": return t("aiSupport.inbox.topbar.items.waCampaigns");
@@ -172,7 +209,10 @@ export default function InboxTopBar({
   onComments,
   availableSections = null,
   activeSection = "",
+  reviewerMode = false,
+  onChannel,
 }) {
+  const menus = reviewerMode ? REVIEWER_MENUS : MENUS;
   const { t } = useTranslation();
   const { theme, setTheme } = useTheme();
   const [openMenu, setOpenMenu] = useState("");
@@ -194,11 +234,12 @@ export default function InboxTopBar({
   }, [openMenu]);
 
   // The menu that owns the open page (the first one, where two share a section).
-  const activeMenu = activeSection ? MENUS.find((menu) => menu.items.some((item) => item.section === activeSection))?.key || "" : "";
+  const activeMenu = activeSection ? menus.find((menu) => menu.items.some((item) => item.section === activeSection))?.key || "" : "";
 
   const run = (item) => {
     setOpenMenu("");
     if (item.section) onOpenSection?.(item.section);
+    else if (item.channel) onChannel?.(item.channel);
     else if (item.comments) onComments?.(item.comments);
     else if (item.to) onNavigate?.(item.to);
   };
@@ -214,7 +255,7 @@ export default function InboxTopBar({
         <MessagesSquare className="h-4 w-4 text-cyan-300" aria-hidden="true" />
         <span>{t("aiSupport.inbox.topbar.chats")}</span>
       </button>
-      {MENUS.map((menu) => {
+      {menus.map((menu) => {
         const Icon = menu.icon;
         const items = menu.items.filter((item) => !item.section || !availableSections || availableSections.includes(item.section));
         if (!items.length) return null;

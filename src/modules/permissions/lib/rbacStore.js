@@ -46,7 +46,9 @@ import {
   Target,
 } from "lucide-react";
 
-import { getCurrentUser, getUserPermissions, isAdminUser } from "../../../shared/auth/authStorage.js";
+import { getCurrentUser, getUserPermissions, isAdminUser, isMetaReviewerUser } from "../../../shared/auth/authStorage.js";
+
+export const META_REVIEWER_SIDEBAR_PATHS = Object.freeze(["/admin/ai-inbox", "/meta-ads"]);
 import { publicStorefrontUrl } from "../../../shared/lib/publicStorefront.js";
 import { IS_WHOLESALE_APP } from "../../../shared/constants/app.js";
 
@@ -708,6 +710,13 @@ export const hasAnyPermission = (permissions = [], user = getCurrentUser()) => {
 export const getVisibleSidebarSections = (user = getCurrentUser()) => {
   const effective = new Set(getEffectivePermissions(user).flatMap(permissionAliases));
   const visibleForEnvironment = (item) => (SHOW_DEV_TOOLS || !item.devOnly) && (IS_WHOLESALE_APP || !item.wholesaleOnly);
+  // The Meta App Review account is presented as "admin" but may only use the inbox and Meta Ads.
+  if (isMetaReviewerUser(user)) {
+    return SIDEBAR_SECTIONS.map((section) => ({
+      ...section,
+      items: section.items.filter((item) => META_REVIEWER_SIDEBAR_PATHS.includes(item.to)),
+    })).filter((section) => section.items.length > 0);
+  }
   if (isAdminUser(user)) {
     return SIDEBAR_SECTIONS.map((section) => ({
       ...section,

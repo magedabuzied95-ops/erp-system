@@ -4,7 +4,7 @@ import { NavLink, Outlet, useLocation, useNavigate } from "react-router-dom";
 import { Bell, Boxes, ChevronDown, CircleDollarSign, ClipboardList, LogOut, Menu, Moon, Paintbrush, PanelLeftClose, PanelLeftOpen, PanelRightClose, PanelRightOpen, Plus, Search, Settings2, ShieldCheck, ShoppingBag, Store, Sun, User, X } from "lucide-react";
 import { useTranslation } from "react-i18next";
 
-import { clearAuth, getCurrentTenant, getCurrentUser, getToken, isCashierUser } from "../auth/authStorage";
+import { clearAuth, getCurrentTenant, getCurrentUser, getToken, isCashierUser, isMetaReviewerUser } from "../auth/authStorage";
 import { getVisibleSidebarSections } from "../../modules/permissions/lib/rbacStore";
 import { translateSidebarSections } from "../../i18n/navigation";
 import NotificationSoundProvider from "../../components/feedback/NotificationSoundProvider";
@@ -488,6 +488,7 @@ function MainLayout() {
   const { theme, setTheme } = useTheme();
   usePageTitle(resolveErpRoutePageTitle(location.pathname));
   const [user, setUser] = useState(() => getCurrentUser() || { name: "Admin", role: "Admin", permissions: ["*"] });
+  const reviewerShell = isMetaReviewerUser(user);
   const [mobileDrawerOpen, setMobileDrawerOpen] = useState(false);
   // Desktop only: the sidebar folds into a thin edge strip and slides over the
   // page while the pointer rests on it. Pinning brings back the fixed column.
@@ -964,6 +965,8 @@ function MainLayout() {
                   <ShoppingBag className="h-4 w-4 text-emerald-300 transition group-hover:text-emerald-200" />
                   <span className="hidden sm:inline">{t("sidebar.storefront")}</span>
                 </a>
+                {/* The Meta review account has no products / purchases / POS: inbox + Meta Ads only. */}
+                {reviewerShell ? null : (<>
                 <NavLink
                   to="/products"
                   title={productsLabel}
@@ -1012,6 +1015,7 @@ function MainLayout() {
                   <span className="hidden sm:inline">{posLabel}</span>
                   <span className="sm:hidden">POS</span>
                 </NavLink>
+                </>)}
                 <LanguageSwitcher compact className="shrink-0" />
                 <button
                   type="button"

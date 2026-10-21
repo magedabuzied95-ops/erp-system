@@ -1,6 +1,7 @@
 import jwt from "jsonwebtoken";
 
 import { isMetaReviewerRole } from "../services/metaReviewerAccessService.js";
+import { META_REVIEWER_INBOX_GRANTS, applyMetaReviewerRoutePolicy } from "../services/metaReviewerRoutePolicy.js";
 import {
   listMetaReviewerConversations,
   loadMetaReviewerMessages,
@@ -9,7 +10,13 @@ import {
 } from "../services/metaReviewerInboxService.js";
 
 const text = (value) => String(value ?? "").trim();
-const reviewerChannel = (value = "") => text(value).toLowerCase().includes("instagram") ? "instagram" : text(value).toLowerCase().includes("messenger") || text(value).toLowerCase().includes("facebook") ? "messenger" : "";
+const reviewerChannel = (value = "") => {
+  const channel = text(value).toLowerCase();
+  if (channel.includes("instagram")) return "instagram";
+  if (channel.includes("messenger") || channel.includes("facebook")) return "messenger";
+  if (channel.includes("whatsapp")) return "whatsapp";
+  return "";
+};
 
 const presentConversation = (row = {}) => ({
   ...row,
@@ -49,7 +56,7 @@ const handleStandardInboxCompatibility = async (req, res, decoded) => {
   if (!match) return false;
   const conversationRef = decodeURIComponent(match[1]);
   const requestedChannel = reviewerChannel(req.query?.channel || req.body?.channel || req.headers?.["x-review-channel"]);
-  const candidateChannels = requestedChannel ? [requestedChannel] : ["messenger", "instagram"];
+  const candidateChannels = requestedChannel ? [requestedChannel] : ["messenger", "instagram", "whatsapp"];
   if (match[2] === "messages" && req.method === "GET") {
     let payload = null;
     for (const channel of candidateChannels) {
@@ -121,13 +128,28 @@ export const metaReviewerApiBoundary = async (req, res, next) => {
   try {
     const decoded = jwt.verify(authorization.slice(7), process.env.JWT_SECRET || "SECRET_KEY");
     if (!isMetaReviewerRole(decoded?.role || decoded?.role_name)) return next();
-    if (allowedReviewerPath(req)) return next();
+    req.metaReviewer = { id: decoded?.id ?? null, tenantId: decoded?.tenant_id ?? null };
+    if (allowedReviewerPath(req)) {
+      // The WhatsApp test tab of the reviewer inbox is granted in code (route-scoped), so the
+      // review role needs no new database grant for it.
+      req.metaReviewerGrants = new Set(META_REVIEWER_INBOX_GRANTS);
+      return next();
+    }
+    // WhatsApp Business Platform + Meta Ads sections: route-scoped grants, guards and narrowing.
+    const policy = await applyMetaReviewerRoutePolicy(req, res, { tenantId: decoded?.tenant_id });
+    if (policy) {
+      req.metaReviewerGrants = policy.grants;
+      return next();
+    }
     const compatibilityResult = await handleStandardInboxCompatibility(req, res, decoded);
     if (compatibilityResult !== false) return compatibilityResult;
     return res.status(403).json({ success: false, message: "This account is limited to the Meta review inbox." });
   } catch (error) {
     if (res.headersSent) return undefined;
-    if (error?.status) return res.status(error.status).json({ success: false, message: error.message });
+    if (error?.status) return res.status(error.status).json({ success: false, message: error.message, code: error.code || "" });
+    // Once the token is known to be the reviewer's, an unexpected failure refuses the request
+    // instead of letting it continue without the policy's narrowing.
+    if (req.metaReviewer) return res.status(503).json({ success: false, message: "The review scope could not be verified." });
     return next();
   }
 };

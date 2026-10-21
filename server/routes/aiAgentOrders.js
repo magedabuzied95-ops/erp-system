@@ -25,6 +25,7 @@ import inboxAttachmentUpload, {
 import { getTenantId, isSuperAdminUser } from "../utils/requestScope.js";
 import { absolutePublicUploadUrl } from "../utils/publicUrl.js";
 import { emitToRooms } from "../utils/socket.js";
+import { emitMetaReviewerInboundEvent } from "../services/metaReviewerAccessService.js";
 import { sendInboxMedia, sendInboxText } from "../services/inboxOutboundService.js";
 import { createManualReminder, listSessionReminders, rearmReminderNotification } from "../services/aiInboxRemindersService.js";
 import {
@@ -1905,6 +1906,20 @@ export const handleWhatsappCloudWebhookRequest = async (req, res) => {
           channel: AI_AGENT_CHANNELS.WHATSAPP,
           message: { ...inboundRow, from_me: false, direction: "inbound", ...(quotedMessage ? { quoted_message: quotedMessage } : {}) },
         });
+        // The Meta review account's own room (…:whatsapp-test). The helper emits only for an
+        // allow-listed test number + test phone, and only a sanitized message — never the tenant room.
+        try {
+          emitMetaReviewerInboundEvent({
+            tenantId,
+            channel: "whatsapp",
+            assetId: metadata?.phone_number_id || "",
+            senderScopedId: message.external_customer_id,
+            sessionId: message.external_conversation_id,
+            message: inboundRow,
+          });
+        } catch {
+          // Realtime for the review inbox is best-effort; its list polls as a fallback.
+        }
       }
       await logChannelEvent({
         tenantId,

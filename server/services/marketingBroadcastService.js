@@ -161,7 +161,7 @@ export const ensureBroadcastSchema = async (clientOrPool = db) => {
  * Audience filters. Every one of them is a WHERE clause over `customers`, and the opt-out and
  * frequency-cap conditions are appended unconditionally — they are not filters the caller chooses.
  */
-const buildAudienceQuery = ({ tenantId, audience = {}, frequencyCapDays = DEFAULT_FREQUENCY_CAP_DAYS, limit = MAX_AUDIENCE }) => {
+const buildAudienceQuery = ({ tenantId, audience = {}, frequencyCapDays = DEFAULT_FREQUENCY_CAP_DAYS, limit = MAX_AUDIENCE, applyFrequencyCap = true }) => {
   const conditions = ["c.tenant_id = $1", "COALESCE(c.phone, '') <> ''", "c.marketing_opt_out_at IS NULL"];
   const params = [tenantId];
   const push = (value) => {
@@ -183,6 +183,14 @@ const buildAudienceQuery = ({ tenantId, audience = {}, frequencyCapDays = DEFAUL
   const tags = normalizeCustomerTags(audience.tags);
   if (tags.length) conditions.push(customerTagsAnyClauseSql(push(tags)));
 
+  // A hard ceiling on WHO can be reached, written by the Meta review account's campaigns
+  // (metaReviewerRoutePolicy.js): only these customer ids, at every run — including a scheduled
+  // or morning-deferred one. Present-but-empty means nobody. It only ever narrows.
+  if (Array.isArray(audience.restrict_customer_ids)) {
+    const ids = audience.restrict_customer_ids.map((id) => int(id, 0)).filter((id) => id > 0);
+    conditions.push(ids.length ? `c.id = ANY(${push(ids)}::bigint[])` : "FALSE");
+  }
+
   // "Bought in the last N days" and "has not bought for N days" are the two that actually get used.
   // `customers` has no last-order column, so this comes from the orders roll-up joined below.
   const boughtWithinDays = int(audience.bought_within_days, 0);
@@ -195,8 +203,9 @@ const buildAudienceQuery = ({ tenantId, audience = {}, frequencyCapDays = DEFAUL
   }
 
   // The frequency cap. Never optional, only tightenable.
+  // (applyFrequencyCap=false is only for the review policy check, which must see the SUPERSET.)
   const capDays = Math.max(1, int(frequencyCapDays, DEFAULT_FREQUENCY_CAP_DAYS));
-  conditions.push(
+  if (applyFrequencyCap) conditions.push(
     `(c.marketing_last_sent_at IS NULL OR c.marketing_last_sent_at < NOW() - (${push(capDays)} || ' days')::interval)`
   );
 
@@ -218,6 +227,15 @@ const buildAudienceQuery = ({ tenantId, audience = {}, frequencyCapDays = DEFAUL
     `,
     params,
   };
+};
+
+/** The exact rows (id, name, phone) a send would target now — the review policy checks each phone. */
+export const resolveBroadcastAudienceRows = async ({ tenantId, audience = {}, frequencyCapDays, applyFrequencyCap = true } = {}) => {
+  await ensureBroadcastSchema();
+  await ensureCustomerTagsSchema();
+  const { sql, params } = buildAudienceQuery({ tenantId, audience, frequencyCapDays, applyFrequencyCap });
+  const result = await db.query(sql, params);
+  return result.rows || [];
 };
 
 export const previewBroadcastAudience = async ({ tenantId, audience = {}, frequencyCapDays } = {}) => {
