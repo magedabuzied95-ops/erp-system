@@ -61,8 +61,42 @@ const rowsByName = async (tenantId) => {
   return new Map(result.rows.map((row) => [text(row.name), row]));
 };
 
+const previewButton = (button) => ({ type: button.type, text: text(button.text) });
+
+/* A real product photo for the preview's image header and carousel cards. */
+const samplePhotoUrl = async () => {
+  const result = await db.query(
+    `SELECT image_url FROM products WHERE COALESCE(image_url, '') <> '' ORDER BY id DESC LIMIT 1`
+  ).catch(() => ({ rows: [] }));
+  return absolutePublicUploadUrl(result.rows[0]?.image_url || "");
+};
+
+/*
+ * The template as the customer's phone shows it, in the studio preview's own shape: the body with
+ * its samples, header, footer, buttons — and for a carousel, the card every slide repeats.
+ */
+const previewOf = (definition, photo = "") => ({
+  header_format: definition.header?.format || "NONE",
+  header_text: definition.header?.format === "TEXT" ? text(definition.header.text) : "",
+  header_media_url: definition.header?.format === "IMAGE" ? photo : "",
+  body_text: definition.body,
+  body_examples: definition.samples || [],
+  footer_text: text(definition.footer),
+  buttons: (definition.buttons || []).map(previewButton),
+  carousel: definition.carousel
+    ? {
+      cards: definition.carousel.cards,
+      image_url: photo,
+      body_text: definition.carousel.card.body,
+      body_examples: definition.carousel.card.samples || [],
+      buttons: definition.carousel.card.buttons.map(previewButton),
+    }
+    : null,
+});
+
 export const listAutomationTemplates = async ({ tenantId }) => {
   const rows = await rowsByName(tenantId);
+  const photo = await samplePhotoUrl();
   return Object.keys(WHATSAPP_TEMPLATE_DEFINITIONS).map((key) => {
     const definition = templateDefinition(key);
     const row = rows.get(definition.name) || null;
@@ -76,6 +110,7 @@ export const listAutomationTemplates = async ({ tenantId }) => {
       buttons: (definition.buttons || []).map((button) => button.text || button.type),
       carousel_cards: definition.carousel?.cards || 0,
       header: definition.header?.format || "",
+      preview: previewOf(definition, photo),
     };
   });
 };

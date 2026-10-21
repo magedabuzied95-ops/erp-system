@@ -3178,7 +3178,8 @@
         "buttons": "الأزرار",
         "status": "الحالة"
       },
-      "carousel": "{{count}} كروت"
+      "carousel": "{{count}} كروت",
+      "previewHint": "دوس على أي قالب في الجدول تشوف شكله على موبايل العميل."
     }
   },
   "waUsage": {

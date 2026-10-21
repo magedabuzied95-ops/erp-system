@@ -3166,7 +3166,8 @@
         "buttons": "Buttons",
         "status": "Status"
       },
-      "carousel": "{{count}} cards"
+      "carousel": "{{count}} cards",
+      "previewHint": "Click any template in the table to see it on the customer's phone."
     }
   },
   "waUsage": {

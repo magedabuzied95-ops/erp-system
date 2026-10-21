@@ -148,8 +148,34 @@ function TemplatePreview({ draft }) {
               </div>
             ) : null}
           </div>
+          {draft.carousel ? <CarouselPreview carousel={draft.carousel} /> : null}
         </div>
       </div>
+    </div>
+  );
+}
+
+// A carousel template: the same card repeated once per slide (Meta fixes the count), side by side
+// and swipeable as on the phone; each slide shows the sample product.
+function CarouselPreview({ carousel }) {
+  const body = fillVariables(carousel.body_text, carousel.body_examples);
+  return (
+    <div className="flex snap-x snap-mandatory gap-2 overflow-x-auto pb-1">
+      {Array.from({ length: carousel.cards || 0 }, (_, index) => (
+        <div key={index} className="w-[190px] shrink-0 snap-start overflow-hidden rounded-lg shadow-sm" style={{ background: WA.bubble, color: WA.ink }}>
+          {carousel.image_url ? (
+            <img src={carousel.image_url} alt="" className="h-32 w-full object-contain" style={{ background: "#ffffff" }} />
+          ) : (
+            <div className="grid h-28 place-items-center" style={{ background: WA.media, color: WA.muted }}><ImageIcon className="h-8 w-8" aria-hidden="true" /></div>
+          )}
+          <div dir="auto" className="whitespace-pre-wrap px-2.5 py-2 text-[12px] leading-5">{body}</div>
+          {(carousel.buttons || []).map((button, buttonIndex) => (
+            <div key={buttonIndex} dir="auto" className="py-1.5 text-center text-[12px] font-bold" style={{ color: WA.link, borderTop: `1px solid ${WA.line}` }}>
+              {button.text}
+            </div>
+          ))}
+        </div>
+      ))}
     </div>
   );
 }
@@ -163,9 +189,10 @@ function TemplatePreview({ draft }) {
 function AutomationTemplatesCard({ headers, onSubmitted }) {
   const { t } = useTranslation();
   const [items, setItems] = useState([]);
-  const [open, setOpen] = useState(false);
+  const [open, setOpen] = useState(true);
   const [busy, setBusy] = useState(false);
   const [notice, setNotice] = useState(null);
+  const [selected, setSelected] = useState("");
 
   useEffect(() => {
     let alive = true;
@@ -200,6 +227,8 @@ function AutomationTemplatesCard({ headers, onSubmitted }) {
 
   const approved = items.filter((item) => item.status === "APPROVED").length;
   const missing = items.filter((item) => ["NOT_SUBMITTED", "DRAFT", "REJECTED"].includes(item.status)).length;
+  // The first template is previewed until another is picked, so the phone is never empty.
+  const previewed = items.find((item) => item.automation_type === selected) || items[0] || null;
 
   return (
     <div className="rounded-2xl border border-white/10 bg-white/[0.03] p-3">
@@ -222,7 +251,8 @@ function AutomationTemplatesCard({ headers, onSubmitted }) {
       </div>
       {notice ? <p className={`mt-2 whitespace-pre-line rounded-xl border p-2.5 text-xs font-bold ${notice.ok ? "border-emerald-300/20 bg-emerald-400/10 text-emerald-100" : "border-rose-300/20 bg-rose-400/10 text-rose-100"}`}>{notice.text}</p> : null}
       {open ? (
-        <div className="mt-3 overflow-x-auto rounded-xl border border-white/10">
+        <div className="mt-3 grid gap-3 lg:grid-cols-[minmax(0,1fr)_320px]">
+        <div className="min-w-0 overflow-x-auto rounded-xl border border-white/10">
           <table className="w-full text-start text-xs">
             <thead className="bg-white/[0.04] text-[10.5px] text-slate-500">
               <tr>
@@ -234,7 +264,11 @@ function AutomationTemplatesCard({ headers, onSubmitted }) {
             </thead>
             <tbody>
               {items.map((item) => (
-                <tr key={item.automation_type} className="border-t border-white/5 align-top text-slate-200">
+                <tr
+                  key={item.automation_type}
+                  onClick={() => setSelected(item.automation_type)}
+                  className={`cursor-pointer border-t border-white/5 align-top text-slate-200 hover:bg-white/[0.04] ${selected === item.automation_type ? "bg-cyan-400/[0.08]" : ""}`}
+                >
                   <td className="px-3 py-2 font-bold">{item.purpose}</td>
                   <td className="px-3 py-2 text-slate-400" dir="ltr">{item.name}</td>
                   <td className="px-3 py-2 text-slate-300">
@@ -252,6 +286,18 @@ function AutomationTemplatesCard({ headers, onSubmitted }) {
               ))}
             </tbody>
           </table>
+        </div>
+        {/* What the customer's phone shows, filled with sample values — before it goes to Meta. */}
+        <div className="lg:sticky lg:top-2 lg:self-start">
+          {previewed?.preview ? (
+            <>
+              <div className="mb-2 text-center text-xs font-black text-white">{previewed.purpose}</div>
+              <TemplatePreview draft={previewed.preview} />
+            </>
+          ) : (
+            <p className="rounded-xl border border-dashed border-white/10 p-4 text-center text-xs text-slate-400">{t("aiSupport.waTemplates.automation.previewHint")}</p>
+          )}
+        </div>
         </div>
       ) : null}
     </div>
