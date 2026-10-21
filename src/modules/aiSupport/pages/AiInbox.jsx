@@ -7697,12 +7697,14 @@ export default function AiInbox({ reviewerMode = false }) {
   }, [loadOlderMessages]);
 
   useEffect(() => {
-    if (!reviewerMode || !pageVisible || socketHealthy) return undefined;
+    // Runs even with a healthy socket: the reviewer room only carries the customer's inbound
+    // messages, so the chatbot / AI / campaign replies of the open thread arrived only on reload.
+    if (!reviewerMode || !pageVisible) return undefined;
     const timer = window.setInterval(() => {
       void reviewerHydrateThreadRef.current?.({ forceHydrate: true });
     }, REVIEWER_POLL_MS);
     return () => window.clearInterval(timer);
-  }, [pageVisible, reviewerMode, socketHealthy]);
+  }, [pageVisible, reviewerMode]);
 
   const currentAssignName = assignNameDraft.sessionId === selectedConversation?.session_id
     ? assignNameDraft.value
