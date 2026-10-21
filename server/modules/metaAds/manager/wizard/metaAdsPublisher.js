@@ -499,5 +499,18 @@ export const deleteObject = async (ctx, level, id) => {
   }
   const statusSql = level === "creative" ? "" : ", status = 'DELETED', effective_status = 'DELETED'";
   await db.query(`UPDATE ${tableFor(level)} SET last_error = NULL, updated_at = NOW() ${statusSql} WHERE tenant_id = $1 AND id = $2`, [tenantId, id]);
+  // Meta deletes the children with the parent, but a sync never returns deleted objects, so the
+  // local ad sets / ads of a deleted campaign (ads of a deleted ad set) would linger in the tabs.
+  if (level === "campaign" || level === "adset") {
+    const parentColumn = level === "campaign" ? "campaign_meta_id" : "adset_meta_id";
+    const children = level === "campaign" ? ["adset", "ad"] : ["ad"];
+    for (const child of children) {
+      await db.query(
+        `UPDATE ${tableFor(child)} SET status = 'DELETED', effective_status = 'DELETED', updated_at = NOW()
+          WHERE tenant_id = $1 AND ${parentColumn} = $2::text AND is_draft = FALSE`,
+        [tenantId, row.meta_id],
+      );
+    }
+  }
   return { meta_id: row.meta_id };
 };
