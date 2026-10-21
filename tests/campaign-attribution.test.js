@@ -228,7 +228,8 @@ test("an order created from the chat inherits its campaign in the existing marke
   });
   const waView = buildAttributionView({ row: { last_touch: normalizeTouch({ source_type: "whatsapp_campaign", campaign_name: "Spring sale", broadcast_id: 7 }) }, clicks: [] });
   assert.equal(orderAttributionFromView(waView, "whatsapp:2010").marketing_platform, "whatsapp");
-  assert.equal(orderAttributionFromView(waView, "whatsapp:2010").marketing_post_id, "broadcast:7");
+  // orders.marketing_post_id is BIGINT, so a campaign leaves it empty and is known by name.
+  assert.equal(orderAttributionFromView(waView, "whatsapp:2010").marketing_post_id, null);
   assert.equal(orderAttributionFromView(null), null);
 
   const order = { tenant_id: 1, ai_agent_conversation_id: "instagram:998", marketing_source: "manual_link" };

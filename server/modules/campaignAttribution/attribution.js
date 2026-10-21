@@ -211,7 +211,10 @@ export const orderAttributionFromView = (view = null, sessionId = "") => {
     marketing_source: touch.source_type === "meta_ad" ? "meta_ads" : touch.source_type,
     marketing_platform: platform,
     marketing_campaign: campaign || "Meta ad (unknown)",
-    marketing_post_id: touch.meta_ad_id ? String(touch.meta_ad_id) : touch.broadcast_id ? `broadcast:${touch.broadcast_id}` : null,
+    // orders.marketing_post_id is BIGINT: only a numeric Meta ad id fits. "broadcast:<id>" was
+    // written there and failed every order from a campaign chat (22P02, 2026-10-21); the campaign
+    // is still on the order by name in marketing_campaign.
+    marketing_post_id: /^\d+$/.test(text(touch.meta_ad_id)) ? text(touch.meta_ad_id) : null,
     attribution_type: "conversation",
     marketing_session_id: text(sessionId) || null,
   };
