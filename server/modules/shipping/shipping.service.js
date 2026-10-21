@@ -1464,8 +1464,10 @@ export const releaseCancelledBostaShipment = async (orderId, { actorName = "", s
     }
   } catch (error) {
     if (error?.code === "BOSTA_PARCEL_LEFT_STORE") throw error;
-    // Deleted at Bosta: nothing there to collect or deliver.
-    if (Number(error?.status) !== 404) {
+    // Deleted at Bosta: nothing there to collect or deliver. INV-2212 (2026-10-21): a
+    // parcel cancelled from Bosta's app answers 400 "Delivery not found.", not 404.
+    const gone = Number(error?.status) === 404 || /not found/i.test(text(error?.payload?.message) || error?.message || "");
+    if (!gone) {
       // 409, never 5xx: Cloudflare replaces an origin 502 with its own page, so the
       // browser only ever saw "could not complete" — Bosta's own answer went with it.
       const detail = text(error?.payload?.message) || text(error?.payload?.error) || error?.message || "Bosta could not be reached";
