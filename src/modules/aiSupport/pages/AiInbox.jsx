@@ -2505,8 +2505,9 @@ function InboxChatHeader({
             </button>
           )}
           <div className="min-w-0">
-            <div className="flex flex-wrap items-center gap-2">
-              <div className="min-w-0">
+            {/* One line: on a narrow header the chips beside the name clip instead of wrapping. */}
+            <div className="flex flex-nowrap items-center gap-2 overflow-hidden @[820px]:flex-wrap">
+              <div className="min-w-0 shrink-0 max-w-[14rem]">
                 <button
                   type="button"
                   onClick={(event) => {
