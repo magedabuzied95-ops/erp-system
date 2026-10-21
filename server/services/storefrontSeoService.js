@@ -8,6 +8,15 @@ const INDEXABLE_PUBLIC_PATHS = [
   "/products",
   "/sale",
   ...SEO_CATEGORY_DEFINITIONS.map((definition) => definition.path),
+  // Who the shop is and how it sells: Merchant Center's misrepresentation review looks for these,
+  // and none of them was in the sitemap.
+  "/about",
+  "/contact",
+  "/shipping",
+  "/returns",
+  "/faq",
+  "/privacy",
+  "/terms",
 ];
 
 const PRIVATE_ROBOTS_PATHS = [

@@ -134,3 +134,8 @@ test("GA4 is wired only into storefront modules and Meta tracking implementation
   assert.doesNotMatch(metaEvents, /ga4|gtag|googletagmanager/i);
   assert.doesNotMatch(app, /ga4|gtag|googletagmanager/i);
 });
+
+test("a product without sizes uses the feed's p-{id} item id", () => {
+  assert.equal(ga4ItemId({ id: 77 }, {}), "p-77");
+  assert.equal(ga4ItemId({}, {}), "");
+});

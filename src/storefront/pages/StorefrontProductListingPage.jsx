@@ -44,6 +44,7 @@ import { useDialogFocus } from "../lib/useDialogFocus";
 import { storefrontColorKey } from "../../../shared/storefrontColorKey.js";
 import { useProductClassifications } from "../../modules/products/hooks/useProductClassifications";
 import { classificationGroupsToFieldOptions } from "../../modules/products/lib/productClassifications";
+import { trackGa4Search } from "../lib/ga4Events";
 import { Baby, Briefcase, ChevronDown, ChevronLeft, ChevronRight, DollarSign, Gem, Footprints, ShoppingBag, Shirt, SlidersHorizontal, Tag, UserRound, Users, X } from "lucide-react";
 import {
   buildCategoryBreadcrumb,
@@ -589,6 +590,10 @@ export function StorefrontProductListingPage({ sale = false, saleModeEnabled, wi
   const genderParam = params.get("gender") || "";
   const typeParam = params.get("type") || "";
   const normalizedSearchTerm = normalizeStorefrontSearchTerm(q);
+  // GA4 site search: the term as typed, once per term.
+  useEffect(() => {
+    if (q.trim()) trackGa4Search(q);
+  }, [q]);
   const searchGender = normalizeStorefrontAudienceValue(q);
   const gender = seoCategory?.apiFilters?.gender || normalizeStorefrontAudienceValue(genderParam) || genderParam || searchGender;
   const backendSearchTerm = searchGender ? "" : q;

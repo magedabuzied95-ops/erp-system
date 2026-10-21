@@ -11,6 +11,11 @@ export const GA4_MEASUREMENT_ID = String(
   env.VITE_GA4_MEASUREMENT_ID || env.VITE_GOOGLE_ANALYTICS_ID || "G-J47KZ3W60P"
 ).trim();
 const SCRIPT_ID = "m1-ga4-google-tag";
+// ISO 3166-1 codes of the EEA, the UK and Switzerland.
+const CONSENT_REQUIRED_REGIONS = [
+  "AT", "BE", "BG", "HR", "CY", "CZ", "DK", "EE", "FI", "FR", "DE", "GR", "HU", "IE", "IT", "LV",
+  "LT", "LU", "MT", "NL", "PL", "PT", "RO", "SK", "SI", "ES", "SE", "IS", "LI", "NO", "GB", "CH",
+];
 const PURCHASE_STORAGE_PREFIX = "m1.ga4.purchase.";
 // The last page_view sent, not every path seen: the guard exists for rerenders and effect
 // replays of the same navigation. A per-session set also swallowed every real return visit
@@ -32,6 +37,22 @@ export const ensureGoogleTag = () => {
     window.dataLayer.push(arguments);
   };
   if (!window.__M1_GA4_CONFIGURED__) {
+    // Consent Mode v2. Egypt needs no consent banner, so storage is granted by default; visitors
+    // from the EEA, the UK and Switzerland, where Google requires consent, start denied (the
+    // shop shows them no banner, so they stay cookieless and are modelled by GA4).
+    window.gtag("consent", "default", {
+      ad_storage: "denied",
+      ad_user_data: "denied",
+      ad_personalization: "denied",
+      analytics_storage: "denied",
+      region: CONSENT_REQUIRED_REGIONS,
+    });
+    window.gtag("consent", "default", {
+      ad_storage: "granted",
+      ad_user_data: "granted",
+      ad_personalization: "granted",
+      analytics_storage: "granted",
+    });
     window.gtag("js", new Date());
     window.gtag("config", GA4_MEASUREMENT_ID, { send_page_view: false });
     window.__M1_GA4_CONFIGURED__ = true;
@@ -83,6 +104,19 @@ export const trackGa4AddToCart = ({ product = {}, variant = {}, line = null, qua
   const item = buildGa4Item({ product, variant, line, quantity });
   if (!item) return null;
   return send("add_to_cart", { currency: "EGP", value: item.price * item.quantity, items: [item] });
+};
+
+export const trackGa4RemoveFromCart = (line = null) => {
+  const item = line ? buildGa4Item({ line, quantity: line.quantity }) : null;
+  if (!item) return null;
+  return send("remove_from_cart", { currency: "EGP", value: item.price * item.quantity, items: [item] });
+};
+
+// One search event per distinct term per page load: the listing re-renders on every filter change.
+export const trackGa4Search = (term = "") => {
+  const searchTerm = String(term || "").trim().slice(0, 100);
+  if (!searchTerm) return null;
+  return sendOnce("search", searchTerm.toLowerCase(), { search_term: searchTerm });
 };
 
 export const trackGa4ViewCart = (items = []) => {

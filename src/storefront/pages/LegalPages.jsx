@@ -128,6 +128,8 @@ function LegalShell({ pageKey }) {
   const tabs = [
     { to: "/faq", label: ui.faq },
     { to: "/returns", label: ui.returns },
+    { to: "/shipping", label: ui.shipping },
+    { to: "/about", label: ui.about },
     { to: legalLink("/privacy"), label: ui.privacy, active: pageKey === "privacy" },
     { to: legalLink("/terms"), label: ui.terms, active: pageKey === "terms" },
     { to: legalLink("/data-deletion"), label: ui.dataDeletion, active: pageKey === "data-deletion" },

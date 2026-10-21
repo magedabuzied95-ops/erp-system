@@ -1,9 +1,12 @@
 import { useEffect, useMemo, useState } from "react";
 import { Link, useLocation } from "react-router-dom";
 import { useTranslation } from "react-i18next";
-import { BadgeCheck, CalendarDays, Plus, RefreshCcw, Search, ShoppingBag, Truck } from "lucide-react";
+import { BadgeCheck, CalendarDays, Clock3, Mail, MapPin, Phone, Plus, RefreshCcw, Search, ShoppingBag, Truck } from "lucide-react";
 import { sfText } from "../lib/sfText";
-import { normalizeMerchantReturnPolicy } from "../../shared/lib/merchantPolicies";
+import { normalizeMerchantReturnPolicy, normalizeShippingPolicyZone } from "../../shared/lib/merchantPolicies";
+import { STORE_IDENTITY, storeAddressFor } from "../../shared/lib/storeIdentity";
+import { FALLBACK_GOVERNORATES } from "../components/DeliveryEstimate.jsx";
+import { api } from "../../shared/api/api";
 import { ROOT_PATHS } from "../lib/paths";
 import PolicyLayout, { PolicyHelp, PolicyList, PolicyTabs } from "./policy/PolicyLayout";
 
@@ -19,6 +22,8 @@ export function usePolicyTabs() {
   const links = [
     { to: ROOT_PATHS.faq || "/faq", label: sfText("storefront.policies.faq", "الأسئلة الشائعة") },
     { to: ROOT_PATHS.returns || "/returns", label: sfText("storefront.policies.returns", "الاستبدال والاسترجاع") },
+    { to: ROOT_PATHS.shipping || "/shipping", label: sfText("storefront.policies.shipping", "الشحن والتوصيل") },
+    { to: ROOT_PATHS.about || "/about", label: sfText("storefront.policies.about", "من نحن") },
     { to: "/privacy", label: sfText("storefront.policies.privacy", "سياسة الخصوصية") },
     { to: "/terms", label: sfText("storefront.policies.terms", "الشروط والأحكام") },
   ];
@@ -344,6 +349,176 @@ export function ReturnsPolicyPage({ publicStoreSettings = {}, whatsappHref = "" 
           whatsappLabel={sfText("storefront.policies.whatsapp", "كلّمنا على واتساب")}
         />
       )}
+    />
+  );
+}
+
+/* --------------------------------------------------------------- shipping */
+
+const governorateLabel = (zone = {}, arabic = true) => {
+  const name = String(zone.governorate || zone.city || zone.area || "").trim();
+  if (!arabic) return name;
+  if (String(zone.arabic_alias || "").trim()) return String(zone.arabic_alias).trim();
+  const key = name.toLowerCase().replace(/\s+/g, "-");
+  return FALLBACK_GOVERNORATES.find((entry) => entry.id === key || entry.en.toLowerCase() === name.toLowerCase())?.ar || name;
+};
+
+const shippingZonesFrom = (settings = {}) => {
+  const storefront = settings.storefront && typeof settings.storefront === "object" ? settings.storefront : {};
+  const zones = Array.isArray(settings.shipping_zones) ? settings.shipping_zones : Array.isArray(storefront.shipping_zones) ? storefront.shipping_zones : [];
+  return zones.map(normalizeShippingPolicyZone).filter((zone) => zone.active && String(zone.governorate || zone.city || zone.area || "").trim());
+};
+
+/*
+ * /shipping — the fee and delivery time per governorate, read from the same shipping zones the
+ * checkout charges and the product JSON-LD advertises, so the three never disagree. The zones live
+ * in /storefront/settings, not in the public settings map the shell already holds.
+ */
+export function ShippingPolicyPage({ publicStoreSettings = {}, whatsappHref = "" }) {
+  const { i18n } = useTranslation();
+  const tabs = usePolicyTabs();
+  const arabic = !String(i18n.language || "ar").startsWith("en");
+  const [loadedZones, setLoadedZones] = useState(null);
+  useEffect(() => {
+    let active = true;
+    api
+      .get("/storefront/settings", { suppressErrorStatuses: [404, 500] })
+      .then((data) => { if (active) setLoadedZones(shippingZonesFrom(data?.settings || data || {})); })
+      .catch(() => { if (active) setLoadedZones([]); });
+    return () => { active = false; };
+  }, []);
+  const zones = loadedZones?.length ? loadedZones : shippingZonesFrom(publicStoreSettings);
+  const money = (value) => new Intl.NumberFormat(arabic ? "ar-EG" : "en-EG").format(Number(value) || 0);
+  const deliveryText = (zone) => {
+    const min = zone.delivery_min_days;
+    const max = zone.delivery_max_days;
+    if (min === null || max === null) return String(zone.estimated_delivery_text || "").trim() || "—";
+    return min === max ? sfText("storefront.shippingPolicy.deliveryDay", undefined, { min }) : sfText("storefront.shippingPolicy.deliveryDays", undefined, { min, max });
+  };
+
+  const sections = [
+    {
+      id: "shipping-zones",
+      title: sfText("storefront.shippingPolicy.zonesTitle"),
+      content: zones.length ? (
+        <>
+          <p className="sfp-p">{sfText("storefront.shippingPolicy.zonesIntro")}</p>
+          <div className="sfp-table-wrap">
+            <table className="sfp-table">
+              <thead>
+                <tr>
+                  <th scope="col">{sfText("storefront.shippingPolicy.governorate")}</th>
+                  <th scope="col">{sfText("storefront.shippingPolicy.price")}</th>
+                  <th scope="col">{sfText("storefront.shippingPolicy.delivery")}</th>
+                </tr>
+              </thead>
+              <tbody>
+                {zones.map((zone) => (
+                  <tr key={zone.id || zone.governorate}>
+                    <th scope="row">{governorateLabel(zone, arabic)}</th>
+                    <td>
+                      {zone.price > 0 ? `${money(zone.price)} ${arabic ? "ج.م" : "EGP"}` : sfText("storefront.shippingPolicy.free")}
+                      {zone.free_shipping_threshold > 0 ? <small className="sfp-table__note">{sfText("storefront.shippingPolicy.freeOver", undefined, { amount: money(zone.free_shipping_threshold) })}</small> : null}
+                    </td>
+                    <td>{deliveryText(zone)}</td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        </>
+      ) : <p className="sfp-p">{sfText("storefront.shippingPolicy.noZones")}</p>,
+    },
+    {
+      id: "shipping-confirm",
+      title: sfText("storefront.shippingPolicy.confirmTitle"),
+      content: <PolicyList items={[sfText("storefront.shippingPolicy.confirm1"), sfText("storefront.shippingPolicy.confirm2")]} />,
+    },
+    {
+      id: "shipping-track",
+      title: sfText("storefront.shippingPolicy.trackTitle"),
+      content: (
+        <>
+          <p className="sfp-p">{sfText("storefront.shippingPolicy.trackText")}</p>
+          <Link to={ROOT_PATHS.track || "/track"} className="sfp-link">{sfText("storefront.shippingPolicy.trackLink")}</Link>
+        </>
+      ),
+    },
+    {
+      id: "shipping-issues",
+      title: sfText("storefront.shippingPolicy.issuesTitle"),
+      content: (
+        <>
+          <PolicyList items={[sfText("storefront.shippingPolicy.issues1"), sfText("storefront.shippingPolicy.issues2")]} />
+          <Link to={ROOT_PATHS.returns || "/returns"} className="sfp-link">{sfText("storefront.shippingPolicy.returnsLink")}</Link>
+        </>
+      ),
+    },
+  ];
+
+  return (
+    <PolicyLayout
+      dir={i18n.dir?.(i18n.language)}
+      tabs={tabs}
+      title={sfText("storefront.shippingPolicy.title")}
+      lead={sfText("storefront.shippingPolicy.lead")}
+      contentsLabel={sfText("storefront.policies.contents", "في الصفحة دي")}
+      sections={sections}
+      help={<StoreHelp whatsappHref={whatsappHref} />}
+    />
+  );
+}
+
+/* ------------------------------------------------------------------ about */
+
+/*
+ * /about — who runs the shop and where it is. The address, phone and hours come from
+ * STORE_IDENTITY, the record Merchant Center and the Business Profile are checked against.
+ */
+export function AboutPage({ publicStoreSettings = {}, whatsappHref = "" }) {
+  const { i18n } = useTranslation();
+  const tabs = usePolicyTabs();
+  const arabic = !String(i18n.language || "ar").startsWith("en");
+  const days = normalizeMerchantReturnPolicy(publicStoreSettings)?.days || DEFAULT_RETURN_DAYS;
+  const facts = [
+    { key: "address", Icon: MapPin, title: sfText("storefront.about.addressLabel"), text: storeAddressFor(arabic ? "ar" : "en"), href: STORE_IDENTITY.mapUrl, external: true },
+    { key: "hours", Icon: Clock3, title: sfText("storefront.about.hoursLabel"), text: arabic ? STORE_IDENTITY.hours.ar : STORE_IDENTITY.hours.en },
+    { key: "phone", Icon: Phone, title: sfText("storefront.about.phoneLabel"), text: STORE_IDENTITY.phoneDisplay, href: `tel:${STORE_IDENTITY.phoneE164}`, ltr: true },
+    { key: "email", Icon: Mail, title: sfText("storefront.about.emailLabel"), text: STORE_IDENTITY.email, href: `mailto:${STORE_IDENTITY.email}`, ltr: true },
+  ];
+
+  return (
+    <PolicyLayout
+      dir={i18n.dir?.(i18n.language)}
+      tabs={tabs}
+      title={sfText("storefront.about.title")}
+      lead={sfText("storefront.about.lead")}
+      contentsLabel={sfText("storefront.policies.contents", "في الصفحة دي")}
+      intro={(
+        <div className="sfp-facts">
+          {facts.map(({ key, Icon, title, text, href, external, ltr }) => (
+            <div key={key} className="sfp-fact sfx-surface">
+              <span className="sfp-fact__icon" aria-hidden="true"><Icon size={18} /></span>
+              <div>
+                <p className="sfp-fact__title sfx-h3">{title}</p>
+                <p className="sfp-fact__text" dir={ltr ? "ltr" : undefined}>
+                  {href ? <a href={href} className="sfp-link" {...(external ? { target: "_blank", rel: "noreferrer" } : {})}>{text}</a> : text}
+                </p>
+              </div>
+            </div>
+          ))}
+        </div>
+      )}
+      sections={[
+        { id: "about-who", title: sfText("storefront.about.whoTitle"), content: <p className="sfp-p">{sfText("storefront.about.whoText")}</p> },
+        {
+          id: "about-how",
+          title: sfText("storefront.about.howTitle"),
+          content: <PolicyList items={[sfText("storefront.about.how1"), sfText("storefront.about.how2"), sfText("storefront.about.how3", undefined, { days })]} />,
+        },
+        { id: "about-contact", title: sfText("storefront.about.contactTitle"), content: <p className="sfp-p">{sfText("storefront.about.contactText")}</p> },
+      ]}
+      help={<StoreHelp whatsappHref={whatsappHref} />}
     />
   );
 }

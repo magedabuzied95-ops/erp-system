@@ -447,6 +447,48 @@ html:has(body:not(.storefront-shell) .sfp.sfx-scope[data-theme="dark"]) body {
   text-decoration-color: currentColor;
 }
 
+/* ------------------------------------------------------------------ table */
+
+/* The shipping page's fee table: scrolls inside its own box on a phone, never the page. */
+.sfp-table-wrap {
+  margin-top: 12px;
+  overflow-x: auto;
+  border: 1px solid var(--sfp-line);
+  border-radius: var(--sfp-r-md, 12px);
+}
+
+.sfp-table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 14px;
+}
+
+.sfp .sfp-table :is(th, td) {
+  padding: 10px 12px;
+  border-bottom: 1px solid var(--sfp-line);
+  color: var(--sfp-text-2) !important;
+  -webkit-text-fill-color: currentColor;
+  text-align: start;
+  vertical-align: top;
+}
+
+.sfp .sfp-table thead th,
+.sfp .sfp-table tbody th {
+  color: var(--sfp-text) !important;
+  font-weight: 600;
+}
+
+.sfp-table tbody tr:last-child :is(th, td) {
+  border-bottom: 0;
+}
+
+.sfp-table__note {
+  display: block;
+  margin-top: 2px;
+  font-size: 12px;
+  opacity: 0.8;
+}
+
 /* ------------------------------------------------------------------ facts */
 /* Each fact is an `sfx-surface` with an accent-soft icon bubble. */
 

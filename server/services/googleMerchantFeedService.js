@@ -7,6 +7,7 @@ import { loadTenantSaleModeSettings } from "../utils/customerDisplayPrice.js";
 import { resolveProductAudience } from "./productAudienceResolver.js";
 import { AD_FEED_PURCHASE_COLUMNS, AD_FEED_PURCHASE_CTES, AD_FEED_PURCHASE_JOINS } from "./adFeedPurchaseLinesSql.js";
 import { onCacheInvalidatePattern } from "./cacheService.js";
+import { isMirrorProduct } from "../utils/mirrorProduct.js";
 
 export const GOOGLE_FEED_URL = "https://m1store-egy.com/feeds/google.xml";
 // Merchant Center compares the feed with the live product page. A 24h copy kept advertising a
@@ -187,6 +188,17 @@ export const resolveGoogleFeedPricing = (row = {}, { saleModeSettings = {} } = {
     : { price: activePrice, sale_price: 0, active_price: activePrice };
 };
 
+// Mirror copies of branded models never go to Google: Shopping treats a branded look-alike as a
+// counterfeit, and the whole account was disapproved for misrepresentation (owner's call,
+// 2026-10-21). They stay on the storefront. The grade is the source of truth; the name and slug
+// catch rows saved before the grade existed ("adidas sneakers-men-mirror").
+export const isMirrorFeedRow = (row = {}) =>
+  isMirrorProduct({ grade: row.product_grade }) ||
+  [row.product_name, row.slug, row.canonical_slug].some((value) => {
+    const lower = text(value).toLowerCase();
+    return lower.includes("mirror") || lower.includes("ميرور");
+  });
+
 const isBag = (row = {}) => resolveMetaProductCategories(row).matchedBy === "bags";
 const isFootwear = (row = {}) => {
   const category = resolveMetaProductCategories(row);
@@ -200,6 +212,7 @@ export const buildGoogleMerchantItem = (row = {}, { saleModeSettings = {} } = {}
   const size = text(row.size);
   const bag = isBag(row);
   if (!productId || !productLink(row)) return null;
+  if (isMirrorFeedRow(row)) return null;
   if (variantId && isFootwear(row) && (!color || !size)) return null;
   if (variantId && bag && !color) return null;
 
@@ -238,6 +251,8 @@ export const buildGoogleMerchantItem = (row = {}, { saleModeSettings = {} } = {}
     product_type: text(row.category_name || row.product_type),
     color,
     size: bag ? "" : size,
+    // The shop sizes footwear in EU numbers (36-46); without it Google guesses the system.
+    size_system: !bag && size && isFootwear(row) && /^\d{2}(\.5)?$/.test(size) ? "EU" : "",
     gender: audience.gender,
     age_group: audience.age_group,
     identifier_exists: identifierExists ? "yes" : "no",
@@ -269,6 +284,7 @@ export const googleMerchantItemXml = (item = {}) => {
     tag("product_type", item.product_type),
     tag("color", item.color),
     tag("size", item.size),
+    tag("size_system", item.size_system),
     tag("gender", item.gender),
     tag("age_group", item.age_group),
     tag("identifier_exists", item.identifier_exists),
@@ -326,6 +342,7 @@ const googleRowsSql = `
     p.category_id,
     p.brand_id,
     p.product_type,
+    p.grade AS product_grade,
     c.name AS category_name,
     COALESCE(NULLIF(TRIM(to_jsonb(pv)->>'google_product_category'), ''), NULLIF(TRIM(to_jsonb(p)->>'google_product_category'), '')) AS google_product_category,
     COALESCE(NULLIF(TRIM(to_jsonb(pv)->>'facebook_product_category'), ''), NULLIF(TRIM(to_jsonb(p)->>'facebook_product_category'), '')) AS facebook_product_category,

@@ -128,3 +128,20 @@ test("Google verification file remains unchanged", () => {
   const value = fs.readFileSync(new URL("../public/google6be0c3721d0652f8.html", import.meta.url), "utf8").trim();
   assert.equal(value, "google-site-verification: google6be0c3721d0652f8.html");
 });
+
+test("sitemap lists the shop's identity and policy pages", async () => {
+  const { buildSitemapEntries } = await import("../server/services/storefrontSeoService.js");
+  const locs = buildSitemapEntries([]).map((entry) => entry.loc);
+  for (const path of ["/about", "/contact", "/shipping", "/returns", "/faq", "/privacy", "/terms"]) {
+    assert.ok(locs.includes(`https://m1store-egy.com${path}`), path);
+  }
+});
+
+test("the Organization JSON-LD carries the Business Profile address and phone", async () => {
+  const { buildStoreOrganizationJsonLd } = await import("../src/shared/lib/storeIdentity.js");
+  const data = buildStoreOrganizationJsonLd();
+  assert.equal(data.address.postalCode, "34523");
+  assert.equal(data.address.addressCountry, "EG");
+  assert.equal(data.telephone, "+201000659301");
+  assert.ok(data.openingHoursSpecification.length >= 1);
+});

@@ -18,6 +18,8 @@ const ROOT_PATHS = {
   sizeGuide: "/size-guide",
   returns: "/returns",
   faq: "/faq",
+  shipping: "/shipping",
+  about: "/about",
   success: "/success",
   confirm: "/confirm",
 };
@@ -172,6 +174,8 @@ const isStorefrontPath = (pathname = "") => {
     ROOT_PATHS.sizeGuide,
     ROOT_PATHS.returns,
     ROOT_PATHS.faq,
+    ROOT_PATHS.shipping,
+    ROOT_PATHS.about,
     LEGACY_PREFIX,
     `${LEGACY_PREFIX}/products`,
     `${LEGACY_PREFIX}/account`,

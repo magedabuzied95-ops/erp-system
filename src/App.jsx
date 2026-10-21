@@ -777,6 +777,8 @@ function App() {
           <Route path="/size-guide" element={<Suspense fallback={<RouteSkeleton />}><Storefront /></Suspense>} />
           <Route path="/returns" element={<Suspense fallback={<RouteSkeleton />}><Storefront /></Suspense>} />
           <Route path="/faq" element={<Suspense fallback={<RouteSkeleton />}><Storefront /></Suspense>} />
+          <Route path="/shipping" element={<Suspense fallback={<RouteSkeleton />}><Storefront /></Suspense>} />
+          <Route path="/about" element={<Suspense fallback={<RouteSkeleton />}><Storefront /></Suspense>} />
           <Route path="/success/:orderNumber" element={<Suspense fallback={<RouteSkeleton />}><Storefront /></Suspense>} />
           <Route path="/confirm/:code" element={<Suspense fallback={<RouteSkeleton />}><Storefront /></Suspense>} />
           <Route path="/dashboard" element={<PublicHostErpRedirect />} />

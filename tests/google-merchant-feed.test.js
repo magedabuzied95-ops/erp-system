@@ -244,3 +244,17 @@ test("Vercel exposes Google feed before SPA fallback", () => {
   assert.ok(sources.indexOf("/feeds/google.xml") >= 0);
   assert.ok(sources.indexOf("/feeds/google.xml") < fallbackIndex);
 });
+
+test("mirror copies never reach the Google feed", () => {
+  assert.equal(buildGoogleMerchantItem(variant({ product_grade: "mirror_original" })), null);
+  assert.equal(buildGoogleMerchantItem(variant({ product_grade: "mirror" })), null);
+  assert.equal(buildGoogleMerchantItem(variant({ slug: "adidas sneakers-men-mirror", product_name: "Adidas sneakers" })), null);
+  assert.ok(buildGoogleMerchantItem(variant({ product_grade: "imported_from_vietnam" })));
+  assert.ok(buildGoogleMerchantItem(variant({ product_grade: "" })));
+});
+
+test("footwear sizes carry the EU size system", () => {
+  const item = buildGoogleMerchantItem(variant());
+  assert.equal(item.size_system, "EU");
+  assert.match(googleMerchantItemXml(item), /<g:size_system>EU<\/g:size_system>/);
+});

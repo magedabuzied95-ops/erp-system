@@ -8,7 +8,10 @@ const quantityValue = (value = 1) => Math.max(1, Math.floor(Number(value || 1) |
 export const ga4ItemId = (product = {}, variant = {}) => {
   const productId = text(product.product_id || product.productId || product.id);
   const variantId = text(variant.variant_id || variant.variantId || variant.id);
-  return productId && variantId ? `${productId}-${variantId}` : productId;
+  // The Merchant Center feed ids a product without sizes as p-{id}; the same id here lets Google
+  // join GA4 ecommerce events to the feed item.
+  if (!productId) return "";
+  return variantId ? `${productId}-${variantId}` : `p-${productId}`;
 };
 
 export const ga4CustomerPrice = ({ product = {}, variant = {}, line = null, value = null } = {}) =>

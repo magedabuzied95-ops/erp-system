@@ -19,8 +19,9 @@ import "./deliveryEstimate.css";
 const GOVERNORATE_STORAGE_KEY = "sf:delivery-governorate";
 const QUOTE_TTL_MS = 5 * 60_000;
 
-// Only used when the public settings carry no shipping catalogue.
-const FALLBACK_GOVERNORATES = [
+// Only used when the public settings carry no shipping catalogue (and by the shipping policy
+// page, for the Arabic name of a zone saved in English).
+export const FALLBACK_GOVERNORATES = [
   ["cairo", "Cairo", "القاهرة"], ["giza", "Giza", "الجيزة"], ["alexandria", "Alexandria", "الإسكندرية"],
   ["qalyubia", "Qalyubia", "القليوبية"], ["dakahlia", "Dakahlia", "الدقهلية"], ["damietta", "Damietta", "دمياط"],
   ["sharqia", "Sharqia", "الشرقية"], ["gharbia", "Gharbia", "الغربية"], ["menofia", "Menofia", "المنوفية"],

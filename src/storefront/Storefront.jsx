@@ -9,9 +9,7 @@ import {
   FaFacebookF,
   FaFacebookMessenger,
   FaInstagram,
-  FaTiktok,
   FaWhatsapp,
-  FaYoutube,
 } from "react-icons/fa";
 import { SiApplepay, SiMastercard, SiVisa, SiVodafone } from "react-icons/si";
 import { useTranslation } from "react-i18next";
@@ -93,6 +91,7 @@ import {
 import { clearStorefrontCustomerAuth, readStorefrontCustomerAuth, storefrontCustomerRequest } from "./lib/storefrontCustomerAuth";
 import { formatCurrencyParts, getCurrency } from "../shared/lib/currency";
 import { isMirrorProduct, mirrorProductTitle } from "../shared/lib/mirrorProduct";
+import { STORE_IDENTITY, buildStoreOrganizationJsonLd, buildStoreWebsiteJsonLd, storeAddressFor } from "../shared/lib/storeIdentity";
 import { productToSocialMeta } from "../shared/lib/socialMeta";
 import { displayPublicOrderNumber } from "../shared/utils/publicOrderNumber";
 import { defaultEgyptShippingLocations } from "../../shared/egyptShippingLocations.js";
@@ -186,6 +185,7 @@ import {
   trackGa4PageView,
   trackGa4PaymentInfo,
   trackGa4Purchase,
+  trackGa4RemoveFromCart,
   trackGa4ShippingInfo,
   trackGa4ViewCart,
 } from "./lib/ga4Events";
@@ -1884,6 +1884,8 @@ const LazyStorefrontWishlistPage = lazy(() => importWithChunkRetry(() => import(
 const LazyStorefrontComparePage = lazy(() => importWithChunkRetry(() => import("./pages/StorefrontComparePage.jsx")).then((module) => ({ default: module.StorefrontComparePage })));
 const LazyStorefrontFaqPage = lazy(() => importWithChunkRetry(() => import("./pages/StorefrontHelpPages.jsx")).then((module) => ({ default: module.FaqPage })));
 const LazyStorefrontReturnsPage = lazy(() => importWithChunkRetry(() => import("./pages/StorefrontHelpPages.jsx")).then((module) => ({ default: module.ReturnsPolicyPage })));
+const LazyStorefrontShippingPage = lazy(() => importWithChunkRetry(() => import("./pages/StorefrontHelpPages.jsx")).then((module) => ({ default: module.ShippingPolicyPage })));
+const LazyStorefrontAboutPage = lazy(() => importWithChunkRetry(() => import("./pages/StorefrontHelpPages.jsx")).then((module) => ({ default: module.AboutPage })));
 const LazyStorefrontRecentPage = lazy(() => importWithChunkRetry(() => import("./pages/StorefrontAsyncPages")).then((module) => ({ default: module.RecentPageRoute })));
 const LazyOrderConfirmationActionPage = lazy(() => importWithChunkRetry(() => import("./pages/OrderConfirmationActionPage.jsx")).then((module) => ({ default: module.OrderConfirmationActionPage })));
 const LazyStorefrontNotFoundPage = lazy(() => importWithChunkRetry(() => import("./pages/StorefrontNotFoundPage.jsx")));
@@ -3248,6 +3250,26 @@ function PremiumHomePage(props) {
   const storefrontHome = useStorefrontHome();
   const { brands, loading: brandsLoading } = useStorefrontBrands();
   const loading = storefrontHome.loading;
+  // The shop's own schema.org identity (address, phone, hours) and its site search, on the
+  // homepage only: Google matches them against the Business Profile and Merchant Center.
+  useEffect(() => {
+    if (typeof document === "undefined") return undefined;
+    const scripts = [
+      ["sf-jsonld-organization", buildStoreOrganizationJsonLd()],
+      ["sf-jsonld-website", buildStoreWebsiteJsonLd()],
+    ].map(([id, data]) => {
+      document.getElementById(id)?.remove();
+      const script = document.createElement("script");
+      script.type = "application/ld+json";
+      script.id = id;
+      script.textContent = JSON.stringify(data);
+      document.head.appendChild(script);
+      return script;
+    });
+    return () => {
+      scripts.forEach((script) => script.remove());
+    };
+  }, []);
 
   useEffect(() => {
     if (!loading) releaseBootLoader();
@@ -3801,6 +3823,9 @@ function HomeSimpleFooter({ lang = "ar", themeTokens = {} }) {
     { label: isRtl ? "تتبع طلبك" : "Track your order", to: "/track" },
     { label: isRtl ? "الاستبدال والاسترجاع" : "Returns & exchanges", to: "/returns" },
     { label: isRtl ? "الأسئلة الشائعة" : "FAQ", to: "/faq" },
+    { label: isRtl ? "الشحن والتوصيل" : "Shipping & delivery", to: "/shipping" },
+    { label: isRtl ? "من نحن" : "About us", to: "/about" },
+    { label: isRtl ? "تواصل معنا" : "Contact us", to: "/contact" },
     { label: isRtl ? "حسابي" : "My account", to: "/account" },
   ];
   // Both legal pages must be reachable from the storefront without an account:
@@ -3820,12 +3845,12 @@ function HomeSimpleFooter({ lang = "ar", themeTokens = {} }) {
   const toggleFooterGroup = (id) => setOpenFooterGroup((current) => (current === id ? "" : id));
   const whatsappHref = buildWhatsAppHref(isRtl ? "مرحبًا، أحتاج مساعدة من خدمة العملاء" : "Hi, I need customer support");
   const currentYear = new Date().getFullYear();
-  const supportEmail = "support@m1store-egy.com";
+  const supportEmail = STORE_IDENTITY.email;
+  // Only profiles that exist: icons that opened facebook.com's home page read as a template
+  // shop to Google's misrepresentation review.
   const socialLinks = [
-    { label: "Facebook", href: "https://www.facebook.com/", icon: FaFacebookF },
-    { label: "Instagram", href: "https://www.instagram.com/", icon: FaInstagram },
-    { label: "TikTok", href: "https://www.tiktok.com/", icon: FaTiktok },
-    { label: "YouTube", href: "https://www.youtube.com/", icon: FaYoutube },
+    { label: "Facebook", href: "https://www.facebook.com/m1store.egy", icon: FaFacebookF },
+    { label: "Instagram", href: "https://www.instagram.com/m1store_egy", icon: FaInstagram },
   ];
   // Only what checkout actually takes: cards, Meeza and Apple Pay through Paymob,
   // InstaPay and Vodafone Cash as transfers. A wallet the shop does not accept
@@ -3866,7 +3891,17 @@ function HomeSimpleFooter({ lang = "ar", themeTokens = {} }) {
                 <img src="/branding/m-one-logo-white-m.png?v=20260716" alt="" aria-hidden="true" className="sf-header-logo-moving-m absolute inset-0 h-full w-full object-contain" width="160" height="160" loading="lazy" decoding="async" />
               </div>
             </div>
-            <p className="mt-5 text-xs font-medium" style={footerMutedStyle}>{isRtl ? "كل يوم من 12 ظهرًا حتى 12 مساءً" : "Every day, 12 PM – 12 AM"}</p>
+            <p className="mt-5 text-xs font-medium leading-5" style={footerMutedStyle}>{isRtl ? STORE_IDENTITY.hours.ar : STORE_IDENTITY.hours.en}</p>
+            {/* The shop's address and phone, the same as the verified Business Profile:
+                Merchant Center disapproved the account while the site showed neither. */}
+            <a href={STORE_IDENTITY.mapUrl} target="_blank" rel="noreferrer" className="sf-footer__contact mt-3 flex items-start gap-2 text-sm font-medium leading-6 transition">
+              <MapPin className="mt-0.5 h-5 w-5 shrink-0" style={{ color: "var(--m1h-accent)" }} />
+              <span>{storeAddressFor(isRtl ? "ar" : "en")}</span>
+            </a>
+            <a href={`tel:${STORE_IDENTITY.phoneE164}`} className="sf-footer__contact mt-3 flex items-center gap-2 text-sm font-semibold transition">
+              <Phone className="h-5 w-5" style={{ color: "var(--m1h-accent)" }} />
+              <span dir="ltr">{STORE_IDENTITY.phoneDisplay}</span>
+            </a>
             <a href={whatsappHref} target="_blank" rel="noreferrer" className="sf-footer__contact mt-2 flex items-center gap-2 text-sm font-semibold transition">
               <FaWhatsapp className="h-5 w-5" style={{ color: "var(--sfx-whatsapp)" }} />
               {isRtl ? "خدمة العملاء" : "Customer service"}
@@ -10430,18 +10465,20 @@ function PremiumContactPage({ publicStoreSettings = {}, quickActionLinks = {} })
     return "";
   };
 
-  const phoneNumber = firstValue("storefront.contact_phone", "storefront.phone", "general.phone", "company.phone", "contact.phone", "phone", "support.phone");
+  // STORE_IDENTITY fills any of these the settings leave empty: a contact page without a phone or
+  // address is what Google's misrepresentation check flags.
+  const phoneNumber = firstValue("storefront.contact_phone", "storefront.phone", "general.phone", "company.phone", "contact.phone", "phone", "support.phone") || STORE_IDENTITY.phoneDisplay;
   const phoneHref = phoneNumber ? `tel:${phoneNumber.replace(/\D/g, "")}` : "";
   const whatsappPhone = firstValue("storefront.whatsapp_phone", "general.whatsapp_phone", "general.whatsapp", "company.whatsapp", "company.whatsapp_phone", "support.whatsapp", "contact.whatsapp", "whatsapp");
   const whatsappUrl = normalizeUrl(firstValue("storefront.whatsapp_url", "storefront.whatsapp_link"));
   const whatsappHref = quickActionLinks.whatsappHref || whatsappUrl || toWhatsAppHref(whatsappPhone);
   const instagramUsername = firstValue("storefront.instagram_username", "storefront.instagram", "company.instagram_username", "social.instagram_username", "instagram_username");
-  const instagramHref = normalizeUrl(firstValue("storefront.instagram_url", "storefront.instagram_link", "company.instagram_url", "social.instagram_url", "instagram_url")) || (instagramUsername ? `https://www.instagram.com/${String(instagramUsername).replace(/^@/, "")}` : "");
+  const instagramHref = normalizeUrl(firstValue("storefront.instagram_url", "storefront.instagram_link", "company.instagram_url", "social.instagram_url", "instagram_url")) || (instagramUsername ? `https://www.instagram.com/${String(instagramUsername).replace(/^@/, "")}` : "https://www.instagram.com/m1store_egy");
   const facebookPage = firstValue("storefront.facebook_page_name", "storefront.facebook_name", "company.facebook_page_name", "social.facebook_page_name", "facebook_page_name");
   const facebookHref = normalizeUrl(firstValue("storefront.facebook_url", "storefront.facebook_link", "company.facebook_url", "social.facebook_url", "facebook_url"));
-  const address = firstValue("storefront.address", "address", "storeAddress", "store_address", "publicAddress", "public_address", "company.address");
-  const mapHref = quickActionLinks.galleryHref || normalizeUrl(firstValue("storefront.map_url", "storefront.google_map_url", "storefront.location_url", "storefront.location_link", "storefront.store_location_url", "storefront.address_url", "general.map_url", "general.google_map_url", "company.map_url", "company.google_maps_url", "company.location_url", "map_url", "google_map_url", "location_url"));
-  const workingHours = firstValue("storefront.working_hours", "working_hours", "business_hours", "storefront.weekday_hours", "storefront.working_hours_weekday", "working_hours_weekday");
+  const address = firstValue("storefront.address", "address", "storeAddress", "store_address", "publicAddress", "public_address", "company.address") || storeAddressFor(i18n.language || "ar");
+  const mapHref = quickActionLinks.galleryHref || normalizeUrl(firstValue("storefront.map_url", "storefront.google_map_url", "storefront.location_url", "storefront.location_link", "storefront.store_location_url", "storefront.address_url", "general.map_url", "general.google_map_url", "company.map_url", "company.google_maps_url", "company.location_url", "map_url", "google_map_url", "location_url")) || STORE_IDENTITY.mapUrl;
+  const workingHours = firstValue("storefront.working_hours", "working_hours", "business_hours", "storefront.weekday_hours", "storefront.working_hours_weekday", "working_hours_weekday") || (String(i18n.language || "ar").startsWith("ar") ? STORE_IDENTITY.hours.ar : STORE_IDENTITY.hours.en);
   const workingHoursLines = String(workingHours || "").split(/\n+/).map((line) => line.trim()).filter(Boolean);
   const addressDisplay = String(address || "").replace(/\s+-\s+/g, "\n");
 
@@ -10471,7 +10508,7 @@ function PremiumContactPage({ publicStoreSettings = {}, quickActionLinks = {} })
       id: "instagram",
       title: sfText("storefront.contact.instagram"),
       icon: BrandInstagramIcon,
-      value: instagramUsername || instagramHref,
+      value: instagramUsername || instagramHref.replace(/^https?:\/\/(www\.)?instagram\.com\/([^/?#]+).*$/i, "@$2"),
       href: instagramHref,
       cta: sfText("storefront.contact.visitPage"),
       tone: "instagram",
@@ -11503,8 +11540,15 @@ const OrderNumberBadge = ({ value, className = "" }) => {
   return <span className={`sfx-badge sfx-badge--accent ${className}`.trim()} style={{ fontSize: "var(--m1h-t-sm)" }} dir="ltr">{text}</span>;
 };
 
+const STOREFRONT_DEFAULT_TITLE = {
+  ar: "M1 Store | أحذية وسنيكرز وشنط أونلاين في مصر",
+  en: "M1 Store | Sneakers, shoes and bags online in Egypt",
+};
+
 function Storefront() {
-  usePageTitle("Storefront");
+  // The tab and search-result title of every storefront page without its own (it read
+  // "M1 - Storefront" on Google). Product and category pages set their own.
+  usePageTitle(normalizeLanguage(i18n.language || "ar") === "ar" ? STOREFRONT_DEFAULT_TITLE.ar : STOREFRONT_DEFAULT_TITLE.en);
   const location = useLocation();
   const [cart, setCart] = useState(() => readStorefrontStorage(CART_KEY, []));
   const [wishlist, setWishlist] = useState(() => normalizeWishlistCollection(readStorefrontStorage(WISHLIST_KEY, [])));
@@ -11788,6 +11832,7 @@ function Storefront() {
   }, []);
 
   const removeFromCart = useCallback((lineId) => {
+    trackGa4RemoveFromCart((cartRef.current || []).find((item) => item.lineId === lineId) || null);
     setCart((prev) => prev.filter((item) => item.lineId !== lineId));
   }, []);
 
@@ -12397,6 +12442,8 @@ function Storefront() {
 
     if (currentStorefrontPath === ROOT_PATHS.sizeGuide) return <SizeGuideRoute />;
     if (currentStorefrontPath === ROOT_PATHS.returns) return <LazyStorefrontReturnsPage publicStoreSettings={publicStoreSettings} whatsappHref={quickActionLinks.whatsappHref} />;
+    if (currentStorefrontPath === ROOT_PATHS.shipping) return <LazyStorefrontShippingPage publicStoreSettings={publicStoreSettings} whatsappHref={quickActionLinks.whatsappHref} />;
+    if (currentStorefrontPath === ROOT_PATHS.about) return <LazyStorefrontAboutPage publicStoreSettings={publicStoreSettings} whatsappHref={quickActionLinks.whatsappHref} />;
 
     // Only the home path is the homepage; any other path the shop does not know is a
     // not-found page, not a silent homepage (App's storefront catch-all lands here).

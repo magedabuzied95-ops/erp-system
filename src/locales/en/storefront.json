@@ -1670,7 +1670,9 @@
     "contents": "On this page",
     "helpTitle": "Still have a question?",
     "helpText": "Our team answers on WhatsApp and can help with anything about your order.",
-    "whatsapp": "Message us on WhatsApp"
+    "whatsapp": "Message us on WhatsApp",
+    "shipping": "Shipping & delivery",
+    "about": "About us"
   },
   "share": {
     "shareProduct": "Share product"
@@ -1718,5 +1720,47 @@
     "subtitle": "These arrived and are waiting for your review.",
     "rate": "Rate",
     "order": "Order {{number}}"
+  },
+  "shippingPolicy": {
+    "title": "Shipping & delivery policy",
+    "lead": "We ship to every governorate in Egypt. Here are the shipping fees and delivery times for each one.",
+    "zonesTitle": "Shipping fees and delivery times",
+    "zonesIntro": "The fee is added to your order and shown before you confirm it.",
+    "governorate": "Governorate",
+    "price": "Shipping fee",
+    "delivery": "Delivery time",
+    "deliveryDays": "{{min}}–{{max}} business days",
+    "deliveryDay": "{{min}} business day",
+    "free": "Free",
+    "freeOver": "Free shipping on orders over EGP {{amount}}",
+    "noZones": "Shipping fees are shown at checkout for your governorate.",
+    "confirmTitle": "Order confirmation",
+    "confirm1": "After you order, our team contacts you on WhatsApp to confirm the order and address.",
+    "confirm2": "The order is handed to the courier once confirmed, and the delivery time counts from then.",
+    "trackTitle": "Tracking your order",
+    "trackText": "You can follow your order at any time with its order number on the order tracking page.",
+    "trackLink": "Track your order",
+    "issuesTitle": "If something goes wrong",
+    "issues1": "If a shipment is later than the time listed, message us on WhatsApp and we will chase it with the courier.",
+    "issues2": "If you receive the wrong item or a faulty one, the exchange and its shipping are on us under the returns policy.",
+    "returnsLink": "Returns & exchanges policy"
+  },
+  "about": {
+    "title": "About us",
+    "lead": "M1 Store is a footwear and bags shop in New Damietta. We sell in store and online and ship to every governorate in Egypt.",
+    "whoTitle": "Who we are",
+    "whoText": "We are a physical shop in New Damietta specialising in sneakers, shoes, Crocs, slippers and bags for men, women and kids. Visit us in store or order from the site.",
+    "branchTitle": "Our store",
+    "addressLabel": "Address",
+    "hoursLabel": "Opening hours",
+    "phoneLabel": "Phone",
+    "emailLabel": "Email",
+    "openMap": "Open map",
+    "howTitle": "How we work",
+    "how1": "We confirm every order with the customer on WhatsApp before shipping.",
+    "how2": "We ship to every governorate with established couriers such as Bosta, and you can track your shipment by order number.",
+    "how3": "Exchanges and returns within {{days}} days of delivery under our returns policy.",
+    "contactTitle": "Contact us",
+    "contactText": "Our team answers during opening hours on WhatsApp, phone and email."
   }
 }
