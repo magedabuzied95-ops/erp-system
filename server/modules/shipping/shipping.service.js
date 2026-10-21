@@ -1487,7 +1487,7 @@ export const releaseCancelledBostaShipment = async (orderId, { actorName = "", s
       tracking_number = NULL,
       tracking_url = NULL,
       shipping_label_url = NULL,
-      shipping_raw_payload = NULL,
+      shipping_raw_payload = '{}'::jsonb,
       shipping_status = CASE WHEN LOWER(COALESCE(status, '')) = 'ready_to_ship' THEN 'ready_to_ship' ELSE 'pending' END,
       shipment_status = CASE WHEN LOWER(COALESCE(status, '')) = 'ready_to_ship' THEN 'ready_to_ship' ELSE 'pending' END,
       bosta_exception_code = NULL,
