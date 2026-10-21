@@ -2483,11 +2483,13 @@ export const sendOrderConfirmationInteractiveMessage = async ({ phone, title = "
 // buttons in one message ("Reply buttons cannot be mixed with CTA or PIX buttons"), so a CTA
 // message is always a message of its own. Callers pass a fallback: a button that fails to render
 // must never cost the customer the message it was attached to.
-export const sendCtaUrlMessage = async ({ phone, title = "", text: bodyText = "", footer = "", displayText = "", url = "", fallbackText = "" } = {}) => {
+// `instance` routes the button like every other send: "cloud:<phone_number_id>" leaves from that
+// official number, a plain name from that Evolution instance, empty = the env default as before.
+export const sendCtaUrlMessage = async ({ phone, title = "", text: bodyText = "", footer = "", displayText = "", url = "", fallbackText = "", instance = "" } = {}) => {
   const normalizedPhone = normalizeEgyptPhone(phone);
   if (!normalizedPhone) throw gatewayError("A valid WhatsApp phone number is required", "WHATSAPP_PHONE_REQUIRED", 400);
   if (!text(url) || !text(displayText)) throw gatewayError("A CTA button needs a url and a label", "WHATSAPP_CTA_INCOMPLETE", 400);
-  if (isCloudTransport()) {
+  if (isCloudTransport(instance)) {
     return whatsappCloud.sendCtaUrl({
       phone: normalizedPhone,
       bodyText,
@@ -2495,11 +2497,11 @@ export const sendCtaUrlMessage = async ({ phone, title = "", text: bodyText = ""
       footer,
       displayText,
       url,
-      phoneNumberId: resolveWhatsappTransport().phoneNumberId,
+      phoneNumberId: resolveWhatsappTransport(instance).phoneNumberId,
     });
   }
   if (provider() !== "evolution") throw gatewayError("CTA buttons are only supported on the Evolution provider", "WHATSAPP_BUTTONS_UNSUPPORTED", 409);
-  const current = requireEvolutionConfig();
+  const current = requireEvolutionConfig(instance);
   const payload = {
     number: normalizedPhone,
     title: text(title),
@@ -2517,7 +2519,7 @@ export const sendCtaUrlMessage = async ({ phone, title = "", text: bodyText = ""
     logBase,
     phone: normalizedPhone,
     fallbackOnNotDelivered: async () =>
-      sendTextMessage({ phone: normalizedPhone, message: text(fallbackText) || `${text(bodyText)}\n\n${text(url)}` }),
+      sendTextMessage({ phone: normalizedPhone, message: text(fallbackText) || `${text(bodyText)}\n\n${text(url)}`, instance }),
   });
 };
 
@@ -6758,16 +6760,23 @@ export const triggerWhatsappAiAutoReply = async (message = {}) => {
    * It never blocks or alters the reply: the customer still gets answered, they just stop being
    * broadcast to. Transactional messages are unaffected by design.
    */
-  void handleInboundMarketingStopWord({
-    tenantId: message.raw?.tenant_id || message.raw?.tenantId || process.env.WHATSAPP_TENANT_ID || 1,
-    message: message.text,
-    phone: message.phone,
-  });
+  // An official-number message already ran it in the Cloud webhook handler, before its intercept
+  // chain (cloudAiAutoReply.runCloudMarketingStopWord) — recorded once, not twice.
+  if (message.marketingStopWordHandled !== true) {
+    void handleInboundMarketingStopWord({
+      tenantId: message.raw?.tenant_id || message.raw?.tenantId || process.env.WHATSAPP_TENANT_ID || 1,
+      message: message.text,
+      phone: message.phone,
+    });
+  }
 
   const liveFeedbackEnabled = String(process.env.WHATSAPP_LIVE_PRESENCE ?? "true").toLowerCase() !== "false";
   const presenceInstance = text(message.instance || message.instanceName || "");
   const presenceTarget = text(message.resolvedReplyJid || message.remoteJid || message.phone || "");
-  if (liveFeedbackEnabled && presenceTarget) {
+  // Read receipts and "بيكتب…" are Evolution calls; an official (cloud:<id>) number has neither
+  // here, and asking would only log a refusal on every message.
+  const presenceSupported = !isCloudTransport(presenceInstance) || !presenceInstance;
+  if (liveFeedbackEnabled && presenceTarget && presenceSupported) {
     void safeMarkWhatsappMessagesRead({
       messages: [{
         remoteJid: text(message.remoteJid || message.resolvedReplyJid || presenceTarget),
@@ -6799,7 +6808,7 @@ export const triggerWhatsappAiAutoReply = async (message = {}) => {
   // The answer has left (or failed). Clearing the indicator explicitly means the customer
   // does not keep watching "بيكتب…" for the remainder of the hold when the reply came back
   // faster than the hint, or when it never came at all.
-  if (liveFeedbackEnabled && presenceTarget) {
+  if (liveFeedbackEnabled && presenceTarget && presenceSupported) {
     void safeSendWhatsappPresence({
       phone: presenceTarget,
       presence: WHATSAPP_PRESENCE.PAUSED,
@@ -7261,6 +7270,7 @@ export const triggerWhatsappAiAutoReply = async (message = {}) => {
             displayText: text(trackingCta.button) || "تتبع الأوردر",
             url: trackingCta.url,
             fallbackText: `${safeText}\n\n${trackingCta.url}`,
+            instance: text(message.instance || ""),
           });
           console.info("[whatsapp:order-tracking-cta-sent]", { conversation_id: outboundPlan.conversation_id, order_number: text(trackingCta.order_number) });
         } catch (error) {
@@ -7320,6 +7330,19 @@ export const triggerWhatsappAiAutoReply = async (message = {}) => {
       cards: sendableImageCards,
       conversationId: outboundPlan.conversation_id,
     });
+    // An official (Cloud) number has no session carousel, so the cards leave as photos below — and
+    // the AI's words, which the carousel would have carried as its lead line, would go nowhere.
+    // They go first as their own text instead.
+    if (willSendCards && aiCarousel.reason === "cloud_transport") {
+      const cloudLeadLine = applyWhatsappGreetingGuard({ customerMessageText: message.message_text || "", replyText: generated.replyText || "" });
+      if (text(cloudLeadLine)) {
+        try {
+          result = await sendTextMessage({ phone: sendTargetNumber, message: cloudLeadLine, instance: text(message.instance || "") });
+        } catch (leadError) {
+          console.error("[whatsapp-cloud-cards-lead-text-failed]", { conversation_id: outboundPlan.conversation_id, message: leadError?.message || String(leadError) });
+        }
+      }
+    }
     result = result || aiCarousel.responses?.[0] || null;
     for (const carouselCard of sendableImageCards.slice(0, aiCarousel.sent_count)) {
       const carouselImageUrl = text(carouselCard.resolved_image_url || carouselCard.imageUrl);
@@ -7534,7 +7557,11 @@ export const triggerWhatsappAiAutoReply = async (message = {}) => {
         deliveryStatus: "sent",
         externalMessageId: result?.result?.message_id || result?.result?.messageId || result?.result?.key?.id || result?.message_id || "",
         providerMessageId: result?.result?.message_id || result?.result?.messageId || result?.result?.key?.id || result?.message_id || "",
-        whatsappInstance: result?.instanceName || result?.provider || instanceName(),
+        // An official number is recorded as the number itself (cloud:<phone_number_id>) — the inbox
+        // number chip and the next reply's routing read it; the provider's bare "cloud" names no number.
+        whatsappInstance: isCloudTransport(message.instance) && text(message.instance)
+          ? text(message.instance)
+          : result?.instanceName || result?.provider || instanceName(),
         remoteJid: outboundReplyTarget.remoteJid || "",
         resolvedReplyJid: outboundReplyTarget.resolvedJid || "",
         resolvedPhone: sendTargetPhone || generated.phone || message.phone || "",

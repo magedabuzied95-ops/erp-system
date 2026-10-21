@@ -206,6 +206,7 @@ import { autoRegisterWhatsappCustomer } from "../services/whatsappCustomerAutoRe
 import { dispatchWhatsappCloudWebhookEvents } from "../services/whatsappApiAccessService.js";
 import { recordWhatsappOrders } from "../services/whatsappCatalogService.js";
 import { interceptWaOfficialInbound } from "../modules/whatsappOfficial/inboundIntercept.js";
+import { cloudInstanceKey, dispatchCloudAiAutoReply, runCloudMarketingStopWord } from "../modules/whatsappOfficial/cloudAiAutoReply.js";
 import { getConversationAttribution } from "../modules/campaignAttribution/attribution.js";
 import { dispatchWabaEvents } from "../modules/whatsappOfficial/connect/wabaEvents.js";
 import { normalizeWhatsappLid, normalizeWhatsappPhone, normalizeWhatsappRemoteJid } from "../utils/whatsappIdentity.js";
@@ -1941,6 +1942,9 @@ export const handleWhatsappCloudWebhookRequest = async (req, res) => {
       }).catch((error) => {
         console.warn("[ai-agent:whatsapp] mapping upsert skipped", { tenantId, message: error?.message });
       });
+      // The marketing stop word, once per inbound message and before anything can take it — a
+      // chatbot flow, a campaign reply or an escalation must not swallow an opt-out.
+      await runCloudMarketingStopWord({ tenantId, message });
       // Official-number chatbot flows / away auto-reply may take this message instead of the AI.
       if (metadata?.phone_number_id) {
         const intercepted = await interceptWaOfficialInbound({
@@ -1967,193 +1971,44 @@ export const handleWhatsappCloudWebhookRequest = async (req, res) => {
         results.push(escalated.result);
         continue;
       }
-      /*
-       * The same gate the Evolution line uses (aiInboxService.shouldAutoReplyToWhatsapp). This path
-       * had its own copy that read only ai_channel_settings: it never knew the owner's test numbers
-       * (ai_channels.ai_test_contacts), so on the official number the owner's own messages got a
-       * suggestion that was never sent while the Evolution line answered the same phone.
-       */
-      const replyGate = await import("../services/aiInboxService.js")
-        .then((m) => m.shouldAutoReplyToWhatsapp({ tenantId, conversationId: message.external_conversation_id, phone: message.external_customer_id }))
-        .catch((error) => {
-          console.warn("[ai-agent:whatsapp] reply gate failed", { tenantId, message: error?.message });
-          return null;
-        });
-      const preState = await getAiSupportConversationState({ tenantId, sessionId: message.external_conversation_id, channel: AI_AGENT_CHANNELS.WHATSAPP }).catch(() => null);
-      const hardBlock = ["human_takeover", "paused", "conversation_ai_disabled"].includes(replyGate?.reason)
-        ? replyGate.reason
-        : !replyGate && preState?.ai_enabled === false ? "conversation_ai_disabled" : "";
-      if (hardBlock) {
-        results.push({
-          external_customer_id: message.external_customer_id,
-          conversation_id: message.external_conversation_id,
-          sent: false,
-          reason: hardBlock,
-        });
-        continue;
-      }
-      let aiPayload = null;
-      try {
-        aiPayload = await routeChannelMessageThroughAi({ req, tenantId, message, channel: AI_AGENT_CHANNELS.WHATSAPP });
-        await linkChannelConversationToCustomerProfile({
-          tenantId,
-          channel: AI_AGENT_CHANNELS.WHATSAPP,
-          externalConversationId: message.external_conversation_id,
-          externalCustomerId: message.external_customer_id,
-        }).catch((error) => {
-          console.warn("[ai-agent:whatsapp] profile mapping skipped", { tenantId, message: error?.message });
-        });
-      } catch (error) {
-        console.error("[ai-agent:whatsapp] AI flow failed", {
-          tenantId,
-          external_customer_id: message.external_customer_id,
-          message: error?.message,
-          status: error?.status,
-        });
-        await logAIPersistentEvent({
-          tenantId,
-          category: "auto_reply_failure",
-          eventType: "agent_whatsapp_ai_flow_failed",
-          conversationId: message.external_conversation_id,
-          sessionId: message.external_conversation_id,
-          channel: AI_AGENT_CHANNELS.WHATSAPP,
-          source: "aiAgentOrders.routeChannelMessageThroughAi",
-          reason: "ai_flow_failed",
-          message: error?.message || "AI flow failed",
-          error,
-          metadata: {
-            external_customer_id: message.external_customer_id,
-          },
-        });
-        results.push({ external_customer_id: message.external_customer_id, ai_error: error?.message || "AI flow failed" });
-        continue;
-      }
-      if (!replyGate?.ok || !shouldSendWhatsappReply(aiPayload)) {
-        results.push({
-          external_customer_id: message.external_customer_id,
-          conversation_id: message.external_conversation_id,
-          sent: false,
-          reason: replyGate?.ok ? "ai_paused" : replyGate?.reason || "reply_gate_unavailable",
-        });
-        continue;
-      }
-      const reply = aiPayload.channel_reply || normalizeOutgoingChannelReply({ channel: AI_AGENT_CHANNELS.WHATSAPP, response: aiPayload });
-      const productContext = buildProductContext(firstProductFromPayload(aiPayload));
-      const replyProductContext = productContext || buildProductContext(getConversationMemory(message.external_conversation_id)?.lastProduct);
-      const whatsappReplyText = ensureProductLinkInReply(reply.text || aiPayload.answer || "", replyProductContext);
-      const whatsappReply = {
-        ...reply,
-        text: whatsappReplyText,
-        visual_attachments: [
-          ...productImageAttachments(replyProductContext).map((attachment) => ({
-            type: "product_image",
-            image_url: attachment.url,
-            url: attachment.url,
-          })),
-          ...(Array.isArray(reply.visual_attachments) ? reply.visual_attachments : []),
-        ],
-      };
-      logProductShareContext({
-        conversationId: message.external_conversation_id,
-        platform: AI_AGENT_CHANNELS.WHATSAPP,
-        productContext: replyProductContext,
-        includeImage: Boolean(replyProductContext?.imageUrl),
+      await linkChannelConversationToCustomerProfile({
+        tenantId,
+        channel: AI_AGENT_CHANNELS.WHATSAPP,
+        externalConversationId: message.external_conversation_id,
+        externalCustomerId: message.external_customer_id,
+      }).catch((error) => {
+        console.warn("[ai-agent:whatsapp] profile mapping skipped", { tenantId, message: error?.message });
       });
-      try {
-        const sendResult = await sendWhatsAppCloudReply({
-          to: message.external_customer_id,
-          reply: whatsappReply,
-          messageText: whatsappReplyText,
-          instance: envText(message.raw?.instance || message.raw?.whatsapp_instance)
-            || await resolveWhatsappConversationInstance({ tenantId, conversationId: message.external_conversation_id }).catch(() => ""),
-        });
-        const providerMessageId = envText(sendResult?.message_id || sendResult?.messages?.[0]?.id || sendResult?.results?.[0]?.message_id || "");
-        const outboundRow = await appendChannelOutboundSupportReply({
-          tenantId,
-          sessionId: message.external_conversation_id,
-          message: whatsappReplyText,
-          channel: AI_AGENT_CHANNELS.WHATSAPP,
-          senderType: "ai",
-          source: "whatsapp_ai_auto_reply",
-          sourcePath: "whatsapp_ai_auto_reply",
-          insertSource: "whatsapp_ai_auto_reply",
-          deliveryStatus: sendResult?.sent === true ? "sent" : "not_sent",
-          externalMessageId: providerMessageId,
-          providerMessageId,
-          visualAttachments: whatsappReply.visual_attachments || [],
-          productCards: reply.product_cards || aiPayload.suggested_products || [],
-          resolvedPhone: message.external_customer_id,
-          // The number the reply left from, for the inbox's number chip and the next reply's routing.
-          whatsappInstance: metadata?.phone_number_id ? `cloud:${metadata.phone_number_id}` : "",
-        }).catch((error) => {
-          console.warn("[ai-agent:whatsapp] AI reply persistence failed", { tenantId, conversationId: message.external_conversation_id, message: error?.message });
-          return null;
-        });
-        if (outboundRow) {
-          emitToRooms([`tenant:${tenantId}`], "ai_inbox:message", {
-            tenant_id: tenantId,
-            session_id: message.external_conversation_id,
-            channel: AI_AGENT_CHANNELS.WHATSAPP,
-            message: { ...outboundRow, from_me: true, direction: "outbound" },
-          });
-        }
-        results.push({
-          external_customer_id: message.external_customer_id,
-          conversation_id: message.external_conversation_id,
-          sent: sendResult.sent,
-        });
-        await logChannelEvent({
-          tenantId,
-          channel: AI_AGENT_CHANNELS.WHATSAPP,
-          direction: "outbound",
-          externalCustomerId: message.external_customer_id,
-          conversationId: message.external_conversation_id,
-          messagePreview: whatsappReplyText,
-          status: sendResult.sent ? "sent" : "not_sent",
-          metadata: { result_count: sendResult.results?.length || 0 },
-        }).catch(() => {});
-      } catch (error) {
-        console.error("[ai-agent:whatsapp] send failed", {
-          tenantId,
-          to: message.external_customer_id,
-          code: error?.code,
-          status: error?.status,
-          message: error?.message,
-        });
-        await logAIPersistentEvent({
-          tenantId,
-          category: "auto_reply_failure",
-          eventType: "agent_whatsapp_send_failed",
-          conversationId: message.external_conversation_id,
-          sessionId: message.external_conversation_id,
-          channel: AI_AGENT_CHANNELS.WHATSAPP,
-          source: "aiAgentOrders.sendWhatsAppCloudReply",
-          reason: "whatsapp_send_failed",
-          message: error?.message || "WhatsApp send failed",
-          error,
-          metadata: {
-            external_customer_id: message.external_customer_id,
+      /*
+       * The AI reply on an official number runs the Evolution line's own pipeline
+       * (triggerWhatsappAiAutoReply: reply gate incl. test contacts, sales agent, memory, order
+       * lookup, campaign instructions, pre-send recheck, cards, duplicate block, transcript row),
+       * sending through instance cloud:<phone_number_id>. It used to go through
+       * routeChannelMessageThroughAi — a website-style loopback to /api/ai-support/chat — which ran
+       * none of that and answered with the brain's generic fallback.
+       *
+       * Detached: generation can take 25-75s and Meta re-delivers a webhook that is not answered in
+       * time; a re-delivery that does get through is stopped by the gateway's duplicate-reply block
+       * (same inbound wamid).
+       */
+      void dispatchCloudAiAutoReply({ tenantId, message, metadata, inboundRow })
+        .then((outcome) => {
+          console.info("[ai-agent:whatsapp] cloud ai auto-reply", {
+            tenantId,
             conversation_id: message.external_conversation_id,
-          },
-        });
-        results.push({
-          external_customer_id: message.external_customer_id,
-          conversation_id: message.external_conversation_id,
-          sent: false,
-          send_error: error?.message || "WhatsApp send failed",
-        });
-        await logChannelEvent({
-          tenantId,
-          channel: AI_AGENT_CHANNELS.WHATSAPP,
-          direction: "outbound",
-          externalCustomerId: message.external_customer_id,
-          conversationId: message.external_conversation_id,
-          messagePreview: reply.text || aiPayload.answer || "",
-          status: "failed",
-          error: error?.message || "WhatsApp send failed",
-          metadata: { code: error?.code || "", status: error?.status || "" },
-        }).catch(() => {});
-      }
+            instance: cloudInstanceKey(metadata),
+            triggered: outcome?.triggered === true,
+            sent: outcome?.sent === true,
+            reason: outcome?.reason || "",
+            error: outcome?.error ? String(outcome.error?.message || outcome.error) : "",
+          });
+        })
+        .catch(() => {});
+      results.push({
+        external_customer_id: message.external_customer_id,
+        conversation_id: message.external_conversation_id,
+        ai_dispatched: true,
+      });
     }
     return res.status(200).json({ success: true, processed: results.length, results });
   } catch (error) {
