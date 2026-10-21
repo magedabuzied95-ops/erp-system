@@ -290,12 +290,16 @@ export const deliverTemplateCampaign = async ({ tenantId, broadcast, intervalMs 
         for (;;) {
           try {
             const payload = buildCampaignTemplatePayload({ template, to: row.phone, bodyValues: values });
+            // Past the template budget the campaign stops spending: this recipient fails with the reason.
+            const budget = await import("../modules/whatsappOfficial/templateBudget.js");
+            await budget.assertTemplateBudget({ templateName: payload?.template?.name });
             const result = await graphRequest({
               path: `/${credentials.graphVersion}/${credentials.phoneNumberId}/messages`,
               method: "POST",
               body: payload,
               accessToken: credentials.accessToken,
             });
+            await budget.recordPaidTemplate({ tenantId, templateName: payload?.template?.name, phone: row.phone, source: "campaign", messageId: text(result?.messages?.[0]?.id) });
             await db.query(
               `UPDATE marketing_broadcast_recipients SET status = 'sent', sent_at = NOW(), message_id = $2 WHERE id = $1`,
               [row.id, text(result?.messages?.[0]?.id).slice(0, 200)]

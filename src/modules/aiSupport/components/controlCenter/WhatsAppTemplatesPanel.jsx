@@ -193,11 +193,16 @@ function AutomationTemplatesCard({ headers, onSubmitted }) {
   const [busy, setBusy] = useState(false);
   const [notice, setNotice] = useState(null);
   const [selected, setSelected] = useState("");
+  const [budget, setBudget] = useState(null);
 
   useEffect(() => {
     let alive = true;
     api.get("/whatsapp/templates/automation", { headers, ...SUPPRESSED })
-      .then((payload) => { if (alive) setItems(Array.isArray(payload?.templates) ? payload.templates : []); })
+      .then((payload) => {
+        if (!alive) return;
+        setItems(Array.isArray(payload?.templates) ? payload.templates : []);
+        setBudget(payload?.budget || null);
+      })
       .catch(() => {});
     return () => { alive = false; };
   }, [headers]);
@@ -225,8 +230,11 @@ function AutomationTemplatesCard({ headers, onSubmitted }) {
     }
   };
 
-  const approved = items.filter((item) => item.status === "APPROVED").length;
-  const missing = items.filter((item) => ["NOT_SUBMITTED", "DRAFT", "REJECTED"].includes(item.status)).length;
+  // Order templates leave from Evolution for free and are never sent to Meta, so they count
+  // neither as approved nor as missing.
+  const onMeta = items.filter((item) => !item.via_evolution);
+  const approved = onMeta.filter((item) => item.status === "APPROVED").length;
+  const missing = onMeta.filter((item) => ["NOT_SUBMITTED", "DRAFT", "REJECTED"].includes(item.status)).length;
   // The first template is previewed until another is picked, so the phone is never empty.
   const previewed = items.find((item) => item.automation_type === selected) || items[0] || null;
 
@@ -237,7 +245,12 @@ function AutomationTemplatesCard({ headers, onSubmitted }) {
           <div className="text-sm font-black text-white">{t("aiSupport.waTemplates.automation.title")}</div>
           <p className="mt-0.5 text-xs text-slate-400">{t("aiSupport.waTemplates.automation.subtitle")}</p>
           {items.length ? (
-            <p className="mt-1 text-[11px] font-bold text-emerald-200">{t("aiSupport.waTemplates.automation.approvedCount", { approved, total: items.length })}</p>
+            <p className="mt-1 text-[11px] font-bold text-emerald-200">{t("aiSupport.waTemplates.automation.approvedCount", { approved, total: onMeta.length })}</p>
+          ) : null}
+          {budget ? (
+            <p className="mt-0.5 text-[11px] font-bold text-amber-200">
+              {t("aiSupport.waTemplates.automation.budget", { today: budget.today, dailyCap: budget.daily_cap, month: budget.month, monthlyCap: budget.monthly_cap })}
+            </p>
           ) : null}
         </div>
         <div className="flex gap-2">
@@ -277,9 +290,11 @@ function AutomationTemplatesCard({ headers, onSubmitted }) {
                       : (item.buttons || []).join(" · ") || "—"}
                   </td>
                   <td className="px-3 py-2">
-                    {item.status === "NOT_SUBMITTED"
-                      ? <span className="text-slate-500">{t("aiSupport.waTemplates.automation.notSubmitted")}</span>
-                      : <StatusBadge status={item.status} />}
+                    {item.status === "VIA_EVOLUTION"
+                      ? <span className="font-bold text-emerald-200">{t("aiSupport.waTemplates.automation.viaEvolution")}</span>
+                      : item.status === "NOT_SUBMITTED"
+                        ? <span className="text-slate-500">{t("aiSupport.waTemplates.automation.notSubmitted")}</span>
+                        : <StatusBadge status={item.status} />}
                     {item.rejection_reason ? <div className="mt-1 text-[11px] text-rose-200">{item.rejection_reason}</div> : null}
                   </td>
                 </tr>

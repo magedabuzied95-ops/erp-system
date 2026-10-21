@@ -1841,6 +1841,15 @@ export const handleWhatsappCloudWebhookRequest = async (req, res) => {
     // Developer webhooks (message.received + message.status): signature already verified; detached.
     void dispatchWhatsappCloudWebhookEvents({ tenantId, body: req.body }).catch(() => {});
     void recordWhatsappOrders({ tenantId, body: req.body }).catch(() => {});
+    // Coexistence (owner, 2026-10-21): on a number that is ALSO linked to Evolution every customer
+    // message arrives twice — here and through Evolution, which answers it (free) and owns the chat.
+    // From this side such a number contributes only what Evolution cannot see: delivery statuses
+    // above, and the click-to-WhatsApp ad attribution the extraction records.
+    const coexistenceIds = envText(process.env.WHATSAPP_COEXISTENCE_PHONE_NUMBER_IDS).split(",").map((id) => envText(id)).filter(Boolean);
+    if (coexistenceIds.includes(envText(metadata?.phone_number_id))) {
+      extractWhatsAppWebhookMessages({ body: req.body, tenantId });
+      return res.status(200).json({ success: true, ignored: "coexistence_evolution_answers" });
+    }
     const messages = extractWhatsAppWebhookMessages({ body: req.body, tenantId });
     if (!messages.length) {
       return res.status(200).json({ success: true, ignored: hasStatuses ? "status_update" : "no_messages" });

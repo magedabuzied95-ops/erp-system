@@ -3153,7 +3153,7 @@
     },
     "automation": {
       "title": "Automation templates",
-      "subtitle": "Every message the system sends by itself (order confirmation, payment card, shipping, carousels…) needs a Meta-approved template to leave from the official number.",
+      "subtitle": "Order messages (confirmation, payment, invoice, shipping) leave from Evolution for free. Meta sends marketing only (campaigns, carousels, abandoned cart), and each of those templates is billed.",
       "submit": "Submit missing to Meta",
       "submitted": "Sent {{submitted}} templates to Meta, {{failed}} refused, {{skipped}} already there.",
       "show": "Show templates",
@@ -3167,7 +3167,9 @@
         "status": "Status"
       },
       "carousel": "{{count}} cards",
-      "previewHint": "Click any template in the table to see it on the customer's phone."
+      "previewHint": "Click any template in the table to see it on the customer's phone.",
+      "viaEvolution": "Sent free from Evolution",
+      "budget": "Paid templates: today {{today}} of {{dailyCap}} — this month {{month}} of {{monthlyCap}} (nothing is sent past the cap)"
     }
   },
   "waUsage": {

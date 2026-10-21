@@ -51,7 +51,12 @@ router.get("/", protect, permit("settings", "view"), async (req, res) => {
 router.get("/automation", protect, permit("settings", "view"), async (req, res) => {
   try {
     const { listAutomationTemplates } = await import("../modules/whatsappOfficial/automationTemplates.js");
-    return res.json({ success: true, templates: await listAutomationTemplates({ tenantId: tenantOf(req) }) });
+    const { templateBudgetUsage } = await import("../modules/whatsappOfficial/templateBudget.js");
+    const [templates, budget] = await Promise.all([
+      listAutomationTemplates({ tenantId: tenantOf(req) }),
+      templateBudgetUsage().catch(() => null),
+    ]);
+    return res.json({ success: true, templates, budget });
   } catch (error) {
     return fail(res, error, "Failed to load the automation templates");
   }

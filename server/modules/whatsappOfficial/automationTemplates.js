@@ -25,6 +25,15 @@ import {
   uploadHeaderSample,
 } from "../../services/whatsappTemplateStudioService.js";
 import { absolutePublicUploadUrl } from "../../utils/publicUrl.js";
+import { automationIsMarketing } from "../../services/whatsappQueue/index.js";
+
+/*
+ * The cost policy (owner, 2026-10-21): order messages leave from Evolution for free, so only the
+ * MARKETING templates go to Meta. The order ones stay defined (and submittable by name) in case
+ * the policy is switched off with WHATSAPP_TRANSACTIONAL_VIA_EVOLUTION=false.
+ */
+const policyOn = () => String(process.env.WHATSAPP_TRANSACTIONAL_VIA_EVOLUTION ?? "").trim().toLowerCase() !== "false";
+const sentByEvolution = (key) => policyOn() && !automationIsMarketing(key);
 
 const text = (value = "") => String(value ?? "").trim();
 
@@ -105,7 +114,8 @@ export const listAutomationTemplates = async ({ tenantId }) => {
       name: definition.name,
       purpose: purposeOf(key),
       category: text(row?.category) || definition.category,
-      status: text(row?.status) || "NOT_SUBMITTED",
+      status: text(row?.status) || (sentByEvolution(key) ? "VIA_EVOLUTION" : "NOT_SUBMITTED"),
+      via_evolution: sentByEvolution(key),
       rejection_reason: text(row?.rejection_reason),
       buttons: (definition.buttons || []).map((button) => button.text || button.type),
       carousel_cards: definition.carousel?.cards || 0,
@@ -149,7 +159,7 @@ const SUBMITTABLE = new Set(["NOT_SUBMITTED", "DRAFT", "REJECTED"]);
  */
 export const submitAutomationTemplates = async ({ tenantId, keys = [] } = {}) => {
   const credentials = await resolveTemplateCredentials(tenantId);
-  const wanted = (Array.isArray(keys) && keys.length ? keys : Object.keys(WHATSAPP_TEMPLATE_DEFINITIONS))
+  const wanted = (Array.isArray(keys) && keys.length ? keys : Object.keys(WHATSAPP_TEMPLATE_DEFINITIONS).filter((key) => !sentByEvolution(key)))
     .map(text)
     .filter((key) => templateDefinition(key));
   const current = await listAutomationTemplates({ tenantId });

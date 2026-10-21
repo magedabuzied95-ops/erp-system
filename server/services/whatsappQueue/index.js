@@ -1,5 +1,33 @@
 import { loadWhatsappQueueSettings } from "./config.js";
 import { enqueueWhatsappMessage, logLifecycle } from "./queueService.js";
+import { TEMPLATE_CATEGORIES, templateDefinition } from "../whatsappTemplates.js";
+
+/*
+ * WHICH NUMBER an automation leaves from — the store's cost policy (owner, 2026-10-21).
+ *
+ * Since 2026-10-01 Meta bills every template it delivers, utility ones too. So:
+ *   - order / payment / shipping messages leave from EVOLUTION (free), even for a customer who
+ *     wrote to the official number — on the coexistence number that is the same chat anyway;
+ *   - marketing (campaigns, abandoned cart, price drop, review asks, thank-you) leaves from the
+ *     official number named by WHATSAPP_MARKETING_CLOUD_PHONE_NUMBER_ID, where Evolution would
+ *     risk the number. Unset (today, before M1 is on Cloud), marketing keeps its current route.
+ *
+ * WHATSAPP_TRANSACTIONAL_VIA_EVOLUTION=false switches the policy off (every message then follows
+ * the number its caller chose, as before). WHATSAPP_TRANSACTIONAL_EVOLUTION_INSTANCE names the
+ * Evolution instance; empty = the gateway's default instance.
+ */
+const policyText = (value) => String(value ?? "").trim();
+export const automationIsMarketing = (automationType = "") =>
+  automationType === "marketing_broadcast" || templateDefinition(automationType)?.category === TEMPLATE_CATEGORIES.MARKETING;
+export const routeAutomationInstance = ({ automationType = "", instance = "" } = {}) => {
+  const current = policyText(instance);
+  if (policyText(process.env.WHATSAPP_TRANSACTIONAL_VIA_EVOLUTION).toLowerCase() === "false") return current;
+  if (automationIsMarketing(automationType)) {
+    const marketingLine = policyText(process.env.WHATSAPP_MARKETING_CLOUD_PHONE_NUMBER_ID);
+    return marketingLine ? `cloud:${marketingLine}` : current;
+  }
+  return current.toLowerCase().startsWith("cloud:") ? policyText(process.env.WHATSAPP_TRANSACTIONAL_EVOLUTION_INSTANCE) : current;
+};
 
 /*
  * The single door every automation walks through.
@@ -26,6 +54,7 @@ export const queueWhatsappAutomation = async ({
   scheduledAt = null,
   directSend = null,
 } = {}) => {
+  instance = routeAutomationInstance({ automationType, instance });
   let settings = null;
   try {
     settings = await loadWhatsappQueueSettings();
