@@ -100,9 +100,11 @@ const fakeDeps = ({ sender = TEST_NUMBER, broadcast = null } = {}) => ({
 });
 const policyRequest = (method, url, body = {}) => ({ method, originalUrl: url, url, body, headers: {} });
 
-test("campaign create is refused when the audience reaches a non-test customer", async () => {
+test("an audience that reaches real customers is narrowed to the test phones only", async () => {
   const req = policyRequest("POST", "/api/marketing/broadcasts", { channel_mode: "template", template_id: 1, audience: {} });
-  await assert.rejects(() => applyMetaReviewerRoutePolicy(req, makeResponse(), { scope, deps: fakeDeps(), tenantId: 1 }), { status: 403, code: "META_REVIEWER_AUDIENCE_FORBIDDEN" });
+  await applyMetaReviewerRoutePolicy(req, makeResponse(), { scope, deps: fakeDeps(), tenantId: 1 });
+  // Only the allow-listed test customer survives; the real customers are never written into the audience.
+  assert.deepEqual(req.body.audience.restrict_customer_ids, [11]);
 });
 
 test("campaign create with only the test phone is allowed and capped to that customer id", async () => {

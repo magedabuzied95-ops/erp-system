@@ -174,23 +174,29 @@ const requireBroadcast = async (ctx, id) => {
 };
 
 /*
- * The audience the campaign would reach, resolved exactly as the sender resolves it. Every phone
- * must be an allow-listed test phone (a phone allowlist is REQUIRED here), otherwise refuse.
- * The ids are written back as audience.restrict_customer_ids, which the audience query honours at
- * every later run (scheduled, deferred to the morning, resumed), so the audience cannot widen.
+ * The audience the campaign would reach, resolved exactly as the sender resolves it, NARROWED to
+ * the allow-listed test phones (a phone allowlist is REQUIRED here). Only those customers' ids are
+ * returned; the caller writes them back as audience.restrict_customer_ids, which the audience
+ * query honours at every later run (scheduled, deferred to the morning, resumed), so the audience
+ * can never widen to a real customer. Narrowing rather than refusing: the review UI only offers
+ * "All customers", which for the reviewer means "the test phones" (its preview already says so).
  */
-export const assertReviewerAudience = async (ctx, { audience = {}, frequencyCapDays, requireRecipients = false } = {}) => {
+// narrow: true when writing a campaign (create/update) — the audience is cut down to the test
+// phones. A SEND of a stored campaign stays strict: if its saved audience reaches anyone else
+// (tampered or widened), it is refused, never silently narrowed at the last moment.
+export const assertReviewerAudience = async (ctx, { audience = {}, frequencyCapDays, requireRecipients = false, narrow = false } = {}) => {
   // The frequency cap is left out on purpose: the check runs on the superset a later run could
   // reach once the cap expires, not just on who happens to be eligible this minute.
   const rows = asArray(await ctx.deps.resolveAudience({ tenantId: ctx.scope.tenantId, audience, frequencyCapDays, applyFrequencyCap: false }));
-  const outside = rows.filter((row) => !phoneAllowedForSending(row.phone, ctx));
-  if (outside.length) {
+  const allowed = rows.filter((row) => phoneAllowedForSending(row.phone, ctx));
+  if (!narrow && allowed.length !== rows.length) {
     throw reviewerError(403, "The review account can only send campaigns to the allow-listed WhatsApp test phones. This audience includes other customers.", "META_REVIEWER_AUDIENCE_FORBIDDEN");
   }
-  if (requireRecipients && !rows.length) {
+  // No allow-listed test phone in reach (or no phone allowlist configured at all): fail closed.
+  if ((narrow || requireRecipients) && !allowed.length) {
     throw reviewerError(403, "This audience has no allow-listed WhatsApp test phone.", "META_REVIEWER_AUDIENCE_EMPTY");
   }
-  return rows.map((row) => Number(row.id)).filter((id) => Number.isFinite(id) && id > 0);
+  return allowed.map((row) => Number(row.id)).filter((id) => Number.isFinite(id) && id > 0);
 };
 
 const requireTemplateMode = (mode) => {
@@ -213,7 +219,7 @@ const guardCampaignWrite = async (req, ctx, current = null) => {
   delete audience.restrict_customer_ids;
   const groupName = text(body.group_name ?? current?.group_name);
   if (groupName) audience.tags = [...new Set([...asArray(audience.tags), groupName])];
-  const ids = await assertReviewerAudience(ctx, { audience, frequencyCapDays: body.frequency_cap_days ?? current?.frequency_cap_days });
+  const ids = await assertReviewerAudience(ctx, { audience, frequencyCapDays: body.frequency_cap_days ?? current?.frequency_cap_days, narrow: true });
   body.audience = { ...audience, restrict_customer_ids: ids.length ? ids : [0] };
 };
 
