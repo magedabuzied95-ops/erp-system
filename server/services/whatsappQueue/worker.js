@@ -1,5 +1,14 @@
 import db from "../../database/db.js";
-import { buildTemplateComponents, hasTemplate, resolveTemplateValues, templateDefinition } from "../whatsappTemplates.js";
+import {
+  PRODUCT_CAROUSEL_MAX_CARDS,
+  PRODUCT_CAROUSEL_MIN_CARDS,
+  buildTemplateComponents,
+  hasTemplate,
+  productCarouselTemplateKey,
+  resolveTemplateValues,
+  templateDefinition,
+} from "../whatsappTemplates.js";
+import { absolutePublicUploadUrl } from "../../utils/publicUrl.js";
 import { isWithinServiceWindow } from "../whatsappCloudProvider.js";
 import { ensureWhatsappQueueSchema } from "./schema.js";
 import { loadWhatsappQueueSettings, rulesForAutomation } from "./config.js";
@@ -121,6 +130,56 @@ export const registryTemplateTranscript = (automationType = "", values = {}) => 
 };
 
 /*
+ * Which registry templates Meta has APPROVED, read off the template studio's synced rows (the
+ * WABA webhook and "Sync" keep them current). Cached for a minute: a template send that is not
+ * approved fails per customer, so the worker only picks a template it knows is live.
+ */
+let approvedTemplatesCache = { at: 0, names: new Set() };
+export const approvedTemplateNames = async () => {
+  if (Date.now() - approvedTemplatesCache.at < 60 * 1000) return approvedTemplatesCache.names;
+  try {
+    const result = await db.query(`SELECT DISTINCT name FROM whatsapp_message_templates WHERE status = 'APPROVED'`);
+    approvedTemplatesCache = { at: Date.now(), names: new Set(result.rows.map((row) => text(row.name))) };
+  } catch {
+    approvedTemplatesCache = { at: Date.now(), names: new Set() };
+  }
+  return approvedTemplatesCache.names;
+};
+const templateApproved = async (automationType = "") => {
+  const name = text(templateDefinition(automationType)?.name);
+  return Boolean(name) && (await approvedTemplateNames()).has(name);
+};
+
+/*
+ * A queued carousel's cards as the product-carousel template reads them. The session cards carry
+ * the name and the price in one body, a line each; the template wants each on its own, plus a
+ * public https photo.
+ */
+export const templateCardsFromSend = (cards = []) => (Array.isArray(cards) ? cards : []).map((card) => {
+  const lines = text(card?.body).split(/\r?\n/).map((line) => line.trim()).filter(Boolean);
+  const price = (lines.slice(1).join(" ").match(/\d[\d,.]*/) || [""])[0];
+  const image = text(card?.imageUrl || card?.image_url || card?.image);
+  return {
+    image_url: /^https:\/\//i.test(image) ? image : absolutePublicUploadUrl(image),
+    product_name: lines[0] || "",
+    price,
+    payload: text(card?.buttonId),
+    product_url: text(card?.url),
+  };
+}).filter((card) => /^https:\/\//i.test(card.image_url) && card.product_name);
+
+const sendRegistryTemplate = async ({ gateway, row, payload, send, phone, instance, automationType, extraValues = null, reason = "" }) => {
+  logLifecycle("cloud-template-send", { id: row.id, automation_type: row.automation_type, template: automationType, reason });
+  const templateValues = resolveTemplateValues(automationType, {
+    values: { ...(payload.values || {}), ...(extraValues || {}) },
+    templateValues: send.templateValues || null,
+  });
+  const templateResult = await gateway.sendWhatsappTemplate({ automationType, phone, values: templateValues, instance });
+  const marks = { delivery_mode: "template", template_transcript: registryTemplateTranscript(automationType, templateValues) };
+  return templateResult && typeof templateResult === "object" ? { ...templateResult, ...marks } : marks;
+};
+
+/*
  * Perform the send. The queue stores WHAT to send declaratively so the worker never has to
  * import the automation services back — which would be a cycle, since they import the queue.
  */
@@ -145,6 +204,30 @@ export const performSend = async (row, gateway, { lastInboundAt } = {}) => {
     // The caller may pass the timestamp it already has; undefined means look it up.
     const inboundAt = lastInboundAt === undefined ? await lastCustomerInboundAt(phone) : lastInboundAt;
     const withinWindow = isWithinServiceWindow(inboundAt);
+    // A card only a template can draw on Cloud (the payment card's copy button, two links): once
+    // Meta approved it, it goes as the template even inside the window. Any failure falls through
+    // to the session send below, which still spells everything out.
+    if (withinWindow && templateDefinition(row.automation_type)?.preferTemplate && await templateApproved(row.automation_type)) {
+      try {
+        return await sendRegistryTemplate({ gateway, row, payload, send, phone, instance, automationType: row.automation_type, reason: "template_draws_the_card" });
+      } catch (templateError) {
+        logLifecycle("cloud-template-preferred-failed", { id: row.id, automation_type: row.automation_type, error: templateError?.message || String(templateError) });
+      }
+    }
+    // A product carousel outside the window: the carousel template with the same cards, when one
+    // for that many cards is approved. Otherwise the automation's own text template below.
+    if (!withinWindow && kind === "carousel") {
+      const cards = templateCardsFromSend(send.cards).slice(0, PRODUCT_CAROUSEL_MAX_CARDS);
+      const carouselKey = productCarouselTemplateKey(cards.length);
+      if (cards.length >= PRODUCT_CAROUSEL_MIN_CARDS && await templateApproved(carouselKey)) {
+        return sendRegistryTemplate({
+          gateway, row, payload, send, phone, instance,
+          automationType: carouselKey,
+          extraValues: { intro_text: body, cards },
+          reason: "outside_service_window",
+        });
+      }
+    }
     if (!withinWindow) {
       if (!hasTemplate(row.automation_type)) {
         // Sending anyway would be rejected per customer, long after anyone is watching. Fail the
@@ -222,6 +305,7 @@ export const performSend = async (row, gateway, { lastInboundAt } = {}) => {
   if (kind === "carousel") {
     return gateway.sendCartCarouselMessage({
       phone,
+      instance,
       body,
       cards: Array.isArray(send.cards) ? send.cards : [],
       fallbackText: text(send.fallbackText) || body,

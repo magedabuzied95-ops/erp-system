@@ -149,6 +149,8 @@ export const graphRequest = async ({ path = "", method = "GET", body = null, acc
         graph_subcode: graphError.error_subcode ?? null,
         graph_type: text(graphError.type),
         fbtrace_id: text(graphError.fbtrace_id),
+        // Meta's own sentence for a refused template ("button text too long", …).
+        error_user_msg: text(graphError.error_user_msg),
         meaning,
       }
     );

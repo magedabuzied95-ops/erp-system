@@ -180,7 +180,17 @@ export const buildShippingFeePaymentCard = ({ order = {}, amount = 0, transfer =
     })),
   ];
 
-  return { title, body, footer: FOOTER, buttons, fallbackText, transcriptButtons };
+  // What the official number's approved template is filled with (shipping_fee_payment): the same
+  // order, amount, rest, number to copy and upload link this card shows.
+  const templateValues = {
+    order_number: ref,
+    advance_amount: fee,
+    remaining_amount: rest > 0 ? `${formatMoney(rest)} جنيه` : "",
+    wallet_number: number,
+    upload_url: uploadUrl,
+  };
+
+  return { title, body, footer: FOOTER, buttons, fallbackText, transcriptButtons, templateValues };
 };
 
 /**
@@ -358,7 +368,7 @@ export const queueShippingFeePaymentCard = async ({ order = {}, card = null, pho
         buttons: card.buttons,
         fallbackText: card.fallbackText,
       },
-      values: { customer_name: text(order.customer_name), order_number: orderRef(order) },
+      values: { ...(card.templateValues || {}), customer_name: text(order.customer_name), order_number: orderRef(order) },
       fallbackBody: card.body,
       onSent: {
         transcript: {
@@ -384,7 +394,7 @@ export const queueShippingFeePaymentCard = async ({ order = {}, card = null, pho
 // off) gets a detached timer, so switching the queue off never turns a deliberate wait into an
 // instant send — the reason for the wait is the WhatsApp account, not the queue.
 // `card` (optional): send as a CTA-buttons message; `message` is then its text fallback.
-const sendOrderPaymentText = async ({ order = {}, automationType, message, card = null, idempotencySuffix = "", source, delayMs = 0 }) => {
+const sendOrderPaymentText = async ({ order = {}, automationType, message, card = null, idempotencySuffix = "", source, delayMs = 0, templateValues = null }) => {
   const phone = await orderPhone(order);
   if (!phone || !message) return { sent: false, reason: "missing_phone" };
   const tenantId = tenantOf(order);
@@ -394,17 +404,19 @@ const sendOrderPaymentText = async ({ order = {}, automationType, message, card 
       import("../../services/whatsappQueue/index.js"),
       import("../../services/whatsappGatewayService.js"),
     ]);
+    // From the number the customer is talking to (the official one or Evolution), as the card does.
+    const instance = text(await gateway.resolveWhatsappConversationInstance({ tenantId, conversationId: `whatsapp:${phone}` }).catch(() => ""));
     const sendNow = async () => {
       if (card) {
         try {
-          const result = await gateway.sendCtaButtonsMessage({ phone, title: card.title, text: card.body, footer: card.footer, buttons: card.buttons, fallbackText: message });
+          const result = await gateway.sendCtaButtonsMessage({ phone, title: card.title, text: card.body, footer: card.footer, buttons: card.buttons, fallbackText: message, instance });
           await appendSystemTranscript({ tenantId, phone, message: cardMessage, source, buttons: card.transcriptButtons, result, customerName: text(order.customer_name) });
           return result;
         } catch (error) {
           console.warn("[payment-proof] receipt buttons unavailable, sending text", { orderId: order.id, message: error?.message || String(error) });
         }
       }
-      const result = await gateway.sendTextMessage({ phone, message });
+      const result = await gateway.sendTextMessage({ phone, message, instance });
       await appendSystemTranscript({ tenantId, phone, message, source, result, customerName: text(order.customer_name) });
       return result;
     };
@@ -425,10 +437,11 @@ const sendOrderPaymentText = async ({ order = {}, automationType, message, card 
       orderId: order.id,
       invoiceNumber: text(order.invoice_number),
       recipientPhone: phone,
+      instance,
       send: card
         ? { kind: "cta_buttons", title: card.title, footer: card.footer, buttons: card.buttons, fallbackText: message }
         : { kind: "text" },
-      values: { customer_name: text(order.customer_name), order_number: orderRef(order) },
+      values: { ...(templateValues || {}), customer_name: text(order.customer_name), order_number: orderRef(order) },
       fallbackBody: card ? card.body : message,
       onSent: {
         transcript: card
@@ -512,6 +525,22 @@ export const buildPaymentProofApprovedCard = (order = {}, { trackingUrl = "", in
     buttons,
     fallbackText: buildPaymentProofApprovedMessage(order, { trackingUrl, invoiceUrl }),
     transcriptButtons: ctaTranscriptButtons({ footer: FOOTER, buttons }),
+  };
+};
+
+/*
+ * The approved-payment receipt as the official number's template reads it (payment_approved):
+ * the same lines the text message prints, without their emoji (the template carries those).
+ */
+export const paymentApprovedTemplateValues = (order = {}, { trackingUrl = "", invoiceUrl = "" } = {}) => {
+  const [first = "", shippingLine = "", collectLine = ""] = buildPaymentProofApprovedMessage(order).split("\n");
+  return {
+    payment_label: first.includes("بالكامل") ? "المبلغ كامل" : advanceLabel(order),
+    order_number: orderRef(order),
+    shipping_line: shippingLine.replace(/^🚚\s*/u, ""),
+    collect_line: collectLine.replace(/^💰\s*/u, ""),
+    invoice_url: invoiceUrl,
+    tracking_url: trackingUrl,
   };
 };
 
@@ -637,6 +666,7 @@ export const notifyPaymentProofApproved = async (order = null) => {
     card: buildPaymentProofApprovedCard(order, links),
     source: "whatsapp_payment_proof_approved",
     delayMs: PAYMENT_APPROVED_DELAY_MS,
+    templateValues: paymentApprovedTemplateValues(order, links),
   });
   return { ...whatsapp, meta };
 };
@@ -800,6 +830,7 @@ export const submitPaymentProof = async ({ code = "", method = "", proofPath = "
     // A rejected transfer uploaded again is a new event and deserves its own receipt.
     idempotencySuffix: `upload-${Date.now()}`,
     source: "whatsapp_payment_proof_received",
+    templateValues: { advance_label: advanceLabel(updated) },
   });
   console.info("[payment-proof] uploaded", { orderId: updated.id, method: text(updated.shipping_payment_method) });
   // The customer usually transfers first and uploads after, so the Vodafone Cash SMS may already be

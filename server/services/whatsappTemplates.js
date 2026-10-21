@@ -26,7 +26,32 @@
  * Meta, and nothing can be sent through a template until Meta approved that exact body.
  */
 
+import { resolvePublicAppUrl } from "../utils/whatsapp.js";
+import { getGoogleReviewUrl } from "../utils/publicUrl.js";
+
 const text = (value, fallback = "") => String(value ?? fallback).trim();
+
+/*
+ * Buttons. A template button is frozen at approval, so a link that changes per message must be
+ * ONE fixed prefix plus ONE variable at its very end — Meta accepts nothing else. Every link we
+ * send (/pay, /invoice, /track, /review, /shop/product, /cart) lives on the store site, so a
+ * single shape covers them all: "<site>/{{1}}", filled with whatever follows the site.
+ *
+ *   { type: "URL", text, value }        → that site link, value names the full url in the values bag
+ *   { type: "URL", text, url }          → a fixed link (url may be a function, read at submission)
+ *   { type: "COPY_CODE", value, example, text } → copies the value; Meta prints its own label,
+ *                                         `text` is only what the inbox transcript shows
+ *   { type: "QUICK_REPLY", text, value? } → a reply; value names a payload set per send
+ */
+const siteBase = () => text(resolvePublicAppUrl()).replace(/\/+$/, "");
+export const templateSiteUrl = () => `${siteBase()}/{{1}}`;
+export const siteUrlSuffix = (url = "") => {
+  const base = siteBase();
+  const value = text(url);
+  return base && value.startsWith(`${base}/`) ? value.slice(base.length + 1) : "";
+};
+const googleReviewUrl = () => text(getGoogleReviewUrl());
+const STORE_FOOTER = "M1 Store";
 
 /* A template variable that is empty is rejected on send, so a missing value becomes this. */
 export const EMPTY_VALUE_FALLBACK = "—";
@@ -71,6 +96,48 @@ export const summariseItems = (items = []) => {
  * order, so the builder and the submission payload can never drift: the sample Meta needs for
  * review is generated from the same list.
  */
+/*
+ * The product carousel, for campaigns and every carousel the queue sends outside the 24h window
+ * (abandoned cart, …). Meta freezes the NUMBER of cards at approval, so there is one template per
+ * count, 2 to 10 (one card is not a carousel to Meta). Every card is the same shape — Meta refuses
+ * a carousel whose cards differ: the product photo, its name and price, and two buttons. The
+ * reply button carries choose_color:<variant_id> as its payload, so a tap starts the same
+ * colour → size → order flow the session carousel starts; the link opens the product.
+ */
+export const PRODUCT_CAROUSEL_MIN_CARDS = 2;
+export const PRODUCT_CAROUSEL_MAX_CARDS = 10;
+export const productCarouselTemplateKey = (cards = 0) => `product_carousel_${Number(cards)}`;
+const PRODUCT_CAROUSEL_CARD = Object.freeze({
+  variables: ["product_name", "price"],
+  samples: ["Nike Air Force 1 — أبيض", "1,250"],
+  body: `👟 {{1}}
+💰 السعر: {{2}} جنيه`,
+  buttons: [
+    { type: "QUICK_REPLY", text: "اطلب ده ✅", value: "payload", fallback: "product" },
+    { type: "URL", text: "شوف المنتج 🛒", value: "product_url", fallbackSuffix: "shop", sample: "https://m1store-egy.com/shop/product/nike-air-force-1" },
+  ],
+});
+function productCarouselDefinitions() {
+  const definitions = {};
+  for (let cards = PRODUCT_CAROUSEL_MIN_CARDS; cards <= PRODUCT_CAROUSEL_MAX_CARDS; cards += 1) {
+    definitions[productCarouselTemplateKey(cards)] = {
+      name: productCarouselTemplateKey(cards),
+      category: TEMPLATE_CATEGORIES.MARKETING,
+      variables: ["customer_name", "intro_text"],
+      samples: ["مي", "منتجاتك المفضلة لسه موجودة في السلة"],
+      fallbacks: { customer_name: "عميلنا", intro_text: "جهزنالك اختيارات حلوة" },
+      body: `أهلاً يا {{1}} 👋
+
+{{2}}
+
+اختار اللي يعجبك 👇`,
+      buttons: [],
+      carousel: { cards, card: PRODUCT_CAROUSEL_CARD },
+    };
+  }
+  return definitions;
+}
+
 export const WHATSAPP_TEMPLATE_DEFINITIONS = Object.freeze({
   order_confirmation: {
     name: "order_confirmation_cod",
@@ -125,7 +192,72 @@ export const WHATSAPP_TEMPLATE_DEFINITIONS = Object.freeze({
 🧾 فاتورة طلبك رقم {{2}}: {{3}}
 
 لو احتجت أي مساعدة أو استفسار، إحنا في خدمتك دايمًا 💙`,
+    footer: STORE_FOOTER,
+    // The Evolution receipt's button, as a fixed link.
+    buttons: [{ type: "URL", text: "⭐ قيّمنا على جوجل", url: googleReviewUrl }],
+  },
+
+  /*
+   * The shipping-fee card. Evolution draws "copy the number" + "upload the transfer"; a session
+   * message on Cloud can carry neither a copy button nor two links, so this template is the ONLY
+   * way the official number shows the same card — which is why it is preferred even inside the
+   * 24h window (preferTemplate) once Meta approves it.
+   */
+  shipping_fee_payment_card: {
+    name: "shipping_fee_payment",
+    category: TEMPLATE_CATEGORIES.UTILITY,
+    preferTemplate: true,
+    header: { format: "TEXT", text: "💳 دفع رسوم الطلب" },
+    variables: ["order_number", "advance_amount", "remaining_amount", "wallet_number"],
+    samples: ["INV-1084", "75", "925 جنيه", "01012345678"],
+    fallbacks: { remaining_amount: "مفيش" },
+    body: `💳 لتأكيد الأوردر {{1}} حوّل {{2}} جنيه
+
+✨ المبلغ بيتخصم من إجمالي الأوردر، والباقي عند الاستلام: {{3}}
+
+📱 رقم التحويل: {{4}} (فودافون كاش أو انستا باي)
+
+📸 بعد التحويل اضغط «ارفع صورة التحويل» 👇`,
+    footer: STORE_FOOTER,
+    buttons: [
+      { type: "COPY_CODE", text: "انسخ الرقم", value: "wallet_number", example: "01012345678" },
+      { type: "URL", text: "ارفع صورة التحويل", value: "upload_url", sample: "https://m1store-egy.com/pay/AB12CD34" },
+    ],
+  },
+
+  payment_proof_received: {
+    name: "payment_proof_received",
+    category: TEMPLATE_CATEGORIES.UTILITY,
+    variables: ["advance_label", "order_number"],
+    samples: ["رسوم الشحن", "INV-1084"],
+    fallbacks: { advance_label: "رسوم الشحن" },
+    body: `🧾 استلمنا صورة تحويل {{1}} لطلبك رقم {{2}}
+
+⏳ طلبك دلوقتي في مراجعة الدفع، وهنأكدلك أول ما نراجعها.
+
+شكراً لاختيارك M1 Store ❤️`,
     buttons: [],
+  },
+
+  payment_proof_approved: {
+    name: "payment_approved",
+    category: TEMPLATE_CATEGORIES.UTILITY,
+    // Two link buttons (invoice + tracking): a Cloud session message carries one at most.
+    preferTemplate: true,
+    variables: ["payment_label", "order_number", "shipping_line", "collect_line"],
+    samples: ["رسوم الشحن", "INV-1084", "طلبك بيتجهز للشحن دلوقتي", "المندوب هيحصّل 925 جنيه عند الاستلام"],
+    fallbacks: { payment_label: "رسوم الشحن", shipping_line: "طلبك بيتجهز للشحن دلوقتي", collect_line: "هنبلغك بأي تحديث على طلبك" },
+    body: `✅ وصلنا دفع {{1}} للطلب {{2}}
+
+🚚 {{3}}
+💰 {{4}}
+
+تقدر تشوف فاتورتك وتتابع طلبك من الأزرار تحت 👇`,
+    footer: STORE_FOOTER,
+    buttons: [
+      { type: "URL", text: "🧾 فاتورتك", value: "invoice_url", fallbackSuffix: "track", sample: "https://m1store-egy.com/invoice/INV-1084" },
+      { type: "URL", text: "📍 تابع طلبك", value: "tracking_url", fallbackSuffix: "track", sample: "https://m1store-egy.com/track?order=INV-1084" },
+    ],
   },
 
   shipment_created: {
@@ -184,6 +316,22 @@ export const WHATSAPP_TEMPLATE_DEFINITIONS = Object.freeze({
     body: `✅ تم تسليم طلبك رقم {{1}} بنجاح يا {{2}}
 
 شكراً لاختيارك M1 Store ❤️`,
+    footer: STORE_FOOTER,
+    buttons: [{ type: "URL", text: "⭐ قيّمنا على جوجل", url: googleReviewUrl }],
+  },
+
+  delivery_failed: {
+    name: "delivery_failed",
+    category: TEMPLATE_CATEGORIES.UTILITY,
+    variables: ["order_number", "failure_reason"],
+    samples: ["INV-1084", "العميل مكانش موجود في العنوان"],
+    fallbacks: { failure_reason: "محدش رد على المندوب" },
+    body: `المندوب مقدرش يسلّم طلبك النهارده
+
+رقم الطلب: {{1}}
+السبب: {{2}}
+
+رد علينا هنا بميعاد مناسب أو بالعنوان أو الرقم الصح، وهنبلّغ بوسطة تحاول تاني.`,
     buttons: [],
   },
 
@@ -230,8 +378,43 @@ export const WHATSAPP_TEMPLATE_DEFINITIONS = Object.freeze({
 لسه فيها {{2}}، وتقدر تكمل طلبك من هنا: {{3}}
 
 لو محتاج أي مساعدة إحنا موجودين 💙`,
-    buttons: [],
+    footer: STORE_FOOTER,
+    buttons: [{ type: "URL", text: "أكمل الطلب 🛒", value: "cart_url", fallbackSuffix: "cart", sample: "https://m1store-egy.com/cart" }],
   },
+
+  // Evolution sends this as a one-card carousel; the template is the same card: photo, name,
+  // old → new price and a link to the product.
+  price_drop_alert: {
+    name: "price_drop_alert",
+    category: TEMPLATE_CATEGORIES.MARKETING,
+    header: { format: "IMAGE", value: "product_image_url" },
+    variables: ["customer_name", "product_name", "old_price", "new_price"],
+    samples: ["مي", "Nike Air Force 1 — أبيض", "1,450", "1,250"],
+    fallbacks: { customer_name: "عميلنا" },
+    body: `خبر حلو يا {{1}} 🎉
+المنتج اللي بتتابعه سعره نزل.
+
+👟 {{2}}
+بدل {{3}} بقى {{4}} جنيه`,
+    footer: STORE_FOOTER,
+    buttons: [{ type: "URL", text: "اشتري دلوقتي 🛒", value: "product_url", sample: "https://m1store-egy.com/shop/product/nike-air-force-1" }],
+  },
+
+  product_review_request: {
+    name: "product_review_request",
+    category: TEMPLATE_CATEGORIES.MARKETING,
+    header: { format: "TEXT", text: "رأيك يهمنا ⭐" },
+    variables: ["customer_name", "product_name"],
+    samples: ["مي", "Nike Air Force 1"],
+    fallbacks: { customer_name: "عميلنا", product_name: "طلبك" },
+    body: `أهلاً يا {{1}} 👋
+إن شاء الله يكون {{2}} عجبك.
+قولنا رأيك في دقيقة — تقييمك بيساعد غيرك يختار صح.`,
+    footer: STORE_FOOTER,
+    buttons: [{ type: "URL", text: "⭐ قيّم مشترياتك", value: "review_url", sample: "https://m1store-egy.com/review/AB12CD34" }],
+  },
+
+  ...productCarouselDefinitions(),
 });
 
 /*
@@ -272,6 +455,14 @@ export const resolveTemplateValues = (automationType = "", { values = {}, templa
     const found = candidates.map((key) => bag[key]).find((value) => text(value));
     resolved[name] = text(found) || text(definition.fallbacks?.[name]) || EMPTY_VALUE_FALLBACK;
   }
+  // Header media, button links / codes and carousel cards are not body variables: they travel
+  // as they are (no dash fallback — an empty link is decided by the button's own fallback).
+  const extras = [definition.header?.value, ...(definition.buttons || []).map((button) => button.value)].filter(Boolean);
+  for (const name of extras) {
+    const candidates = TEMPLATE_VALUE_ALIASES[name] || [name];
+    resolved[name] = text(explicit[name]) || text(candidates.map((key) => bag[key]).find((value) => text(value)));
+  }
+  if (definition.carousel) resolved.cards = Array.isArray(explicit.cards) ? explicit.cards : (Array.isArray(bag.cards) ? bag.cards : []);
   return resolved;
 };
 
@@ -315,18 +506,72 @@ export const validateTemplateValue = (value = "") => {
  * shipment templates already use — and are placed by the definition's own variable order, so a
  * caller can never put the tracking number where the courier name goes.
  */
+const bodyParameters = (variables = [], values = {}, fallbacks = {}) => variables.map((name) => {
+  const value = templateValue(values?.[name]) === EMPTY_VALUE_FALLBACK
+    ? (text(fallbacks?.[name]) || EMPTY_VALUE_FALLBACK)
+    : templateValue(values?.[name]);
+  const problems = validateTemplateValue(value);
+  if (problems.length) throw new Error(`WHATSAPP_TEMPLATE_VALUE_INVALID:${name}:${problems[0]}`);
+  return { type: "text", text: value };
+});
+
+// Only buttons whose content changes per send take a parameter; a fixed link or a plain quick
+// reply is part of the approved template and is sent as nothing. `index` is the button's place.
+const buttonParameters = (buttons = [], values = {}) => buttons.map((button, index) => {
+  const value = text(button.value ? values?.[button.value] : "");
+  if (button.type === "URL" && button.value) {
+    const suffix = siteUrlSuffix(value) || text(button.fallbackSuffix);
+    if (!suffix) throw new Error(`WHATSAPP_TEMPLATE_VALUE_INVALID:${button.value}:not a link on the store site`);
+    return { type: "button", sub_type: "url", index: String(index), parameters: [{ type: "text", text: suffix }] };
+  }
+  if (button.type === "COPY_CODE") {
+    // Meta caps a copied code at 15 characters; a wallet number is 11.
+    if (!value || value === EMPTY_VALUE_FALLBACK) throw new Error(`WHATSAPP_TEMPLATE_VALUE_INVALID:${button.value}:nothing to copy`);
+    return { type: "button", sub_type: "copy_code", index: String(index), parameters: [{ type: "coupon_code", coupon_code: value.slice(0, 15) }] };
+  }
+  if (button.type === "QUICK_REPLY" && button.value) {
+    const payload = value || text(button.fallback);
+    return payload ? { type: "button", sub_type: "quick_reply", index: String(index), parameters: [{ type: "payload", payload }] } : null;
+  }
+  return null;
+}).filter(Boolean);
+
+const imageParameter = (link = "", where = "header") => {
+  const url = text(link);
+  if (!/^https:\/\//i.test(url)) throw new Error(`WHATSAPP_TEMPLATE_VALUE_INVALID:${where}:needs a public https image`);
+  return { type: "image", image: { link: url } };
+};
+
+/*
+ * The body stays the FIRST component: the inbox transcript reads the body values off index 0.
+ */
 export const buildTemplateComponents = (automationType = "", values = {}) => {
   const definition = templateDefinition(automationType);
   if (!definition) throw new Error(`WHATSAPP_TEMPLATE_UNKNOWN:${text(automationType)}`);
-  const parameters = definition.variables.map((name) => {
-    const value = templateValue(values?.[name]) === EMPTY_VALUE_FALLBACK
-      ? (text(definition.fallbacks?.[name]) || EMPTY_VALUE_FALLBACK)
-      : templateValue(values?.[name]);
-    const problems = validateTemplateValue(value);
-    if (problems.length) throw new Error(`WHATSAPP_TEMPLATE_VALUE_INVALID:${name}:${problems[0]}`);
-    return { type: "text", text: value };
-  });
-  return parameters.length ? [{ type: "body", parameters }] : [];
+  const components = [];
+  const parameters = bodyParameters(definition.variables, values, definition.fallbacks);
+  if (parameters.length) components.push({ type: "body", parameters });
+  if (definition.header?.format === "IMAGE") {
+    components.push({ type: "header", parameters: [imageParameter(values?.[definition.header.value])] });
+  }
+  components.push(...buttonParameters(definition.buttons || [], values));
+  if (definition.carousel) {
+    const { cards: count, card } = definition.carousel;
+    const cards = (Array.isArray(values?.cards) ? values.cards : []).slice(0, count);
+    if (cards.length !== count) throw new Error(`WHATSAPP_TEMPLATE_VALUE_INVALID:cards:${definition.name} needs exactly ${count} cards`);
+    components.push({
+      type: "carousel",
+      cards: cards.map((item, cardIndex) => ({
+        card_index: cardIndex,
+        components: [
+          { type: "header", parameters: [imageParameter(item?.image_url, `card ${cardIndex + 1} image`)] },
+          { type: "body", parameters: bodyParameters(card.variables, item, {}) },
+          ...buttonParameters(card.buttons, item),
+        ],
+      })),
+    });
+  }
+  return components;
 };
 
 export const buildTemplateMessage = ({ automationType = "", phone = "", values = {} } = {}) => {
@@ -351,32 +596,66 @@ export const buildTemplateMessage = ({ automationType = "", phone = "", values =
  * describes so a wording change and its resubmission are the same edit — an approved template is
  * frozen, and editing the text here without resubmitting means sending a body Meta never saw.
  */
-export const templateSubmissionPayload = (automationType = "") => {
+const submissionButton = (button) => {
+  if (button.type === "URL") {
+    if (button.value) {
+      return { type: "URL", text: button.text, url: templateSiteUrl(), example: [text(button.sample) || `${siteBase()}/shop`] };
+    }
+    return { type: "URL", text: button.text, url: text(typeof button.url === "function" ? button.url() : button.url) };
+  }
+  if (button.type === "COPY_CODE") return { type: "COPY_CODE", example: text(button.example) };
+  return { type: "QUICK_REPLY", text: button.text };
+};
+
+const buttonsComponent = (buttons = []) =>
+  buttons.length ? [{ type: "BUTTONS", buttons: buttons.map(submissionButton) }] : [];
+
+const bodyComponent = (body = "", samples = []) => ({
+  type: "BODY",
+  text: body,
+  ...(samples?.length ? { example: { body_text: [samples] } } : {}),
+});
+
+const imageHeader = (headerHandle = "") => {
+  if (!text(headerHandle)) throw new Error("WHATSAPP_TEMPLATE_HEADER_HANDLE_REQUIRED");
+  return { type: "HEADER", format: "IMAGE", example: { header_handle: [text(headerHandle)] } };
+};
+
+/*
+ * `headerHandle` is a sample image uploaded to Meta (resumable upload) — required by every
+ * template with an image header, and by every carousel card.
+ */
+export const templateNeedsImageSample = (automationType = "") => {
+  const definition = templateDefinition(automationType);
+  return Boolean(definition && (definition.header?.format === "IMAGE" || definition.carousel));
+};
+
+export const templateSubmissionPayload = (automationType = "", { headerHandle = "" } = {}) => {
   const definition = templateDefinition(automationType);
   if (!definition) throw new Error(`WHATSAPP_TEMPLATE_UNKNOWN:${text(automationType)}`);
-  const bodyComponent = {
-    type: "BODY",
-    text: definition.body,
-    ...(definition.samples?.length ? { example: { body_text: [definition.samples] } } : {}),
-  };
-  const buttonsComponent = definition.buttons?.length
-    ? [{
-      type: "BUTTONS",
-      buttons: definition.buttons.map((button) => ({ type: button.type, text: button.text })),
-    }]
-    : [];
+  const components = [];
+  if (definition.header?.format === "TEXT") components.push({ type: "HEADER", format: "TEXT", text: definition.header.text });
+  if (definition.header?.format === "IMAGE") components.push(imageHeader(headerHandle));
+  components.push(bodyComponent(definition.body, definition.samples));
+  if (definition.footer) components.push({ type: "FOOTER", text: definition.footer });
+  components.push(...buttonsComponent(definition.buttons || []));
+  if (definition.carousel) {
+    const { cards, card } = definition.carousel;
+    const cardComponents = [imageHeader(headerHandle), bodyComponent(card.body, card.samples), ...buttonsComponent(card.buttons)];
+    components.push({ type: "CAROUSEL", cards: Array.from({ length: cards }, () => ({ components: cardComponents })) });
+  }
   return {
     name: definition.name,
     language: TEMPLATE_LANGUAGE,
     category: definition.category,
-    components: [bodyComponent, ...buttonsComponent],
+    components,
   };
 };
 
-export const allTemplateSubmissionPayloads = () =>
+export const allTemplateSubmissionPayloads = ({ headerHandle = "" } = {}) =>
   Object.keys(WHATSAPP_TEMPLATE_DEFINITIONS).map((automationType) => ({
     automation_type: automationType,
-    ...templateSubmissionPayload(automationType),
+    ...templateSubmissionPayload(automationType, { headerHandle }),
   }));
 
 /*

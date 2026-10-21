@@ -1,6 +1,7 @@
 import db from "../database/db.js";
 import { getSetting } from "./settingsService.js";
 import { resolvePublicAppUrl } from "../utils/whatsapp.js";
+import { absolutePublicUploadUrl } from "../utils/publicUrl.js";
 import { getPhoneSearchVariants, normalizePhone, phoneSqlDigits } from "../utils/phoneSearch.js";
 import { normalizeWhatsappPhone, normalizeWhatsappSessionId } from "../utils/whatsappIdentity.js";
 import { queueWhatsappAutomation } from "./whatsappQueue/index.js";
@@ -366,6 +367,8 @@ const notifyCustomer = async ({ alert, product, oldPrice, newPrice, config, clai
       old_price: formatEgp(oldPrice),
       new_price: formatEgp(newPrice),
       product_url: message.url,
+      // The photo for the official number's template header (price_drop_alert).
+      product_image_url: absolutePublicUploadUrl(product.image_url || card?.imageUrl || ""),
       store_name: "M1 Store",
     },
     fallbackBody: message.body,

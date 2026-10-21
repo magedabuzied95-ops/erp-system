@@ -3150,6 +3150,23 @@
       "online": "online",
       "encrypted": "Messages are end-to-end encrypted",
       "bodyPlaceholder": "Your message body will appear here"
+    },
+    "automation": {
+      "title": "Automation templates",
+      "subtitle": "Every message the system sends by itself (order confirmation, payment card, shipping, carousels…) needs a Meta-approved template to leave from the official number.",
+      "submit": "Submit missing to Meta",
+      "submitted": "Sent {{submitted}} templates to Meta, {{failed}} refused, {{skipped}} already there.",
+      "show": "Show templates",
+      "hide": "Hide",
+      "notSubmitted": "Not submitted",
+      "approvedCount": "{{approved}} of {{total}} approved",
+      "columns": {
+        "purpose": "Message",
+        "name": "Template name",
+        "buttons": "Buttons",
+        "status": "Status"
+      },
+      "carousel": "{{count}} cards"
     }
   },
   "waUsage": {

@@ -46,6 +46,27 @@ router.get("/", protect, permit("settings", "view"), async (req, res) => {
   }
 });
 
+// The store's automation templates (order confirmation, payment card, shipping, carousels…) with
+// Meta's verdict on each, and one action that submits every one Meta does not have yet.
+router.get("/automation", protect, permit("settings", "view"), async (req, res) => {
+  try {
+    const { listAutomationTemplates } = await import("../modules/whatsappOfficial/automationTemplates.js");
+    return res.json({ success: true, templates: await listAutomationTemplates({ tenantId: tenantOf(req) }) });
+  } catch (error) {
+    return fail(res, error, "Failed to load the automation templates");
+  }
+});
+
+router.post("/automation/submit", protect, permit("settings", "edit"), async (req, res) => {
+  try {
+    const { submitAutomationTemplates } = await import("../modules/whatsappOfficial/automationTemplates.js");
+    const keys = Array.isArray(req.body?.automation_types) ? req.body.automation_types : [];
+    return res.json({ success: true, ...(await submitAutomationTemplates({ tenantId: tenantOf(req), keys })) });
+  } catch (error) {
+    return fail(res, error, "Failed to submit the automation templates to Meta");
+  }
+});
+
 router.post("/sync", protect, permit("settings", "edit"), async (req, res) => {
   try {
     const summary = await syncTemplates({ tenantId: tenantOf(req) });

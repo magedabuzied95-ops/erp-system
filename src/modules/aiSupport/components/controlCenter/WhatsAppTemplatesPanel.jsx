@@ -154,6 +154,110 @@ function TemplatePreview({ draft }) {
   );
 }
 
+/*
+ * The store's own automation templates (server/services/whatsappTemplates.js): what each message
+ * is, Meta's verdict, and one button that submits every one Meta does not have yet. Without an
+ * approved template a message cannot leave the official number outside the 24h window, and the
+ * payment card's copy button cannot be drawn at all.
+ */
+function AutomationTemplatesCard({ headers, onSubmitted }) {
+  const { t } = useTranslation();
+  const [items, setItems] = useState([]);
+  const [open, setOpen] = useState(false);
+  const [busy, setBusy] = useState(false);
+  const [notice, setNotice] = useState(null);
+
+  useEffect(() => {
+    let alive = true;
+    api.get("/whatsapp/templates/automation", { headers, ...SUPPRESSED })
+      .then((payload) => { if (alive) setItems(Array.isArray(payload?.templates) ? payload.templates : []); })
+      .catch(() => {});
+    return () => { alive = false; };
+  }, [headers]);
+
+  const submit = async () => {
+    setBusy(true);
+    setNotice(null);
+    try {
+      const payload = await api.post("/whatsapp/templates/automation/submit", {}, { headers, ...SUPPRESSED, timeoutMs: 180000 });
+      setItems(Array.isArray(payload?.templates) ? payload.templates : items);
+      const refused = (payload?.results || []).filter((item) => !item.ok);
+      setNotice({
+        ok: !refused.length,
+        text: [
+          t("aiSupport.waTemplates.automation.submitted", { submitted: payload?.submitted || 0, failed: payload?.failed || 0, skipped: payload?.skipped || 0 }),
+          ...refused.map((item) => `${item.name}: ${item.error}`),
+        ].join("\n"),
+      });
+      setOpen(true);
+      onSubmitted?.();
+    } catch (error) {
+      setNotice({ ok: false, text: error?.message || t("aiSupport.waTemplates.actionFailed") });
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  const approved = items.filter((item) => item.status === "APPROVED").length;
+  const missing = items.filter((item) => ["NOT_SUBMITTED", "DRAFT", "REJECTED"].includes(item.status)).length;
+
+  return (
+    <div className="rounded-2xl border border-white/10 bg-white/[0.03] p-3">
+      <div className="flex flex-wrap items-center justify-between gap-2">
+        <div className="min-w-0">
+          <div className="text-sm font-black text-white">{t("aiSupport.waTemplates.automation.title")}</div>
+          <p className="mt-0.5 text-xs text-slate-400">{t("aiSupport.waTemplates.automation.subtitle")}</p>
+          {items.length ? (
+            <p className="mt-1 text-[11px] font-bold text-emerald-200">{t("aiSupport.waTemplates.automation.approvedCount", { approved, total: items.length })}</p>
+          ) : null}
+        </div>
+        <div className="flex gap-2">
+          <ActionButton onClick={() => setOpen((value) => !value)}>
+            {open ? t("aiSupport.waTemplates.automation.hide") : t("aiSupport.waTemplates.automation.show")}
+          </ActionButton>
+          <ActionButton tone="primary" icon={Send} loading={busy} disabled={!missing} onClick={submit}>
+            {t("aiSupport.waTemplates.automation.submit")} {missing ? `(${missing})` : ""}
+          </ActionButton>
+        </div>
+      </div>
+      {notice ? <p className={`mt-2 whitespace-pre-line rounded-xl border p-2.5 text-xs font-bold ${notice.ok ? "border-emerald-300/20 bg-emerald-400/10 text-emerald-100" : "border-rose-300/20 bg-rose-400/10 text-rose-100"}`}>{notice.text}</p> : null}
+      {open ? (
+        <div className="mt-3 overflow-x-auto rounded-xl border border-white/10">
+          <table className="w-full text-start text-xs">
+            <thead className="bg-white/[0.04] text-[10.5px] text-slate-500">
+              <tr>
+                <th className="px-3 py-2 text-start">{t("aiSupport.waTemplates.automation.columns.purpose")}</th>
+                <th className="px-3 py-2 text-start">{t("aiSupport.waTemplates.automation.columns.name")}</th>
+                <th className="px-3 py-2 text-start">{t("aiSupport.waTemplates.automation.columns.buttons")}</th>
+                <th className="px-3 py-2 text-start">{t("aiSupport.waTemplates.automation.columns.status")}</th>
+              </tr>
+            </thead>
+            <tbody>
+              {items.map((item) => (
+                <tr key={item.automation_type} className="border-t border-white/5 align-top text-slate-200">
+                  <td className="px-3 py-2 font-bold">{item.purpose}</td>
+                  <td className="px-3 py-2 text-slate-400" dir="ltr">{item.name}</td>
+                  <td className="px-3 py-2 text-slate-300">
+                    {item.carousel_cards
+                      ? t("aiSupport.waTemplates.automation.carousel", { count: item.carousel_cards })
+                      : (item.buttons || []).join(" · ") || "—"}
+                  </td>
+                  <td className="px-3 py-2">
+                    {item.status === "NOT_SUBMITTED"
+                      ? <span className="text-slate-500">{t("aiSupport.waTemplates.automation.notSubmitted")}</span>
+                      : <StatusBadge status={item.status} />}
+                    {item.rejection_reason ? <div className="mt-1 text-[11px] text-rose-200">{item.rejection_reason}</div> : null}
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+      ) : null}
+    </div>
+  );
+}
+
 export default function WhatsAppTemplatesPanel({ headers }) {
   const { t } = useTranslation();
   const [loading, setLoading] = useState(true);
@@ -279,6 +383,7 @@ export default function WhatsAppTemplatesPanel({ headers }) {
           </div>
         </div>
         {notice ? <p className={`rounded-xl border p-2.5 text-xs font-bold ${notice.ok ? "border-emerald-300/20 bg-emerald-400/10 text-emerald-100" : "border-rose-300/20 bg-rose-400/10 text-rose-100"}`}>{notice.text}</p> : null}
+        <AutomationTemplatesCard headers={headers} onSubmitted={load} />
         <div className="flex flex-wrap items-center gap-1.5">
           {["ALL", "DRAFT", "PENDING", "APPROVED", "REJECTED"].map((key) => (
             <button
