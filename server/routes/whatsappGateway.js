@@ -354,7 +354,8 @@ const connectedIntegrationFor = async (req) => {
   const rows = await listIntegrations({ tenantId: tenantScope(req) || 0 });
   const wanted = Number(req.query?.id || req.body?.id || 0);
   const row = rows.find((item) => item.status === "connected" && (!wanted || Number(item.id) === wanted));
-  const accessToken = row ? integrationAccessToken(row) : "";
+  // A number wired without its own token (Meta's test number) reads Meta with the server token.
+  const accessToken = row ? (integrationAccessToken(row) || (!row.access_token_encrypted ? cloudConfig().accessToken : "")) : "";
   if (!row || !accessToken) {
     throw Object.assign(new Error("No connected official WhatsApp number"), { status: 409, code: "WHATSAPP_CLOUD_NOT_CONNECTED" });
   }
@@ -380,7 +381,8 @@ router.get("/embedded-signup/accounts", protect, permit("settings", "view"), asy
     if (req.query?.refresh === "1") accountsLiveCache.clear();
     const rows = await listIntegrations({ tenantId: tenantScope(req) || 0 });
     const accounts = await Promise.all(rows.map(async (row) => {
-      const token = row.status === "connected" ? integrationAccessToken(row) : "";
+      // No token of its own (Meta's test number): it is wired to the server token, so read with that.
+      const token = row.status === "connected" ? (integrationAccessToken(row) || (!row.access_token_encrypted ? cloudConfig().accessToken : "")) : "";
       const live = token
         ? await liveFor({ key: `int:${row.id}`, accessToken: token, wabaId: row.waba_id, phoneNumberId: row.phone_number_id })
         : null;
