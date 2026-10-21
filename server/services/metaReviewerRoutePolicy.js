@@ -343,6 +343,14 @@ export const META_REVIEWER_ROUTE_POLICY = [
   deny("ANY", /^\/api\/marketing\/broadcasts\/consent\/.*$/, "Customer marketing consent cannot be changed by the review account."),
 
   /* ---- Meta Ads ---- */
+  // Facebook Login for Business can be opened TEMPORARILY for the review account (to record the
+  // connect screencast) with META_REVIEWER_ADS_ALLOW_CONNECT=1; it is off by default and the env
+  // line is removed after recording. Disconnecting is never allowed.
+  { method: "ANY", path: /^\/api\/meta-ads\/integrations\/oauth\/(start|pending|complete)$/, grants: ADS_MANAGE, guard: async () => {
+    if (String(process.env.META_REVIEWER_ADS_ALLOW_CONNECT || "").trim() !== "1") {
+      throw reviewerError(403, "Connecting or disconnecting ad accounts is disabled for the review account.", "META_REVIEWER_ACTION_BLOCKED");
+    }
+  } },
   deny("ANY", /^\/api\/meta-ads\/integrations\/(oauth\/.*|accounts\/[^/]+\/disconnect)$/, "Connecting or disconnecting ad accounts is disabled for the review account."),
   deny("ANY", /^\/api\/meta-ads\/manager\/(status|rules\/(save|delete|toggle|run-now))$/, META_REVIEWER_LIVE_ACTION_MESSAGE, "META_REVIEWER_LIVE_ACTION_BLOCKED"),
   deny("PUT", /^\/api\/meta-ads\/records\/[^/]+\/[^/]+\/ai-instructions$/, "The ads AI instructions cannot be changed by the review account."),
