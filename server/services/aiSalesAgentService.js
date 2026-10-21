@@ -609,6 +609,10 @@ export const ensureAiSalesAgentSchema = async (clientOrPool = db) => {
       // the list, and its transcript starts after this moment, until the customer
       // writes again. Nullable, no default — metadata-only on a hot table.
       await clientOrPool.query(`ALTER TABLE IF EXISTS ai_support_sessions ADD COLUMN IF NOT EXISTS deleted_at TIMESTAMPTZ NULL`);
+      // Archived from the inbox (Genie's Archive): out of the list with its history
+      // intact, back the moment a newer message arrives. Unlike deleted_at it never
+      // cuts the transcript. Nullable, no default: metadata-only on a hot table.
+      await clientOrPool.query(`ALTER TABLE IF EXISTS ai_support_sessions ADD COLUMN IF NOT EXISTS archived_at TIMESTAMPTZ NULL`);
       // One message deleted or edited from the inbox. Soft for the same reason as the
       // thread: the syncs would re-import a removed row. deleted_scope / edit_scope say
       // whether the customer's phone changed too ('everyone') or only our copy ('inbox');
@@ -2662,14 +2666,17 @@ export const inboxPanelActivityClauseSql = ({ params, activitySql, activity = ""
  *   archived  taken out of the list; it comes back when the customer writes again
  * `latestAtSql` is the latest-message timestamp of the query using it (the
  * summary query's lateral `m`). "" = no view clause (the PWA does not send one).
- * Archived is the inbox's existing delete/hide: the row stays out of every other
- * view until the thread moves again (see deletedConversationClauseSql).
+ * Archived is its own column (archived_at): out of every other view, history
+ * intact, back on a newer message. A deleted thread is in no view at all until the
+ * customer writes again (deletedConversationClauseSql, applied around these).
  */
 export const INBOX_VIEWS = Object.freeze(["all", "awaiting", "unread", "unsent", "done", "archived"]);
 
+const archivedLiveSql = (latestAtSql) => `(s.archived_at IS NOT NULL AND COALESCE(${latestAtSql}, c.last_message_at, s.archived_at) <= s.archived_at)`;
+
 export const inboxViewClauseSql = (view, latestAtSql) => {
   const normalized = lower(view);
-  const open = "COALESCE(s.status, '') <> 'closed'";
+  const open = `(COALESCE(s.status, '') <> 'closed' AND NOT ${archivedLiveSql(latestAtSql)})`;
   if (normalized === "all") return open;
   if (normalized === "awaiting") {
     return `(${open} AND (
@@ -2679,8 +2686,8 @@ export const inboxViewClauseSql = (view, latestAtSql) => {
   }
   if (normalized === "unread") return `(${open} AND ${readFilterClauseSql("unread", latestAtSql)})`;
   if (normalized === "unsent") return `(${open} AND LOWER(COALESCE(m.delivery_status, '')) IN ('failed', 'error', 'undelivered'))`;
-  if (normalized === "done") return "s.status = 'closed'";
-  if (normalized === "archived") return `(s.deleted_at IS NOT NULL AND COALESCE(${latestAtSql}, c.last_message_at, s.deleted_at) <= s.deleted_at)`;
+  if (normalized === "done") return `(s.status = 'closed' AND NOT ${archivedLiveSql(latestAtSql)})`;
+  if (normalized === "archived") return archivedLiveSql(latestAtSql);
   return "";
 };
 
@@ -2898,8 +2905,7 @@ export const loadAiInbox = async ({ tenantId, filter = "all", channelFilter = ""
   // A deleted conversation leaves the list until the thread moves again. Only real
   // message activity counts — s.updated_at is bumped by the delete itself and by
   // every sync. Targeted lookups skip it: send/reply routes must still resolve the id.
-  // The archived view is exactly these rows, so it lifts the rule (inboxViewClauseSql).
-  const deletedConversationClauseSql = (latestMessageAtSql) => (sessionKeyList.length || lower(view) === "archived"
+  const deletedConversationClauseSql = (latestMessageAtSql) => (sessionKeyList.length
     ? ""
     : `(s.deleted_at IS NULL OR COALESCE(${latestMessageAtSql}, c.last_message_at) > s.deleted_at)`);
 
@@ -2933,12 +2939,18 @@ export const loadAiInbox = async ({ tenantId, filter = "all", channelFilter = ""
     const activityClause = inboxPanelActivityClauseSql({ params, activitySql: summaryActivitySql, activity, activityFrom, activityTo });
     if (activityClause) clauses.push(activityClause);
     const liveSql = `(s.deleted_at IS NULL OR COALESCE(${latestAtSql}, c.last_message_at) > s.deleted_at)`;
-    const countColumns = INBOX_VIEWS.map((view) => `COUNT(*) FILTER (WHERE ${view === "archived" ? "" : `${liveSql} AND `}${inboxViewClauseSql(view, latestAtSql)})::int AS "${view}"`);
+    const countColumns = INBOX_VIEWS.map((view) => `COUNT(*) FILTER (WHERE ${liveSql} AND ${inboxViewClauseSql(view, latestAtSql)})::int AS "${view}"`);
     const countsResult = await db.query(`
       SELECT ${countColumns.join(",\n             ")}
       FROM ai_support_sessions s
       LEFT JOIN LATERAL (
-        SELECT channel_conversation.*
+        -- Only the columns the filters read: the full row is wide, and sorting
+        -- 1,700 of them was most of this query (measured 2026-10-21).
+        SELECT channel_conversation.id, channel_conversation.channel, channel_conversation.external_conversation_id,
+               channel_conversation.external_customer_id, channel_conversation.is_group, channel_conversation.metadata,
+               channel_conversation.thread_kind, channel_conversation.lead_status, channel_conversation.last_message_at,
+               channel_conversation.last_message, channel_conversation.read_at, channel_conversation.manually_unread,
+               channel_conversation.customer_profile_id, channel_conversation.customer_name, channel_conversation.updated_at
         FROM ai_channel_conversations channel_conversation
         WHERE channel_conversation.tenant_id = s.tenant_id
           AND channel_conversation.external_conversation_id = s.session_id
@@ -2983,6 +2995,7 @@ export const loadAiInbox = async ({ tenantId, filter = "all", channelFilter = ""
     SELECT
       s.session_id,
       s.source,
+      s.archived_at,
       s.channel AS session_channel,
       s.thread_kind AS thread_kind,
       s.customer_name AS session_customer_name,
@@ -3398,6 +3411,7 @@ export const loadAiInbox = async ({ tenantId, filter = "all", channelFilter = ""
         status: conversation.conversation_status || "ai_active",
         conversation_status: conversation.conversation_status || "ai_active",
         is_favorite: conversation.is_favorite === true,
+        archived_at: conversation.archived_at || null,
         thread_kind: conversation.thread_kind || "",
         assigned_to: conversation.assigned_user_id || conversation.assigned_user_name
           ? { id: conversation.assigned_user_id || null, name: conversation.assigned_user_name || "" }

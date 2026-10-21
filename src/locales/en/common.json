@@ -785,7 +785,23 @@
     "zoomIn": "Zoom in",
     "zoomOut": "Zoom out",
     "selectAll": "Select all",
-    "clear": "Clear"
+    "clear": "Clear",
+    "commandPalette": {
+      "open": "Quick search",
+      "placeholderShort": "Start typing to go anywhere…",
+      "placeholder": "Search pages and menus…",
+      "jumpBack": "Jump back",
+      "likelyNext": "Likely next",
+      "recent": "Recent",
+      "allPages": "Pages",
+      "pages": "Pages",
+      "menus": "Menus",
+      "nothing": "No page matches",
+      "navigate": "Navigate",
+      "goTo": "Go to page",
+      "newTab": "New tab",
+      "close": "Close"
+    }
   },
   "sidebar": {
     "main": "Main",

@@ -785,7 +785,23 @@
     "zoomIn": "تكبير",
     "zoomOut": "تصغير",
     "selectAll": "تحديد الكل",
-    "clear": "مسح"
+    "clear": "مسح",
+    "commandPalette": {
+      "open": "بحث سريع",
+      "placeholderShort": "اكتب عشان تروح لأي مكان…",
+      "placeholder": "ابحث في الصفحات والقوايم…",
+      "jumpBack": "ارجع لـ",
+      "likelyNext": "غالباً هتروح",
+      "recent": "الأخيرة",
+      "allPages": "الصفحات",
+      "pages": "الصفحات",
+      "menus": "القوايم",
+      "nothing": "مفيش صفحة بالاسم ده",
+      "navigate": "تنقّل",
+      "goTo": "افتح الصفحة",
+      "newTab": "تاب جديد",
+      "close": "اقفل"
+    }
   },
   "sidebar": {
     "main": "الرئيسية",

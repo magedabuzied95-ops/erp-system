@@ -1,3 +1,4 @@
+import { ShellCommandPaletteTrigger } from "../../../shared/components/CommandPalette";
 import { useEffect, useRef, useState } from "react";
 import { useTranslation } from "react-i18next";
 import { ChevronDown, Megaphone, MessagesSquare, Moon, Settings, Smartphone, Sun } from "lucide-react";
@@ -294,6 +295,8 @@ export default function InboxTopBar({
       {/* The shell topbar is hidden on this route, and with it the language and theme
           switches — so the inbox carries its own. */}
       <div className="ai-inbox-topbar__tools">
+        {/* Quick search (Ctrl K) and the last two pages, as in the shell top bar. */}
+        {reviewerMode ? null : <ShellCommandPaletteTrigger className="me-1" />}
         <LanguageSwitcher compact className="shrink-0" />
         <button
           type="button"

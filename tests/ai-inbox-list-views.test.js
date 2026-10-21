@@ -13,22 +13,34 @@ const page = read("src/modules/aiSupport/pages/AiInbox.jsx");
 const service = read("server/services/aiSalesAgentService.js");
 const route = read("server/routes/aiAgentOrders.js");
 
-test("six views, each a SQL clause", () => {
+test("six views, each a SQL clause; archived is its own column", () => {
   assert.deepEqual([...INBOX_VIEWS], ["all", "awaiting", "unread", "unsent", "done", "archived"]);
-  assert.equal(inboxViewClauseSql("all", "lm"), "COALESCE(s.status, '') <> 'closed'");
+  const archivedLive = "(s.archived_at IS NOT NULL AND COALESCE(lm, c.last_message_at, s.archived_at) <= s.archived_at)";
+  assert.equal(inboxViewClauseSql("all", "lm"), `(COALESCE(s.status, '') <> 'closed' AND NOT ${archivedLive})`);
   assert.match(inboxViewClauseSql("awaiting", "lm"), /LOWER\(COALESCE\(m\.sender_type, ''\)\) = 'customer'/);
   assert.match(inboxViewClauseSql("unread", "lm"), /COALESCE\(c\.manually_unread, s\.manually_unread, FALSE\) = TRUE/);
   assert.match(inboxViewClauseSql("unsent", "lm"), /m\.delivery_status, ''\)\) IN \('failed', 'error', 'undelivered'\)/);
-  assert.equal(inboxViewClauseSql("done", "lm"), "s.status = 'closed'");
-  assert.equal(inboxViewClauseSql("archived", "lm"), "(s.deleted_at IS NOT NULL AND COALESCE(lm, c.last_message_at, s.deleted_at) <= s.deleted_at)");
+  assert.equal(inboxViewClauseSql("done", "lm"), `(s.status = 'closed' AND NOT ${archivedLive})`);
+  assert.equal(inboxViewClauseSql("archived", "lm"), archivedLive);
   // No view = no clause: the PWA does not send one and keeps its list.
   assert.equal(inboxViewClauseSql("", "lm"), "");
 });
 
-test("the archived view lifts the hidden-row rule; every other view keeps it", () => {
-  assert.ok(service.includes(`const deletedConversationClauseSql = (latestMessageAtSql) => (sessionKeyList.length || lower(view) === "archived"`));
+test("a deleted thread is in no view; archive has its own column and routes", () => {
+  assert.ok(service.includes("ALTER TABLE IF EXISTS ai_support_sessions ADD COLUMN IF NOT EXISTS archived_at TIMESTAMPTZ NULL"));
   assert.ok(service.includes(`const viewClause = inboxViewClauseSql(view, "m.latest_message_created_at");`));
-  assert.ok(service.includes(`COUNT(*) FILTER (WHERE \${view === "archived" ? "" : \`\${liveSql} AND \`}\${inboxViewClauseSql(view, latestAtSql)})::int AS "\${view}"`));
+  assert.ok(service.includes("COUNT(*) FILTER (WHERE ${liveSql} AND ${inboxViewClauseSql(view, latestAtSql)})::int AS \"${view}\""));
+  assert.match(route, /router\.post\("\/conversations\/:conversationId\/archive", protect, inboxReply\(\), archiveRoute\(true\)\)/);
+  assert.match(route, /router\.post\("\/conversations\/:conversationId\/unarchive", protect, inboxReply\(\), archiveRoute\(false\)\)/);
+});
+
+test("the counts read only the columns they need and are cached briefly", () => {
+  const counts = service.slice(service.indexOf("if (countsOnly) {"), service.indexOf("if (summaryOnly) {", service.indexOf("if (countsOnly) {")));
+  assert.doesNotMatch(counts, /SELECT channel_conversation\.\*/);
+  assert.match(counts, /SELECT channel_conversation\.id, channel_conversation\.channel/);
+  assert.match(route, /const VIEW_COUNTS_TTL_MS = 15 \* 1000;/);
+  assert.match(route, /if \(cached && Date\.now\(\) - cached\.at < VIEW_COUNTS_TTL_MS\) return res\.json/);
+  assert.match(page, /if \(Date\.now\(\) - viewCountsAskedAtRef\.current > 20000\) \{/);
 });
 
 test("the routes pass the view and count every view under the same filters", () => {

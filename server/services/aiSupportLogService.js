@@ -1749,6 +1749,33 @@ export const markAiSupportConversationUnread = async ({
   };
 };
 
+// Archive a conversation (Genie's Archive) or bring it back. Out of every list view
+// but "مؤرشفة", history intact; a newer message brings it back by itself (the view
+// rule compares against archived_at), and unarchive clears the stamp outright.
+export const setAiSupportConversationArchived = async ({ tenantId, sessionId, channel = "", archived = true } = {}) => {
+  const safeTenantId = numberOrNull(tenantId);
+  const safeSessionId = toText(sessionId);
+  if (!safeTenantId || !safeSessionId) {
+    throw Object.assign(new Error("tenant_id and conversation id are required"), { status: 400 });
+  }
+  const conversationReference = parseConversationReference({ sessionId: safeSessionId, channel: normalizeConversationChannel(channel) });
+  const sessionCandidates = [...new Set([conversationReference.sessionId, ...conversationReference.lookupSessionIds, safeSessionId].filter(Boolean))];
+  const result = await db.query(
+    `
+    UPDATE ai_support_sessions
+    SET archived_at = CASE WHEN $3::boolean THEN NOW() ELSE NULL END
+    WHERE tenant_id = $1::bigint
+      AND session_id = ANY($2::text[])
+    RETURNING session_id, archived_at
+    `,
+    [safeTenantId, sessionCandidates, archived === true]
+  );
+  if (!result.rows.length) {
+    throw Object.assign(new Error("Conversation was not found"), { status: 404 });
+  }
+  return { session_id: result.rows[0].session_id, archived_at: result.rows[0].archived_at };
+};
+
 // Delete a conversation from the inbox. A soft delete on purpose: the WhatsApp and
 // Meta syncs rebuild sessions and re-import history from the provider, so removing
 // rows would only bring the thread straight back. deleted_at hides it from the list

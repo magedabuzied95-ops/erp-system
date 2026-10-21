@@ -38,7 +38,7 @@ test("both inbox queries hide a deleted thread until a newer message arrives", (
   assert.match(agent, /deletedConversationClauseSql\("m\.latest_message_created_at"\)/);
   assert.match(agent, /deletedConversationClauseSql\("m\.created_at"\)/);
   // A targeted lookup (send/reply resolving an id) must still find it.
-  assert.match(agent, /const deletedConversationClauseSql = \(latestMessageAtSql\) => \(sessionKeyList\.length \|\| lower\(view\) === "archived"\s*\? ""/);
+  assert.match(agent, /const deletedConversationClauseSql = \(latestMessageAtSql\) => \(sessionKeyList\.length\s*\? ""/);
 });
 
 test("the transcript starts after the delete", () => {

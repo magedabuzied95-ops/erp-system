@@ -133,6 +133,9 @@ import WaitingOrbit from "../components/WaitingOrbit.jsx";
 import ReplyWaitClock from "../components/ReplyWaitClock.jsx";
 import InboxFilterPanel from "../components/InboxFilterPanel.jsx";
 import ConversationCrmCard from "../components/ConversationCrmCard.jsx";
+import ConversationActionsMenu from "../components/ConversationActionsMenu.jsx";
+import MiniChatDock from "../components/MiniChatDock.jsx";
+import TemplateSendModal from "../components/TemplateSendModal.jsx";
 import { EMPTY_PANEL_FILTERS, PANEL_NO_STAGE, conversationLeadStage, conversationMatchesPanelFilters, panelFilterCount, panelFilterParams } from "../lib/inboxFilterPanel.js";
 import InboxTopBar, { META_REVIEWER_SECTIONS } from "../components/InboxTopBar.jsx";
 import { chromeModeFor, platformCanvas, resolveMessagePlatform } from "../components/messagePlatform.js";
@@ -1831,8 +1834,9 @@ function ProductCards({ products = [] }) {
   );
 }
 
-const ConversationListItem = memo(function ConversationListItem({ item, active, unseen, presence = "", staffViewers = [], onSelect, onOpenCustomer360, onToggleFavorite, onToggleRead, onDelete, onEditPrivacy }) {
+const ConversationListItem = memo(function ConversationListItem({ item, active, unseen, presence = "", staffViewers = [], onSelect, onOpenCustomer360, onToggleFavorite, onToggleRead, onDelete, onEditPrivacy, rowActions = null }) {
   const { t } = useTranslation();
+  const [rowMenuOpen, setRowMenuOpen] = useState(false);
   const channel = item.channel || item.source || "web_chat";
   const liveMeta = item.is_live_meta === true || isMetaChannel(channel);
   const isSocialComment = isSocialCommentThread(item);
@@ -1873,7 +1877,7 @@ const ConversationListItem = memo(function ConversationListItem({ item, active, 
           onSelect(item);
         }
       }}
-      className={`w-full rounded-2xl border px-3 py-2.5 text-left transition ${containerTone}`}
+      className={`group w-full rounded-2xl border px-3 py-2.5 text-left transition ${containerTone}`}
     >
       <div className="flex items-start gap-3">
         <div className="relative shrink-0">
@@ -1978,61 +1982,26 @@ const ConversationListItem = memo(function ConversationListItem({ item, active, 
               )}
             </div>
             <div className="shrink-0 flex items-center gap-2">
-              {onToggleRead ? (
-                <button
-                  type="button"
-                  onClick={(event) => {
-                    event.stopPropagation();
-                    onToggleRead(item);
-                  }}
-                  className={`inline-flex h-5 items-center justify-center rounded-md px-1 transition hover:bg-white/10 ${unreadCount ? "text-emerald-400 hover:text-emerald-300" : "text-slate-500 hover:text-cyan-300"}`}
-                  aria-label={unreadCount ? "تحديد كمقروء" : "تحديد كغير مقروء"}
-                  title={unreadCount ? "تحديد كمقروء" : "تحديد كغير مقروء"}
-                >
-                  {unreadCount ? <CheckCheck className="h-3.5 w-3.5" /> : <Mail className="h-3.5 w-3.5" />}
-                </button>
-              ) : null}
-              <button
-                type="button"
-                onClick={(event) => {
-                  event.stopPropagation();
-                  onToggleFavorite?.(item);
-                }}
-                className="inline-flex h-5 items-center justify-center rounded-md px-1 text-slate-500 transition hover:text-amber-300 hover:bg-white/10"
-                aria-label={isFavorite ? "إزالة من المفضلة" : "إضافة للمفضلة"}
-              >
-                <Star className={`h-3.5 w-3.5 ${isFavorite ? "fill-current text-amber-300" : "text-slate-500"}`} />
-              </button>
-              {onEditPrivacy ? (
-                <button
-                  type="button"
-                  onClick={(event) => {
-                    event.stopPropagation();
-                    onEditPrivacy(item);
-                  }}
-                  className={`inline-flex h-5 items-center justify-center rounded-md px-1 transition hover:bg-white/10 hover:text-amber-300 ${isPrivateConversation(item) ? "text-amber-300" : "text-slate-500"}`}
-                  aria-label={t("aiSupport.inbox.ui.privacyEdit")}
-                  title={isPrivateConversation(item) ? t("aiSupport.inbox.ui.privacyBadge") : t("aiSupport.inbox.ui.privacyEdit")}
-                >
-                  {isPrivateConversation(item) ? <Lock className="h-3.5 w-3.5" /> : <LockOpen className="h-3.5 w-3.5" />}
-                </button>
-              ) : null}
-              {onDelete ? (
-                <button
-                  type="button"
-                  onClick={(event) => {
-                    event.stopPropagation();
-                    onDelete(item);
-                  }}
-                  className="inline-flex h-5 items-center justify-center rounded-md px-1 text-slate-500 transition hover:bg-white/10 hover:text-rose-300"
-                  aria-label={t("aiSupport.inbox.ui.deleteConversation")}
-                  title={t("aiSupport.inbox.ui.deleteConversation")}
-                >
-                  <Trash2 className="h-3.5 w-3.5" />
-                </button>
-              ) : null}
               <StaffViewersChip viewers={staffViewers} />
-              <span className="text-[11px] font-bold text-slate-500">{lastActivity}</span>
+              {/* Genie: the time, and on hover the row's ⋮ in its place (ConversationActionsMenu). */}
+              <span className="relative inline-flex min-w-[3.25rem] items-center justify-end">
+                <span className={`text-[11px] font-bold text-slate-500 transition-opacity group-hover:opacity-0 group-focus-within:opacity-0 ${rowMenuOpen ? "opacity-0" : ""}`}>{relativeTime(item.last_message_at || item.last_activity_at || item.updated_at)}</span>
+                <span className={`absolute inset-y-0 end-0 flex items-center transition-opacity ${rowMenuOpen ? "opacity-100" : "opacity-0 group-hover:opacity-100 group-focus-within:opacity-100"}`}>
+                  <ConversationActionsMenu
+                    item={item}
+                    variant="row"
+                    privateConversation={isPrivateConversation(item)}
+                    onToggleDone={rowActions?.onToggleDone}
+                    onToggleArchive={rowActions?.onToggleArchive}
+                    onSendTemplate={rowActions?.onSendTemplate}
+                    onToggleRead={onToggleRead}
+                    onToggleFavorite={onToggleFavorite}
+                    onEditPrivacy={onEditPrivacy}
+                    onDelete={onDelete}
+                    onOpenChange={setRowMenuOpen}
+                  />
+                </span>
+              </span>
             </div>
           </div>
           {isCommentThread ? (
@@ -2253,8 +2222,9 @@ function InboxChannelSidebar({
   );
 }
 
-const InboxConversationCard = memo(function InboxConversationCard({ item, active, unseen, presence = "", staffViewers = [], accountLabel = "", onSelect, onOpenCustomer360, onToggleFavorite, onToggleRead, onDelete, onEditPrivacy }) {
+const InboxConversationCard = memo(function InboxConversationCard({ item, active, unseen, presence = "", staffViewers = [], accountLabel = "", onSelect, onOpenCustomer360, onToggleFavorite, onToggleRead, onDelete, onEditPrivacy, rowActions = null }) {
   const { t } = useTranslation();
+  const [rowMenuOpen, setRowMenuOpen] = useState(false);
   const channel = item.channel || item.source || "web_chat";
   const liveMeta = item.is_live_meta === true || isMetaChannel(channel);
   const isSocialComment = isSocialCommentThread(item);
@@ -2286,7 +2256,7 @@ const InboxConversationCard = memo(function InboxConversationCard({ item, active
           onSelect(item);
         }
       }}
-      className={`ai-inbox-conversation-card w-full rounded-2xl border px-3 py-2.5 text-left transition duration-200 ${containerTone}`}
+      className={`ai-inbox-conversation-card w-full rounded-2xl border px-3 py-2.5 text-left transition duration-200 group ${containerTone}`}
     >
       <div className="flex items-start gap-3">
         <div className="relative shrink-0">
@@ -2374,61 +2344,26 @@ const InboxConversationCard = memo(function InboxConversationCard({ item, active
               )}
             </div>
             <div className="shrink-0 flex items-center gap-2">
-              {onToggleRead ? (
-                <button
-                  type="button"
-                  onClick={(event) => {
-                    event.stopPropagation();
-                    onToggleRead(item);
-                  }}
-                  className={`inline-flex h-5 items-center justify-center rounded-md px-1 transition hover:bg-white/10 ${unreadCount ? "text-emerald-400 hover:text-emerald-300" : "text-slate-500 hover:text-cyan-300"}`}
-                  aria-label={unreadCount ? t("aiSupport.inbox.ui.markRead") : t("aiSupport.inbox.ui.markUnread")}
-                  title={unreadCount ? t("aiSupport.inbox.ui.markRead") : t("aiSupport.inbox.ui.markUnread")}
-                >
-                  {unreadCount ? <CheckCheck className="h-3.5 w-3.5" /> : <Mail className="h-3.5 w-3.5" />}
-                </button>
-              ) : null}
-              <button
-                type="button"
-                onClick={(event) => {
-                  event.stopPropagation();
-                  onToggleFavorite?.(item);
-                }}
-                className="inline-flex h-5 items-center justify-center rounded-md px-1 text-slate-500 transition hover:text-amber-300 hover:bg-white/10"
-                aria-label={isFavorite ? "إزالة من المفضلة" : "إضافة للمفضلة"}
-              >
-                <Star className={`h-3.5 w-3.5 ${isFavorite ? "fill-current text-amber-300" : "text-slate-500"}`} />
-              </button>
-              {onEditPrivacy ? (
-                <button
-                  type="button"
-                  onClick={(event) => {
-                    event.stopPropagation();
-                    onEditPrivacy(item);
-                  }}
-                  className={`inline-flex h-5 items-center justify-center rounded-md px-1 transition hover:bg-white/10 hover:text-amber-300 ${isPrivateConversation(item) ? "text-amber-300" : "text-slate-500"}`}
-                  aria-label={t("aiSupport.inbox.ui.privacyEdit")}
-                  title={isPrivateConversation(item) ? t("aiSupport.inbox.ui.privacyBadge") : t("aiSupport.inbox.ui.privacyEdit")}
-                >
-                  {isPrivateConversation(item) ? <Lock className="h-3.5 w-3.5" /> : <LockOpen className="h-3.5 w-3.5" />}
-                </button>
-              ) : null}
-              {onDelete ? (
-                <button
-                  type="button"
-                  onClick={(event) => {
-                    event.stopPropagation();
-                    onDelete(item);
-                  }}
-                  className="inline-flex h-5 items-center justify-center rounded-md px-1 text-slate-500 transition hover:bg-white/10 hover:text-rose-300"
-                  aria-label={t("aiSupport.inbox.ui.deleteConversation")}
-                  title={t("aiSupport.inbox.ui.deleteConversation")}
-                >
-                  <Trash2 className="h-3.5 w-3.5" />
-                </button>
-              ) : null}
               <StaffViewersChip viewers={staffViewers} />
-              <span className="text-[11px] font-bold text-slate-500">{relativeTime(item.last_message_at || item.last_activity_at || item.updated_at)}</span>
+              {/* Genie: the time, and on hover the row's ⋮ in its place (ConversationActionsMenu). */}
+              <span className="relative inline-flex min-w-[3.25rem] items-center justify-end">
+                <span className={`text-[11px] font-bold text-slate-500 transition-opacity group-hover:opacity-0 group-focus-within:opacity-0 ${rowMenuOpen ? "opacity-0" : ""}`}>{relativeTime(item.last_message_at || item.last_activity_at || item.updated_at)}</span>
+                <span className={`absolute inset-y-0 end-0 flex items-center transition-opacity ${rowMenuOpen ? "opacity-100" : "opacity-0 group-hover:opacity-100 group-focus-within:opacity-100"}`}>
+                  <ConversationActionsMenu
+                    item={item}
+                    variant="row"
+                    privateConversation={isPrivateConversation(item)}
+                    onToggleDone={rowActions?.onToggleDone}
+                    onToggleArchive={rowActions?.onToggleArchive}
+                    onSendTemplate={rowActions?.onSendTemplate}
+                    onToggleRead={onToggleRead}
+                    onToggleFavorite={onToggleFavorite}
+                    onEditPrivacy={onEditPrivacy}
+                    onDelete={onDelete}
+                    onOpenChange={setRowMenuOpen}
+                  />
+                </span>
+              </span>
             </div>
           </div>
               {inboxKind === "comment" ? (
@@ -2486,6 +2421,8 @@ function InboxChatHeader({
   // Assign / remind / sequence for THIS conversation, in a drawer the page owns.
   onOpenTeamTools,
   teamToolsOpen = false,
+  // Genie's conversation ⋮ (ConversationActionsMenu, header variant).
+  headerActions = null,
 }) {
   const { t } = useTranslation();
   const [labelsOpen, setLabelsOpen] = useState(false);
@@ -2649,6 +2586,15 @@ function InboxChatHeader({
             <Bot className="h-3.5 w-3.5" />
             {status === "human_takeover" ? t("aiSupport.inbox.header.returnToAi") : t(conversationAiEnabled ? "aiSupport.inbox.header.aiOn" : "aiSupport.inbox.header.aiOff")}
           </button>
+          {headerActions ? (
+            <ConversationActionsMenu
+              item={conversation}
+              variant="header"
+              privateConversation={isPrivateConversation(conversation)}
+              {...headerActions}
+              buttonClassName="grid h-8 w-8 place-items-center rounded-2xl border border-white/10 bg-white/[0.06] text-slate-100 transition hover:border-white/20"
+            />
+          ) : null}
         </div>
       </div>
     </div>
@@ -4640,7 +4586,12 @@ export default function AiInbox({ reviewerMode = false }) {
   const [listView, setListView] = useState("all");
   const [viewCounts, setViewCounts] = useState(null);
   const [viewCountsTick, setViewCountsTick] = useState(0);
+  const viewCountsAskedAtRef = useRef(0);
   const [listMenuOpen, setListMenuOpen] = useState(false);
+  // Genie's Open Mini Chat: up to three floating conversations ({ key, item, minimized }).
+  const [miniChats, setMiniChats] = useState([]);
+  // Send Template: the conversation the template window is open for.
+  const [templateTarget, setTemplateTarget] = useState(null);
   const listMenuRef = useRef(null);
   const [assignedFilter, setAssignedFilter] = useState("all"); // all | me
   const [teamToolsOpen, setTeamToolsOpen] = useState(false);
@@ -5035,7 +4986,11 @@ export default function AiInbox({ reviewerMode = false }) {
       const settled = await Promise.allSettled(requestedChannels.map(fetchChannelPage));
       if (seq !== requestSeqRef.current) return;
       lastListLoadAtRef.current = Date.now();
-      setViewCountsTick((tick) => tick + 1);
+      // A refresh re-asks the chip counts at most every 20s (the server caches 15s).
+      if (Date.now() - viewCountsAskedAtRef.current > 20000) {
+        viewCountsAskedAtRef.current = Date.now();
+        setViewCountsTick((tick) => tick + 1);
+      }
 
       // Failure isolation: a channel that fails falls back to its own cached page
       // so one bad endpoint cannot blank the inbox or silently delete a channel.
@@ -6566,6 +6521,80 @@ export default function AiInbox({ reviewerMode = false }) {
   // Delete from the inbox. The server keeps the rows (the syncs would rebuild them)
   // and hides the thread until the customer writes again; the cached window is
   // dropped too, or it would be merged back into that next thread.
+  // The conversation menu's actions (ConversationActionsMenu). Each works on the
+  // row it was opened from, not only on the open thread.
+  const refreshAfterConversationAction = useCallback(() => {
+    viewCountsAskedAtRef.current = 0;
+    void loadAll({ silent: true });
+  }, [loadAll]);
+  const toggleConversationDone = useCallback(async (item) => {
+    const sessionId = clean(item?.session_id || item?.conversation_id || "");
+    if (!sessionId) return;
+    const closed = clean(item?.status || item?.conversation_status).toLowerCase() === "closed";
+    const channel = clean(item?.channel || item?.source || "");
+    try {
+      if (closed) await api.post(aiAgentInboxEndpoint(sessionId, "/reopen"), { tenant_id: tenantId, channel }, { headers, perfComponent: "AiInbox.reopen" });
+      else await api.patch(aiAgentInboxEndpoint(sessionId, "/close"), { tenant_id: tenantId, channel }, { headers, perfComponent: "AiInbox.close" });
+      const nextStatus = closed ? "ai_active" : "closed";
+      patchConversation(item.conversation_key || sessionId, (conversation) => ({ ...conversation, status: nextStatus, conversation_status: nextStatus }));
+      setToast({ tone: "emerald", text: t(closed ? "aiSupport.inbox.actionsMenu.reopened" : "aiSupport.inbox.actionsMenu.markedDone") });
+      refreshAfterConversationAction();
+    } catch (err) {
+      setToast({ tone: "rose", text: err?.message || t("aiSupport.inbox.actionsMenu.failed") });
+    }
+  }, [headers, patchConversation, refreshAfterConversationAction, t, tenantId]);
+  const toggleConversationArchived = useCallback(async (item) => {
+    const sessionId = clean(item?.session_id || item?.conversation_id || "");
+    if (!sessionId) return;
+    const archived = Boolean(item?.archived_at);
+    try {
+      await api.post(aiInboxConversationEndpoint(sessionId, archived ? "/unarchive" : "/archive"), { tenant_id: tenantId, channel: clean(item?.channel || item?.source || "") }, { headers, perfComponent: "AiInbox.archive" });
+      patchConversation(item.conversation_key || sessionId, (conversation) => ({ ...conversation, archived_at: archived ? null : new Date().toISOString() }));
+      setToast({ tone: "emerald", text: t(archived ? "aiSupport.inbox.actionsMenu.unarchived" : "aiSupport.inbox.actionsMenu.archived") });
+      refreshAfterConversationAction();
+    } catch (err) {
+      setToast({ tone: "rose", text: err?.message || t("aiSupport.inbox.actionsMenu.failed") });
+    }
+  }, [headers, patchConversation, refreshAfterConversationAction, t, tenantId]);
+  const exportConversation = useCallback(async (item) => {
+    const sessionId = clean(item?.session_id || item?.conversation_id || "");
+    if (!sessionId) return;
+    try {
+      const payload = await api.get(aiInboxConversationEndpoint(sessionId, "/export"), { headers, timeoutMs: 30000, perfComponent: "AiInbox.export" });
+      const blob = new Blob([`\uFEFF${payload?.content || ""}`], { type: "text/plain;charset=utf-8" });
+      const url = URL.createObjectURL(blob);
+      const link = document.createElement("a");
+      link.href = url;
+      link.download = payload?.file_name || "chat.txt";
+      document.body.appendChild(link);
+      link.click();
+      link.remove();
+      window.setTimeout(() => URL.revokeObjectURL(url), 2000);
+    } catch (err) {
+      setToast({ tone: "rose", text: err?.message || t("aiSupport.inbox.actionsMenu.failed") });
+    }
+  }, [headers, t]);
+  const openMiniChat = useCallback((item) => {
+    const key = clean(item?.conversation_key || item?.session_id);
+    if (!key) return;
+    setMiniChats((current) => {
+      const rest = current.filter((chat) => chat.key !== key);
+      return [...rest, { key, item, minimized: false }].slice(-3);
+    });
+  }, []);
+  const openTemplateFor = useCallback((item) => {
+    if (!clean(item?.session_id).startsWith("whatsapp:")) {
+      setToast({ tone: "amber", text: t("aiSupport.inbox.templateSend.whatsappOnly") });
+      return;
+    }
+    setTemplateTarget(item);
+  }, [t]);
+  const rowActions = useMemo(() => (canReply ? {
+    onToggleDone: toggleConversationDone,
+    onToggleArchive: toggleConversationArchived,
+    onSendTemplate: openTemplateFor,
+  } : null), [canReply, openTemplateFor, toggleConversationArchived, toggleConversationDone]);
+
   const deleteConversation = useCallback(async (item) => {
     const sessionId = clean(item?.session_id || item?.conversation_id || "");
     const itemKey = clean(item?.conversation_key || sessionId);
@@ -10162,6 +10191,7 @@ export default function AiInbox({ reviewerMode = false }) {
 	                            onToggleRead={toggleConversationRead}
 	                            onDelete={canReply ? deleteConversation : undefined}
 	                            onEditPrivacy={canManagePrivacy ? openConversationPrivacy : undefined}
+	                            rowActions={rowActions}
 	                          />
 	                        );
 	                      })}
@@ -10315,6 +10345,15 @@ export default function AiInbox({ reviewerMode = false }) {
                     onLabelsChange={updateConversationLabels}
                     onBack={() => setMobileView("list")}
                     onToggleAi={toggleAiEnabled}
+                    headerActions={reviewerMode ? null : {
+                      onOpenMiniChat: openMiniChat,
+                      onToggleDone: canReply ? toggleConversationDone : undefined,
+                      onToggleArchive: canReply ? toggleConversationArchived : undefined,
+                      onSendTemplate: canReply ? openTemplateFor : undefined,
+                      onToggleRead: canReply ? toggleConversationRead : undefined,
+                      onExport: exportConversation,
+                      onDelete: canReply ? deleteConversation : undefined,
+                    }}
                     isFullscreenConversation={conversationExpanded}
                     onToggleFullscreen={handleToggleConversationExpansion}
                     showBack
@@ -10551,6 +10590,28 @@ export default function AiInbox({ reviewerMode = false }) {
           </aside>
         </div>
       ) : null}
+      <MiniChatDock
+        chats={miniChats}
+        headers={headers}
+        tenantId={tenantId}
+        onClose={(key) => setMiniChats((current) => current.filter((chat) => chat.key !== key))}
+        onToggleMinimize={(key) => setMiniChats((current) => current.map((chat) => (chat.key === key ? { ...chat, minimized: !chat.minimized } : chat)))}
+        onOpenFull={(item) => {
+          setMiniChats((current) => current.filter((chat) => chat.key !== clean(item?.conversation_key || item?.session_id)));
+          handleSelectConversation(item);
+        }}
+      />
+      <TemplateSendModal
+        open={Boolean(templateTarget)}
+        conversation={templateTarget}
+        customerName={templateTarget ? getConversationDisplayName(templateTarget) : ""}
+        headers={headers}
+        onClose={() => setTemplateTarget(null)}
+        onSent={() => {
+          setToast({ tone: "emerald", text: t("aiSupport.inbox.templateSend.sent") });
+          refreshAfterConversationAction();
+        }}
+      />
       <Customer360Drawer
         open={customerDrawer.open}
         onClose={() => setCustomerDrawer((current) => ({ ...current, open: false }))}
@@ -10792,6 +10853,15 @@ export default function AiInbox({ reviewerMode = false }) {
                     labelsSaving={leadActionLoading === "labels"}
                     onLabelsChange={updateConversationLabels}
                     onToggleAi={toggleAiEnabled}
+                    headerActions={reviewerMode ? null : {
+                      onOpenMiniChat: openMiniChat,
+                      onToggleDone: canReply ? toggleConversationDone : undefined,
+                      onToggleArchive: canReply ? toggleConversationArchived : undefined,
+                      onSendTemplate: canReply ? openTemplateFor : undefined,
+                      onToggleRead: canReply ? toggleConversationRead : undefined,
+                      onExport: exportConversation,
+                      onDelete: canReply ? deleteConversation : undefined,
+                    }}
                     onOpenTools={() => setProfileOpen(true)}
                     isFullscreenConversation={conversationExpanded}
                     onToggleFullscreen={handleToggleConversationExpansion}
@@ -11148,6 +11218,7 @@ export default function AiInbox({ reviewerMode = false }) {
 	                              onToggleRead={toggleConversationRead}
 	                              onDelete={canReply ? deleteConversation : undefined}
 	                              onEditPrivacy={canManagePrivacy ? openConversationPrivacy : undefined}
+	                              rowActions={rowActions}
 	                            />
                         );
                       })}

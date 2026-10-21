@@ -2109,6 +2109,48 @@
       "title": "More",
       "refresh": "Refresh",
       "syncMeta": "Sync Meta conversations"
+    },
+    "actionsMenu": {
+      "title": "More actions",
+      "openMiniChat": "Open Mini Chat",
+      "markDone": "Mark as Done",
+      "reopen": "Reopen",
+      "archive": "Archive",
+      "unarchive": "Unarchive",
+      "sendTemplate": "Send Template",
+      "exportChat": "Export Chat",
+      "deleteChat": "Delete Chat",
+      "favorite": "Add to favourites",
+      "unfavorite": "Remove from favourites",
+      "markedDone": "Marked as done",
+      "reopened": "Conversation reopened",
+      "archived": "Chat archived",
+      "unarchived": "Chat back in the inbox",
+      "failed": "That did not work — try again"
+    },
+    "templateSend": {
+      "title": "Send Template",
+      "search": "Search templates...",
+      "loading": "Loading templates...",
+      "empty": "No approved templates on the official number",
+      "back": "← All templates",
+      "send": "Send",
+      "close": "Close",
+      "sent": "Template sent",
+      "loadFailed": "Could not load the templates",
+      "sendFailed": "The template was not sent",
+      "whatsappOnly": "Templates go to WhatsApp conversations only"
+    },
+    "miniChat": {
+      "openFull": "Open in the inbox",
+      "minimize": "Minimize",
+      "close": "Close",
+      "send": "Send",
+      "empty": "No messages yet",
+      "sendFailed": "Not sent — try again",
+      "aiFailed": "Could not switch the AI",
+      "aiOn": "AI is answering",
+      "aiOff": "AI is off"
     }
   },
   "integrations": {

@@ -190,6 +190,7 @@ import {
   markAiSupportConversationRead,
   markAiSupportConversationUnread,
   deleteAiSupportConversation,
+  setAiSupportConversationArchived,
   markAiSupportMessageDeleted,
   recordAiSupportMessageEdit,
   markAllAiSupportConversationsRead,
@@ -3212,10 +3213,18 @@ router.post("/push/test", protect, inboxView(), async (req, res) => {
 
 // One count per list view (all / awaiting / unread / unsent / done / archived) under
 // the same filters the list is using: the numbers on Genie's chips.
+// The counts cover every conversation (~0.4s on production), and the list asks
+// again after its refreshes. A short cache per (tenant, filters, what this viewer
+// may see) keeps that to one query per quarter minute; a changed filter is a new key.
+const VIEW_COUNTS_TTL_MS = 15 * 1000;
+const viewCountsCache = new Map();
 router.get("/view-counts", protect, inboxView(), async (req, res) => {
   try {
     const tenantId = toTenantId(req);
     const { hiddenKeys } = await inboxPrivacyContext(req, tenantId);
+    const cacheKey = JSON.stringify([tenantId, req.query || {}, Number(req.user?.id) || 0, hiddenKeys || null]);
+    const cached = viewCountsCache.get(cacheKey);
+    if (cached && Date.now() - cached.at < VIEW_COUNTS_TTL_MS) return res.json({ success: true, counts: cached.counts, cached: true });
     const result = await loadAiInbox({
       tenantId,
       countsOnly: true,
@@ -3233,7 +3242,10 @@ router.get("/view-counts", protect, inboxView(), async (req, res) => {
       activityTo: String(req.query?.activity_to || ""),
       hiddenKeys,
     });
-    return res.json({ success: true, counts: result.view_counts || {} });
+    const counts = result.view_counts || {};
+    if (viewCountsCache.size > 500) viewCountsCache.clear();
+    viewCountsCache.set(cacheKey, { at: Date.now(), counts });
+    return res.json({ success: true, counts });
   } catch (error) {
     return sendError(res, error, "Failed to count inbox views");
   }
@@ -4619,6 +4631,168 @@ const handleMarkAllConversationsRead = async (req, res) => {
     });
   }
 };
+
+// Genie's Archive / Unarchive: out of the list with the history intact, back on a
+// newer message (inboxViewClauseSql "archived").
+const archiveRoute = (archived) => async (req, res) => {
+  try {
+    const tenantId = toTenantId(req);
+    const conversationId = decodeRouteId(envText(req.params.conversationId));
+    const result = await setAiSupportConversationArchived({
+      tenantId,
+      sessionId: conversationId,
+      channel: req.body?.channel || req.query?.channel || "",
+      archived,
+    });
+    emitToRooms([`tenant:${tenantId}`], "ai_inbox:refresh", {
+      tenant_id: tenantId,
+      session_id: result.session_id,
+      reason: archived ? "conversation_archived" : "conversation_unarchived",
+      at: new Date().toISOString(),
+    });
+    return res.json({ success: true, ...result });
+  } catch (error) {
+    return sendError(res, error, archived ? "Failed to archive conversation" : "Failed to unarchive conversation");
+  }
+};
+router.post("/conversations/:conversationId/archive", protect, inboxReply(), archiveRoute(true));
+router.post("/conversations/:conversationId/unarchive", protect, inboxReply(), archiveRoute(false));
+
+// Send Template (Genie's menu item): an approved WhatsApp template to this
+// customer through the official number, the only way to open a chat outside the
+// 24-hour window. The send goes through the public API's sender; the message is
+// then written into the thread the way a campaign template is (template bubble).
+const templateCloudNumberOf = (conversation = {}) => {
+  const instance = envText(conversation.channel_metadata?.whatsapp_instance || conversation.whatsapp_instance);
+  return instance.startsWith("cloud:") ? instance.slice("cloud:".length) : "";
+};
+router.get("/conversations/:conversationId/templates", protect, inboxView(), async (req, res) => {
+  try {
+    const tenantId = toTenantId(req);
+    const conversationId = decodeRouteId(envText(req.params.conversationId));
+    const { hiddenKeys } = await inboxPrivacyContext(req, tenantId);
+    const lookup = await loadAiInbox({ tenantId, summaryOnly: true, limit: 1, sessionKeys: [conversationId], hiddenKeys });
+    const conversation = (lookup.conversations || [])[0];
+    if (!conversation) return sendError(res, Object.assign(new Error("Conversation not found"), { status: 404 }), "Conversation not found");
+    const { listApiTemplates } = await import("../services/whatsappApiAccessService.js");
+    const templates = await listApiTemplates({ tenantId, phoneNumberId: templateCloudNumberOf(conversation), status: "approved" });
+    return res.json({ success: true, templates });
+  } catch (error) {
+    return sendError(res, error, "Failed to load templates");
+  }
+});
+router.post("/conversations/:conversationId/send-template", protect, inboxReply(), async (req, res) => {
+  try {
+    const tenantId = toTenantId(req);
+    const conversationId = decodeRouteId(envText(req.params.conversationId));
+    const { hiddenKeys } = await inboxPrivacyContext(req, tenantId);
+    const lookup = await loadAiInbox({ tenantId, summaryOnly: true, limit: 1, sessionKeys: [conversationId], hiddenKeys });
+    const conversation = (lookup.conversations || [])[0];
+    if (!conversation) return sendError(res, Object.assign(new Error("Conversation not found"), { status: 404 }), "Conversation not found");
+    const sessionId = envText(conversation.session_id || conversationId);
+    if (!sessionId.startsWith("whatsapp:")) {
+      return sendError(res, Object.assign(new Error("Templates go to WhatsApp conversations only"), { status: 400, code: "TEMPLATE_WHATSAPP_ONLY" }), "Templates go to WhatsApp conversations only");
+    }
+    const phone = sessionId.slice("whatsapp:".length).replace(/\D/g, "");
+    const variables = Array.isArray(req.body?.variables) ? req.body.variables.map((value) => envText(value)) : [];
+    const { resolveApiTemplate, sendApiTemplate } = await import("../services/whatsappApiAccessService.js");
+    const phoneNumberId = templateCloudNumberOf(conversation);
+    const resolved = await resolveApiTemplate({ tenantId, phoneNumberId, templateId: envText(req.body?.template_id), templateName: envText(req.body?.template_name), language: envText(req.body?.language) });
+    const sent = await sendApiTemplate({
+      tenantId,
+      phoneNumberId,
+      to: phone,
+      templateId: envText(req.body?.template_id),
+      templateName: resolved.name,
+      language: resolved.language,
+      variables,
+    });
+    const { templateTranscript } = await import("../utils/whatsappCtaTranscript.js");
+    const transcript = templateTranscript({ template: resolved.row || {}, bodyValues: variables, headerValue: envText(resolved.row?.header_example) });
+    const message = await appendManualAiSupportReply({
+      tenantId,
+      sessionId,
+      clientRequestId: requestClientRequestId(req),
+      message: transcript.message || `[${resolved.name}]`,
+      messageType: "template",
+      staffUserId: req.user?.id || null,
+      staffUserName: userDisplayName(req.user),
+      source: "ai_inbox_template",
+      channel: "whatsapp",
+      deliveryStatus: "sent",
+      externalMessageId: envText(sent?.message_id),
+      providerMessageId: envText(sent?.message_id),
+      whatsappInstance: sent?.phone_number_id ? `cloud:${sent.phone_number_id}` : "",
+      remoteJid: sessionId,
+      resolvedReplyJid: sessionId,
+      resolvedPhone: phone,
+      preserveExactMessage: true,
+    }).catch((error) => {
+      // Sent but not recorded: say so rather than pretend it failed.
+      console.warn("[ai-inbox][send-template] transcript not written", { message: error?.message });
+      return null;
+    });
+    emitToRooms([`tenant:${tenantId}`], "ai_inbox:refresh", { tenant_id: tenantId, session_id: sessionId, reason: "template_sent", at: new Date().toISOString() });
+    return res.status(201).json({ success: true, message_id: sent?.message_id || "", message });
+  } catch (error) {
+    return sendError(res, error, "Failed to send the template");
+  }
+});
+
+// Export Chat: the whole exchange as a text file. Internal notes and messages
+// removed from the inbox stay out. The privacy rule decides like any read: a
+// thread this viewer may not open is not exported either.
+const exportTimeFormat = new Intl.DateTimeFormat("en-GB", {
+  timeZone: "Africa/Cairo", year: "numeric", month: "2-digit", day: "2-digit", hour: "2-digit", minute: "2-digit", hour12: false,
+});
+router.get("/conversations/:conversationId/export", protect, inboxView(), async (req, res) => {
+  try {
+    const tenantId = toTenantId(req);
+    const conversationId = decodeRouteId(envText(req.params.conversationId));
+    const { hiddenKeys } = await inboxPrivacyContext(req, tenantId);
+    const lookup = await loadAiInbox({ tenantId, summaryOnly: true, limit: 1, sessionKeys: [conversationId], hiddenKeys });
+    const conversation = (lookup.conversations || [])[0];
+    if (!conversation) {
+      return sendError(res, Object.assign(new Error("Conversation not found"), { status: 404 }), "Conversation not found");
+    }
+    const sessionId = envText(conversation.session_id || conversationId);
+    const rows = (await db.query(
+      `SELECT created_at, sender_type, customer_message, ai_answer, staff_message, message_text, staff_user_name,
+              message_type, visual_attachments, product_cards
+         FROM ai_support_messages
+        WHERE tenant_id = $1 AND session_id = $2
+          AND COALESCE(message_type, '') NOT IN ('internal_note', 'reaction')
+          AND COALESCE(sender_type, '') <> 'note'
+          AND deleted_at IS NULL
+          -- A deleted conversation's transcript starts after the delete, here too.
+          AND created_at > COALESCE((SELECT deleted_at FROM ai_support_sessions WHERE tenant_id = $1 AND session_id = $2), TIMESTAMP 'epoch')
+        ORDER BY created_at ASC, id ASC
+        LIMIT 20000`,
+      [tenantId, sessionId]
+    )).rows;
+    const name = envText(conversation.customer_name || conversation.customer_profile?.name || sessionId);
+    const lines = [
+      `${name} — ${envText(conversation.channel)} — ${sessionId}`,
+      `Exported ${exportTimeFormat.format(new Date())} (Cairo) — ${rows.length} messages`,
+      "",
+    ];
+    for (const row of rows) {
+      const sender = String(row.sender_type || "").toLowerCase();
+      const who = sender === "customer" ? name : sender === "staff" ? `Staff${row.staff_user_name ? ` (${envText(row.staff_user_name)})` : ""}` : "AI";
+      const body = envText(sender === "customer" ? row.customer_message || row.message_text : row.staff_message || row.ai_answer || row.message_text);
+      const extras = [];
+      if (Array.isArray(row.visual_attachments) && row.visual_attachments.length) extras.push(`[${row.visual_attachments.length} attachment(s)]`);
+      if (Array.isArray(row.product_cards) && row.product_cards.length) extras.push(`[${row.product_cards.length} product card(s)]`);
+      lines.push(`[${exportTimeFormat.format(new Date(row.created_at))}] ${who}: ${[body, ...extras].filter(Boolean).join(" ")}`);
+    }
+    // JSON, not a file response: the app's API client reads JSON; the page turns
+    // `content` into the .txt download.
+    const fileName = `chat-${sessionId.replace(/[^a-zA-Z0-9_-]+/g, "-").slice(0, 60)}.txt`;
+    return res.json({ success: true, file_name: fileName, messages: rows.length, content: `${lines.join("\r\n")}\r\n` });
+  } catch (error) {
+    return sendError(res, error, "Failed to export conversation");
+  }
+});
 
 router.delete("/conversations/:conversationId", protect, inboxReply(), async (req, res) => {
   try {

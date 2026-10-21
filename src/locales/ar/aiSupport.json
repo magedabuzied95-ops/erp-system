@@ -2121,6 +2121,48 @@
       "title": "المزيد",
       "refresh": "تحديث",
       "syncMeta": "مزامنة محادثات ميتا"
+    },
+    "actionsMenu": {
+      "title": "أوامر أكتر",
+      "openMiniChat": "افتح شات مصغّر",
+      "markDone": "علّم إنها خلصت",
+      "reopen": "افتحها تاني",
+      "archive": "أرشفة",
+      "unarchive": "رجّعها من الأرشيف",
+      "sendTemplate": "ابعت قالب",
+      "exportChat": "تصدير المحادثة",
+      "deleteChat": "امسح المحادثة",
+      "favorite": "ضيف للمفضلة",
+      "unfavorite": "شيل من المفضلة",
+      "markedDone": "اتعلّمت إنها خلصت",
+      "reopened": "المحادثة اتفتحت تاني",
+      "archived": "المحادثة اتأرشفت",
+      "unarchived": "المحادثة رجعت للقايمة",
+      "failed": "محصلش — جرّب تاني"
+    },
+    "templateSend": {
+      "title": "ابعت قالب",
+      "search": "ابحث في القوالب...",
+      "loading": "جاري تحميل القوالب...",
+      "empty": "مفيش قوالب معتمدة على الرقم الرسمي",
+      "back": "→ كل القوالب",
+      "send": "ابعت",
+      "close": "اقفل",
+      "sent": "القالب اتبعت",
+      "loadFailed": "معرفناش نجيب القوالب",
+      "sendFailed": "القالب متبعتش",
+      "whatsappOnly": "القوالب لمحادثات واتساب بس"
+    },
+    "miniChat": {
+      "openFull": "افتحها في الصندوق",
+      "minimize": "صغّر",
+      "close": "اقفل",
+      "send": "ابعت",
+      "empty": "مفيش رسايل لسه",
+      "sendFailed": "متبعتتش — جرّب تاني",
+      "aiFailed": "معرفناش نغيّر الـ AI",
+      "aiOn": "الـ AI بيرد",
+      "aiOff": "الـ AI مقفول"
     }
   },
   "integrations": {

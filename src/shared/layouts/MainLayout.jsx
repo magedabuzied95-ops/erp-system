@@ -17,6 +17,8 @@ import { useRealtimeConnection } from "../realtime/socketStore";
 import { publicStorefrontUrl } from "../lib/publicStorefront";
 import { resolveErpRoutePageTitle } from "../navigation/routePageTitles";
 import { useTheme } from "../../theme/useTheme";
+import CommandPalette, { CommandPaletteTrigger, publishCommandPaletteState } from "../components/CommandPalette";
+import { matchSidebarPath, recordPageVisit } from "../navigation/recentPages";
 import "./MainLayout.m1.css";
 import "./AiMarketing.m1.css";
 
@@ -549,6 +551,20 @@ function MainLayout() {
     }));
   }, [user, t]);
   const groupedSections = useMemo(() => buildEnterpriseSidebarGroups(sections), [sections]);
+  // Quick search (Ctrl K) + the last two pages: every page this user's sidebar shows.
+  const paletteItems = useMemo(() => {
+    const seen = new Set();
+    return sections.flatMap((section) => section.items.map((item) => ({ to: item.to, label: item.label, section: section.title, icon: item.icon })))
+      .filter((item) => item.to && !seen.has(item.to) && seen.add(item.to));
+  }, [sections]);
+  const paletteUserId = String(user?.id || user?.email || "");
+  const currentSidebarPath = useMemo(() => matchSidebarPath(location.pathname, paletteItems.map((item) => item.to)), [location.pathname, paletteItems]);
+  useEffect(() => {
+    if (currentSidebarPath) recordPageVisit(paletteUserId, currentSidebarPath);
+  }, [currentSidebarPath, paletteUserId]);
+  useEffect(() => {
+    publishCommandPaletteState({ items: paletteItems, userId: paletteUserId, currentPath: currentSidebarPath });
+  }, [currentSidebarPath, paletteItems, paletteUserId]);
   const resolvedDir = typeof i18n.dir === "function" ? i18n.dir(i18n.language) : "";
   const documentDir = typeof document !== "undefined" ? document.documentElement.dir : "";
   const dir = (resolvedDir || documentDir) === "rtl" ? "rtl" : "ltr";
@@ -948,6 +964,7 @@ function MainLayout() {
               </div>
 
               <div className="m1-topbar-tools flex min-w-0 max-w-[calc(100vw-5rem)] items-center justify-end gap-2 overflow-x-auto pointer-events-auto sm:gap-2.5 lg:max-w-none lg:gap-3 lg:overflow-visible">
+                <CommandPaletteTrigger items={paletteItems} userId={paletteUserId} currentPath={currentSidebarPath} className="hidden md:flex" />
                 <a
                   href={publicStorefrontUrl("/")}
                   target="_blank"
@@ -1058,6 +1075,7 @@ function MainLayout() {
           </div>
         </div>
       </main>
+      <CommandPalette items={paletteItems} userId={paletteUserId} currentPath={currentSidebarPath} />
     </div>
     </NotificationsProvider>
     </NotificationSoundProvider>
