@@ -181,8 +181,12 @@ export const resolveGoogleFeedPricing = (row = {}, { saleModeSettings = {} } = {
   });
   const activePrice = effective.has_price ? positive(effective.active_price) || normalSellingPrice : normalSellingPrice;
 
-  const customCompare = enabled(row.use_custom_compare_price) ? positive(row.custom_compare_price) : 0;
-  const crossedPrice = Math.max(customCompare, activePrice < normalSellingPrice ? normalSellingPrice : 0);
+  // Only a real markdown is crossed out for Google: the product's own selling price over an offer or
+  // Sale Mode price. The hand-typed compare price is NOT sent — it sat on 97% of the catalogue
+  // (7,402 of 7,593 items "on sale"), Google requires the crossed price to be one the item really
+  // sold at, and the account was disapproved for misrepresentation (owner's call, 2026-10-21).
+  // The storefront still shows it; the Meta and TikTok feeds are unchanged.
+  const crossedPrice = activePrice < normalSellingPrice ? normalSellingPrice : 0;
   return crossedPrice > activePrice
     ? { price: crossedPrice, sale_price: activePrice, active_price: activePrice }
     : { price: activePrice, sale_price: 0, active_price: activePrice };

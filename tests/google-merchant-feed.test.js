@@ -56,7 +56,7 @@ test("shoe color × size variants have unique ids and one item_group_id", () => 
   assert.deepEqual(items.map((item) => [item.color, item.size]), [["Black", "42"], ["Black", "43"], ["White", "42"]]);
 });
 
-test("Google price uses crossed price and purchase-invoice selling price while ignoring the real sale price", () => {
+test("Google price never sends the hand-typed compare price, only the purchase-invoice selling price", () => {
   const discounted = variant({
     use_custom_compare_price: true,
     custom_compare_price: 800,
@@ -67,13 +67,13 @@ test("Google price uses crossed price and purchase-invoice selling price while i
     variant_sale_price_enabled: true,
   });
   assert.deepEqual(resolveGoogleFeedPricing(discounted), {
-    price: 800,
-    sale_price: 650,
+    price: 650,
+    sale_price: 0,
     active_price: 650,
   });
   const discountedItem = buildGoogleMerchantItem(discounted);
-  assert.equal(discountedItem.price, "800.00 EGP");
-  assert.equal(discountedItem.sale_price, "650.00 EGP");
+  assert.equal(discountedItem.price, "650.00 EGP");
+  assert.equal(discountedItem.sale_price, "");
   assert.doesNotMatch(googleMerchantItemXml(discountedItem), /500\.00 EGP/);
 
   const missingCrossedPrice = buildGoogleMerchantItem(variant({
@@ -105,8 +105,8 @@ test("Google feed pricing falls back safely when purchase-invoice selling price 
     product_sale_price: 500,
     variant_sale_price: 500,
   }));
-  assert.equal(regularItem.price, "900.00 EGP");
-  assert.equal(regularItem.sale_price, "700.00 EGP");
+  assert.equal(regularItem.price, "700.00 EGP");
+  assert.equal(regularItem.sale_price, "");
 });
 
 test("availability is variant-specific for available and unavailable sizes", () => {
@@ -257,4 +257,17 @@ test("footwear sizes carry the EU size system", () => {
   const item = buildGoogleMerchantItem(variant());
   assert.equal(item.size_system, "EU");
   assert.match(googleMerchantItemXml(item), /<g:size_system>EU<\/g:size_system>/);
+});
+
+test("a real offer is still crossed out for Google, at the shop's own selling price", () => {
+  const offer = buildGoogleMerchantItem(variant({
+    use_custom_compare_price: true,
+    custom_compare_price: 1250,
+    variant_purchase_selling_price: 800,
+    product_sale_price: 700,
+    variant_sale_price: 700,
+    product_is_offer_story: true,
+  }));
+  assert.equal(offer.price, "800.00 EGP");
+  assert.equal(offer.sale_price, "700.00 EGP");
 });
