@@ -20,7 +20,9 @@ test("the gear opens the control center instead of a five-item popover", () => {
   // The popover and its viewport-flip placement effect are gone, not merely unused.
   assert.doesNotMatch(desktop, /configMenuAnchor/);
   assert.doesNotMatch(desktop, /configMenuPlacement/);
-  assert.doesNotMatch(desktop, /role="menu"/);
+  // The one menu left on the page is the list's ⋮ (refresh / Sync Meta / mark all read).
+  assert.equal(desktop.split('role="menu"').length - 1, 1);
+  assert.ok(desktop.indexOf('role="menu"') > desktop.indexOf('data-inbox-list-menu="toggle"'));
 });
 
 test("both inbox surfaces open the same center, loaded through the same lazy wrapper", () => {

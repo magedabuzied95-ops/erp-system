@@ -2107,6 +2107,20 @@
       "replyFrom": "هترد من: {{label}}",
       "replyFromDefault": "الرقم الافتراضي",
       "chipTitle": "رقمنا اللي الرسالة عدت عليه"
+    },
+    "views": {
+      "label": "عرض المحادثات",
+      "all": "الكل",
+      "awaiting": "مستني رد",
+      "unread": "غير مقروء",
+      "unsent": "متبعتتش",
+      "done": "خلصت",
+      "archived": "مؤرشفة"
+    },
+    "listMenu": {
+      "title": "المزيد",
+      "refresh": "تحديث",
+      "syncMeta": "مزامنة محادثات ميتا"
     }
   },
   "integrations": {

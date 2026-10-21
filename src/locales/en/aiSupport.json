@@ -2095,6 +2095,20 @@
       "replyFrom": "Replying from: {{label}}",
       "replyFromDefault": "Default number",
       "chipTitle": "Our number this message went through"
+    },
+    "views": {
+      "label": "Conversation views",
+      "all": "All",
+      "awaiting": "Awaiting",
+      "unread": "Unread",
+      "unsent": "Unsent",
+      "done": "Done",
+      "archived": "Archived"
+    },
+    "listMenu": {
+      "title": "More",
+      "refresh": "Refresh",
+      "syncMeta": "Sync Meta conversations"
     }
   },
   "integrations": {

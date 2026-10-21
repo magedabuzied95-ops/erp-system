@@ -1319,6 +1319,14 @@ const buildLeadCommentReplyText = (conversation = {}, comment = {}) => {
   return `شكراً${name ? ` ${name}` : ""}، أرسلنا لك التفاصيل في الخاص.`;
 };
 
+const INBOX_LIST_VIEWS = ["all", "awaiting", "unread", "unsent", "done", "archived"];
+// 1959 -> "2K", 1911 -> "1.9K" (Genie's chips).
+const formatViewCount = (value) => {
+  const number = Number(value) || 0;
+  if (number < 1000) return String(number);
+  return `${(number / 1000).toFixed(number >= 10000 ? 0 : 1).replace(/\.0$/, "")}K`;
+};
+
 const LEAD_STATUS_META = {
   new: { labelKey: "aiSupport.inbox.action.statusNew", tone: "cyan" },
   contacted: { labelKey: "aiSupport.inbox.action.contacted", tone: "amber" },
@@ -4627,6 +4635,13 @@ export default function AiInbox({ reviewerMode = false }) {
   const [leadSort, setLeadSort] = useState("recent");
   const [favoriteFilter, setFavoriteFilter] = useState("all");
   const [readFilter, setReadFilter] = useState("all"); // all | unread | read
+  // Genie's view chips over the list: all / awaiting / unread / unsent / done /
+  // archived, filtered in SQL (inboxViewClauseSql) and counted by /view-counts.
+  const [listView, setListView] = useState("all");
+  const [viewCounts, setViewCounts] = useState(null);
+  const [viewCountsTick, setViewCountsTick] = useState(0);
+  const [listMenuOpen, setListMenuOpen] = useState(false);
+  const listMenuRef = useRef(null);
   const [assignedFilter, setAssignedFilter] = useState("all"); // all | me
   const [teamToolsOpen, setTeamToolsOpen] = useState(false);
   // When the drawer opened: a tap that opens it also fires synthesised mouse events ~300ms
@@ -4943,7 +4958,7 @@ export default function AiInbox({ reviewerMode = false }) {
     // served from that cache nor written back into it — either way the next warm "All"
     // open would render a filtered slice as if it were the whole channel.
     // Favourites and the filter panel narrow the set the same way.
-    const listCacheEnabled = !reviewerMode && readFilter === "all" && assignedFilter === "all" && favoriteFilter === "all" && !panelActive;
+    const listCacheEnabled = !reviewerMode && readFilter === "all" && assignedFilter === "all" && favoriteFilter === "all" && !panelActive && listView === "all";
     const cachedPages = listCacheEnabled
       ? await Promise.all(warmChannels.map((ch) => inboxCache.primeList(ch).then((r) => asArray(r?.conversations)).catch(() => [])))
       : warmChannels.map(() => []);
@@ -5000,6 +5015,7 @@ export default function AiInbox({ reviewerMode = false }) {
           // newest N per channel, so a quiet unread conversation never arrives and the
           // client-side filter can only ever report "nothing unread".
           read_filter: readFilter,
+          view: listView,
           // Same reasoning: a starred conversation older than this page would
           // never arrive, so "starred" would silently mean "starred and recent".
           ...(favoriteFilter === "all" ? {} : { favorite_only: 1 }),
@@ -5019,6 +5035,7 @@ export default function AiInbox({ reviewerMode = false }) {
       const settled = await Promise.allSettled(requestedChannels.map(fetchChannelPage));
       if (seq !== requestSeqRef.current) return;
       lastListLoadAtRef.current = Date.now();
+      setViewCountsTick((tick) => tick + 1);
 
       // Failure isolation: a channel that fails falls back to its own cached page
       // so one bad endpoint cannot blank the inbox or silently delete a channel.
@@ -5230,7 +5247,7 @@ export default function AiInbox({ reviewerMode = false }) {
         }
       }
     }
-  }, [assignedFilter, channelFilter, debouncedSearch, favoriteFilter, filter, headers, panelActive, panelParams, readFilter, reviewerMode, tenantId]);
+  }, [assignedFilter, channelFilter, debouncedSearch, favoriteFilter, filter, headers, listView, panelActive, panelParams, readFilter, reviewerMode, tenantId]);
 
   // Shared inboxCache housekeeping: expiry sweep on mount, and wipe on logout /
   // user switch so one account's cached inbox is never shown to the next.
@@ -5293,6 +5310,39 @@ export default function AiInbox({ reviewerMode = false }) {
   useEffect(() => {
     Promise.resolve().then(loadAll);
   }, [loadAll]);
+
+  useEffect(() => {
+    if (!listMenuOpen) return undefined;
+    const close = (event) => { if (!listMenuRef.current?.contains(event.target)) setListMenuOpen(false); };
+    const onKey = (event) => { if (event.key === "Escape") setListMenuOpen(false); };
+    document.addEventListener("pointerdown", close, true);
+    document.addEventListener("keydown", onKey);
+    return () => {
+      document.removeEventListener("pointerdown", close, true);
+      document.removeEventListener("keydown", onKey);
+    };
+  }, [listMenuOpen]);
+
+  // The chip counts: every view under the filters the list is using. Re-asked
+  // after each list load, never blocking it; a failure keeps the last numbers.
+  useEffect(() => {
+    if (reviewerMode) return undefined;
+    let alive = true;
+    api.get("/ai-inbox/view-counts", {
+      params: {
+        tenant_id: tenantId,
+        channel_filter: channelFilter === "all" ? "" : backendChannelFilter(channelFilter),
+        search: debouncedSearch,
+        ...(favoriteFilter === "all" ? {} : { favorite_only: 1 }),
+        ...(assignedFilter === "me" ? { assigned_user_id: "me" } : {}),
+        ...panelParams,
+      },
+      headers,
+      suppressErrorStatuses: [404, 500, 502, 503],
+      perfComponent: "AiInbox.viewCounts",
+    }).then((payload) => { if (alive && payload?.counts) setViewCounts(payload.counts); }).catch(() => {});
+    return () => { alive = false; };
+  }, [assignedFilter, channelFilter, debouncedSearch, favoriteFilter, headers, panelParams, reviewerMode, tenantId, viewCountsTick]);
 
   useEffect(() => {
     if (pollIntervalRef.current) {
@@ -5575,6 +5625,13 @@ export default function AiInbox({ reviewerMode = false }) {
       const isUnread = Number(conversation?.unread_count || conversation?.unread || 0) > 0 || conversation?.manually_unread === true;
       return readFilter === "unread" ? isUnread : !isUnread;
     };
+    // The server applies the view; done/all are re-checked for rows the socket adds.
+    const matchesListView = (conversation = {}) => {
+      const closed = clean(conversation?.status || conversation?.conversation_status).toLowerCase() === "closed";
+      if (listView === "done") return closed;
+      if (listView === "all") return !closed;
+      return true;
+    };
     // Applied in SQL too; this keeps the list honest between the toggle and the refetch.
     const matchesAssignedFilter = (conversation = {}) => {
       if (assignedFilter !== "me") return true;
@@ -5620,7 +5677,7 @@ export default function AiInbox({ reviewerMode = false }) {
       }
       return true;
     };
-    const sorted = items.filter(matchesInboxFilter).filter(matchesLeadFilter).filter(matchesFavoriteFilter).filter(matchesReadFilter).filter(matchesAssignedFilter).filter(matchesChannelFilter).filter(matchesPanelFilter).sort((a, b) => {
+    const sorted = items.filter(matchesInboxFilter).filter(matchesLeadFilter).filter(matchesFavoriteFilter).filter(matchesReadFilter).filter(matchesListView).filter(matchesAssignedFilter).filter(matchesChannelFilter).filter(matchesPanelFilter).sort((a, b) => {
       const left = sortValue(a);
       const right = sortValue(b);
       if (right.primary !== left.primary) return right.primary - left.primary;
@@ -5628,7 +5685,7 @@ export default function AiInbox({ reviewerMode = false }) {
       return clean(b.session_id || b.conversation_key || b.conversation_id || "").localeCompare(clean(a.session_id || a.conversation_key || a.conversation_id || ""));
     });
     return sorted;
-  }, [assignedFilter, channelFilter, commentPlatformFilter, conversations, filter, inboxMe.id, inboxSection, leadFilter, leadSort, messagePlatformFilter, favoriteFilter, panelActive, panelFilters, readFilter]);
+  }, [assignedFilter, channelFilter, commentPlatformFilter, conversations, filter, inboxMe.id, inboxSection, leadFilter, leadSort, messagePlatformFilter, favoriteFilter, listView, panelActive, panelFilters, readFilter]);
   const visibleConversations = useMemo(
     () => (inboxSection === "conversations" ? filteredConversations : []),
     [filteredConversations, inboxSection]
@@ -8247,6 +8304,7 @@ export default function AiInbox({ reviewerMode = false }) {
           search: debouncedSearch,
           limit: channelWindow(backendChannel),
           read_filter: readFilter,
+          view: listView,
           ...(favoriteFilter === "all" ? {} : { favorite_only: 1 }),
           ...(assignedFilter === "me" ? { assigned_user_id: "me" } : {}),
           ...panelParams,
@@ -8273,7 +8331,7 @@ export default function AiInbox({ reviewerMode = false }) {
       loadingMoreRef.current = false;
       setLoadingMoreConversations(false);
     }
-  }, [api, assignedFilter, channelFilter, debouncedSearch, favoriteFilter, filter, headers, listCursors, panelParams, readFilter, setInbox, tenantId]);
+  }, [api, assignedFilter, channelFilter, debouncedSearch, favoriteFilter, filter, headers, listCursors, listView, panelParams, readFilter, setInbox, tenantId]);
 
   /*
    * Send a file the operator picked. Upload and send are one request: the
@@ -9589,6 +9647,13 @@ export default function AiInbox({ reviewerMode = false }) {
   const renderTopBar = () => (
     <InboxTopBar
       chatsActive={isConversationMode && !controlCenterOpen}
+      notificationSlot={reviewerMode ? null : (
+        <InboxNotificationBell
+          surface="/admin/ai-inbox"
+          buttonClassName="h-8 w-8 rounded-full border border-white/10 bg-slate-950/70 text-slate-300 hover:border-white/20 hover:text-white"
+          dotBorderClassName="border-slate-950"
+        />
+      )}
       reviewerMode={reviewerMode}
       onChannel={(channel) => {
         setControlCenterOpen(false);
@@ -9971,33 +10036,6 @@ export default function AiInbox({ reviewerMode = false }) {
 	            <div className="shrink-0 space-y-3">
 	              {inboxSection === "conversations" ? (
 	                <div className="flex flex-col gap-3">
-	                  <div className="flex items-center justify-between gap-3 px-1">
-	                    <div>
-	                      <div className="text-[11px] font-black uppercase tracking-[0.16em] text-cyan-100">{t("aiSupport.inbox.rail.conversations")}</div>
-	                    </div>
-	                    <div className="flex shrink-0 items-center gap-2">
-	                      {reviewerMode ? null : (
-	                      <InboxNotificationBell
-	                        surface="/admin/ai-inbox"
-	                        buttonClassName="h-8 w-8 rounded-full border border-white/10 bg-slate-950/70 text-slate-300 hover:border-white/20 hover:text-white"
-	                        dotBorderClassName="border-slate-950"
-	                      />
-	                      )}
-	                      {reviewerMode ? null : (
-	                      <button
-	                        type="button"
-	                        onClick={() => void syncMetaConversations()}
-	                        disabled={metaHistorySyncing}
-	                        title="جلب محادثات Messenger وInstagram الحالية والقديمة من Meta"
-	                        className="inline-flex h-8 items-center gap-1.5 rounded-full border border-sky-300/30 bg-sky-400/10 px-2.5 text-[10px] font-black text-sky-100 transition hover:border-sky-300/50 hover:bg-sky-400/20 disabled:opacity-50"
-	                      >
-	                        {metaHistorySyncing ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <FaFacebookMessenger className="h-3.5 w-3.5" />}
-	                        Sync Meta
-	                      </button>
-	                      )}
-	                      <Pill tone="cyan">{filteredConversations.length}</Pill>
-	                    </div>
-	                  </div>
 	                  <div ref={filterPanelAnchorRef} className="flex items-center gap-2">
 	                    <label className="relative flex min-w-0 flex-1 items-center rounded-xl border border-white/10 bg-slate-950/70 h-10">
 	                      <Search className={`pointer-events-none absolute top-1/2 h-4 w-4 -translate-y-1/2 text-slate-500 ${isArabic ? "right-3" : "left-3"}`} />
@@ -10027,6 +10065,42 @@ export default function AiInbox({ reviewerMode = false }) {
 	                        stageOptions={inboxStageOptions}
 	                        storageKey={`m1.inbox.savedFilters.${inboxMe.id || "me"}`}
 	                      />
+	                      {/* Genie's ⋮: list actions that were buttons in the header. */}
+	                      <div ref={listMenuRef} className="relative shrink-0">
+	                        <button
+	                          type="button"
+	                          onClick={() => setListMenuOpen((current) => !current)}
+	                          title={t("aiSupport.inbox.listMenu.title")}
+	                          aria-label={t("aiSupport.inbox.listMenu.title")}
+	                          aria-haspopup="menu"
+	                          aria-expanded={listMenuOpen}
+	                          data-inbox-list-menu="toggle"
+	                          className="grid h-10 w-8 shrink-0 place-items-center rounded-xl text-slate-400 transition hover:bg-white/[0.06] hover:text-white"
+	                        >
+	                          <MoreVertical className="h-4 w-4" />
+	                        </button>
+	                        {listMenuOpen ? (
+	                          <div
+	                            role="menu"
+	                            className="absolute end-0 top-11 z-40 w-56 overflow-hidden rounded-xl border border-border bg-surface py-1 text-text shadow-2xl"
+	                          >
+	                            <button type="button" role="menuitem" onClick={() => { setListMenuOpen(false); void loadAll(); }} className="flex w-full items-center gap-2.5 px-3 py-2 text-start text-sm hover:bg-surface-hover">
+	                              <RefreshCw className="h-4 w-4 text-text-muted" />
+	                              {t("aiSupport.inbox.listMenu.refresh")}
+	                            </button>
+	                            {reviewerMode ? null : (
+	                              <button type="button" role="menuitem" disabled={metaHistorySyncing} onClick={() => { setListMenuOpen(false); void syncMetaConversations(); }} className="flex w-full items-center gap-2.5 px-3 py-2 text-start text-sm hover:bg-surface-hover disabled:opacity-50">
+	                                {metaHistorySyncing ? <Loader2 className="h-4 w-4 animate-spin text-text-muted" /> : <FaFacebookMessenger className="h-4 w-4 text-text-muted" />}
+	                                {t("aiSupport.inbox.listMenu.syncMeta")}
+	                              </button>
+	                            )}
+	                            <button type="button" role="menuitem" disabled={!Number(channelSummaries.all.unread || 0)} onClick={() => { setListMenuOpen(false); void markAllConversationsRead(); }} className="flex w-full items-center gap-2.5 px-3 py-2 text-start text-sm hover:bg-surface-hover disabled:opacity-50">
+	                              <CheckCheck className="h-4 w-4 text-text-muted" />
+	                              {t("aiSupport.inbox.ui.markAllRead")}
+	                            </button>
+	                          </div>
+	                        ) : null}
+	                      </div>
 	                      <button type="button" onClick={() => setFavoriteFilter(favoriteFilter === "favorites" ? "all" : "favorites")} title={t("aiSupport.inbox.ui.favorites")} aria-label={t("aiSupport.inbox.ui.favorites")} aria-pressed={favoriteFilter === "favorites"} className={`grid h-10 w-10 shrink-0 place-items-center rounded-xl border transition ${favoriteFilter === "favorites" ? "border-amber-300/40 bg-amber-400/15" : "border-white/10 bg-slate-950/70 hover:border-white/20"}`}>
 	                        <Star className={`h-4 w-4 ${favoriteFilter === "favorites" ? "text-amber-300 fill-amber-300" : "text-slate-400"}`} />
 	                      </button>
@@ -10034,30 +10108,29 @@ export default function AiInbox({ reviewerMode = false }) {
 	                        <UserCheck className={`h-4 w-4 ${assignedFilter === "me" ? "text-cyan-200" : "text-slate-400"}`} />
 	                      </button>
 	                  </div>
-	                  <div className="flex items-center gap-2">
-	                    <div className="flex min-w-0 flex-1 items-center gap-1 rounded-xl border border-white/10 bg-slate-950/70 p-1">
-	                      {[["all", t("aiSupport.inbox.ui.readFilterAll")], ["unread", t("aiSupport.inbox.ui.readFilterUnread")], ["read", t("aiSupport.inbox.ui.readFilterRead")]].map(([key, label]) => (
+	                  <div role="tablist" aria-label={t("aiSupport.inbox.views.label")} className="flex flex-wrap items-center gap-1.5" data-inbox-views="chips">
+	                    {INBOX_LIST_VIEWS.map((view) => {
+	                      const active = listView === view;
+	                      const countValue = viewCounts ? Number(viewCounts[view] || 0) : null;
+	                      const urgent = ["awaiting", "unread", "unsent"].includes(view);
+	                      return (
 	                        <button
-	                          key={key}
+	                          key={view}
 	                          type="button"
-	                          onClick={() => setReadFilter(key)}
-	                          aria-pressed={readFilter === key}
-	                          className={`min-w-0 flex-1 truncate rounded-lg px-2 py-1.5 text-[11px] font-black transition ${readFilter === key ? "bg-cyan-400/15 text-cyan-100" : "text-slate-400 hover:text-white"}`}
+	                          role="tab"
+	                          aria-selected={active}
+	                          onClick={() => setListView(view)}
+	                          className={`inline-flex h-7 items-center gap-1.5 rounded-full px-3 text-xs font-bold transition ${active ? "bg-primary text-primary-foreground" : "bg-surface-soft text-text-muted hover:text-text"}`}
 	                        >
-	                          {label}{key === "unread" && Number(channelSummaries.all.unread || 0) > 0 ? ` (${channelSummaries.all.unread})` : ""}
+	                          {t(`aiSupport.inbox.views.${view}`)}
+	                          {countValue ? (
+	                            <span className={`rounded-full px-1.5 py-px text-[10px] font-black ${active ? "bg-primary-foreground/20 text-primary-foreground" : urgent ? "bg-danger-subtle text-danger" : "bg-surface text-text-muted"}`}>
+	                              {formatViewCount(countValue)}
+	                            </span>
+	                          ) : null}
 	                        </button>
-	                      ))}
-	                    </div>
-	                    <button
-	                      type="button"
-	                      onClick={markAllConversationsRead}
-	                      disabled={!Number(channelSummaries.all.unread || 0)}
-	                      title={t("aiSupport.inbox.ui.markAllRead")}
-	                      aria-label={t("aiSupport.inbox.ui.markAllRead")}
-	                      className={`grid h-10 w-10 shrink-0 place-items-center rounded-xl border transition ${Number(channelSummaries.all.unread || 0) ? "border-emerald-300/40 bg-emerald-400/10 text-emerald-200 hover:bg-emerald-400/20" : "border-white/10 bg-slate-950/70 text-slate-600"}`}
-	                    >
-	                      <CheckCheck className="h-4 w-4" />
-	                    </button>
+	                      );
+	                    })}
 	                  </div>
 	                </div>
 	              ) : null}

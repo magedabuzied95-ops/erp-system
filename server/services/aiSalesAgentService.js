@@ -2652,6 +2652,38 @@ export const inboxPanelActivityClauseSql = ({ params, activitySql, activity = ""
 //
 // Shared by the SELECT list of both inbox queries and by the server-side read filter, so
 // the number the card shows and the set the filter returns can never drift apart.
+/*
+ * The list's views — Genie ERP's chips over the conversation list:
+ *   all       every conversation that is not done (and not archived)
+ *   awaiting  the customer spoke last: someone owes them an answer
+ *   unread    nobody has looked yet (the inbox's unread rule)
+ *   unsent    our last message to them failed to go out
+ *   done      closed by the team
+ *   archived  taken out of the list; it comes back when the customer writes again
+ * `latestAtSql` is the latest-message timestamp of the query using it (the
+ * summary query's lateral `m`). "" = no view clause (the PWA does not send one).
+ * Archived is the inbox's existing delete/hide: the row stays out of every other
+ * view until the thread moves again (see deletedConversationClauseSql).
+ */
+export const INBOX_VIEWS = Object.freeze(["all", "awaiting", "unread", "unsent", "done", "archived"]);
+
+export const inboxViewClauseSql = (view, latestAtSql) => {
+  const normalized = lower(view);
+  const open = "COALESCE(s.status, '') <> 'closed'";
+  if (normalized === "all") return open;
+  if (normalized === "awaiting") {
+    return `(${open} AND (
+      LOWER(COALESCE(m.sender_type, '')) = 'customer'
+      OR (${latestAtSql} IS NULL AND COALESCE(c.metadata->>'last_message_from_me', '') = 'false')
+    ))`;
+  }
+  if (normalized === "unread") return `(${open} AND ${readFilterClauseSql("unread", latestAtSql)})`;
+  if (normalized === "unsent") return `(${open} AND LOWER(COALESCE(m.delivery_status, '')) IN ('failed', 'error', 'undelivered'))`;
+  if (normalized === "done") return "s.status = 'closed'";
+  if (normalized === "archived") return `(s.deleted_at IS NOT NULL AND COALESCE(${latestAtSql}, c.last_message_at, s.deleted_at) <= s.deleted_at)`;
+  return "";
+};
+
 const unreadCustomerMessageCountSql = `      (
         SELECT COUNT(*)::int
         FROM ai_support_messages unread_msg
@@ -2740,7 +2772,7 @@ const inboxCursorClauseSql = (activityExpression, activityIdx, sessionIdx) => `(
     OR (${activityExpression} = ${activityIdx}::timestamp AND s.session_id < ${sessionIdx}::text)
   )`;
 
-export const loadAiInbox = async ({ tenantId, filter = "all", channelFilter = "", limit = 200, search = "", messageLimit = 30, summaryOnly = false, readFilter = "", favoriteOnly = false, assignedUserId = null, beforeActivityAt = "", beforeSessionId = "", sessionKeys = [], hiddenKeys = null, accountKeys = [], labelIds = [], stages = [], memberIds = [], activity = "", activityFrom = "", activityTo = "" } = {}) => {
+export const loadAiInbox = async ({ tenantId, filter = "all", channelFilter = "", limit = 200, search = "", messageLimit = 30, summaryOnly = false, readFilter = "", favoriteOnly = false, assignedUserId = null, beforeActivityAt = "", beforeSessionId = "", sessionKeys = [], hiddenKeys = null, accountKeys = [], labelIds = [], stages = [], memberIds = [], activity = "", activityFrom = "", activityTo = "", view = "", countsOnly = false } = {}) => {
   const loadAiInboxStartedAt = Date.now();
   await ensureAiSalesAgentSchema();
   await ensureAiConversationMemorySchema();
@@ -2866,7 +2898,8 @@ export const loadAiInbox = async ({ tenantId, filter = "all", channelFilter = ""
   // A deleted conversation leaves the list until the thread moves again. Only real
   // message activity counts — s.updated_at is bumped by the delete itself and by
   // every sync. Targeted lookups skip it: send/reply routes must still resolve the id.
-  const deletedConversationClauseSql = (latestMessageAtSql) => (sessionKeyList.length
+  // The archived view is exactly these rows, so it lifts the rule (inboxViewClauseSql).
+  const deletedConversationClauseSql = (latestMessageAtSql) => (sessionKeyList.length || lower(view) === "archived"
     ? ""
     : `(s.deleted_at IS NULL OR COALESCE(${latestMessageAtSql}, c.last_message_at) > s.deleted_at)`);
 
@@ -2888,10 +2921,58 @@ export const loadAiInbox = async ({ tenantId, filter = "all", channelFilter = ""
   const cursorSessionId = text(beforeSessionId);
   const hasCursor = Boolean(cursorActivityAt && cursorSessionId);
 
+  if (countsOnly) {
+    // One count per view, under every other filter the list is using — Genie's
+    // view-counts. Only the joins those filters can read (s, c, p, the latest
+    // message m); the c lateral is the summary query's own, below.
+    const latestAtSql = "m.latest_message_created_at";
+    // No channel picked = the list's "All": the message channels, never comment threads.
+    if (!normalizedChannelFilter) {
+      clauses.push(`(${INBOX_RESOLVED_CHANNEL_SQL} IN ('whatsapp', 'facebook_messenger', 'facebook', 'messenger', 'instagram', 'telegram', 'tiktok', 'web_chat', 'web') AND COALESCE(c.thread_kind, s.thread_kind, '') <> 'comment')`);
+    }
+    const activityClause = inboxPanelActivityClauseSql({ params, activitySql: summaryActivitySql, activity, activityFrom, activityTo });
+    if (activityClause) clauses.push(activityClause);
+    const liveSql = `(s.deleted_at IS NULL OR COALESCE(${latestAtSql}, c.last_message_at) > s.deleted_at)`;
+    const countColumns = INBOX_VIEWS.map((view) => `COUNT(*) FILTER (WHERE ${view === "archived" ? "" : `${liveSql} AND `}${inboxViewClauseSql(view, latestAtSql)})::int AS "${view}"`);
+    const countsResult = await db.query(`
+      SELECT ${countColumns.join(",\n             ")}
+      FROM ai_support_sessions s
+      LEFT JOIN LATERAL (
+        SELECT channel_conversation.*
+        FROM ai_channel_conversations channel_conversation
+        WHERE channel_conversation.tenant_id = s.tenant_id
+          AND channel_conversation.external_conversation_id = s.session_id
+        ORDER BY
+          CASE WHEN lower(COALESCE(channel_conversation.channel, '')) IN ('web', 'web_chat') THEN 1 ELSE 0 END,
+          CASE WHEN channel_conversation.channel = s.channel THEN 0 ELSE 1 END,
+          COALESCE(channel_conversation.last_message_at, channel_conversation.updated_at) DESC,
+          channel_conversation.id DESC
+        LIMIT 1
+      ) c ON TRUE
+      LEFT JOIN ai_customer_profiles p ON p.id = c.customer_profile_id AND p.tenant_id = s.tenant_id
+      LEFT JOIN LATERAL (
+        SELECT msg.id AS latest_message_id, msg.sender_type, msg.delivery_status, msg.needs_human_support,
+               msg.customer_message, msg.message_text, msg.ai_answer, msg.created_at AS latest_message_created_at
+        FROM ai_support_messages msg
+        WHERE msg.tenant_id = s.tenant_id
+          AND msg.session_id = s.session_id
+          AND COALESCE(msg.message_type, '') <> 'internal_note'
+          AND COALESCE(msg.sender_type, '') <> 'note'
+        ORDER BY msg.created_at DESC, msg.id DESC
+        LIMIT 1
+      ) m ON TRUE
+      WHERE ${clauses.join(" AND ")}
+        AND $2::int > 0
+    `, params);
+    return { view_counts: countsResult.rows[0] || {} };
+  }
+
   if (summaryOnly) {
     const summaryStartedAt = Date.now();
     const activityClause = inboxPanelActivityClauseSql({ params, activitySql: summaryActivitySql, activity, activityFrom, activityTo });
     if (activityClause) clauses.push(activityClause);
+    const viewClause = inboxViewClauseSql(view, "m.latest_message_created_at");
+    if (viewClause) clauses.push(viewClause);
     if (hasCursor) {
       params.push(cursorActivityAt);
       const activityIdx = `$${params.length}`;

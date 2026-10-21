@@ -3210,6 +3210,35 @@ router.post("/push/test", protect, inboxView(), async (req, res) => {
   }
 });
 
+// One count per list view (all / awaiting / unread / unsent / done / archived) under
+// the same filters the list is using: the numbers on Genie's chips.
+router.get("/view-counts", protect, inboxView(), async (req, res) => {
+  try {
+    const tenantId = toTenantId(req);
+    const { hiddenKeys } = await inboxPrivacyContext(req, tenantId);
+    const result = await loadAiInbox({
+      tenantId,
+      countsOnly: true,
+      summaryOnly: true,
+      channelFilter: String(req.query?.channel_filter || req.query?.channel || ""),
+      search: String(req.query?.search || ""),
+      favoriteOnly: ["1", "true", "yes"].includes(String(req.query?.favorite_only || "").toLowerCase()),
+      assignedUserId: assignedUserFilter(req),
+      accountKeys: String(req.query?.account_ids || ""),
+      labelIds: String(req.query?.label_ids || ""),
+      stages: String(req.query?.stage_ids || ""),
+      memberIds: String(req.query?.member_ids || ""),
+      activity: String(req.query?.activity || ""),
+      activityFrom: String(req.query?.activity_from || ""),
+      activityTo: String(req.query?.activity_to || ""),
+      hiddenKeys,
+    });
+    return res.json({ success: true, counts: result.view_counts || {} });
+  } catch (error) {
+    return sendError(res, error, "Failed to count inbox views");
+  }
+});
+
 router.get("/conversations", protect, inboxView(), async (req, res) => {
   try {
     const tenantId = toTenantId(req);
@@ -3243,6 +3272,8 @@ router.get("/conversations", protect, inboxView(), async (req, res) => {
       activity: String(req.query?.activity || ""),
       activityFrom: String(req.query?.activity_from || ""),
       activityTo: String(req.query?.activity_to || ""),
+      // all | awaiting | unread | unsent | done | archived (inboxViewClauseSql).
+      view: String(req.query?.view || ""),
       hiddenKeys,
     });
     scheduleMissingWhatsappProfileSync({ tenantId, conversations: inbox.conversations });

@@ -140,8 +140,8 @@ test("the list route passes every tab to the SQL loader", () => {
 
 test("the desktop inbox sends the panel and keeps filtered pages out of the cache", () => {
   const page = read("src/modules/aiSupport/pages/AiInbox.jsx");
-  assert.equal(page.split("...panelParams,").length - 1, 2, "first page and next pages");
-  assert.ok(page.includes(`const listCacheEnabled = !reviewerMode && readFilter === "all" && assignedFilter === "all" && favoriteFilter === "all" && !panelActive;`));
+  assert.equal(page.split("...panelParams,").length - 1, 3, "first page, next pages, and the view counts");
+  assert.ok(page.includes(`const listCacheEnabled = !reviewerMode && readFilter === "all" && assignedFilter === "all" && favoriteFilter === "all" && !panelActive && listView === "all";`));
   assert.ok(page.includes("<InboxFilterPanel"));
   assert.ok(page.includes("<ConversationCrmCard"));
 });

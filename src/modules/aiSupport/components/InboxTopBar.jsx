@@ -211,11 +211,16 @@ export default function InboxTopBar({
   activeSection = "",
   reviewerMode = false,
   onChannel,
+  // The notification bell. It sits in the bar's top-right corner in both
+  // directions (owner: "فوق خالص ع اليمين", where Genie keeps it).
+  notificationSlot = null,
 }) {
   const menus = reviewerMode ? REVIEWER_MENUS : MENUS;
   const { t } = useTranslation();
   const { theme, setTheme } = useTheme();
   const [openMenu, setOpenMenu] = useState("");
+  // Physical right: the start of the bar in Arabic, its end in English.
+  const rtl = typeof document !== "undefined" && document.documentElement.dir === "rtl";
   const barRef = useRef(null);
 
   useEffect(() => {
@@ -246,6 +251,7 @@ export default function InboxTopBar({
 
   return (
     <nav ref={barRef} className="ai-inbox-topbar" aria-label={t("aiSupport.inbox.topbar.label")}>
+      {notificationSlot && rtl ? <div className="ai-inbox-topbar__bell">{notificationSlot}</div> : null}
       <button
         type="button"
         onClick={() => { setOpenMenu(""); onChats?.(); }}
@@ -298,6 +304,7 @@ export default function InboxTopBar({
         >
           {theme.mode === "dark" ? <Sun className="h-4 w-4" aria-hidden="true" /> : <Moon className="h-4 w-4" aria-hidden="true" />}
         </button>
+        {notificationSlot && !rtl ? <div className="ai-inbox-topbar__bell">{notificationSlot}</div> : null}
       </div>
     </nav>
   );
