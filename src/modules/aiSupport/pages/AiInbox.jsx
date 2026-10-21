@@ -136,6 +136,8 @@ import ConversationCrmCard from "../components/ConversationCrmCard.jsx";
 import ConversationActionsMenu from "../components/ConversationActionsMenu.jsx";
 import MiniChatDock from "../components/MiniChatDock.jsx";
 import TemplateSendModal from "../components/TemplateSendModal.jsx";
+import LeadDrawer from "../components/LeadDrawer.jsx";
+import ConversationSidePanel from "../components/ConversationSidePanel.jsx";
 import { EMPTY_PANEL_FILTERS, PANEL_NO_STAGE, conversationLeadStage, conversationMatchesPanelFilters, panelFilterCount, panelFilterParams } from "../lib/inboxFilterPanel.js";
 import InboxTopBar, { META_REVIEWER_SECTIONS } from "../components/InboxTopBar.jsx";
 import { chromeModeFor, platformCanvas, resolveMessagePlatform } from "../components/messagePlatform.js";
@@ -4592,6 +4594,11 @@ export default function AiInbox({ reviewerMode = false }) {
   const [miniChats, setMiniChats] = useState([]);
   // Send Template: the conversation the template window is open for.
   const [templateTarget, setTemplateTarget] = useState(null);
+  // Genie's side panel (customer photo) and Leads form, for the open thread.
+  const [sidePanelOpen, setSidePanelOpen] = useState(false);
+  const [leadDrawerOpen, setLeadDrawerOpen] = useState(false);
+  const [labelsEditOpen, setLabelsEditOpen] = useState(false);
+  const [customerDrawerTab, setCustomerDrawerTab] = useState("summary");
   const listMenuRef = useRef(null);
   const [assignedFilter, setAssignedFilter] = useState("all"); // all | me
   const [teamToolsOpen, setTeamToolsOpen] = useState(false);
@@ -8191,7 +8198,8 @@ export default function AiInbox({ reviewerMode = false }) {
       last_activity_at: now,
       updated_at: now,
     }));
-    setReplyText("");
+    // A note logged from the lead form leaves the composer's draft alone.
+    if (!options.keepDraft) setReplyText("");
     setReplySending(true);
     setError("");
     try {
@@ -10357,7 +10365,7 @@ export default function AiInbox({ reviewerMode = false }) {
                     isFullscreenConversation={conversationExpanded}
                     onToggleFullscreen={handleToggleConversationExpansion}
                     showBack
-                    onOpenCustomer360={openCustomerDrawer}
+                    onOpenCustomer360={reviewerMode ? openCustomerDrawer : () => setSidePanelOpen((current) => !current)}
                     onOpenTeamTools={reviewerMode ? undefined : () => { teamToolsOpenedAtRef.current = Date.now(); setTeamToolsOpen((current) => !current); }}
                     teamToolsOpen={teamToolsOpen}
                   />
@@ -10366,6 +10374,18 @@ export default function AiInbox({ reviewerMode = false }) {
                     dir={isArabic ? "rtl" : "ltr"}
                     className="mt-1 flex shrink-0 items-center justify-start gap-1 overflow-x-auto rounded-xl border border-slate-200 bg-white px-1.5 py-1 shadow-sm dark:border-white/10 dark:bg-[#20231f]"
                   >
+                    {reviewerMode ? null : (
+                      <button
+                        type="button"
+                        onClick={() => setLeadDrawerOpen(true)}
+                        disabled={!selectedConversation}
+                        data-ai-inbox-lead-button="true"
+                        className="inline-flex h-8 shrink-0 items-center gap-1.5 rounded-lg border border-violet-300/45 bg-violet-50 px-2.5 text-[11px] font-black text-violet-700 transition hover:bg-violet-100 disabled:opacity-45 dark:border-violet-300/25 dark:bg-violet-400/10 dark:text-violet-100"
+                      >
+                        <Sparkles className="h-4 w-4" />
+                        {t("aiSupport.inbox.lead.button")}
+                      </button>
+                    )}
                     <button
                       type="button"
                       onClick={() => setOrderComposerOpen(true)}
@@ -10590,6 +10610,62 @@ export default function AiInbox({ reviewerMode = false }) {
           </aside>
         </div>
       ) : null}
+      {selectedConversation && !reviewerMode ? (
+        <>
+          <ConversationSidePanel
+            open={sidePanelOpen}
+            conversation={selectedConversation}
+            headers={headers}
+            stageOptions={inboxStageOptions.filter((stage) => stage.id !== PANEL_NO_STAGE)}
+            currentStage={conversationLeadStage(selectedConversation)}
+            staffViewers={staffPresence.othersOn(selectedConversation.session_id)}
+            onClose={() => setSidePanelOpen(false)}
+            onStageChange={canReply ? updateConversationLeadStatus : undefined}
+            onEditLabels={canReply ? () => setLabelsEditOpen(true) : undefined}
+            onCreateOrder={canReply ? () => setOrderComposerOpen(true) : undefined}
+            onSendProduct={canReply ? () => openProductCardPicker() : undefined}
+            onSendBySize={canReply ? () => openProductCardPicker({ sizeMode: true, allowMultiple: true }) : undefined}
+            onOpenOrders={() => {
+              setCustomerDrawerTab("orders");
+              openCustomerDrawer(selectedConversation, { customerId: customer360Identifier(selectedConversation), source: "inbox_side_panel", platform: selectedConversation.channel || selectedConversation.source });
+            }}
+            onOpenLead={() => setLeadDrawerOpen(true)}
+            onOpenCustomer360={() => {
+              setCustomerDrawerTab("summary");
+              openCustomerDrawer(selectedConversation, { customerId: customer360Identifier(selectedConversation), source: "inbox_side_panel", platform: selectedConversation.channel || selectedConversation.source });
+            }}
+            onTransfer={canReply ? () => { teamToolsOpenedAtRef.current = Date.now(); setTeamToolsOpen(true); } : undefined}
+          />
+          <LeadDrawer
+            open={leadDrawerOpen}
+            conversation={selectedConversation}
+            headers={headers}
+            customerName={getConversationDisplayName(selectedConversation)}
+            stageOptions={inboxStageOptions.filter((stage) => stage.id !== PANEL_NO_STAGE)}
+            currentStage={conversationLeadStage(selectedConversation)}
+            onClose={() => setLeadDrawerOpen(false)}
+            onStageChange={canReply ? updateConversationLeadStatus : undefined}
+            onCreateOrder={canReply ? () => { setLeadDrawerOpen(false); setOrderComposerOpen(true); } : undefined}
+            onSendTemplate={canReply ? () => openTemplateFor(selectedConversation) : undefined}
+            onOpenOrders={() => {
+              setLeadDrawerOpen(false);
+              setCustomerDrawerTab("orders");
+              openCustomerDrawer(selectedConversation, { customerId: customer360Identifier(selectedConversation), source: "inbox_lead", platform: selectedConversation.channel || selectedConversation.source });
+            }}
+            onAssign={canReply ? () => { setLeadDrawerOpen(false); teamToolsOpenedAtRef.current = Date.now(); setTeamToolsOpen(true); } : undefined}
+            onEditLabels={canReply ? () => setLabelsEditOpen(true) : undefined}
+            onLogNote={canReply ? (text) => sendManualReply(text, { mode: "note", keepDraft: true }) : undefined}
+            onNotice={(tone, text) => setToast({ tone, text })}
+          />
+          <ConversationLabelsModal
+            open={labelsEditOpen}
+            labels={aiInboxLabelsFromConversation(selectedConversation)}
+            saving={leadActionLoading === "labels"}
+            onClose={() => setLabelsEditOpen(false)}
+            onSave={updateConversationLabels}
+          />
+        </>
+      ) : null}
       <MiniChatDock
         chats={miniChats}
         headers={headers}
@@ -10614,6 +10690,7 @@ export default function AiInbox({ reviewerMode = false }) {
       />
       <Customer360Drawer
         open={customerDrawer.open}
+        initialTab={customerDrawerTab}
         onClose={() => setCustomerDrawer((current) => ({ ...current, open: false }))}
         onOpenTeamTools={reviewerMode || !selectedConversation ? null : () => { teamToolsOpenedAtRef.current = Date.now(); setTeamToolsOpen(true); }}
         summaryLead={reviewerMode || !selectedConversation || isCommentConversation(selectedConversation) ? null : (
@@ -10865,7 +10942,7 @@ export default function AiInbox({ reviewerMode = false }) {
                     onOpenTools={() => setProfileOpen(true)}
                     isFullscreenConversation={conversationExpanded}
                     onToggleFullscreen={handleToggleConversationExpansion}
-                    onOpenCustomer360={openCustomerDrawer}
+                    onOpenCustomer360={reviewerMode ? openCustomerDrawer : () => setSidePanelOpen((current) => !current)}
                     onOpenTeamTools={reviewerMode ? undefined : () => { teamToolsOpenedAtRef.current = Date.now(); setTeamToolsOpen((current) => !current); }}
                     teamToolsOpen={teamToolsOpen}
                   />

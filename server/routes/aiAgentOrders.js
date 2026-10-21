@@ -4632,6 +4632,135 @@ const handleMarkAllConversationsRead = async (req, res) => {
   }
 };
 
+/*
+ * The conversation's lead (Genie's "Leads" form, shaped for a shoe shop): the
+ * stage lives in lead_status as before; the rest — expected revenue, priority,
+ * expected closing, notes, lost reason/notes, and the side panel's context and
+ * summary — sits in ai_channel_conversations.metadata.crm_lead_details. The read
+ * also brings the customer's orders and the products they bought, matched by the
+ * conversation's phone (any channel the order came from, POS included) or by the
+ * inbox order's own conversation id. Privacy: like any read of the thread.
+ */
+const LEAD_DETAIL_FIELDS = {
+  expected_revenue: (value) => (value === null || value === "" ? null : Math.max(0, Math.round(Number(value) * 100) / 100) || 0),
+  priority: (value) => Math.max(0, Math.min(5, Math.round(Number(value) || 0))),
+  expected_closing: (value) => (/^\d{4}-\d{2}-\d{2}$/.test(envText(value)) ? envText(value) : null),
+  notes: (value) => envText(value).slice(0, 8000),
+  lost_reason: (value) => envText(value).slice(0, 120),
+  lost_notes: (value) => envText(value).slice(0, 4000),
+  context: (value) => envText(value).slice(0, 8000),
+  summary: (value) => envText(value).slice(0, 8000),
+  lead_name: (value) => envText(value).slice(0, 200),
+};
+const loadLeadConversation = async (req) => {
+  const tenantId = toTenantId(req);
+  const conversationId = decodeRouteId(envText(req.params.conversationId));
+  const { hiddenKeys } = await inboxPrivacyContext(req, tenantId);
+  const lookup = await loadAiInbox({ tenantId, summaryOnly: true, limit: 1, sessionKeys: [conversationId], hiddenKeys });
+  return { tenantId, conversationId, conversation: (lookup.conversations || [])[0] || null };
+};
+router.get("/conversations/:conversationId/lead", protect, inboxView(), async (req, res) => {
+  try {
+    const { tenantId, conversation } = await loadLeadConversation(req);
+    if (!conversation) return sendError(res, Object.assign(new Error("Conversation not found"), { status: 404 }), "Conversation not found");
+    const sessionId = envText(conversation.session_id);
+    const metadata = conversation.channel_metadata || {};
+    const digits = (envText(metadata.resolved_phone) || envText(conversation.customer_profile?.phone) || (sessionId.startsWith("whatsapp:") ? sessionId.slice(9) : "")).replace(/\D/g, "");
+    const phoneKey = digits.length >= 10 ? digits.slice(-10) : "";
+    const ordersResult = await db.query(
+      `SELECT o.id, o.invoice_number, o.created_at, o.status, o.total_amount AS total, o.source, o.ai_agent_status
+         FROM orders o
+        WHERE o.tenant_id = $1
+          AND (o.ai_agent_conversation_id = $2
+               OR ($3::text <> '' AND RIGHT(regexp_replace(COALESCE(o.customer_phone, ''), '\\D', '', 'g'), 10) = $3::text))
+        ORDER BY o.created_at DESC
+        LIMIT 25`,
+      [tenantId, sessionId, phoneKey]
+    ).catch(async (error) => {
+      // total_amount vs total differs between deployments of the orders table.
+      if (error?.code !== "42703") throw error;
+      return db.query(
+        `SELECT o.id, o.invoice_number, o.created_at, o.status, o.total, o.source, o.ai_agent_status
+           FROM orders o
+          WHERE o.tenant_id = $1
+            AND (o.ai_agent_conversation_id = $2
+                 OR ($3::text <> '' AND RIGHT(regexp_replace(COALESCE(o.customer_phone, ''), '\\D', '', 'g'), 10) = $3::text))
+          ORDER BY o.created_at DESC
+          LIMIT 25`,
+        [tenantId, sessionId, phoneKey]
+      );
+    });
+    const orders = ordersResult.rows.map((row) => ({ ...row, total: Number(row.total) || 0 }));
+    const live = orders.filter((row) => !["cancelled", "canceled", "void", "refunded", "returned"].includes(String(row.status || "").toLowerCase()));
+    const orderIds = live.map((row) => Number(row.id)).filter(Boolean);
+    const products = orderIds.length ? (await db.query(
+      `SELECT COALESCE(NULLIF(oi.product_name, ''), p.name) AS name, oi.product_id, oi.variant_id,
+              pv.size, pv.color, COALESCE(NULLIF(pv.image_url, ''), p.image_url) AS image_url,
+              SUM(COALESCE(oi.quantity, 1))::int AS quantity, MAX(o.created_at) AS last_purchased_at
+         FROM order_items oi
+         JOIN orders o ON o.id = oi.order_id
+         LEFT JOIN products p ON p.id = oi.product_id
+         LEFT JOIN product_variants pv ON pv.id = oi.variant_id
+        WHERE oi.order_id = ANY($1::bigint[])
+        GROUP BY 1, oi.product_id, oi.variant_id, pv.size, pv.color, 6
+        ORDER BY MAX(o.created_at) DESC
+        LIMIT 30`,
+      [orderIds]
+    ).catch(() => ({ rows: [] }))).rows : [];
+    return res.json({
+      success: true,
+      lead: {
+        session_id: sessionId,
+        stage: envText(conversation.lead_status || metadata.lead_status || "new").toLowerCase(),
+        is_lead: Boolean(metadata.crm_lead || metadata.campaign_lead) || envText(conversation.lead_status || "new").toLowerCase() !== "new",
+        details: metadata.crm_lead_details && typeof metadata.crm_lead_details === "object" ? metadata.crm_lead_details : {},
+        crm_lead: metadata.crm_lead || null,
+        auto: metadata.lead_stage_auto || null,
+        ai_summary: envText(conversation.customer_profile?.conversation_summary),
+        phone: digits,
+        orders,
+        orders_summary: { count: live.length, total: live.reduce((sum, row) => sum + row.total, 0), drafts: live.filter((row) => String(row.ai_agent_status || "") === "ai_draft").length },
+        products,
+      },
+    });
+  } catch (error) {
+    return sendError(res, error, "Failed to load the lead");
+  }
+});
+router.patch("/conversations/:conversationId/lead", protect, inboxReply(), async (req, res) => {
+  try {
+    const { tenantId, conversation } = await loadLeadConversation(req);
+    if (!conversation) return sendError(res, Object.assign(new Error("Conversation not found"), { status: 404 }), "Conversation not found");
+    const patch = {};
+    for (const [field, normalize] of Object.entries(LEAD_DETAIL_FIELDS)) {
+      if (Object.prototype.hasOwnProperty.call(req.body || {}, field)) patch[field] = normalize(req.body[field]);
+    }
+    patch.updated_at = new Date().toISOString();
+    patch.updated_by = userDisplayName(req.user);
+    const sessionId = envText(conversation.session_id);
+    const raw = sessionId.includes(":") ? sessionId.split(":").slice(1).join(":") : sessionId;
+    const result = await db.query(
+      `UPDATE ai_channel_conversations c
+          SET metadata = COALESCE(c.metadata, '{}'::jsonb)
+                || jsonb_build_object('crm_lead_details', COALESCE(c.metadata->'crm_lead_details', '{}'::jsonb) || $3::jsonb),
+              updated_at = CURRENT_TIMESTAMP
+        WHERE c.id = (
+          SELECT id FROM ai_channel_conversations
+           WHERE tenant_id = $1
+             AND (external_conversation_id = ANY($2::text[]) OR CONCAT(channel, ':', external_conversation_id) = ANY($2::text[]))
+           ORDER BY updated_at DESC
+           LIMIT 1
+        )
+        RETURNING c.metadata->'crm_lead_details' AS details`,
+      [tenantId, [...new Set([sessionId, raw].filter(Boolean))], JSON.stringify(patch)]
+    );
+    if (!result.rows.length) return sendError(res, Object.assign(new Error("Conversation not found"), { status: 404 }), "Conversation not found");
+    return res.json({ success: true, details: result.rows[0].details || {} });
+  } catch (error) {
+    return sendError(res, error, "Failed to save the lead");
+  }
+});
+
 // Genie's Archive / Unarchive: out of the list with the history intact, back on a
 // newer message (inboxViewClauseSql "archived").
 const archiveRoute = (archived) => async (req, res) => {
