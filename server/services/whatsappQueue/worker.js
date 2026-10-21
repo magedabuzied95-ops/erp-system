@@ -180,6 +180,7 @@ export const performSend = async (row, gateway, { lastInboundAt } = {}) => {
     try {
       return await gateway.sendCtaUrlMessage({
         phone,
+        instance,
         title: text(send.title),
         text: body,
         footer: text(send.footer),
@@ -202,6 +203,7 @@ export const performSend = async (row, gateway, { lastInboundAt } = {}) => {
     try {
       return await gateway.sendCtaButtonsMessage({
         phone,
+        instance,
         title: text(send.title),
         text: body,
         footer: text(send.footer),
@@ -352,7 +354,7 @@ export const runOnSent = async (row, sendResult) => {
         source: text(cardTranscript.source) || `whatsapp_${row.automation_type}`,
         sourcePath: text(cardTranscript.source_path) || `whatsapp_${row.automation_type}`,
         insertSource: text(cardTranscript.insert_source) || `whatsapp_${row.automation_type}`,
-        whatsappInstance: sendResult?.instanceName || sendResult?.instance || "",
+        whatsappInstance: sendResult?.instanceName || sendResult?.instance || text(row.instance) || "",
         remoteJid: cardSessionId,
         resolvedReplyJid: cardSessionId,
         resolvedPhone: text(cardTranscript.resolved_phone) || text(row.recipient_phone),
@@ -392,7 +394,7 @@ export const runOnSent = async (row, sendResult) => {
     deliveryError: "",
     externalMessageId: extractWhatsAppMessageId(sendResult),
     providerMessageId: extractWhatsAppMessageId(sendResult),
-    whatsappInstance: sendResult?.instanceName || sendResult?.instance || "",
+    whatsappInstance: sendResult?.instanceName || sendResult?.instance || text(row.instance) || "",
     remoteJid: sessionId,
     resolvedReplyJid: sessionId,
     resolvedPhone: text(row.recipient_phone),

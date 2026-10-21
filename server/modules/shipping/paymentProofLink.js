@@ -322,15 +322,18 @@ export const queueShippingFeePaymentCard = async ({ order = {}, card = null, pho
       import("../../services/whatsappQueue/index.js"),
       import("../../services/whatsappGatewayService.js"),
     ]);
+    // The number the customer is talking to: an official (Cloud) customer gets the card from the
+    // official number, not from Evolution in a different chat (live 2026-10-21, order 2217).
+    const instance = text(await gateway.resolveWhatsappConversationInstance({ tenantId: safeTenantId, conversationId: `whatsapp:${phone}` }).catch(() => ""));
     const directSend = async () => {
       let result = null;
       let buttons = card.transcriptButtons;
       let message = transcriptMessage;
       try {
-        result = await gateway.sendCtaButtonsMessage({ phone, title: card.title, text: card.body, footer: card.footer, buttons: card.buttons, fallbackText: card.fallbackText });
+        result = await gateway.sendCtaButtonsMessage({ phone, title: card.title, text: card.body, footer: card.footer, buttons: card.buttons, fallbackText: card.fallbackText, instance });
       } catch (error) {
         console.warn("[payment-proof] card buttons unavailable, sending text", { orderId: order.id, message: error?.message || String(error) });
-        result = await gateway.sendTextMessage({ phone, message: card.fallbackText });
+        result = await gateway.sendTextMessage({ phone, message: card.fallbackText, instance });
         buttons = [];
         message = card.fallbackText;
       }
@@ -345,6 +348,7 @@ export const queueShippingFeePaymentCard = async ({ order = {}, card = null, pho
       orderId: order.id,
       invoiceNumber: text(order.invoice_number),
       recipientPhone: phone,
+      instance,
       // A beat behind the confirmation request, so the card never lands above it.
       scheduledAt: new Date(Date.now() + 2000),
       send: {

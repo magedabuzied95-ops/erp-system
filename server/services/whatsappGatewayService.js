@@ -2584,7 +2584,7 @@ export const sendCtaUrlMessage = async ({ phone, title = "", text: bodyText = ""
  * Evolution only: a Cloud session message carries a single cta_url and no copy button at all, so
  * the Cloud transport refuses and the caller sends fallbackText, which spells everything out.
  */
-export const sendCtaButtonsMessage = async ({ phone, title = "", text: bodyText = "", footer = "", buttons = [], fallbackText = "" } = {}) => {
+export const sendCtaButtonsMessage = async ({ phone, title = "", text: bodyText = "", footer = "", buttons = [], fallbackText = "", instance = "" } = {}) => {
   const normalizedPhone = normalizeEgyptPhone(phone);
   if (!normalizedPhone) throw gatewayError("A valid WhatsApp phone number is required", "WHATSAPP_PHONE_REQUIRED", 400);
   const safeButtons = (Array.isArray(buttons) ? buttons : [])
@@ -2600,9 +2600,10 @@ export const sendCtaButtonsMessage = async ({ phone, title = "", text: bodyText 
     // Evolution answers a third CTA with 400 "Maximum of 2 CTA buttons allowed".
     .slice(0, 2);
   if (!safeButtons.length) throw gatewayError("A CTA message needs at least one url or copy button", "WHATSAPP_CTA_INCOMPLETE", 400);
-  if (isCloudTransport()) throw gatewayError("Copy buttons are not available on the Cloud transport", "WHATSAPP_BUTTONS_UNSUPPORTED", 409);
+  // Refused on a Cloud number too, so the caller sends fallbackText FROM that number.
+  if (isCloudTransport(instance)) throw gatewayError("Copy buttons are not available on the Cloud transport", "WHATSAPP_BUTTONS_UNSUPPORTED", 409);
   if (provider() !== "evolution") throw gatewayError("CTA buttons are only supported on the Evolution provider", "WHATSAPP_BUTTONS_UNSUPPORTED", 409);
-  const current = requireEvolutionConfig();
+  const current = requireEvolutionConfig(instance);
   const payload = {
     number: normalizedPhone,
     title: text(title),
