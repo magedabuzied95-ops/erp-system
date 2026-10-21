@@ -3954,6 +3954,10 @@
       "marketing": "≈ 3.5 EGP per template",
       "depends": "Depends on the customer's number"
     },
-    "footnote": "Approximate: Meta's Egypt rates from 1 Oct 2026 at ≈ 48 EGP/USD + 14% VAT. Within 24h of the customer writing, a message on the official number goes as a plain message (first 1,000 a month free), not a template."
+    "footnote": "Approximate: Meta's Egypt rates from 1 Oct 2026 at ≈ 48 EGP/USD + 14% VAT. Within 24h of the customer writing, a message on the official number goes as a plain message (first 1,000 a month free), not a template.",
+    "previewOfficial": "This is the template the official number sends when the customer has not written in the last 24 hours.",
+    "previewEvolution": "This message currently leaves from Evolution with the same words, free. This is how it looks if you move it to the official number.",
+    "previewCampaign": "A campaign uses the template you choose when you create it.",
+    "previewHint": "Click any message in the table to see it."
   }
 }

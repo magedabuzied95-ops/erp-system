@@ -13,6 +13,7 @@ import { RefreshCw, Save } from "lucide-react";
 import { api } from "../../../../shared/api/api";
 import ThemedSelect from "../../../../shared/ui/ThemedSelect";
 import { ActionButton, PanelSkeleton } from "../integrations/integrationsUi.jsx";
+import { TemplatePreview } from "./WhatsAppTemplatesPanel.jsx";
 import { WHATSAPP_AUTOMATION_LABELS } from "../../../../../shared/whatsappQueueDefaults.js";
 import {
   WHATSAPP_SEND_ROUTE_SETTING_KEY,
@@ -40,6 +41,8 @@ export default function WhatsAppSendRoutesPanel({ headers }) {
   const [config, setConfig] = useState(() => normalizeWhatsappSendRoutes(null));
   const [accounts, setAccounts] = useState([]);
   const [budget, setBudget] = useState(null);
+  const [templates, setTemplates] = useState([]);
+  const [selected, setSelected] = useState("order_confirmation");
   const [dirty, setDirty] = useState(false);
   const [saving, setSaving] = useState(false);
   const [notice, setNotice] = useState(null);
@@ -57,6 +60,7 @@ export default function WhatsAppSendRoutesPanel({ headers }) {
       setConfig(normalizeWhatsappSendRoutes(row?.value));
       setAccounts(Array.isArray(numbers?.accounts) ? numbers.accounts : []);
       setBudget(templates?.budget || null);
+      setTemplates(Array.isArray(templates?.templates) ? templates.templates : []);
       setDirty(false);
     } catch (error) {
       setNotice({ ok: false, text: error?.message || t("aiSupport.waSendRoutes.loadFailed") });
@@ -100,6 +104,10 @@ export default function WhatsAppSendRoutesPanel({ headers }) {
       label: [account.verified_name, account.display_phone_number, account.phone_number_id].filter(Boolean).join(" · "),
     })),
   ], [accounts, t]);
+
+  // The template a row sends from the official number, drawn on a phone like the Templates page.
+  const previewed = templates.find((item) => item.automation_type === selected) || null;
+  const selectedLabel = WHATSAPP_AUTOMATION_LABELS[selected] || {};
 
   if (loading) return <PanelSkeleton rows={4} />;
 
@@ -156,7 +164,8 @@ export default function WhatsAppSendRoutesPanel({ headers }) {
         </div>
       </div>
 
-      <div className="overflow-x-auto rounded-2xl border border-white/10">
+      <div className="grid gap-3 lg:grid-cols-[minmax(0,1fr)_320px]">
+      <div className="min-w-0 overflow-x-auto rounded-2xl border border-white/10">
         <table className="w-full text-start text-xs">
           <thead className="bg-white/[0.04] text-[10.5px] text-slate-500">
             <tr>
@@ -171,7 +180,11 @@ export default function WhatsAppSendRoutesPanel({ headers }) {
               const label = WHATSAPP_AUTOMATION_LABELS[type] || {};
               const marketing = isMarketingAutomation(type);
               return (
-                <tr key={type} className="border-t border-white/5 text-slate-200">
+                <tr
+                  key={type}
+                  onClick={() => setSelected(type)}
+                  className={`cursor-pointer border-t border-white/5 text-slate-200 hover:bg-white/[0.04] ${selected === type ? "bg-cyan-400/[0.08]" : ""}`}
+                >
                   <td className="px-3 py-2 font-bold">{(isArabic ? label.ar : label.en) || type}</td>
                   <td className="px-3 py-2">
                     <span className={`inline-flex h-6 items-center rounded-full border px-2.5 text-[10.5px] font-black ${marketing ? "border-amber-300/25 bg-amber-400/10 text-amber-100" : "border-cyan-300/25 bg-cyan-400/10 text-cyan-100"}`}>
@@ -187,6 +200,22 @@ export default function WhatsAppSendRoutesPanel({ headers }) {
             })}
           </tbody>
         </table>
+      </div>
+      <div className="lg:sticky lg:top-2 lg:self-start">
+        <div className="mb-2 text-center text-xs font-black text-white">{(isArabic ? selectedLabel.ar : selectedLabel.en) || selected}</div>
+        {previewed?.preview ? (
+          <>
+            <TemplatePreview draft={previewed.preview} />
+            <p className="mt-2 text-center text-[11px] leading-5 text-slate-400">
+              {config.routes[selected] === "evolution" ? t("aiSupport.waSendRoutes.previewEvolution") : t("aiSupport.waSendRoutes.previewOfficial")}
+            </p>
+          </>
+        ) : (
+          <p className="rounded-xl border border-dashed border-white/10 p-4 text-center text-xs text-slate-400">
+            {selected === "marketing_broadcast" ? t("aiSupport.waSendRoutes.previewCampaign") : t("aiSupport.waSendRoutes.previewHint")}
+          </p>
+        )}
+      </div>
       </div>
       <p className="text-[11px] leading-5 text-slate-500">{t("aiSupport.waSendRoutes.footnote")}</p>
     </div>

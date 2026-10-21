@@ -107,7 +107,7 @@ const selectTrigger = "h-10 w-full rounded-xl border border-white/10 bg-slate-95
 // inline on purpose: the M1 theme remaps Tailwind's white/slate utilities, which turned the
 // bubble dark — WhatsApp's own colours must not follow the app theme.
 const WA = { chat: "#efe7dd", bar: "#075e54", bubble: "#ffffff", ink: "#111b21", muted: "#667781", link: "#00a5f4", notice: "#fdf4c5", media: "#d1d7db", line: "#e9edef" };
-function TemplatePreview({ draft }) {
+export function TemplatePreview({ draft }) {
   const { t } = useTranslation();
   const body = fillVariables(draft.body_text, draft.body_examples);
   const header = draft.header_format === "TEXT" ? fillVariables(draft.header_text, [draft.header_example]) : "";
