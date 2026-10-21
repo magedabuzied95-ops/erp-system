@@ -242,17 +242,34 @@ export const sanitizeMetaReviewerProductCards = (cards = []) =>
     .map(sanitizeMetaReviewerProductCard)
     .filter((card) => card.product_id || card.product_name || card.storefront_url);
 
-export const sanitizeMetaReviewerMessage = (message = {}) => ({
-  id: message.id ?? null,
-  text: text(message.staff_message || message.customer_message || message.message_text || message.ai_answer || message.last_message),
-  direction: text(message.direction || (message.sender_type === "customer" ? "inbound" : "outbound")),
-  sender_type: message.sender_type === "customer" ? "customer" : "staff",
-  message_type: text(message.message_type || "text"),
-  attachments: Array.isArray(message.visual_attachments) ? message.visual_attachments : [],
-  product_cards: sanitizeMetaReviewerProductCards(message.product_cards),
-  delivery_status: text(message.delivery_status),
-  created_at: message.created_at || null,
-});
+// Who wrote an outbound row (AI / chatbot flow / campaign / staff) is part of what the reviewer is
+// shown, so the author markers pass through — but only the writer's marker, never internal ids.
+// staff_user_name is kept for automated rows only (a flow or campaign name), not a person's name.
+const REVIEWER_SENDER_TYPES = new Set(["customer", "ai", "system", "staff"]);
+const reviewerActions = (value) => (Array.isArray(value) ? value : [])
+  .filter((action) => typeof action === "string" || (action && typeof action === "object" && /^whatsapp_/.test(text(action.type))))
+  .slice(0, 12);
+
+export const sanitizeMetaReviewerMessage = (message = {}) => {
+  const senderType = REVIEWER_SENDER_TYPES.has(text(message.sender_type)) ? text(message.sender_type) : "staff";
+  return {
+    id: message.id ?? null,
+    text: text(message.staff_message || message.customer_message || message.message_text || message.ai_answer || message.last_message),
+    direction: text(message.direction || (senderType === "customer" ? "inbound" : "outbound")),
+    sender_type: senderType,
+    message_type: text(message.message_type || "text"),
+    source_path: text(message.source_path),
+    insert_source: text(message.insert_source),
+    detected_intent: text(message.detected_intent),
+    staff_user_name: senderType === "system" ? text(message.staff_user_name) : "",
+    whatsapp_instance: text(message.whatsapp_instance),
+    suggested_actions: reviewerActions(message.suggested_actions),
+    attachments: Array.isArray(message.visual_attachments) ? message.visual_attachments : [],
+    product_cards: sanitizeMetaReviewerProductCards(message.product_cards),
+    delivery_status: text(message.delivery_status),
+    created_at: message.created_at || null,
+  };
+};
 
 export const metaReviewerMessageVisible = (message = {}, scope = loadMetaReviewerScope(), channel = "messenger") => {
   const channelConfig = getMetaReviewerChannelScope(scope, channel);

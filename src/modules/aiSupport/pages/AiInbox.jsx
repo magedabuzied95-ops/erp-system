@@ -343,7 +343,8 @@ const normalizeMetaReviewerMessage = (message = {}) => ({
   customer_message: message.sender_type === "customer" ? clean(message.text) : "",
   staff_message: message.sender_type === "customer" ? "" : clean(message.text),
   message_text: clean(message.text),
-  manual_message: message.sender_type !== "customer",
+  // Only a person's reply is a manual one; AI, chatbot and campaign rows keep their own author chip.
+  manual_message: message.sender_type === "staff",
   visual_attachments: asArray(message.attachments),
 });
 const productCardPreviewText = (cards = []) => {

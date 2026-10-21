@@ -309,9 +309,23 @@ export const loadMetaReviewerMessages = async ({ channel, conversationRef, limit
     // filterMetaReviewerVisibleMessages below.
     ? await db.query(`SELECT * FROM ai_support_messages WHERE tenant_id = $1::bigint AND session_id = $2::text AND created_at >= $3::timestamptz AND whatsapp_instance = ANY($5::text[]) ORDER BY created_at DESC, id DESC LIMIT $4::int`, [scope.tenantId, conversation.session_id, config.visibleMessagesAfter, safeLimit, metaReviewerWhatsappInstances(scope)])
     : await db.query(`SELECT * FROM ai_support_messages WHERE tenant_id = $1::bigint AND session_id = $2::text AND created_at >= $3::timestamptz ORDER BY created_at DESC, id DESC LIMIT $4::int`, [scope.tenantId, conversation.session_id, config.visibleMessagesAfter, safeLimit]);
+  const messages = filterMetaReviewerVisibleMessages(result.rows.reverse(), scope, conversation.normalizedChannel).map(sanitizeMetaReviewerMessage);
+  // WhatsApp: the test number's label for the number chip and the "replying from" line — only the
+  // allow-listed numbers' labels, never the store's other lines.
+  let whatsappContext = {};
+  if (conversation.normalizedChannel === "whatsapp") {
+    const allowed = new Set(metaReviewerWhatsappInstances(scope));
+    const labels = await import("./whatsappGatewayService.js")
+      .then((m) => m.loadWhatsappNumberLabels({ tenantId: scope.tenantId }))
+      .catch(() => ({}));
+    const whatsappNumbers = Object.fromEntries(Object.entries(labels || {}).filter(([key]) => allowed.has(key)));
+    const lastCustomer = [...messages].reverse().find((message) => message.sender_type === "customer" && allowed.has(message.whatsapp_instance));
+    whatsappContext = { whatsapp_numbers: whatsappNumbers, reply_whatsapp_instance: lastCustomer?.whatsapp_instance || [...allowed][0] || "" };
+  }
   return {
     conversation: { id: conversationRef, channel: conversation.normalizedChannel, customer_name: text(conversation.customer_name || "Meta test account"), customer_avatar_url: text(conversation.customer_avatar_url) },
-    messages: filterMetaReviewerVisibleMessages(result.rows.reverse(), scope, conversation.normalizedChannel).map(sanitizeMetaReviewerMessage),
+    messages,
+    ...whatsappContext,
   };
 };
 
