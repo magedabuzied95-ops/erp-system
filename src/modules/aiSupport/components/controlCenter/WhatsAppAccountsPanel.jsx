@@ -964,19 +964,21 @@ export default function WhatsAppAccountsPanel({ headers, onOpenSection }) {
           <tbody>
             {visible.map((row) => (
               <tr key={row.id} onClick={() => setSelectedId(String(row.id))} className="cursor-pointer border-t border-white/5 text-slate-200 hover:bg-white/[0.04]">
-                <td className="px-3 py-2.5 font-black">
+                <td className="px-3 py-2.5 text-start font-black">
                   <span className="inline-flex items-center gap-2">
                     <span className={`h-2 w-2 rounded-full ${row.status === "connected" && row.live?.ok !== false ? "bg-emerald-300" : "bg-rose-300"}`} aria-hidden="true" />
                     {nameOf(row)}
                   </span>
                 </td>
-                <td className="px-3 py-2.5" dir="ltr">{row.live?.display_phone_number || row.display_phone_number || "—"}</td>
-                <td className="px-3 py-2.5 text-slate-400" dir="ltr">{row.phone_number_id}</td>
-                <td className="px-3 py-2.5">{row.live?.verified_name || row.verified_name || "—"}</td>
-                <td className="px-3 py-2.5">{row.live?.name_status ? <Badge tone={nameTone(row.live.name_status)}>{row.live.name_status}</Badge> : "—"}</td>
-                <td className="px-3 py-2.5" dir="ltr">{row.live?.messaging_limit_tier ? limitLabel(row.live.messaging_limit_tier) : "—"}</td>
-                <td className="px-3 py-2.5 text-slate-400" dir="ltr">{row.waba_id || "—"}</td>
-                <td className="px-3 py-2.5">{coexistenceLabel(t, row.coexistence_state)}</td>
+                {/* Numbers keep their own LTR order inside <bdi>, but the cell follows the document's
+                    direction so each value sits under its header (a dir="ltr" cell drifted left in Arabic). */}
+                <td className="px-3 py-2.5 text-start"><bdi dir="ltr">{row.live?.display_phone_number || row.display_phone_number || "—"}</bdi></td>
+                <td className="px-3 py-2.5 text-start text-slate-400"><bdi dir="ltr">{row.phone_number_id}</bdi></td>
+                <td className="px-3 py-2.5 text-start">{row.live?.verified_name || row.verified_name || "—"}</td>
+                <td className="px-3 py-2.5 text-start">{row.live?.name_status ? <Badge tone={nameTone(row.live.name_status)}>{row.live.name_status}</Badge> : "—"}</td>
+                <td className="px-3 py-2.5 text-start"><bdi dir="ltr">{row.live?.messaging_limit_tier ? limitLabel(row.live.messaging_limit_tier) : "—"}</bdi></td>
+                <td className="px-3 py-2.5 text-start text-slate-400"><bdi dir="ltr">{row.waba_id || "—"}</bdi></td>
+                <td className="px-3 py-2.5 text-start">{coexistenceLabel(t, row.coexistence_state)}</td>
               </tr>
             ))}
             {!visible.length ? (
