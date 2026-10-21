@@ -189,9 +189,10 @@ test("the new services are allowlisted past the gitignore rule that hides them",
 });
 
 test("what the platform cannot do is refused with the reason", () => {
-  // A carousel is not a session message on Cloud API. Saying so beats letting the next reader
-  // hunt for a Graph endpoint that does not exist.
-  assert.match(gatewaySource, /A carousel can only be sent from the Evolution number/);
+  // A carousel IS a session message on Cloud API (interactive type "carousel"), so the gateway
+  // sends it there instead of refusing.
+  assert.match(gatewaySource, /if \(isCloudTransport\(instance\)\) return sendCloudCartCarousel/);
+  assert.match(gatewaySource, /type: "carousel",/);
   const templateMessage = buildTemplateMessage({
     automationType: "invoice_receipt",
     phone: "201095339666",

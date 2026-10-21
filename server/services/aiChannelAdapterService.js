@@ -541,6 +541,30 @@ const normalizeBaseIncomingMessage = ({
   };
 };
 
+// The same message with new words, every derived field (normalised text, intent signals) worked
+// out again from them. The Cloud route uses it for a colour-card tap: the customer pressed a
+// button whose label says nothing usable, and the catalog sentence takes its place.
+export const withIncomingMessageText = (message = {}, messageText = "") => ({
+  ...message,
+  ...normalizeBaseIncomingMessage({
+    tenantId: message.tenant_id,
+    channel: message.channel,
+    externalConversationId: message.external_conversation_id,
+    externalCustomerId: message.external_customer_id,
+    customerName: message.customer_name,
+    messageText,
+    attachments: [],
+    timestamp: message.timestamp,
+    quickReplyPayload: message.quick_reply_payload,
+    postbackPayload: message.postback_payload,
+    raw: message.raw,
+    externalMessageId: message.external_message_id,
+    replyToMessageId: message.reply_to_message_id,
+    dedupeKey: message.dedupe_key,
+  }),
+  attachments: message.attachments || [],
+});
+
 export const normalizeWebChatIncomingMessage = ({ tenantId, body = {}, headers = {} } = {}) => {
   const metadata = body?.metadata && typeof body.metadata === "object" ? body.metadata : {};
   return normalizeBaseIncomingMessage({
@@ -2030,7 +2054,7 @@ export const sendWhatsAppCloudReply = async ({ to, reply = {}, messageText = "",
       deliveryError = deliveryError || error?.message || "WhatsApp text send failed";
     }
   }
-  // ── Colour carousel (Evolution only) ─────────────────────────────────────────────────────────
+  // ── Colour carousel (Evolution + Cloud) ─────────────────────────────────────────────────────────
   // Two or more cards to one customer used to go out as N separate image messages. On Evolution
   // they go as ONE swipeable carousel: a card per colour with its photo, price and sizes, and a
   // REPLY button whose id carries the exact variant (choose_color:<variant_id>) — so a tap comes
@@ -2043,7 +2067,9 @@ export const sendWhatsAppCloudReply = async ({ to, reply = {}, messageText = "",
   // image and some text, and the "order this colour" button — the one that carries the variant
   // back as structured data — never reached them at all.
   let carouselHandled = false;
-  if (selectedTransport === "evolution" && productCards.length >= 1) {
+  // A Cloud number sends the same cards as Meta's interactive media carousel (a free session
+  // message, no template); the gateway builds that payload for a "cloud:<phone_number_id>" instance.
+  if (productCards.length >= 1) {
     try {
       const gateway = await import("./whatsappGatewayService.js");
       // ONE card carries ONE short line above it: the product's name and nothing else — no raw
@@ -2096,6 +2122,7 @@ export const sendWhatsAppCloudReply = async ({ to, reply = {}, messageText = "",
             body: carouselBody,
             cards: carouselCards.slice(i, i + 10),
             fallbackText: productCardTexts.join("\n\n").slice(0, 4096) || carouselBody,
+            ...(selectedTransport === "cloud" ? { instance: `cloud:${config.phoneNumberId || ""}` } : {}),
           });
           firstMessageId = firstMessageId || trackSuccess("product_carousel", response);
           successCount += 1;

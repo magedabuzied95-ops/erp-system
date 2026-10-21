@@ -107,6 +107,7 @@ import {
   AI_AGENT_CHANNELS,
   extractMetaWebhookMessages,
   extractWhatsAppWebhookMessages,
+  withIncomingMessageText,
   getAiChannelsStatus,
   getChannelSettings,
   linkChannelConversationToCustomerProfile,
@@ -1845,7 +1846,7 @@ export const handleWhatsappCloudWebhookRequest = async (req, res) => {
       return res.status(200).json({ success: true, ignored: hasStatuses ? "status_update" : "no_messages" });
     }
     const results = [];
-    for (const message of messages) {
+    for (let message of messages) {
       if (!message.message_text && !message.attachments?.length) {
         results.push({ external_customer_id: message.external_customer_id, ignored: "empty_message" });
         continue;
@@ -1972,6 +1973,28 @@ export const handleWhatsappCloudWebhookRequest = async (req, res) => {
         if (intercepted.handled) {
           results.push({ external_customer_id: message.external_customer_id, conversation_id: message.external_conversation_id, sent: false, reason: `wa_official_${intercepted.by}` });
           continue;
+        }
+      }
+      // A tap on a colour card from the Cloud carousel carries choose_color:<variant_id>, but its
+      // text is only the button label. The AI grounds colours from TEXT, so the label is swapped
+      // for the catalog sentence — what the Evolution route does for the same tap. The transcript
+      // already holds the raw tap, as it does there.
+      const cloudColorTap = String(message.raw?.message?.interactive?.button_reply?.id || "").match(/^choose_color:(\d+)$/);
+      if (cloudColorTap) {
+        try {
+          const picked = (await db.query(
+            `SELECT v.id, v.color, p.name AS product_name
+             FROM product_variants v JOIN products p ON p.id = v.product_id
+             WHERE v.id = $1 LIMIT 1`,
+            [Number(cloudColorTap[1])]
+          )).rows[0];
+          if (picked) {
+            const rewritten = `عايز ${picked.product_name}${picked.color ? ` لون ${picked.color}` : ""}`;
+            console.info("[whatsapp:cloud-color-choice-tap]", { variant_id: picked.id, color: picked.color || "", product: picked.product_name || "", rewritten });
+            message = withIncomingMessageText(message, rewritten);
+          }
+        } catch (colorTapError) {
+          console.warn("[whatsapp:cloud-color-choice-tap-failed]", { selected: cloudColorTap[0], message: colorTapError?.message || String(colorTapError) });
         }
       }
       const intentMessage = envText(message.normalized_for_intent || message.message_text || "");

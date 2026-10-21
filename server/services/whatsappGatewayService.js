@@ -2593,10 +2593,83 @@ export const sendWhatsappTemplate = async ({ automationType = "", phone, values 
 
 // `instance` is the number the conversation lives on; empty keeps the env default, so every older
 // caller sends exactly as before.
+/*
+ * Cloud API's interactive media carousel: a SESSION message (inside the 24h window, free, no
+ * template review) — the same shape the official chatbot flows send (flowSender.js). Graph wants
+ * 2–10 cards, a non-empty body, an image header on every card and the SAME button kind on every
+ * card, so a set that mixes reply and url buttons keeps only its reply cards. One card is not a
+ * carousel to Graph; it leaves as a reply-button message with the photo as its header, which is
+ * what a lone card looks like on Evolution too.
+ */
+const CLOUD_CAROUSEL_MAX_CARDS = 10;
+const sendCloudCartCarousel = async ({ phone, body = "", cards = [], instance = "" } = {}) => {
+  refuseCloudLid(normalizeWhatsappLid(phone));
+  const normalizedPhone = normalizeEgyptPhone(phone);
+  if (!normalizedPhone) throw gatewayError("A valid WhatsApp phone number is required", "WHATSAPP_PHONE_REQUIRED", 400);
+  const prepared = (await Promise.all((Array.isArray(cards) ? cards : []).map(async (card) => {
+    const rawImage = text(card?.imageUrl || card?.image || "");
+    const squared = rawImage ? await ensureCarouselCardImageUrl(rawImage).catch(() => "") : "";
+    return {
+      imageUrl: rawImage ? resolvePublicImageUrl(squared || rawImage) : "",
+      body: text(card?.body).slice(0, 160),
+      buttonId: text(card?.buttonId),
+      buttonText: text(card?.buttonText).slice(0, 20),
+      url: text(card?.url),
+    };
+  }))).filter((card) => /^https:\/\//i.test(card.imageUrl) && card.body && (card.buttonId || card.url));
+  const replyCards = prepared.filter((card) => card.buttonId);
+  const useReply = replyCards.length > 0;
+  const usable = (useReply ? replyCards : prepared).slice(0, CLOUD_CAROUSEL_MAX_CARDS);
+  if (!usable.length) throw gatewayError("A carousel needs at least one card with a public photo", "WHATSAPP_CAROUSEL_EMPTY", 400);
+  const safeBody = (text(body) || text(usable[0].body.split("\n")[0])).slice(0, 1024);
+  const phoneNumberId = resolveWhatsappTransport(instance).phoneNumberId;
+  const to = whatsappCloud.toGraphRecipient(normalizedPhone);
+  const replyButton = (card) => ({ type: "quick_reply", quick_reply: { id: card.buttonId, title: card.buttonText || "OK" } });
+
+  if (usable.length === 1) {
+    const [card] = usable;
+    const interactive = useReply
+      ? {
+          type: "button",
+          header: { type: "image", image: { link: card.imageUrl } },
+          body: { text: [safeBody, card.body].filter(Boolean).join("\n\n").slice(0, 1024) },
+          action: { buttons: [{ type: "reply", reply: { id: card.buttonId, title: card.buttonText || "OK" } }] },
+        }
+      : {
+          type: "cta_url",
+          header: { type: "image", image: { link: card.imageUrl } },
+          body: { text: [safeBody, card.body].filter(Boolean).join("\n\n").slice(0, 1024) },
+          action: { name: "cta_url", parameters: { display_text: card.buttonText || "Open", url: card.url } },
+        };
+    return whatsappCloud.sendCloudPayload({ phoneNumberId, message: { to, type: "interactive", interactive } });
+  }
+
+  return whatsappCloud.sendCloudPayload({
+    phoneNumberId,
+    message: {
+      to,
+      type: "interactive",
+      interactive: {
+        type: "carousel",
+        body: { text: safeBody },
+        action: {
+          cards: usable.map((card, index) => ({
+            card_index: index,
+            type: useReply ? "button" : "cta_url",
+            header: { type: "image", image: { link: card.imageUrl } },
+            body: { text: card.body },
+            action: useReply
+              ? { buttons: [replyButton(card)] }
+              : { name: "cta_url", parameters: { display_text: card.buttonText || "Open", url: card.url } },
+          })),
+        },
+      },
+    },
+  });
+};
+
 export const sendCartCarouselMessage = async ({ phone, body = "", cards = [], fallbackText = "", instance = "" } = {}) => {
-  // A carousel is not a session message on Cloud API — it exists only as an approved MARKETING
-  // template, which is a different product with its own review, price and opt-out rules.
-  if (isCloudTransport(instance)) throw gatewayError("A carousel can only be sent from the Evolution number; on Cloud it would have to be an approved marketing template", "WHATSAPP_CAROUSEL_UNSUPPORTED", 409);
+  if (isCloudTransport(instance)) return sendCloudCartCarousel({ phone, body, cards, instance });
   if (provider() !== "evolution") throw gatewayError("Carousel messages are only supported on the Evolution provider", "WHATSAPP_CAROUSEL_UNSUPPORTED", 409);
   // A username customer has a LID and no phone (see sendTextMessage). The carousel used to accept
   // a phone only, so every product send to such a customer fell back to one photo + caption per

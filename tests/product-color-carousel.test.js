@@ -39,7 +39,9 @@ test("product cards on Evolution go as one carousel, not N images", () => {
 // Messenger and Instagram already sent it as a template (metaIntegrationService templateMinimum).
 test("a single picked colour still goes as a card, not a photo with a caption", () => {
   const branch = adapter.slice(adapter.indexOf("let carouselHandled = false"), adapter.indexOf("if (!carouselHandled)"));
-  assert.match(branch, /selectedTransport === "evolution" && productCards\.length >= 1/);
+  assert.match(branch, /if \(productCards\.length >= 1\)/);
+  // a Cloud number gets the same cards, routed to its own phone_number_id
+  assert.match(branch, /selectedTransport === "cloud" \? \{ instance: `cloud:/);
   assert.match(branch, /if \(carouselCards\.length >= 1\)/);
   assert.doesNotMatch(branch, /length >= 2/, "no threshold is left that would drop a single card");
 });
