@@ -7501,7 +7501,7 @@ export default function AiInbox({ reviewerMode = false }) {
           : mergeMessagesByIdentity([...incoming, ...existing]);
         // Replace-write (not union) so the dropped messages leave the cached
         // record too — a union write would resurrect them next session.
-        if (shouldHydrateFullPage) inboxCache.replaceThreadNow(clean(conversationIdentifier), mergedMessages);
+        if (shouldHydrateFullPage && !reviewerMode) inboxCache.replaceThreadNow(clean(conversationIdentifier), mergedMessages);
         return {
           ...conversation,
           messages: mergedMessages,
@@ -7531,6 +7531,10 @@ export default function AiInbox({ reviewerMode = false }) {
   // authoritative page is fetched by the hydration effect below and merged over
   // it, so the thread never blanks or flashes.
   useEffect(() => {
+    // The reviewer never reads the shared thread cache: it is keyed by conversation, not by user,
+    // so a browser that opened the same thread as an admin would merge the admin's full history
+    // (Evolution rows, older tests) into the sandboxed view. The reviewer sees the server only.
+    if (reviewerMode) return undefined;
     const key = clean(selectedConversation?.conversation_key || selectedConversation?.session_id || "");
     if (!key || cachePrimedThreadsRef.current.has(key)) return undefined;
     let active = true;
@@ -7544,16 +7548,18 @@ export default function AiInbox({ reviewerMode = false }) {
       }));
     });
     return () => { active = false; };
-  }, [patchConversation, selectedConversation?.conversation_key, selectedConversation?.session_id]);
+  }, [patchConversation, reviewerMode, selectedConversation?.conversation_key, selectedConversation?.session_id]);
 
   // Persist the open thread's message window. One funnel covers hydration,
   // older-message loads, realtime appends and optimistic send/reconcile.
   // Debounced + async inside the shared module, so it never blocks rendering.
+  // Not for the reviewer (see above): its sandboxed view must not land in the shared cache either.
   useEffect(() => {
+    if (reviewerMode) return;
     const key = clean(selectedConversation?.conversation_key || selectedConversation?.session_id || "");
     const messages = asArray(selectedConversation?.messages);
     if (key && messages.length) inboxCache.saveThread(key, messages, mergeMessagesByIdentity);
-  }, [selectedConversation]);
+  }, [reviewerMode, selectedConversation]);
 
   // Opening a thread fetches its NEWEST page once — the same request the "never loaded"
   // effect below would make 250ms later, made now so it is the only one. This used to key off
