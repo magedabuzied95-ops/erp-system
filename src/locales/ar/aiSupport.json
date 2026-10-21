@@ -654,7 +654,8 @@
       "filtersCount_two": "فلترين",
       "filtersCount_few": "{{count}} فلاتر",
       "filtersCount_many": "{{count}} فلتر",
-      "filtersCount_other": "{{count}} فلتر"
+      "filtersCount_other": "{{count}} فلتر",
+      "noStage": "بدون مرحلة (مش lead)"
     },
     "crmCard": {
       "title": "المحادثة",
@@ -665,7 +666,8 @@
       "owner": "المسؤول",
       "assign": "تعيين",
       "reassign": "تغيير",
-      "stageError": "معرفناش نغيّر المرحلة"
+      "stageError": "معرفناش نغيّر المرحلة",
+      "notLead": "مش lead لسه — اختار مرحلة عشان يدخل الـ CRM."
     },
     "composer": {
       "placeholder": "اكتب رسالتك...",

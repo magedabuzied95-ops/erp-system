@@ -147,8 +147,8 @@ test("the desktop inbox sends the panel and keeps filtered pages out of the cach
 });
 
 test("every panel string exists in both locales", () => {
-  const keys = ["title", "tabs.accounts", "tabs.labels", "tabs.stages", "tabs.members", "tabs.activity", "tabs.saved", "search.accounts", "unassigned", "customRange", "saveCurrent", "noSaved", "filtersCount_other"];
-  const crmKeys = ["title", "stage", "labels", "owner", "assign", "reassign", "stageError"];
+  const keys = ["title", "tabs.accounts", "tabs.labels", "tabs.stages", "tabs.members", "tabs.activity", "tabs.saved", "search.accounts", "unassigned", "customRange", "saveCurrent", "noSaved", "filtersCount_other", "noStage"];
+  const crmKeys = ["title", "stage", "labels", "owner", "assign", "reassign", "stageError", "notLead"];
   for (const locale of ["ar", "en"]) {
     const inbox = JSON.parse(read(`src/locales/${locale}/aiSupport.json`)).inbox;
     for (const key of keys) {

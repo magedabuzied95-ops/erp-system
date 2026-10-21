@@ -348,7 +348,27 @@ const buildOutboundTranscriptIdentityKey = ({
 
 const buildOutboundTranscriptDedupeKey = (args = {}) => buildOutboundTranscriptIdentityKey(args);
 
-const persistOutboundTranscriptRow = async ({
+/*
+ * Every outbound row goes through here. A product card the customer was actually
+ * sent — by staff or by the AI — makes the conversation an interested lead
+ * (Genie: a customer asking about a package lands in "مهتم"). Forward-only and
+ * detached; see modules/crmStages/autoStage.js.
+ */
+const persistOutboundTranscriptRow = async (args = {}) => {
+  const row = await persistOutboundTranscriptRowUnstaged(args);
+  const cards = Array.isArray(args.productCards) ? args.productCards : [];
+  const outbound = String(args.direction || "outbound").toLowerCase() !== "inbound";
+  const status = String(args.deliveryStatus || "").toLowerCase();
+  const type = String(args.messageType || "").toLowerCase();
+  if (row && outbound && cards.length && type !== "internal_note" && !["failed", "internal_note"].includes(status)) {
+    void import("../modules/crmStages/autoStage.js")
+      .then((m) => m.advanceConversationLeadStageLater({ tenantId: args.tenantId, sessionId: row.session_id || args.sessionId, stage: "interested", source: "product_card" }))
+      .catch(() => {});
+  }
+  return row;
+};
+
+const persistOutboundTranscriptRowUnstaged = async ({
   tenantId,
   sessionId,
   message,

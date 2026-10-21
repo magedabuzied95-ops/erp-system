@@ -133,7 +133,7 @@ import WaitingOrbit from "../components/WaitingOrbit.jsx";
 import ReplyWaitClock from "../components/ReplyWaitClock.jsx";
 import InboxFilterPanel from "../components/InboxFilterPanel.jsx";
 import ConversationCrmCard from "../components/ConversationCrmCard.jsx";
-import { EMPTY_PANEL_FILTERS, conversationMatchesPanelFilters, panelFilterCount, panelFilterParams } from "../lib/inboxFilterPanel.js";
+import { EMPTY_PANEL_FILTERS, PANEL_NO_STAGE, conversationLeadStage, conversationMatchesPanelFilters, panelFilterCount, panelFilterParams } from "../lib/inboxFilterPanel.js";
 import InboxTopBar, { META_REVIEWER_SECTIONS } from "../components/InboxTopBar.jsx";
 import { chromeModeFor, platformCanvas, resolveMessagePlatform } from "../components/messagePlatform.js";
 import { useTheme } from "../../../theme/useTheme";
@@ -4642,7 +4642,11 @@ export default function AiInbox({ reviewerMode = false }) {
   const panelParams = useMemo(() => panelFilterParams(panelFilters), [panelFilters]);
   const panelActive = Object.keys(panelParams).length > 0;
   const inboxStageOptions = useMemo(
-    () => Object.entries(LEAD_STATUS_META).map(([id, meta]) => ({ id, label: t(meta.labelKey) })),
+    () => [
+      ...Object.entries(LEAD_STATUS_META).map(([id, meta]) => ({ id, label: t(meta.labelKey) })),
+      // Conversations that are not leads (Genie: an ordinary chat has no stage).
+      { id: PANEL_NO_STAGE, label: t("aiSupport.inbox.filterPanel.noStage") },
+    ],
     [t]
   );
   const [channelAccounts, setChannelAccounts] = useState([]);
@@ -10480,8 +10484,8 @@ export default function AiInbox({ reviewerMode = false }) {
         summaryLead={reviewerMode || !selectedConversation || isCommentConversation(selectedConversation) ? null : (
           <ConversationCrmCard
             conversation={selectedConversation}
-            stageOptions={inboxStageOptions}
-            currentStage={conversationLeadStatus(selectedConversation)}
+            stageOptions={inboxStageOptions.filter((stage) => stage.id !== PANEL_NO_STAGE)}
+            currentStage={conversationLeadStage(selectedConversation)}
             busy={["lead_status", "labels"].includes(leadActionLoading) ? leadActionLoading : ""}
             onStageChange={updateConversationLeadStatus}
             onLabelsChange={updateConversationLabels}

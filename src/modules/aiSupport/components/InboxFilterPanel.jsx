@@ -173,7 +173,7 @@ export default function InboxFilterPanel({
       if (!anchor) return;
       const rect = anchor.getBoundingClientRect();
       const rtl = getComputedStyle(anchor).direction === "rtl";
-      const width = Math.min(480, window.innerWidth - 16);
+      const width = Math.min(540, window.innerWidth - 16);
       let left = rtl ? rect.right - width : rect.left;
       left = Math.max(8, Math.min(left, window.innerWidth - width - 8));
       const top = rect.bottom + 6;
@@ -445,7 +445,8 @@ export default function InboxFilterPanel({
       className="fixed flex flex-col overflow-hidden rounded-2xl border border-border bg-surface text-text shadow-2xl"
       style={{ top: layout.top, left: layout.left, width: layout.width, maxHeight: layout.maxHeight, zIndex: layout.zIndex }}
     >
-      <div role="tablist" className="flex shrink-0 items-stretch overflow-x-auto border-b border-border">
+      {/* All six tabs share the width — no scroll strip, nothing cut off. */}
+      <div role="tablist" className="flex shrink-0 items-stretch overflow-hidden border-b border-border">
         {TABS.map(({ key, icon: Icon }) => {
           const on = tab === key;
           const count = tabCounts[key] || 0;
@@ -456,11 +457,12 @@ export default function InboxFilterPanel({
               role="tab"
               aria-selected={on}
               onClick={() => setTab(key)}
-              className={`relative flex shrink-0 items-center gap-1.5 px-3 py-2.5 text-xs font-semibold transition ${on ? "text-primary" : "text-text-muted hover:text-text"}`}
+              className={`relative flex min-w-0 flex-1 items-center justify-center gap-1 px-1.5 py-2.5 text-xs font-semibold outline-none transition focus-visible:bg-surface-hover ${on ? "text-primary" : "text-text-muted hover:text-text"}`}
+              style={{ border: 0, boxShadow: "none" }}
             >
-              <Icon className="h-4 w-4" />
-              {t(`aiSupport.inbox.filterPanel.tabs.${key}`)}
-              {count ? <span className="grid h-4 min-w-4 place-items-center rounded-full bg-primary px-1 text-[10px] font-black text-primary-foreground">{count}</span> : null}
+              <Icon className="h-4 w-4 shrink-0" />
+              <span className="truncate">{t(`aiSupport.inbox.filterPanel.tabs.${key}`)}</span>
+              {count ? <span className="grid h-4 min-w-4 shrink-0 place-items-center rounded-full bg-primary px-1 text-[10px] font-black text-primary-foreground">{count}</span> : null}
               {on ? <span className="absolute inset-x-2 bottom-0 h-0.5 rounded-full bg-primary" /> : null}
             </button>
           );

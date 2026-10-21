@@ -1,4 +1,5 @@
-﻿import crypto from "node:crypto";
+﻿import { advanceConversationLeadStageLater } from "../modules/crmStages/autoStage.js";
+import crypto from "node:crypto";
 
 import db from "../database/db.js";
 import { getAiAgentSettings } from "./aiSalesAgentService.js";
@@ -1015,6 +1016,8 @@ export const createAiOrderDraft = async (payload = {}) => {
     });
     await client.query("COMMIT");
     console.log("[ai-agent:orders] draft created", { tenantId, order_id: order.id, conversation_id: conversationId, product_id: product.id, variant_id: selectedVariant.id });
+    // An order draft for this customer: the lead is in negotiation (forward-only).
+    advanceConversationLeadStageLater({ tenantId, sessionId: conversationId, stage: "negotiation", source: "order_draft" });
     return { order: attachPublicOrderNumber(order, channel), items, product, variant: selectedVariant, duplicate: false };
   } catch (error) {
     await client.query("ROLLBACK").catch(() => {});
@@ -1542,6 +1545,7 @@ export const createAiOrderDraftLines = async (payload = {}) => {
       line_count: itemRows.length,
       subtotal,
     });
+    advanceConversationLeadStageLater({ tenantId, sessionId: conversationId, stage: "negotiation", source: "order_draft" });
     return { order: attachPublicOrderNumber(order, channel), items: itemRows, duplicate: false };
   } catch (error) {
     await client.query("ROLLBACK").catch(() => {});
@@ -1641,6 +1645,8 @@ export const confirmAiOrder = async (payload = {}) => {
     // nothing ever clears. The order carries its own conversation id, so this stars
     // the exact thread it was raised from whatever channel that is.
     void syncDeliveryOrderFavorite({ tenantId, order: confirmedOrder, source: "ai_order_confirmed" });
+    // A confirmed order is a won lead.
+    advanceConversationLeadStageLater({ tenantId, sessionId: order.ai_agent_conversation_id || conversationId, stage: "won", source: "order_confirmed" });
     console.log("[ai-agent:orders] confirmed", { tenantId, order_id: order.id, conversation_id: order.ai_agent_conversation_id });
     return { order: confirmedOrder, items: items.rows };
   } catch (error) {

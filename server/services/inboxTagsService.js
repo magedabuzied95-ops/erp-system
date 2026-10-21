@@ -20,6 +20,7 @@ import db from "../database/db.js";
 import {
   AI_INBOX_DEFAULT_LABELS,
   AI_INBOX_LABEL_COLOR_KEYS,
+  AI_INBOX_RETIRED_STAGE_LABEL_KEYS,
   customAiInboxLabel,
 } from "../../shared/aiInboxConversationLabels.js";
 
@@ -92,6 +93,18 @@ const seededTenants = new Set();
 // soft-deleted key.
 const seedAndAdopt = async (tenantId, usage) => {
   if (!seededTenants.has(tenantId)) {
+    // The catalogue used to start with one label per CRM stage ("New", "Won"…), so the
+    // labels filter repeated the stages filter. Labels and stages are apart now: the
+    // system's own stage clones leave the catalogue (soft delete — a conversation that
+    // carries one keeps it, and ON CONFLICT below never revives it). A tag an operator
+    // made by hand is never touched.
+    await db.query(
+      `UPDATE conversation_label_definitions
+          SET deleted_at = NOW(), updated_at = NOW()
+        WHERE tenant_id = $1 AND deleted_at IS NULL AND created_by_name = 'system'
+          AND key = ANY($2::text[]) AND lead_status = key`,
+      [tenantId, AI_INBOX_RETIRED_STAGE_LABEL_KEYS]
+    );
     for (const label of AI_INBOX_DEFAULT_LABELS) {
       await db.query(
         `INSERT INTO conversation_label_definitions (tenant_id, key, name, color, lead_status, created_by_name)

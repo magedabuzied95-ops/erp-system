@@ -650,7 +650,8 @@
       "save": "Save",
       "deleteSaved": "Delete saved filter",
       "filtersCount_one": "{{count}} filter",
-      "filtersCount_other": "{{count}} filters"
+      "filtersCount_other": "{{count}} filters",
+      "noStage": "No stage (not a lead)"
     },
     "crmCard": {
       "title": "Conversation",
@@ -661,7 +662,8 @@
       "owner": "Owner",
       "assign": "Assign",
       "reassign": "Change",
-      "stageError": "Could not change the stage"
+      "stageError": "Could not change the stage",
+      "notLead": "Not a lead yet — pick a stage to add it to the CRM."
     },
     "composer": {
       "placeholder": "Type your message...",

@@ -1,13 +1,20 @@
 export const AI_INBOX_LABEL_COLOR_KEYS = ["sky", "cyan", "amber", "violet", "emerald", "rose", "orange", "teal"];
 
+// Labels are not stages (Genie ERP keeps the two apart: tags are put on by hand,
+// the CRM stage moves on its own). The starter catalogue is a few plain Arabic
+// tags; the stage lives in lead_status and never doubles as a label.
 export const AI_INBOX_DEFAULT_LABELS = [
-  { id: "new", name: "New", color: "sky", leadStatus: "new" },
-  { id: "contacted", name: "Contacted", color: "cyan", leadStatus: "contacted" },
-  { id: "interested", name: "Interested", color: "amber", leadStatus: "interested" },
-  { id: "negotiation", name: "Negotiation", color: "violet", leadStatus: "negotiation" },
-  { id: "won", name: "Won", color: "emerald", leadStatus: "won" },
-  { id: "lost", name: "Lost", color: "rose", leadStatus: "lost" },
+  { id: "vip", name: "عميل مهم", color: "amber" },
+  { id: "complaint", name: "شكوى", color: "rose" },
+  { id: "follow_up", name: "متابعة", color: "sky" },
+  { id: "exchange", name: "استبدال أو مرتجع", color: "violet" },
+  { id: "wholesale", name: "جملة", color: "teal" },
+  { id: "inquiry", name: "استفسار", color: "cyan" },
 ];
+
+// The stage-named labels the catalogue used to start with ("New", "Won"...).
+// Retired from the catalogue; a conversation that still carries one keeps it.
+export const AI_INBOX_RETIRED_STAGE_LABEL_KEYS = Object.freeze(["new", "contacted", "interested", "negotiation", "won", "lost"]);
 
 const cleanLabelText = (value = "") => String(value ?? "").trim().replace(/\s+/g, " ");
 
@@ -65,9 +72,6 @@ export const aiInboxLabelsFromConversation = (conversation = {}) => {
     conversation?.channel_metadata?.labels ||
     conversation?.customer_profile?.conversation_labels ||
     conversation?.customer_profile?.labels;
-  const normalized = normalizeAiInboxConversationLabels(stored);
-  if (normalized.length) return normalized;
-  const leadStatus = cleanLabelText(conversation?.lead_status || conversation?.channel_metadata?.lead_status).toLowerCase();
-  const fallback = AI_INBOX_DEFAULT_LABELS.find((item) => item.id === leadStatus);
-  return fallback ? [{ ...fallback }] : [];
+  // No stage-as-label fallback: a conversation with no labels has none.
+  return normalizeAiInboxConversationLabels(stored);
 };

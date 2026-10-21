@@ -24,6 +24,21 @@ const ACTIVITY_WINDOW_MS = { "24h": 24 * 3600_000, "3d": 3 * 24 * 3600_000, "7d"
 
 // "Unassigned" in the Members tab.
 export const PANEL_UNASSIGNED_MEMBER = "none";
+// "No stage" in the Stages tab: a conversation that is not a lead.
+export const PANEL_NO_STAGE = "none";
+
+/*
+ * The conversation's CRM stage, or "" when it is not a lead (Genie: an ordinary
+ * chat has no stage). Same rule as CONVERSATION_IS_LEAD_SQL on the server: a lead
+ * marker (ad, campaign, a hand-picked or automatic stage) or any stage but the
+ * default "new".
+ */
+export const conversationLeadStage = (conversation = {}) => {
+  const metadata = conversation.channel_metadata || conversation.metadata || {};
+  const stage = clean(conversation.lead_status || metadata.lead_status || "new").toLowerCase() || "new";
+  const isLead = Boolean(metadata.crm_lead || metadata.campaign_lead) || stage !== "new";
+  return isLead ? stage : "";
+};
 
 const clean = (value) => String(value ?? "").trim();
 const list = (value) => [...new Set((Array.isArray(value) ? value : []).map(clean).filter(Boolean))];
@@ -114,8 +129,8 @@ export const conversationMatchesPanelFilters = (conversation = {}, value = {}, {
     if (!labels.some((label) => filters.labels.includes(clean(label?.id)))) return false;
   }
   if (filters.stages.length) {
-    const stage = clean(conversation.lead_status || metadata.lead_status || "new").toLowerCase() || "new";
-    if (!filters.stages.includes(stage)) return false;
+    const stage = conversationLeadStage(conversation);
+    if (!filters.stages.includes(stage || PANEL_NO_STAGE)) return false;
   }
   if (filters.members.length) {
     const assigned = clean(conversation.assigned_user_id ?? conversation.assigned_user?.id ?? "");

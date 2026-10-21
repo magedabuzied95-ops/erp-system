@@ -1,5 +1,6 @@
 import { codFaqAnswer } from "./codPolicyReplyService.js";
 import db from "../database/db.js";
+import { CONVERSATION_IS_LEAD_SQL } from "../modules/crmStages/autoStage.js";
 import { resolveCustomerDisplayPrice, loadTenantSaleModeSettings } from "../utils/customerDisplayPrice.js";
 import { getPerfContext } from "../utils/perfDebug.js";
 import { resolveConversationChannel, resolvedConversationChannelSql } from "../utils/inboxChannelIdentity.js";
@@ -2588,10 +2589,18 @@ export const appendInboxPanelFilterClauses = ({ clauses, params, channelSql, acc
       WHERE panel_label->>'id' = ANY($${params.length}::text[])
     )`);
   }
+  // A stage belongs to leads only (Genie: an ordinary chat has no stage); "none" is
+  // the conversations that are not leads at all. See modules/crmStages/autoStage.js.
   const stageList = panelList(stages).map((stage) => stage.toLowerCase());
   if (stageList.length) {
-    params.push(stageList);
-    clauses.push(`LOWER(COALESCE(NULLIF(c.lead_status, ''), 'new')) = ANY($${params.length}::text[])`);
+    const stageClauses = [];
+    const realStages = stageList.filter((stage) => stage !== "none");
+    if (realStages.length) {
+      params.push(realStages);
+      stageClauses.push(`(LOWER(COALESCE(NULLIF(c.lead_status, ''), 'new')) = ANY($${params.length}::text[]) AND ${CONVERSATION_IS_LEAD_SQL})`);
+    }
+    if (stageList.includes("none")) stageClauses.push(`NOT ${CONVERSATION_IS_LEAD_SQL}`);
+    clauses.push(`(${stageClauses.join(" OR ")})`);
   }
   const members = panelList(memberIds);
   if (members.length) {

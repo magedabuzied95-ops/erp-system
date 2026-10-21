@@ -12,9 +12,12 @@ import {
 const desktopSource = readFileSync("src/modules/aiSupport/components/ConversationLabelsModal.jsx", "utf8") + readFileSync("src/modules/aiSupport/pages/AiInbox.jsx", "utf8") + readFileSync("src/modules/aiSupport/pages/AiInboxPwa.jsx", "utf8");
 const routeSource = readFileSync("server/routes/aiAgentOrders.js", "utf8");
 
-test("default conversation labels replace the single lead-status selector", () => {
-  assert.deepEqual(AI_INBOX_DEFAULT_LABELS.map((label) => label.id), ["new", "contacted", "interested", "negotiation", "won", "lost"]);
-  assert.equal(aiInboxLabelsFromConversation({ lead_status: "interested" })[0]?.name, "Interested");
+test("labels are not stages: the starter catalogue is plain tags, and a stage never shows as a label", () => {
+  // Genie ERP keeps tags (by hand) and the CRM stage (automatic) apart; the old
+  // catalogue was one label per stage, so the two filters repeated each other.
+  assert.deepEqual(AI_INBOX_DEFAULT_LABELS.map((label) => label.id), ["vip", "complaint", "follow_up", "exchange", "wholesale", "inquiry"]);
+  assert.ok(AI_INBOX_DEFAULT_LABELS.every((label) => !label.leadStatus));
+  assert.deepEqual(aiInboxLabelsFromConversation({ lead_status: "interested" }), []);
 });
 
 test("conversation labels allow stable custom labels and multiple selections", () => {
@@ -24,12 +27,13 @@ test("conversation labels allow stable custom labels and multiple selections", (
   const labels = normalizeAiInboxConversationLabels(["New", "VIP Client", "VIP Client", "Urgent"]);
   assert.equal(labels.length, 3);
   assert.deepEqual(labels.map((label) => label.name), ["New", "VIP Client", "Urgent"]);
+  // A label no longer carries a stage, even one with a stage's old id.
   assert.deepEqual(normalizeAiInboxConversationLabels([{ id: "new", name: "Fresh Lead", color: "teal" }])[0], {
     id: "new",
     name: "Fresh Lead",
     color: "teal",
-    leadStatus: "new",
   });
+  assert.equal(customAiInboxLabel("عميل مهم").id, "vip");
 });
 
 test("desktop label manager saves labels and renders them beside the customer name", () => {

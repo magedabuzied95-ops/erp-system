@@ -16,7 +16,7 @@ const LABEL_DOTS = { sky: "#0ea5e9", cyan: "#06b6d4", amber: "#f59e0b", violet: 
 export default function ConversationCrmCard({
   conversation = null,
   stageOptions = [],
-  currentStage = "new",
+  currentStage = "",
   busy = "",
   onStageChange,
   onLabelsChange,
@@ -40,6 +40,7 @@ export default function ConversationCrmCard({
       <div className="space-y-3">
         <div>
           <div className={sectionTitle}>{t("aiSupport.inbox.crmCard.stage")}</div>
+          {!currentStage ? <p className="mb-1.5 text-[11px] text-slate-500">{t("aiSupport.inbox.crmCard.notLead")}</p> : null}
           <div role="radiogroup" aria-label={t("aiSupport.inbox.crmCard.stage")} className="flex flex-wrap gap-1.5">
             {stageOptions.map((stage) => {
               const on = stage.id === currentStage;

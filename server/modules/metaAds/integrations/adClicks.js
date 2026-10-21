@@ -154,6 +154,10 @@ export const recordAdReferral = async ({ tenantId, channel, conversationKey = ""
     void import("../../campaignAttribution/attribution.js")
       .then((m) => m.recordAdClickTouchSafe({ tenantId, clickId: rows[0].id }))
       .catch(() => {});
+    // A chat from an ad is a lead from its first message (Genie: CTWA → "جديد").
+    void import("../../crmStages/autoStage.js")
+      .then((m) => m.advanceConversationLeadStageLater({ tenantId, sessionId: key, stage: "new", source: "ad_click", retryAfterMs: [5000, 30000] }))
+      .catch(() => {});
   }
   return rows[0]?.id || null;
 };

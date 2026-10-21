@@ -8580,6 +8580,8 @@ router.patch("/inbox/:conversationId/lead-status", protect, inboxReply(), async 
         ...(conversation.channel_metadata || {}),
         lead_status: nextLeadStatus,
         source: "ai_inbox_lead_status",
+        // Picking a stage by hand makes the conversation a lead (modules/crmStages/autoStage.js).
+        crm_lead: conversation.channel_metadata?.crm_lead || { source: "manual", at: new Date().toISOString() },
       },
       lastMessageAt: conversation.last_message_at || conversation.updated_at || new Date().toISOString(),
     });
