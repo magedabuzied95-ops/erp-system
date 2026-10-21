@@ -192,9 +192,39 @@ test("the screen offers exactly the next step of the flow", () => {
   assert.deepEqual(portalOrderActionsFor(orderIn("confirmed")), ["ready_to_ship", "create_shipment"]);
   assert.deepEqual(portalOrderActionsFor(orderIn("confirmed", { status: "ready_to_ship" })), ["create_shipment"]);
   assert.deepEqual(portalOrderActionsFor(orderIn("confirmed", { shipment: { provider: "mylerz" } })), ["ready_to_ship"]);
-  assert.deepEqual(portalOrderActionsFor(orderIn("shipping", { shipment: { provider: "bosta", tracking_number: "1" } })), ["print_awb"]);
+  assert.deepEqual(portalOrderActionsFor(orderIn("shipping", { shipping_status: "in_transit", shipment: { provider: "bosta", tracking_number: "1" } })), ["print_awb"]);
   assert.deepEqual(portalOrderActionsFor(orderIn("shipping", { shipment: { provider: "in_store_delivery", tracking_number: "in-store-1" } })), []);
   assert.deepEqual(portalOrderActionsFor(orderIn("closed", { status: "cancelled" })), []);
+});
+
+// INV-2212 (2026-10-21): a parcel cancelled from Bosta's own app froze the order — the
+// tracking number stayed on it, so every edit was refused.
+test("a parcel the courier never took can be released; one already picked up cannot", () => {
+  const booked = (shippingStatus, extra = {}) => orderIn(shippingStatus === "cancelled" ? "closed" : "shipping", {
+    status: "ready_to_ship",
+    shipping_status: shippingStatus,
+    shipment: { provider: "bosta", tracking_number: "2393985249" },
+    ...extra,
+  });
+  assert.deepEqual(portalOrderActionsFor(booked("shipment_created")), ["print_awb", "release_shipment"]);
+  assert.deepEqual(portalOrderActionsFor(booked("cancelled")), ["print_awb", "release_shipment"]);
+  for (const left of ["picked_up", "in_transit", "out_for_delivery", "delivered", "returned"]) {
+    assert.ok(!portalOrderActionsFor(booked(left)).includes("release_shipment"), left);
+  }
+  assert.ok(!portalOrderActionsFor(booked("cancelled", { status: "cancelled" })).includes("release_shipment"));
+});
+
+test("release_shipment hands the order to the Bosta-checked release, and refuses another courier", async () => {
+  const released = [];
+  const order = orderIn("closed", { status: "ready_to_ship", shipping_status: "cancelled", shipment: { provider: "bosta", tracking_number: "2393985249" } });
+  const { deps } = makeDeps(order, { releaseShipment: async (id, meta) => { released.push({ id, ...meta }); } });
+  await runPortalOrderAction({ actor, surface: "manager_portal", orderId: 77, action: "release_shipment", deps });
+  assert.deepEqual(released, [{ id: 77, actorName: "Omar", source: "manager_portal" }]);
+
+  const other = makeDeps(orderIn("shipping", { shipment: { provider: "mylerz", tracking_number: "9" } }), { releaseShipment: async () => assert.fail("must not release") });
+  await assert.rejects(runPortalOrderAction({ actor, orderId: 77, action: "release_shipment", deps: other.deps }), { code: "OTHER_COURIER" });
+  const none = makeDeps(orderIn("confirmed", { shipment: { provider: "bosta" } }), { releaseShipment: async () => assert.fail("must not release") });
+  await assert.rejects(runPortalOrderAction({ actor, orderId: 77, action: "release_shipment", deps: none.deps }), { code: "BOSTA_NO_SHIPMENT" });
 });
 
 test("the employee switch reads 'off' without creating anything, and the first toggle creates the column once", async () => {

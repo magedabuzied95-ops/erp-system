@@ -3,7 +3,7 @@ import { markOrderConfirmedByStaff, sendOrderConfirmation } from "../../services
 import { recordEmployeePortalAudit } from "../../services/employeePayrollPortalService.js";
 import { canCreateBostaShipmentFor } from "./shipping.center.service.js";
 import { getPortalOnlineOrder } from "./shipping.portal.service.js";
-import { createBostaShipmentForOrder, fetchBostaShipmentLabels } from "./shipping.service.js";
+import { createBostaShipmentForOrder, fetchBostaShipmentLabels, releaseCancelledBostaShipment } from "./shipping.service.js";
 import { markShippingFeePaid, waiveShippingFeeAdvance } from "./shippingFeeAdvance.js";
 import { markOrderPaidInFull } from "./markOrderPaidInFull.js";
 import { notifyPaymentProofApproved, PAYMENT_APPROVED_DELAY_MS } from "./paymentProofLink.js";
@@ -19,7 +19,7 @@ import { isWhatsappNumberMissingError } from "../../utils/whatsappNotOnNumber.js
 // Bosta create with its duplicate guard and customer notification, the AWB fetch —
 // and records who pressed the button on the order timeline and in the portal audit log.
 
-export const PORTAL_ORDER_ACTIONS = ["confirm", "send_confirmation", "ready_to_ship", "create_shipment", "print_awb", "shipping_fee_paid", "shipping_fee_waived"];
+export const PORTAL_ORDER_ACTIONS = ["confirm", "send_confirmation", "ready_to_ship", "create_shipment", "print_awb", "shipping_fee_paid", "shipping_fee_waived", "release_shipment"];
 // Shipping the parcel and printing its airway bill are open to EVERY employee in the
 // employee portal (owner request 2026-09-10: whoever packs, ships). Confirming an
 // order stays with managers and the employees switched on.
@@ -35,6 +35,8 @@ const CONFIRMATION_SEND_CODES = {
 
 const text = (value = "") => String(value ?? "").trim();
 const normalized = (value = "") => text(value).toLowerCase().replace(/[\s-]+/g, "_");
+
+const CLOSED_ORDER_STATUSES = new Set(["cancelled", "canceled", "delivered", "completed", "returned", "refunded"]);
 
 const actionError = (status, code, message, payload) => {
   const error = new Error(message);
@@ -101,6 +103,7 @@ const defaultDeps = {
   markReady: markReadyToShip,
   createShipment: createBostaShipmentForOrder,
   fetchLabels: fetchBostaShipmentLabels,
+  releaseShipment: releaseCancelledBostaShipment,
   markShippingFeePaid,
   waiveShippingFeeAdvance,
   markOrderPaidInFull,
@@ -208,6 +211,15 @@ export const runPortalOrderAction = async ({ actor = {}, surface = "employee_por
       source: surface,
     });
     result = { collect_on_delivery: Number(waived?.cod_amount ?? 0) || 0 };
+  } else if (key === "release_shipment") {
+    // A parcel cancelled at Bosta (or never picked up): take it off the order so the order
+    // can be edited and shipped again. The service asks Bosta before touching anything.
+    if (!order.shipment.tracking_number && !order.shipment.delivery_id) {
+      throw actionError(409, "BOSTA_NO_SHIPMENT", "This order has no shipment");
+    }
+    if (normalized(order.shipment.provider) !== "bosta") throw actionError(409, "OTHER_COURIER", "This order is booked with another courier", { provider: order.shipment.provider });
+    if (CLOSED_ORDER_STATUSES.has(status)) throw actionError(409, "ORDER_LOCKED", "This order is closed");
+    await deps.releaseShipment(order.id, { actorName, source: surface });
   } else if (key === "print_awb") {
     if (!order.shipment.tracking_number && !order.shipment.delivery_id) {
       throw actionError(409, "BOSTA_NO_PRINTABLE_LABEL", "This order has no shipment to print yet");

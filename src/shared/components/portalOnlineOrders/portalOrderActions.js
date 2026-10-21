@@ -12,7 +12,10 @@ const BOSTA_BOOKABLE_PROVIDERS = new Set(["", "bosta", "manual", "in_store_deliv
 
 // "shipping_fee_waived" is offered inside the money step rather than as a button of its own:
 // it is the same decision seen from the other side (nobody paid the advance and nobody will).
-export const PORTAL_ORDER_ACTIONS = ["confirm", "send_confirmation", "ready_to_ship", "create_shipment", "print_awb", "shipping_fee_paid", "shipping_fee_waived"];
+export const PORTAL_ORDER_ACTIONS = ["confirm", "send_confirmation", "ready_to_ship", "create_shipment", "print_awb", "shipping_fee_paid", "shipping_fee_waived", "release_shipment"];
+
+// Booked but never picked up, or cancelled at Bosta — the only parcels that can be taken off.
+const RELEASABLE_SHIPPING_STATUSES = new Set(["", "created", "shipment_created", "cancelled", "canceled"]);
 
 // The restricted closing system (server: shippingFeeAdvance.js). "awaiting" covers both a fee
 // nobody paid and a transfer screenshot nobody reviewed — neither lets the parcel leave.
@@ -39,6 +42,12 @@ export const portalOrderActionsFor = (order = {}) => {
   }
   if (order.group === "new" && feeAwaiting) actions.push("shipping_fee_paid");
   if (hasParcel && provider === "bosta") actions.push("print_awb");
+  // A parcel the courier never took (or Bosta already cancelled): hand the order back so it
+  // can be edited and shipped again. The server asks Bosta before releasing anything.
+  const orderClosed = ["cancelled", "canceled", "delivered", "completed", "returned", "refunded"].includes(status);
+  if (hasParcel && provider === "bosta" && !orderClosed && RELEASABLE_SHIPPING_STATUSES.has(lower(order.shipping_status))) {
+    actions.push("release_shipment");
+  }
   return actions;
 };
 
@@ -72,6 +81,9 @@ export const PORTAL_ACTION_ERROR_CODES = [
   "WHATSAPP_GATEWAY_ERROR",
   "CUSTOMER_NOT_ON_WHATSAPP",
   "ORDER_HAS_SHIPMENT",
+  "BOSTA_NO_SHIPMENT",
+  "BOSTA_PARCEL_LEFT_STORE",
+  "BOSTA_STATUS_UNAVAILABLE",
   "FULL_PAYMENT_AFTER_SHIPMENT",
   "ORDER_LOCKED",
   "NOTHING_TO_SAVE",

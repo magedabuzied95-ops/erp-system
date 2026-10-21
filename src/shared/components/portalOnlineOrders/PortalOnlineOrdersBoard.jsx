@@ -23,6 +23,7 @@ import {
   Search,
   Send,
   Truck,
+  Undo2,
   User,
   Users,
   X,
@@ -600,8 +601,8 @@ const actionNotice = ({ ui, action, input, response }) => {
   return ui.tb(`actionDone.${action}`);
 };
 
-const ACTION_ICON = { confirm: Check, send_confirmation: Send, ready_to_ship: Package, create_shipment: Truck, print_awb: Printer, shipping_fee_paid: Banknote };
-const ACTION_LABEL = { confirm: "actions.confirmOrder", send_confirmation: "actions.sendConfirmation", ready_to_ship: "actions.readyToShip", create_shipment: "actions.createShipment", print_awb: "actions.printAwb", shipping_fee_paid: "actions.shippingFeePaid" };
+const ACTION_ICON = { confirm: Check, send_confirmation: Send, ready_to_ship: Package, create_shipment: Truck, print_awb: Printer, shipping_fee_paid: Banknote, release_shipment: Undo2 };
+const ACTION_LABEL = { confirm: "actions.confirmOrder", send_confirmation: "actions.sendConfirmation", ready_to_ship: "actions.readyToShip", create_shipment: "actions.createShipment", print_awb: "actions.printAwb", shipping_fee_paid: "actions.shippingFeePaid", release_shipment: "actions.releaseShipment" };
 const SHIPPING_FEE_METHODS = ["vodafone_cash", "instapay", "cash"];
 
 // Shipping the parcel and printing its airway bill have their own permission (every
@@ -642,6 +643,20 @@ function OrderActionBar({ order, ui, state = {}, onAction, onCancelConfirm, canA
             <button type="button" disabled={busy} onClick={() => onAction("create_shipment")} className="inline-flex min-h-[var(--control-height-lg)] items-center justify-center gap-2 rounded-[var(--radius-control)] bg-primary px-3 text-sm font-black text-primary-foreground disabled:opacity-60">
               {busy ? <Loader2 className="h-4 w-4 animate-spin" /> : <Truck className="h-4 w-4" />}
               {ui.tb("actions.createConfirmYes")}
+            </button>
+            <button type="button" disabled={busy} onClick={onCancelConfirm} className="inline-flex min-h-[var(--control-height-lg)] items-center justify-center rounded-[var(--radius-control)] border border-border bg-surface px-3 text-sm font-black text-text disabled:opacity-60">
+              {ui.tb("actions.cancel")}
+            </button>
+          </div>
+        </div>
+      ) : state.confirming === "release_shipment" ? (
+        <div className="rounded-[var(--radius-control)] bg-warning-subtle p-3">
+          <div className="text-sm font-black text-text">{ui.tb("actions.releaseConfirmTitle", { tracking: order.shipment?.tracking_number || "" })}</div>
+          <div className="mt-1 text-xs font-bold leading-5 text-text">{ui.tb("actions.releaseConfirmBody")}</div>
+          <div className="mt-2.5 grid grid-cols-2 gap-2">
+            <button type="button" disabled={busy} onClick={() => onAction("release_shipment")} className="inline-flex min-h-[var(--control-height-lg)] items-center justify-center gap-2 rounded-[var(--radius-control)] bg-primary px-3 text-sm font-black text-primary-foreground disabled:opacity-60">
+              {busy ? <Loader2 className="h-4 w-4 animate-spin" /> : <Undo2 className="h-4 w-4" />}
+              {ui.tb("actions.releaseConfirmYes")}
             </button>
             <button type="button" disabled={busy} onClick={onCancelConfirm} className="inline-flex min-h-[var(--control-height-lg)] items-center justify-center rounded-[var(--radius-control)] border border-border bg-surface px-3 text-sm font-black text-text disabled:opacity-60">
               {ui.tb("actions.cancel")}
@@ -1162,6 +1177,11 @@ export default function PortalOnlineOrdersBoard({
     // takes a second, explicit tap that shows the amount the courier will collect.
     if (action === "create_shipment" && current.confirming !== "create_shipment") {
       patchSelection(orderId, { confirming: "create_shipment", actionError: "", notice: "" });
+      return;
+    }
+    // Taking a parcel off the order also asks for a second tap.
+    if (action === "release_shipment" && current.confirming !== "release_shipment") {
+      patchSelection(orderId, { confirming: "release_shipment", actionError: "", notice: "" });
       return;
     }
     // Money: the second tap names how the customer paid.

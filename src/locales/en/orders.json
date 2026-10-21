@@ -985,7 +985,11 @@
       "orderPaidConfirmTitle": "Did the customer pay the whole order ({{amount}})?",
       "orderPaidConfirmBody": "Pick how it was paid. The whole order is recorded as paid and the courier collects nothing.",
       "shippingFeeWaive": "Ship without a transfer",
-      "shippingFeeWaiveHint": "No money is recorded; the courier collects all {{amount}}"
+      "shippingFeeWaiveHint": "No money is recorded; the courier collects all {{amount}}",
+      "releaseShipment": "Release cancelled shipment",
+      "releaseConfirmTitle": "Take shipment {{tracking}} off this order?",
+      "releaseConfirmBody": "Bosta is asked first: a cancelled parcel, or one the courier has not picked up yet, is cancelled and removed, and the order goes back to ready to ship so you can edit it and ship it again. A parcel the courier already took cannot be released.",
+      "releaseConfirmYes": "Yes, release it"
     },
     "detail": {
       "orderStatus": "Order status",
@@ -1079,6 +1083,7 @@
       "shipping_fee_paid": "Shipping fee recorded as paid",
       "shipping_fee_waived": "Advance skipped; the courier collects the full amount",
       "order_paid_in_full": "Whole order recorded as paid",
+      "release_shipment": "Shipment released — the order can be edited and shipped again",
       "receiptDelayed": "the customer gets the payment receipt in {{minutes}} min"
     },
     "actionErrors": {
@@ -1105,7 +1110,10 @@
       "CONFIRMATION_STATUS_NOT_CONFIRMABLE": "The order's status does not allow a confirmation request",
       "CONFIRMATION_NOT_SENT": "Could not send the confirmation message",
       "WHATSAPP_GATEWAY_ERROR": "WhatsApp refused the message. Check that the shop number is connected.",
-      "ORDER_HAS_SHIPMENT": "This order has a Bosta shipment — it cannot be edited or deleted here",
+      "ORDER_HAS_SHIPMENT": "This order has a Bosta shipment — if it was cancelled, press \"Release cancelled shipment\" below, then edit",
+      "BOSTA_NO_SHIPMENT": "This order has no Bosta shipment",
+      "BOSTA_PARCEL_LEFT_STORE": "The courier already picked this parcel up — it cannot be released; it comes back as a return",
+      "BOSTA_STATUS_UNAVAILABLE": "Could not reach Bosta to check the parcel — try again shortly",
       "FULL_PAYMENT_AFTER_SHIPMENT": "The Bosta parcel was booked with the old amount — cancel it first, then record the whole order as paid",
       "ORDER_LOCKED": "This order cannot be edited or deleted in its current status",
       "NOTHING_TO_SAVE": "Nothing to save",

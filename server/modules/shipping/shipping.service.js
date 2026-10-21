@@ -1410,6 +1410,95 @@ export const cancelBostaShipmentForOrder = async (orderId) => {
   return { success: true, provider: "bosta", status: "cancelled", order: updated.rows[0] };
 };
 
+// A parcel past any of these left the shop — it can only come back as a return.
+const BOSTA_LEFT_STORE_STATUSES = ["picked_up", "in_transit", "out_for_delivery", "failed_delivery", "delivered", "returned"];
+// Bosta states that mean "booked, the courier never took it": safe to terminate and forget.
+const BOSTA_NOT_PICKED_STATE_CODES = new Set([10, 11, 20]);
+
+/*
+ * Owner report 2026-10-21, INV-2212: a parcel cancelled from Bosta's own app left the order
+ * frozen — the tracking number still on it, so the portal refused every edit
+ * (ORDER_HAS_SHIPMENT) and the board held it in "shipping" (or "closed" once the cancel
+ * was synced), never back where it could be fixed and shipped again.
+ *
+ * This hands the order back: Bosta is asked first, never trusted from our side alone. A
+ * parcel Bosta reports cancelled (49) is released; one still waiting for pickup is
+ * terminated at Bosta first; anything the courier already took (including 48, terminated
+ * AFTER delivery attempts) is refused — that parcel is coming back and the returned-parcel
+ * path owns it. The old ids stay in shipment_timeline, so the parcel never just vanishes.
+ */
+export const releaseCancelledBostaShipment = async (orderId, { actorName = "", source = "" } = {}) => {
+  await ensureShippingSchema();
+  const order = (await db.query("SELECT * FROM orders WHERE id = $1 LIMIT 1", [orderId])).rows[0];
+  if (!order) throw Object.assign(new Error("Order not found"), { status: 404 });
+  const trackingNumber = text(order.shipping_tracking_number || order.tracking_number || order.shipment_id);
+  const deliveryId = text(order.shipping_provider_delivery_id);
+  if (!trackingNumber && !deliveryId) {
+    throw Object.assign(new Error("This order has no Bosta shipment"), { status: 409, code: "BOSTA_NO_SHIPMENT" });
+  }
+  const leftStoreError = () => Object.assign(new Error("The courier already picked this parcel up; it comes back as a return"), { status: 409, code: "BOSTA_PARCEL_LEFT_STORE" });
+  if (BOSTA_LEFT_STORE_STATUSES.includes(normalizeKey(order.shipment_status || order.shipping_status))) throw leftStoreError();
+  const evidence = await db.query(
+    `SELECT 1 FROM shipping_events
+     WHERE order_id = $1 AND status = ANY($2::text[])
+       AND (COALESCE(payload->>'trackingNumber', '') IN ('', $3) )
+     LIMIT 1`,
+    [order.id, BOSTA_LEFT_STORE_STATUSES, trackingNumber]
+  );
+  if (evidence.rows.length) throw leftStoreError();
+
+  const client = createBostaClient(await bostaConfig());
+  const identifier = trackingNumber || deliveryId;
+  let bostaState = "not_found";
+  try {
+    const response = normalizeBostaDeliveryResponse(await client.getDeliveryStatus(identifier));
+    const rawCode = extractBostaInsights(response.raw_response).state_code;
+    const stateCode = rawCode === null || rawCode === undefined ? NaN : Number(rawCode);
+    if (stateCode === 49 || (!Number.isFinite(stateCode) && response.status_parsed && response.status === "cancelled")) {
+      bostaState = "cancelled";
+    } else if (BOSTA_NOT_PICKED_STATE_CODES.has(stateCode) || (!Number.isFinite(stateCode) && response.status_parsed && response.status === "shipment_created")) {
+      await client.cancelDelivery(identifier);
+      bostaState = "terminated_now";
+    } else {
+      throw leftStoreError();
+    }
+  } catch (error) {
+    if (error?.code === "BOSTA_PARCEL_LEFT_STORE") throw error;
+    // Deleted at Bosta: nothing there to collect or deliver.
+    if (Number(error?.status) !== 404) {
+      throw Object.assign(new Error(text(error?.payload?.message) || error?.message || "Bosta could not be reached"), { status: 502, code: "BOSTA_STATUS_UNAVAILABLE" });
+    }
+  }
+
+  const shipmentEvent = { at: nowIso(), action: "bosta_shipment_released", provider: "bosta", status: "released", bosta_state: bostaState, released_tracking_number: trackingNumber, released_delivery_id: deliveryId, actor: actorName, source };
+  const orderEvent = { at: nowIso(), action: "bosta_shipment_released", status: text(order.status), note: trackingNumber, source, actor: actorName, label: "فك شحنة بوسطة الملغية" };
+  const updated = await db.query(
+    `
+    UPDATE orders SET
+      shipping_provider_delivery_id = NULL,
+      shipment_id = NULL,
+      shipping_tracking_number = NULL,
+      tracking_number = NULL,
+      tracking_url = NULL,
+      shipping_label_url = NULL,
+      shipping_raw_payload = NULL,
+      shipping_status = CASE WHEN LOWER(COALESCE(status, '')) = 'ready_to_ship' THEN 'ready_to_ship' ELSE 'pending' END,
+      shipment_status = CASE WHEN LOWER(COALESCE(status, '')) = 'ready_to_ship' THEN 'ready_to_ship' ELSE 'pending' END,
+      bosta_exception_code = NULL,
+      bosta_exception_reason = NULL,
+      bosta_exception_at = NULL,
+      shipment_timeline = COALESCE(shipment_timeline, '[]'::jsonb) || $2::jsonb,
+      timeline = COALESCE(timeline, '[]'::jsonb) || $3::jsonb,
+      updated_at = CURRENT_TIMESTAMP
+    WHERE id = $1
+    RETURNING *
+    `,
+    [order.id, JSON.stringify([shipmentEvent]), JSON.stringify([orderEvent])]
+  );
+  reconcileCourierCostsSoon({ tenantId: order.tenant_id ?? null, provider: "bosta" });
+  return { released: true, bosta_state: bostaState, tracking_number: trackingNumber, order: updated.rows[0] };
+};
+
 const bostaWebhookEventKey = ({ payload = {}, parsed = {} }) => {
   const explicit = text(parsed.eventId);
   if (explicit) return explicit;
