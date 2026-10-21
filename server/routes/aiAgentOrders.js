@@ -7641,7 +7641,10 @@ router.post("/conversations/:conversationId/product-card/send", protect, inboxRe
           to: externalCustomerId,
           reply: { text: customerText, product_cards: productCards },
           messageText: customerText,
-          instance: envText(channelMetadata.whatsapp_instance || channelMetadata.instance),
+          // The number the customer last wrote to, as the text reply resolves it. The cached
+          // snapshot alone sent a test-number customer's cards from the Evolution number (2026-10-21).
+          instance: envText(await resolveWhatsappConversationInstance({ tenantId, conversationId }).catch(() => ""))
+            || envText(channelMetadata.whatsapp_instance || channelMetadata.instance),
         });
         deliveryStatus = sendResult?.delivery_status || (sendResult?.sent === true ? "sent" : "failed");
         if (deliveryStatus === "stored_only") {
