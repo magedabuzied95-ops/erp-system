@@ -25,7 +25,7 @@ import {
   uploadHeaderSample,
 } from "../../services/whatsappTemplateStudioService.js";
 import { absolutePublicUploadUrl } from "../../utils/publicUrl.js";
-import { automationIsMarketing } from "../../services/whatsappQueue/index.js";
+import { automationRoute } from "../../services/whatsappQueue/index.js";
 
 /*
  * The cost policy (owner, 2026-10-21): order messages leave from Evolution for free, so only the
@@ -33,7 +33,12 @@ import { automationIsMarketing } from "../../services/whatsappQueue/index.js";
  * the policy is switched off with WHATSAPP_TRANSACTIONAL_VIA_EVOLUTION=false.
  */
 const policyOn = () => String(process.env.WHATSAPP_TRANSACTIONAL_VIA_EVOLUTION ?? "").trim().toLowerCase() !== "false";
-const sentByEvolution = (key) => policyOn() && !automationIsMarketing(key);
+// A template is needed on Meta only when its message is routed to the official number (or to
+// "the customer's number", which may be the official one). Carousels always: campaigns use them.
+const sentByEvolution = async (key) => {
+  if (!policyOn() || key.startsWith("product_carousel_")) return false;
+  return (await automationRoute(key)).route === "evolution";
+};
 
 const text = (value = "") => String(value ?? "").trim();
 
@@ -106,7 +111,9 @@ const previewOf = (definition, photo = "") => ({
 export const listAutomationTemplates = async ({ tenantId }) => {
   const rows = await rowsByName(tenantId);
   const photo = await samplePhotoUrl();
-  return Object.keys(WHATSAPP_TEMPLATE_DEFINITIONS).map((key) => {
+  const keys = Object.keys(WHATSAPP_TEMPLATE_DEFINITIONS);
+  const viaEvolution = new Map(await Promise.all(keys.map(async (key) => [key, await sentByEvolution(key)])));
+  return keys.map((key) => {
     const definition = templateDefinition(key);
     const row = rows.get(definition.name) || null;
     return {
@@ -114,8 +121,8 @@ export const listAutomationTemplates = async ({ tenantId }) => {
       name: definition.name,
       purpose: purposeOf(key),
       category: text(row?.category) || definition.category,
-      status: text(row?.status) || (sentByEvolution(key) ? "VIA_EVOLUTION" : "NOT_SUBMITTED"),
-      via_evolution: sentByEvolution(key),
+      status: text(row?.status) || (viaEvolution.get(key) ? "VIA_EVOLUTION" : "NOT_SUBMITTED"),
+      via_evolution: viaEvolution.get(key),
       rejection_reason: text(row?.rejection_reason),
       buttons: (definition.buttons || []).map((button) => button.text || button.type),
       carousel_cards: definition.carousel?.cards || 0,
@@ -159,10 +166,10 @@ const SUBMITTABLE = new Set(["NOT_SUBMITTED", "DRAFT", "REJECTED"]);
  */
 export const submitAutomationTemplates = async ({ tenantId, keys = [] } = {}) => {
   const credentials = await resolveTemplateCredentials(tenantId);
-  const wanted = (Array.isArray(keys) && keys.length ? keys : Object.keys(WHATSAPP_TEMPLATE_DEFINITIONS).filter((key) => !sentByEvolution(key)))
+  const current = await listAutomationTemplates({ tenantId });
+  const wanted = (Array.isArray(keys) && keys.length ? keys : current.filter((item) => !item.via_evolution).map((item) => item.automation_type))
     .map(text)
     .filter((key) => templateDefinition(key));
-  const current = await listAutomationTemplates({ tenantId });
   const statusOf = new Map(current.map((item) => [item.automation_type, item.status]));
   const pending = wanted.filter((key) => SUBMITTABLE.has(statusOf.get(key) || "NOT_SUBMITTED"));
 

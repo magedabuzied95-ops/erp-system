@@ -3912,5 +3912,48 @@
       "instagram": "Instagram",
       "messenger": "Messenger"
     }
+  },
+  "waSendRoutes": {
+    "title": "Sending routes",
+    "subtitle": "Pick which number each automatic message leaves from. Evolution is free. On the official number Meta bills every template (the first 1,000 plain replies a month are free). Conversation = the number the customer last wrote to.",
+    "reload": "Reload",
+    "save": "Save",
+    "saved": "Saved. New messages follow it within half a minute.",
+    "saveFailed": "Not saved, try again.",
+    "loadFailed": "Could not load the settings.",
+    "officialNumber": "Official number",
+    "officialNumberHint": "Messages set to “Official number” leave from this number.",
+    "officialNone": "Not set (each message keeps its own number)",
+    "officialMissing": "Some messages are set to the official number but none is chosen, so they keep their current number.",
+    "caps": "Paid template cap",
+    "capsHint": "Past the cap nothing is sent through Meta until the next day / month. 0 = never.",
+    "dailyCap": "Per day",
+    "monthlyCap": "Per month",
+    "usage": "Spend",
+    "usageToday": "Today: {{count}} of {{cap}} templates",
+    "usageMonth": "This month: {{count}} of {{cap}} templates",
+    "usageSplit": "Marketing {{marketing}} · Utility {{utility}}",
+    "columns": {
+      "message": "Message",
+      "kind": "Kind",
+      "route": "Sent from",
+      "cost": "Approx. cost"
+    },
+    "kind": {
+      "order": "Order",
+      "marketing": "Marketing"
+    },
+    "route": {
+      "evolution": "Evolution (free)",
+      "official": "Official number",
+      "conversation": "Customer's number"
+    },
+    "cost": {
+      "free": "Free",
+      "utility": "≈ 0.20 EGP per template",
+      "marketing": "≈ 3.5 EGP per template",
+      "depends": "Depends on the customer's number"
+    },
+    "footnote": "Approximate: Meta's Egypt rates from 1 Oct 2026 at ≈ 48 EGP/USD + 14% VAT. Within 24h of the customer writing, a message on the official number goes as a plain message (first 1,000 a month free), not a template."
   }
 }

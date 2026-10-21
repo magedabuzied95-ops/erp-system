@@ -336,7 +336,7 @@ export const queueShippingFeePaymentCard = async ({ order = {}, card = null, pho
     // official number, not from Evolution in a different chat (live 2026-10-21, order 2217).
     // The cost policy decides the number (order messages leave from Evolution, free): see routeAutomationInstance.
     const { routeAutomationInstance } = await import("../../services/whatsappQueue/index.js");
-    const instance = routeAutomationInstance({ automationType: "shipping_fee_payment_card", instance: text(await gateway.resolveWhatsappConversationInstance({ tenantId: safeTenantId, conversationId: `whatsapp:${phone}` }).catch(() => "")) });
+    const instance = await routeAutomationInstance({ automationType: "shipping_fee_payment_card", instance: text(await gateway.resolveWhatsappConversationInstance({ tenantId: safeTenantId, conversationId: `whatsapp:${phone}` }).catch(() => "")) });
     const directSend = async () => {
       let result = null;
       let buttons = card.transcriptButtons;
@@ -408,7 +408,7 @@ const sendOrderPaymentText = async ({ order = {}, automationType, message, card 
     ]);
     // From the number the customer is talking to (the official one or Evolution), as the card does.
     const { routeAutomationInstance } = await import("../../services/whatsappQueue/index.js");
-    const instance = routeAutomationInstance({ automationType, instance: text(await gateway.resolveWhatsappConversationInstance({ tenantId, conversationId: `whatsapp:${phone}` }).catch(() => "")) });
+    const instance = await routeAutomationInstance({ automationType, instance: text(await gateway.resolveWhatsappConversationInstance({ tenantId, conversationId: `whatsapp:${phone}` }).catch(() => "")) });
     const sendNow = async () => {
       if (card) {
         try {

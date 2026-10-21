@@ -9,25 +9,29 @@
  *   assertTemplateBudget() — refuses the send once today's or this month's cap is reached
  *   recordPaidTemplate()   — one ledger row per template Meta accepted
  *
- * Caps come from the environment so they can be raised without a deploy of code:
- *   WHATSAPP_TEMPLATE_DAILY_CAP   (default 50)
- *   WHATSAPP_TEMPLATE_MONTHLY_CAP (default 500)
- * "0" means no template may be sent at all. Counted per Cairo day / month.
+ * The caps are the owner's, set in the inbox (WhatsApp → "مين يبعت إيه", default 50 a day /
+ * 500 a month). WHATSAPP_TEMPLATE_DAILY_CAP / WHATSAPP_TEMPLATE_MONTHLY_CAP, when set on the
+ * server, are a CEILING the screen cannot raise. "0" means no template may be sent at all.
+ * Counted per Cairo day / month.
  */
 
 import db from "../../database/db.js";
+import { loadWhatsappSendRoutes } from "../../services/whatsappQueue/config.js";
 
 const text = (value = "") => String(value ?? "").trim();
-const cap = (name, fallback) => {
+const envCeiling = (name) => {
   const raw = text(process.env[name]);
-  if (raw === "") return fallback;
+  if (raw === "") return Infinity;
   const value = Number(raw);
-  return Number.isFinite(value) && value >= 0 ? Math.floor(value) : fallback;
+  return Number.isFinite(value) && value >= 0 ? Math.floor(value) : Infinity;
 };
-export const templateCaps = () => ({
-  daily: cap("WHATSAPP_TEMPLATE_DAILY_CAP", 50),
-  monthly: cap("WHATSAPP_TEMPLATE_MONTHLY_CAP", 500),
-});
+export const templateCaps = async () => {
+  const config = await loadWhatsappSendRoutes();
+  return {
+    daily: Math.min(config.template_daily_cap, envCeiling("WHATSAPP_TEMPLATE_DAILY_CAP")),
+    monthly: Math.min(config.template_monthly_cap, envCeiling("WHATSAPP_TEMPLATE_MONTHLY_CAP")),
+  };
+};
 
 let schemaReady = null;
 const ensureSchema = () => {
@@ -62,7 +66,7 @@ export const templateBudgetUsage = async () => {
     WHERE sent_at > NOW() - INTERVAL '40 days'
   `);
   const row = result.rows[0] || {};
-  const caps = templateCaps();
+  const caps = await templateCaps();
   return {
     today: Number(row.today || 0),
     month: Number(row.month || 0),

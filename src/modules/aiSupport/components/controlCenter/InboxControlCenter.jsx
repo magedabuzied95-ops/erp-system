@@ -67,6 +67,7 @@ const TikTokIntegrationPanel = lazy(() => import("../integrations/TikTokIntegrat
 const IntegrationsOverviewPanel = lazy(() => import("./IntegrationsOverviewPanel.jsx"));
 const SequencesPanel = lazy(() => import("./SequencesPanel.jsx"));
 const WhatsAppTemplatesPanel = lazy(() => import("./WhatsAppTemplatesPanel.jsx"));
+const WhatsAppSendRoutesPanel = lazy(() => import("./WhatsAppSendRoutesPanel.jsx"));
 const WhatsAppUsagePanel = lazy(() => import("./WhatsAppUsagePanel.jsx"));
 const WhatsAppDeveloperPanel = lazy(() => import("./WhatsAppDeveloperPanel.jsx"));
 const InboxTeamsPanel = lazy(() => import("./InboxTeamsPanel.jsx"));
@@ -95,7 +96,7 @@ const MetaGlyph = () => (
 export const CONTROL_CENTER_GROUPS = [
   { key: "agent", sections: ["agent", "teach", "actions", "playground"] },
   { key: "workspace", sections: ["quick_replies", "comments", "invoice_messages"] },
-  { key: "whatsapp_official", sections: ["wa_accounts", "wa_connect", "wa_templates", "wa_template_analytics", "wa_usage", "wa_flows", "wa_catalogs", "wa_products", "wa_orders", "wa_api_keys", "wa_webhooks", "wa_api_guide"] },
+  { key: "whatsapp_official", sections: ["wa_accounts", "wa_connect", "wa_templates", "wa_send_routes", "wa_template_analytics", "wa_usage", "wa_flows", "wa_catalogs", "wa_products", "wa_orders", "wa_api_keys", "wa_webhooks", "wa_api_guide"] },
   { key: "growth", sections: ["broadcasts", "sequences"] },
   { key: "team", sections: ["cfg_tags", "cfg_teams", "cfg_groups", "cfg_shifts", "cfg_presence", "cfg_backups"] },
   { key: "insight", sections: ["performance"] },
@@ -123,6 +124,7 @@ const SECTION_ICON = {
   comments: MessageSquareText,
   invoice_messages: Receipt,
   wa_templates: FileText,
+  wa_send_routes: Workflow,
   wa_accounts: () => <FaWhatsapp className="h-4 w-4 text-emerald-300" aria-hidden="true" />,
   wa_usage: Receipt,
   wa_catalogs: LayoutGrid,
@@ -166,6 +168,7 @@ const sectionLabel = (t, key) => {
   if (key === "comments") return t("aiSupport.commentsSettings.title");
   if (key === "invoice_messages") return t("aiSupport.aiSettings.variants.menuTitle");
   if (key === "wa_templates") return t("aiSupport.waTemplates.title");
+  if (key === "wa_send_routes") return t("aiSupport.waSendRoutes.title");
   if (key === "fb_pages") return t("aiSupport.metaAccounts.titles.fbPages");
   if (key === "fb_connect") return t("aiSupport.metaAccounts.titles.fbConnect");
   if (key === "ig_accounts") return t("aiSupport.metaAccounts.titles.igAccounts");
@@ -285,6 +288,7 @@ export default function InboxControlCenter({
       {section === "comments" ? <CommentsSettingsPanel {...(commentsProps || {})} light={false} /> : null}
       {section === "invoice_messages" ? <WhatsappMessageVariantsEditor initialType="invoice_receipt" /> : null}
       {section === "wa_templates" ? <WhatsAppTemplatesPanel headers={headers} /> : null}
+      {section === "wa_send_routes" ? <WhatsAppSendRoutesPanel headers={headers} /> : null}
       {section === "fb_pages" ? <MetaAccountsPanel headers={headers} mode="messenger" /> : null}
       {section === "fb_connect" ? <MetaAccountsPanel headers={headers} mode="connect_messenger" /> : null}
       {section === "ig_accounts" ? <MetaAccountsPanel headers={headers} mode="instagram" /> : null}

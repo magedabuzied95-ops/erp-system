@@ -29,6 +29,7 @@ const MENUS = [
       { key: "waAccounts", section: "wa_accounts" },
       { key: "waConnect", section: "wa_connect" },
       { key: "waTemplates", section: "wa_templates" },
+      { key: "waSendRoutes", section: "wa_send_routes" },
       { key: "waCampaigns", section: "broadcasts" },
       { key: "waTemplateAnalytics", section: "wa_template_analytics" },
       { key: "waUsage", section: "wa_usage" },
@@ -160,6 +161,7 @@ const itemLabel = (t, key) => {
     case "metaAdsManager": return t("aiSupport.inbox.topbar.items.metaAdsManager");
     case "waAccounts": return t("aiSupport.waAccounts.title");
     case "waTemplates": return t("aiSupport.inbox.topbar.items.waTemplates");
+    case "waSendRoutes": return t("aiSupport.waSendRoutes.title");
     case "waCampaigns": return t("aiSupport.inbox.topbar.items.waCampaigns");
     case "waSequences": return t("aiSupport.inbox.topbar.items.waSequences");
     case "waInvoiceMessages": return t("aiSupport.inbox.topbar.items.waInvoiceMessages");

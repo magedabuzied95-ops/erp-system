@@ -1,31 +1,37 @@
-import { loadWhatsappQueueSettings } from "./config.js";
+import { loadWhatsappQueueSettings, loadWhatsappSendRoutes } from "./config.js";
 import { enqueueWhatsappMessage, logLifecycle } from "./queueService.js";
 import { TEMPLATE_CATEGORIES, templateDefinition } from "../whatsappTemplates.js";
 
 /*
- * WHICH NUMBER an automation leaves from — the store's cost policy (owner, 2026-10-21).
+ * WHICH NUMBER an automation leaves from — chosen per message by the owner in the inbox
+ * (WhatsApp → "مين يبعت إيه", setting whatsapp.send_routes, shared/whatsappSendRoutes.js):
  *
- * Since 2026-10-01 Meta bills every template it delivers, utility ones too. So:
- *   - order / payment / shipping messages leave from EVOLUTION (free), even for a customer who
- *     wrote to the official number — on the coexistence number that is the same chat anyway;
- *   - marketing (campaigns, abandoned cart, price drop, review asks, thank-you) leaves from the
- *     official number named by WHATSAPP_MARKETING_CLOUD_PHONE_NUMBER_ID, where Evolution would
- *     risk the number. Unset (today, before M1 is on Cloud), marketing keeps its current route.
+ *   evolution    → never a Cloud number (free). The default for order / payment / shipping.
+ *   official     → the official Cloud number named in the setting (or, unset there,
+ *                  WHATSAPP_MARKETING_CLOUD_PHONE_NUMBER_ID). No number named = unchanged.
+ *                  The default for marketing, where Evolution would risk the number.
+ *   conversation → the number the caller picked (the customer's last number), as before.
  *
- * WHATSAPP_TRANSACTIONAL_VIA_EVOLUTION=false switches the policy off (every message then follows
- * the number its caller chose, as before). WHATSAPP_TRANSACTIONAL_EVOLUTION_INSTANCE names the
- * Evolution instance; empty = the gateway's default instance.
+ * Why: since 2026-10-01 Meta bills every template it delivers, utility ones too.
+ * WHATSAPP_TRANSACTIONAL_VIA_EVOLUTION=false switches all routing off (server-side kill switch);
+ * WHATSAPP_TRANSACTIONAL_EVOLUTION_INSTANCE names the Evolution instance (empty = default).
  */
 const policyText = (value) => String(value ?? "").trim();
 export const automationIsMarketing = (automationType = "") =>
   automationType === "marketing_broadcast" || templateDefinition(automationType)?.category === TEMPLATE_CATEGORIES.MARKETING;
-export const routeAutomationInstance = ({ automationType = "", instance = "" } = {}) => {
+export const automationRoute = async (automationType = "") => {
+  const config = await loadWhatsappSendRoutes().catch(() => null);
+  return {
+    route: config?.routes?.[automationType] || (automationIsMarketing(automationType) ? "official" : "evolution"),
+    officialLine: policyText(config?.official_phone_number_id) || policyText(process.env.WHATSAPP_MARKETING_CLOUD_PHONE_NUMBER_ID),
+  };
+};
+export const routeAutomationInstance = async ({ automationType = "", instance = "" } = {}) => {
   const current = policyText(instance);
   if (policyText(process.env.WHATSAPP_TRANSACTIONAL_VIA_EVOLUTION).toLowerCase() === "false") return current;
-  if (automationIsMarketing(automationType)) {
-    const marketingLine = policyText(process.env.WHATSAPP_MARKETING_CLOUD_PHONE_NUMBER_ID);
-    return marketingLine ? `cloud:${marketingLine}` : current;
-  }
+  const { route, officialLine } = await automationRoute(automationType);
+  if (route === "conversation") return current;
+  if (route === "official") return officialLine ? `cloud:${officialLine}` : current;
   return current.toLowerCase().startsWith("cloud:") ? policyText(process.env.WHATSAPP_TRANSACTIONAL_EVOLUTION_INSTANCE) : current;
 };
 
@@ -54,7 +60,7 @@ export const queueWhatsappAutomation = async ({
   scheduledAt = null,
   directSend = null,
 } = {}) => {
-  instance = routeAutomationInstance({ automationType, instance });
+  instance = await routeAutomationInstance({ automationType, instance });
   let settings = null;
   try {
     settings = await loadWhatsappQueueSettings();

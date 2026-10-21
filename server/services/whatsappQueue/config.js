@@ -8,12 +8,26 @@ import {
   normalizeWhatsappQueueConfig,
   whatsappAutomationCategory,
 } from "../../../shared/whatsappQueueDefaults.js";
+import { WHATSAPP_SEND_ROUTE_SETTING_KEY, normalizeWhatsappSendRoutes } from "../../../shared/whatsappSendRoutes.js";
 
 /*
  * Every knob the queue obeys, read from Settings. Nothing here falls back to a literal in the
  * worker: if a value is missing it comes from shared/whatsappQueueDefaults.js, which is the same
  * file the admin panel renders its defaults from.
  */
+
+/*
+ * "Which number sends each message" + the paid-template caps (shared/whatsappSendRoutes.js).
+ * Read on every enqueue and every template send, so cached for half a minute; a save from the
+ * inbox reaches the next message within that.
+ */
+let sendRoutesCache = { at: 0, value: null };
+export const loadWhatsappSendRoutes = async () => {
+  if (sendRoutesCache.value && Date.now() - sendRoutesCache.at < 30 * 1000) return sendRoutesCache.value;
+  const value = normalizeWhatsappSendRoutes(await getSetting(WHATSAPP_SEND_ROUTE_SETTING_KEY, undefined).catch(() => undefined));
+  sendRoutesCache = { at: Date.now(), value };
+  return value;
+};
 
 export const WHATSAPP_QUEUE_SETTING_KEY = "whatsapp.queue";
 export const WHATSAPP_QUEUE_CATEGORY_SETTING_KEY = "whatsapp.queue_categories";

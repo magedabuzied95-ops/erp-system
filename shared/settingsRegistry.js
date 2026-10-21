@@ -7,6 +7,7 @@ import { SHIPMENT_NOTIFICATION_DEFAULTS } from "./shipmentNotificationTemplates.
 import { ABANDONED_CART_DEFAULTS } from "./abandonedCartDefaults.js";
 import { WHATSAPP_AUTOMATION_SWITCH_DEFAULTS } from "./whatsappAutomationDefaults.js";
 import { WHATSAPP_STATUS_LABEL_DEFAULTS } from "./whatsappStatusLabelDefaults.js";
+import { WHATSAPP_SEND_ROUTE_DEFAULTS } from "./whatsappSendRoutes.js";
 import { DEFAULT_SITE_DESIGN } from "./siteDesign.js";
 import { TELEGRAM_CATALOG_DEFAULTS } from "./telegramCatalogDefaults.js";
 import {
@@ -176,6 +177,7 @@ const definitions = [
   // marks on real customer conversations, so it starts only when the shop asks for it.
   ["whatsapp.status_labels", "ai_channels", "json", WHATSAPP_STATUS_LABEL_DEFAULTS, "Order status as a WhatsApp label", "حالة الطلب كليبل واتساب", "Tags the customer's WhatsApp chat with the order's status, so staff holding the phone see it without opening the ERP. Labels are matched by NAME against the labels already created in WhatsApp Business - a name that does not exist there is skipped. `exclusive` removes the previous status label before adding the new one.", "يضع حالة الطلب كليبل على محادثة العميل في واتساب، فيشوفها الموظف من التليفون من غير ما يفتح النظام. الربط بالاسم مع الليبلز الموجودة فعلاً في واتساب بيزنس، وأي اسم غير موجود بيتجاهل. خيار exclusive بيشيل ليبل الحالة السابقة قبل ما يضيف الجديدة.", { usedBy: ["WhatsApp", "Orders", "Shipping"] }],
   ["whatsapp.message_variants", "ai_channels", "json", WHATSAPP_MESSAGE_VARIANT_DEFAULTS, "WhatsApp message variants", "صيغ رسائل واتساب", "More than one wording per automation, used round robin: customer 1 gets A, customer 2 gets B, customer 3 gets C, customer 4 gets A. Every variant supports the same placeholders. Empty = the automation's own message goes out exactly as it does today.", "أكثر من صيغة لكل رسالة تلقائية، تُستخدم بالتناوب: العميل الأول A والثاني B والثالث C والرابع A. كل صيغة تدعم نفس المتغيرات. الفراغ يعني إرسال رسالة النظام الأصلية كما هي.", { usedBy: ["WhatsApp", "Marketing"] }],
+  ["whatsapp.send_routes", "ai_channels", "json", WHATSAPP_SEND_ROUTE_DEFAULTS, "Which number sends each WhatsApp message", "مين يبعت إيه في واتساب", "Per automatic message: evolution (free), official (the Cloud number below; Meta bills every template) or conversation (the number the customer last wrote to). Plus the official number marketing leaves from and the daily / monthly cap on paid templates - past it nothing is sent through Meta. Edited from the inbox: WhatsApp → Sending routes.", "لكل رسالة تلقائية: Evolution (ببلاش) أو الرقم الرسمي (ميتا بتحاسب على كل قالب) أو رقم المحادثة (آخر رقم العميل كلمنا عليه). ومعاها الرقم الرسمي اللي التسويق بيطلع منه، والحد اليومي والشهري للقوالب المدفوعة - بعده مفيش ولا رسالة بتطلع من ميتا. بتتعدل من الإنبوكس: واتساب ← مين يبعت إيه.", { usedBy: ["WhatsApp", "Marketing"] }],
   // Telegram catalog channels. Off by default: switching it on posts the whole
   // catalogue into public channels, which is not something a fresh install does
   // by accident.
