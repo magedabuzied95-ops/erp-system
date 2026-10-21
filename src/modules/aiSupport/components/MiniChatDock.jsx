@@ -229,7 +229,7 @@ function MiniChatWindow({ chat, headers, tenantId, onClose, onToggleMinimize, on
 export default function MiniChatDock({ chats = [], headers, tenantId, onClose, onToggleMinimize, onOpenFull }) {
   if (!chats.length) return null;
   return createPortal(
-    <div className="pointer-events-none fixed bottom-0 end-4 z-[1200] flex items-end gap-3" data-mini-chat-dock="true">
+    <div className="pointer-events-none fixed bottom-0 right-4 z-[1200] flex flex-row-reverse items-end gap-3" data-mini-chat-dock="true">
       {chats.map((chat) => (
         <div key={chat.key} className="pointer-events-auto">
           <MiniChatWindow chat={chat} headers={headers} tenantId={tenantId} onClose={onClose} onToggleMinimize={onToggleMinimize} onOpenFull={onOpenFull} />
