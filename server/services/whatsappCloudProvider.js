@@ -205,8 +205,10 @@ const postMessage = async ({ message, phoneNumberId = "" } = {}) => {
   const config = await resolveCloudSendConfig({ phoneNumberId });
   // Every template Meta delivers is billed: the budget refuses past its cap, the ledger counts it.
   const isTemplate = message?.type === "template";
-  const budget = isTemplate ? await import("../modules/whatsappOfficial/templateBudget.js") : null;
-  if (budget) await budget.assertTemplateBudget({ templateName: message?.template?.name });
+  // Free-form messages are free only up to the monthly allowance; past it they are refused here.
+  const budget = await import("../modules/whatsappOfficial/templateBudget.js");
+  if (isTemplate) await budget.assertTemplateBudget({ templateName: message?.template?.name });
+  else await budget.assertServiceReplyBudget();
   const result = await graphRequest({
     path: `/${config.graphVersion}/${config.phoneNumberId}/messages`,
     method: "POST",
@@ -214,7 +216,8 @@ const postMessage = async ({ message, phoneNumberId = "" } = {}) => {
     accessToken: config.accessToken,
   });
   const messageId = text(result?.messages?.[0]?.id);
-  if (budget) await budget.recordPaidTemplate({ templateName: message?.template?.name, phone: message?.to, source: "cloud_provider", messageId });
+  if (isTemplate) await budget.recordPaidTemplate({ templateName: message?.template?.name, phone: message?.to, source: "cloud_provider", messageId });
+  else await budget.recordServiceReply({ phone: message?.to, source: "cloud_provider", messageId });
   console.info("[whatsapp:cloud-sent]", {
     type: message?.type || "text",
     phone_suffix: toGraphRecipient(message?.to).slice(-4),

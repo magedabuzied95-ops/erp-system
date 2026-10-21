@@ -151,6 +151,31 @@ export default function WhatsAppSendRoutesPanel({ headers }) {
               <input type="number" min="0" inputMode="numeric" className={`${inputClass} mt-1 block`} value={config.template_monthly_cap} onChange={(event) => patch({ template_monthly_cap: event.target.value })} />
             </label>
           </div>
+          {/* Free-form replies from the official number: free up to Meta's monthly allowance only. */}
+          <div className="mt-3 border-t border-white/10 pt-3">
+            <div className="text-xs font-black text-white">{t("aiSupport.waSendRoutes.serviceLimit")}</div>
+            <p className="mt-0.5 text-[11px] leading-5 text-slate-400">{t("aiSupport.waSendRoutes.serviceLimitHint")}</p>
+            <div className="mt-2 flex flex-wrap items-end gap-3">
+              <label className="text-[11px] font-bold text-slate-300">
+                {t("aiSupport.waSendRoutes.monthlyCap")}
+                <input type="number" min="0" inputMode="numeric" className={`${inputClass} mt-1 block`} value={config.service_reply_monthly_limit} onChange={(event) => patch({ service_reply_monthly_limit: event.target.value })} />
+              </label>
+              <div className="min-w-[180px] flex-1 text-[11px] font-bold text-slate-300">
+                {t("aiSupport.waSendRoutes.serviceOverLimit")}
+                <div className="mt-1">
+                  <ThemedSelect
+                    value={config.service_reply_over_limit}
+                    onChange={(value) => patch({ service_reply_over_limit: value })}
+                    options={[
+                      { value: "evolution", label: t("aiSupport.waSendRoutes.serviceOver.evolution") },
+                      { value: "block", label: t("aiSupport.waSendRoutes.serviceOver.block") },
+                    ]}
+                    triggerClassName={selectTrigger}
+                  />
+                </div>
+              </div>
+            </div>
+          </div>
         </div>
         <div className="rounded-2xl border border-white/10 bg-white/[0.03] p-3">
           <div className="text-xs font-black text-white">{t("aiSupport.waSendRoutes.usage")}</div>
@@ -159,6 +184,11 @@ export default function WhatsAppSendRoutesPanel({ headers }) {
               <div>{t("aiSupport.waSendRoutes.usageToday", { count: budget.today, cap: budget.daily_cap })}</div>
               <div>{t("aiSupport.waSendRoutes.usageMonth", { count: budget.month, cap: budget.monthly_cap })}</div>
               <div className="text-[11px] text-slate-400">{t("aiSupport.waSendRoutes.usageSplit", { marketing: budget.month_marketing, utility: budget.month_utility })}</div>
+              {budget.service_limit !== null && budget.service_limit !== undefined ? (
+                <div className={budget.service_month >= budget.service_limit ? "text-rose-200" : ""}>
+                  {t("aiSupport.waSendRoutes.usageService", { count: budget.service_month, cap: budget.service_limit })}
+                </div>
+              ) : null}
             </div>
           ) : <p className="mt-2 text-[11px] text-slate-500">—</p>}
         </div>

@@ -30,9 +30,16 @@ export const routeAutomationInstance = async ({ automationType = "", instance = 
   const current = policyText(instance);
   if (policyText(process.env.WHATSAPP_TRANSACTIONAL_VIA_EVOLUTION).toLowerCase() === "false") return current;
   const { route, officialLine } = await automationRoute(automationType);
-  if (route === "conversation") return current;
-  if (route === "official") return officialLine ? `cloud:${officialLine}` : current;
-  return current.toLowerCase().startsWith("cloud:") ? policyText(process.env.WHATSAPP_TRANSACTIONAL_EVOLUTION_INSTANCE) : current;
+  if (route === "evolution") {
+    return current.toLowerCase().startsWith("cloud:") ? policyText(process.env.WHATSAPP_TRANSACTIONAL_EVOLUTION_INSTANCE) : current;
+  }
+  const chosen = route === "official" ? (officialLine ? `cloud:${officialLine}` : current) : current;
+  // An order message on the official number past its free monthly replies moves to Evolution, as
+  // a chat reply does. Marketing never does: bulk from Evolution is what risks the number — past
+  // the allowance it is simply refused before Meta (templateBudget.js).
+  if (automationIsMarketing(automationType)) return chosen;
+  const { officialReplyRoute } = await import("../../modules/whatsappOfficial/templateBudget.js");
+  return (await officialReplyRoute(chosen)).instance;
 };
 
 /*

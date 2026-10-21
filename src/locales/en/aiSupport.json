@@ -3958,6 +3958,14 @@
     "previewOfficial": "This is the template the official number sends when the customer has not written in the last 24 hours.",
     "previewEvolution": "This message currently leaves from Evolution with the same words, free. This is how it looks if you move it to the official number.",
     "previewCampaign": "A campaign uses the template you choose when you create it.",
-    "previewHint": "Click any message in the table to see it."
+    "previewHint": "Click any message in the table to see it.",
+    "serviceLimit": "Plain replies from the official number",
+    "serviceLimitHint": "Meta gives the first 1,000 replies a month free, then bills each. At this limit no reply leaves from the official number.",
+    "serviceOverLimit": "After the limit",
+    "serviceOver": {
+      "evolution": "Reply moves to Evolution by itself (free)",
+      "block": "Reply waits for a person"
+    },
+    "usageService": "Plain replies from the official number this month: {{count}} of {{cap}}"
   }
 }

@@ -63,10 +63,11 @@ export const templateBudgetUsage = async () => {
       COUNT(*) FILTER (WHERE category = 'MARKETING' AND date_trunc('month', sent_at AT TIME ZONE 'Africa/Cairo') = date_trunc('month', NOW() AT TIME ZONE 'Africa/Cairo')) AS month_marketing,
       COUNT(*) FILTER (WHERE category = 'UTILITY' AND date_trunc('month', sent_at AT TIME ZONE 'Africa/Cairo') = date_trunc('month', NOW() AT TIME ZONE 'Africa/Cairo')) AS month_utility
     FROM whatsapp_paid_template_sends
-    WHERE sent_at > NOW() - INTERVAL '40 days'
+    WHERE sent_at > NOW() - INTERVAL '40 days' AND category <> '${SERVICE_CATEGORY}'
   `);
   const row = result.rows[0] || {};
   const caps = await templateCaps();
+  const service = await serviceReplyState({ fresh: true }).catch(() => null);
   return {
     today: Number(row.today || 0),
     month: Number(row.month || 0),
@@ -74,7 +75,99 @@ export const templateBudgetUsage = async () => {
     month_utility: Number(row.month_utility || 0),
     daily_cap: caps.daily,
     monthly_cap: caps.monthly,
+    service_month: service ? service.month : null,
+    service_limit: service ? service.limit : null,
+    service_over_limit: service ? service.mode : null,
   };
+};
+
+/*
+ * Free-form messages from the official number (replies inside the 24h window, the sales flow,
+ * chatbot flows…). Since 2026-10-01 Meta gives each number 1,000 free a month and bills every one
+ * after that — and many customers write without buying. The owner never crosses that line by
+ * accident (2026-10-21):
+ *
+ *   - past `service_reply_monthly_limit` (default 1000) the replies to customers move to Evolution
+ *     on their own ("evolution"), or are held for a person ("block");
+ *   - and whatever path still tries the official number after the limit is refused BEFORE Graph
+ *     (assertServiceReplyBudget), so nothing past the free allowance is ever sent by mistake.
+ *
+ * Counted in the same ledger as category SERVICE, per Cairo month, across our official numbers
+ * (Meta counts per number, so this is the cautious side).
+ */
+const SERVICE_CATEGORY = "SERVICE";
+let serviceCache = { at: 0, value: null };
+export const serviceReplyState = async ({ fresh = false } = {}) => {
+  if (!fresh && serviceCache.value && Date.now() - serviceCache.at < 60 * 1000) return serviceCache.value;
+  await ensureSchema();
+  const [result, config] = await Promise.all([
+    db.query(`
+      SELECT COUNT(*) AS month FROM whatsapp_paid_template_sends
+       WHERE category = '${SERVICE_CATEGORY}' AND sent_at > NOW() - INTERVAL '40 days'
+         AND date_trunc('month', sent_at AT TIME ZONE 'Africa/Cairo') = date_trunc('month', NOW() AT TIME ZONE 'Africa/Cairo')
+    `),
+    loadWhatsappSendRoutes(),
+  ]);
+  const value = {
+    month: Number(result.rows[0]?.month || 0),
+    limit: Math.min(config.service_reply_monthly_limit, envCeiling("WHATSAPP_SERVICE_REPLY_MONTHLY_LIMIT")),
+    mode: config.service_reply_over_limit,
+  };
+  serviceCache = { at: Date.now(), value };
+  return value;
+};
+
+/* True once this month's free-form messages reached the limit. Unreadable counts as reached. */
+export const serviceReplyLimitReached = async () => {
+  try {
+    const state = await serviceReplyState();
+    return state.month >= state.limit;
+  } catch {
+    return true;
+  }
+};
+
+export const assertServiceReplyBudget = async () => {
+  if (!(await serviceReplyLimitReached())) return;
+  const state = serviceCache.value || {};
+  console.warn("[whatsapp:service-reply-limit-reached]", state);
+  throw Object.assign(
+    new Error(`Official-number free replies used up this month (${state.month ?? "?"}/${state.limit ?? "?"}); the message was not sent through Meta`),
+    { code: "WHATSAPP_SERVICE_REPLY_LIMIT", status: 429 }
+  );
+};
+
+/*
+ * Where a reply to a customer goes once the allowance is used up. Only a Cloud number is ever
+ * affected: { instance } unchanged below the limit; past it, Evolution (switched) or nothing
+ * (blocked) as the owner chose. WHATSAPP_TRANSACTIONAL_EVOLUTION_INSTANCE names the Evolution
+ * instance (empty = the gateway default).
+ */
+export const officialReplyRoute = async (instance = "") => {
+  const current = text(instance);
+  if (!current.toLowerCase().startsWith("cloud:") || !(await serviceReplyLimitReached())) {
+    return { instance: current, switched: false, blocked: false };
+  }
+  if ((serviceCache.value?.mode || "evolution") === "block") {
+    console.warn("[whatsapp:service-reply-held]", { instance: current, ...(serviceCache.value || {}) });
+    return { instance: current, switched: false, blocked: true };
+  }
+  console.info("[whatsapp:service-reply-moved-to-evolution]", { from: current, ...(serviceCache.value || {}) });
+  return { instance: text(process.env.WHATSAPP_TRANSACTIONAL_EVOLUTION_INSTANCE), switched: true, blocked: false };
+};
+
+export const recordServiceReply = async ({ tenantId = null, phone = "", source = "", messageId = "" } = {}) => {
+  try {
+    await ensureSchema();
+    await db.query(
+      `INSERT INTO whatsapp_paid_template_sends (tenant_id, template_name, category, recipient_suffix, source, message_id)
+       VALUES ($1, '', '${SERVICE_CATEGORY}', $2, $3, $4)`,
+      [Number(tenantId) || null, text(phone).replace(/\D/g, "").slice(-4), text(source).slice(0, 80), text(messageId).slice(0, 200)]
+    );
+    if (serviceCache.value) serviceCache.value = { ...serviceCache.value, month: serviceCache.value.month + 1 };
+  } catch (error) {
+    console.warn("[whatsapp:service-ledger-failed]", { message: error?.message || String(error) });
+  }
 };
 
 /*

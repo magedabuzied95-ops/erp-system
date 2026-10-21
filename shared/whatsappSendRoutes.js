@@ -36,7 +36,13 @@ export const WHATSAPP_SEND_ROUTE_DEFAULTS = Object.freeze({
   official_phone_number_id: "",
   template_daily_cap: 50,
   template_monthly_cap: 500,
+  // Free-form messages from the official number: Meta gives 1,000 a month free, then bills each.
+  // Past the limit, replies to customers move to Evolution ("evolution") or wait for a person
+  // ("block"); either way nothing past it leaves through Meta.
+  service_reply_monthly_limit: 1000,
+  service_reply_over_limit: "evolution",
 });
+export const WHATSAPP_SERVICE_OVER_LIMIT_CHOICES = Object.freeze(["evolution", "block"]);
 
 const cap = (value, fallback) => {
   const number = Number(value);
@@ -55,5 +61,9 @@ export const normalizeWhatsappSendRoutes = (value) => {
     official_phone_number_id: String(source.official_phone_number_id ?? "").replace(/\D/g, "").slice(0, 32),
     template_daily_cap: cap(source.template_daily_cap, WHATSAPP_SEND_ROUTE_DEFAULTS.template_daily_cap),
     template_monthly_cap: cap(source.template_monthly_cap, WHATSAPP_SEND_ROUTE_DEFAULTS.template_monthly_cap),
+    service_reply_monthly_limit: cap(source.service_reply_monthly_limit, WHATSAPP_SEND_ROUTE_DEFAULTS.service_reply_monthly_limit),
+    service_reply_over_limit: WHATSAPP_SERVICE_OVER_LIMIT_CHOICES.includes(String(source.service_reply_over_limit ?? ""))
+      ? String(source.service_reply_over_limit)
+      : WHATSAPP_SEND_ROUTE_DEFAULTS.service_reply_over_limit,
   };
 };

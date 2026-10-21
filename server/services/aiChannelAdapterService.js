@@ -1696,6 +1696,10 @@ const graphUrl = ({ phoneNumberId, graphVersion }) =>
   `https://graph.facebook.com/${graphVersion}/${encodeURIComponent(phoneNumberId)}/messages`;
 
 const postWhatsAppMessage = async ({ payload, config }) => {
+  // Past the monthly free allowance nothing free-form leaves through Meta (templateBudget.js).
+  const budget = await import("../modules/whatsappOfficial/templateBudget.js");
+  if (payload?.type === "template") await budget.assertTemplateBudget({ templateName: payload?.template?.name });
+  else await budget.assertServiceReplyBudget();
   console.info("[whatsapp-cloud-send-attempt]", {
     provider: "cloud",
     selected_transport: "cloud",
@@ -1736,6 +1740,8 @@ const postWhatsAppMessage = async ({ payload, config }) => {
       responseBody: data,
     });
   }
+  if (payload?.type === "template") await budget.recordPaidTemplate({ templateName: payload?.template?.name, phone: payload?.to, source: "ai_channel_adapter", messageId });
+  else await budget.recordServiceReply({ phone: payload?.to, source: "ai_channel_adapter", messageId });
   return { ...data, message_id: messageId };
 };
 
@@ -1891,10 +1897,31 @@ export const sendWhatsAppCloudReply = async ({ to, reply = {}, messageText = "",
    * empty means: ask the conversation which number it belongs to, and only fall back to the
    * environment for a customer we have never exchanged a message with.
    */
-  const selectedInstance = toText(instance) || await lastKnownWhatsappInstance(recipient);
+  let selectedInstance = toText(instance) || await lastKnownWhatsappInstance(recipient);
+  // Past the official number's free monthly replies, the reply moves to Evolution (or is held),
+  // as the owner chose in "مين يبعت إيه" — a chat that never buys must never cost money.
+  const { officialReplyRoute } = await import("../modules/whatsappOfficial/templateBudget.js");
+  const allowance = await officialReplyRoute(selectedInstance);
+  if (allowance.switched) {
+    selectedInstance = allowance.instance;
+    instance = allowance.instance;
+    config.provider = "evolution";
+  }
   const instanceIsCloud = selectedInstance.toLowerCase().startsWith("cloud:");
   const selectedTransport = instanceIsCloud || config.provider === "cloud" ? "cloud" : "evolution";
   if (instanceIsCloud) config.phoneNumberId = selectedInstance.slice("cloud:".length) || config.phoneNumberId;
+  if (allowance.blocked) {
+    return {
+      sent: false,
+      delivery_status: "failed",
+      fallback_used: false,
+      results: [],
+      message_id: "",
+      success_count: 0,
+      delivery_error: "WHATSAPP_SERVICE_REPLY_LIMIT: the official number's free replies for this month are used up",
+      transport: "cloud",
+    };
+  }
   const missing = whatsappMissingCredentials(config).filter((item) => item !== "WHATSAPP_ENABLED");
   const buildResult = (overrides = {}) => ({
     sent: overrides.sent === true,

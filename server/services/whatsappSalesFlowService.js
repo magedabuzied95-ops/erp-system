@@ -442,8 +442,14 @@ const sendAddressLink = async ({ tenantId, phone, conversationId, flow, productI
 
 const CONFIRM_WORDS = ["تأكيد", "تاكيد", "أكد", "اكد", "confirm", "ok", "تمام"];
 
-export const handleWhatsappSalesFlow = async ({ instance = "", ...input } = {}) =>
-  flowNumber.run({ instance: text(instance), tenantId: input.tenantId || 1 }, () => runWhatsappSalesFlow(input));
+export const handleWhatsappSalesFlow = async ({ instance = "", ...input } = {}) => {
+  // Past the official number's free monthly replies the sale continues from Evolution (or waits
+  // for a person), as the owner chose — see officialReplyRoute.
+  const { officialReplyRoute } = await import("../modules/whatsappOfficial/templateBudget.js");
+  const allowance = await officialReplyRoute(instance);
+  if (allowance.blocked) return { handled: false, reason: "official_free_replies_used_up" };
+  return flowNumber.run({ instance: text(allowance.instance), tenantId: input.tenantId || 1 }, () => runWhatsappSalesFlow(input));
+};
 
 const runWhatsappSalesFlow = async ({
   tenantId = 1,

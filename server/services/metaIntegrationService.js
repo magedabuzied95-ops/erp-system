@@ -20659,7 +20659,10 @@ export const completeSocialCommentOrderFromAddressRequest = async ({
   const sendConfirmation = async (messageText) => {
     if (!isWhatsapp) return null;
     const { resolveWhatsappConversationInstance, sendTextMessage } = await import("./whatsappGatewayService.js");
-    const instance = text(await resolveWhatsappConversationInstance({ tenantId: tenantId || 1, conversationId }).catch(() => ""));
+    const { officialReplyRoute } = await import("../modules/whatsappOfficial/templateBudget.js");
+    const allowance = await officialReplyRoute(text(await resolveWhatsappConversationInstance({ tenantId: tenantId || 1, conversationId }).catch(() => "")));
+    if (allowance.blocked) return null;
+    const instance = text(allowance.instance);
     return sendTextMessage({ phone: senderId, message: text(messageText), instance })
       .then(async (result) => {
         // Cloud sends no echo, so the confirmation is written to the inbox here.

@@ -468,8 +468,10 @@ const recordApiMessage = async ({ tenantId, apiKeyId = null, messageId, phoneNum
 
 const postCloudMessage = async ({ tenantId, phoneNumberId, message, apiKeyId = null }) => {
   const credentials = await resolveSendCredentials({ tenantId, phoneNumberId });
-  const budget = message?.type === "template" ? await import("../modules/whatsappOfficial/templateBudget.js") : null;
-  if (budget) await budget.assertTemplateBudget({ templateName: message?.template?.name });
+  const isTemplate = message?.type === "template";
+  const budget = await import("../modules/whatsappOfficial/templateBudget.js");
+  if (isTemplate) await budget.assertTemplateBudget({ templateName: message?.template?.name });
+  else await budget.assertServiceReplyBudget();
   const result = await graphRequest({
     path: `/${credentials.graphVersion}/${credentials.phoneNumberId}/messages`,
     method: "POST",
@@ -477,7 +479,8 @@ const postCloudMessage = async ({ tenantId, phoneNumberId, message, apiKeyId = n
     accessToken: credentials.accessToken,
   });
   const messageId = text(result?.messages?.[0]?.id);
-  if (budget) await budget.recordPaidTemplate({ tenantId, templateName: message?.template?.name, phone: message?.to, source: "public_api", messageId });
+  if (isTemplate) await budget.recordPaidTemplate({ tenantId, templateName: message?.template?.name, phone: message?.to, source: "public_api", messageId });
+  else await budget.recordServiceReply({ tenantId, phone: message?.to, source: "public_api", messageId });
   await recordApiMessage({ tenantId, apiKeyId, messageId, phoneNumberId: credentials.phoneNumberId, message });
   void dispatchWhatsappEvent({
     tenantId,
