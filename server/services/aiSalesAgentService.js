@@ -2538,6 +2538,96 @@ const loadSystemCustomersByPhone = async ({ tenantId, conversations = [] } = {})
   }
 };
 
+/*
+ * The inbox filter panel (Genie-style): accounts, labels, stages, members and
+ * activity. Every tab runs here, in SQL, for the same reason the read filter
+ * does — the list is the newest N rows, so a browser-side filter would only
+ * ever search those. Tabs combine with AND; the picks inside one tab with OR.
+ *
+ * Account keys are "<platform>:<id>" — the WhatsApp line as message rows store
+ * it (Evolution instance name, or "cloud:<phone_number_id>"), the Facebook page
+ * id, or the Instagram business account id — read from the conversation
+ * metadata the webhook stamps on every inbound. A WhatsApp thread from before
+ * that stamping belongs to the deployment's default line.
+ */
+const PANEL_LIST_LIMIT = 200;
+const panelList = (value) => [...new Set((Array.isArray(value) ? value : String(value || "").split(","))
+  .map((item) => text(item))
+  .filter(Boolean))].slice(0, PANEL_LIST_LIMIT);
+
+export const INBOX_ACTIVITY_WINDOWS = Object.freeze({ "24h": "24 hours", "3d": "3 days", "7d": "7 days" });
+
+export const inboxAccountKeySql = (channelSql, defaultWhatsappInstanceIdx) => `(CASE
+    WHEN ${channelSql} = 'whatsapp' THEN 'whatsapp:' || COALESCE(NULLIF(c.metadata->>'whatsapp_instance', ''), NULLIF(c.metadata->>'instance', ''), ${defaultWhatsappInstanceIdx}::text, '')
+    WHEN ${channelSql} = 'instagram' THEN 'instagram:' || COALESCE(NULLIF(c.metadata->>'instagram_business_account_id', ''), NULLIF(c.metadata->>'resolved_page_id', ''), NULLIF(c.metadata->>'page_id', ''), NULLIF(c.metadata->>'recipient_page_id', ''), '')
+    WHEN ${channelSql} IN ('facebook_messenger', 'facebook', 'messenger') THEN 'facebook_messenger:' || COALESCE(NULLIF(c.metadata->>'resolved_page_id', ''), NULLIF(c.metadata->>'page_id', ''), NULLIF(c.metadata->>'facebook_page_id', ''), NULLIF(c.metadata->>'recipient_page_id', ''), '')
+    ELSE ''
+  END)`;
+
+const defaultWhatsappInstanceName = () => text(
+  process.env.WHATSAPP_INSTANCE_NAME || process.env.EVOLUTION_INSTANCE_NAME || process.env.instanceName
+);
+
+// Appends the panel's clauses to `clauses` (and their values to `params`).
+// The activity tab is left out: it reads the latest-message lateral, which only
+// the summary query has — see inboxPanelActivityClauseSql.
+export const appendInboxPanelFilterClauses = ({ clauses, params, channelSql, accountKeys = [], labelIds = [], stages = [], memberIds = [] } = {}) => {
+  const accounts = panelList(accountKeys);
+  if (accounts.length) {
+    params.push(defaultWhatsappInstanceName() || null);
+    const defaultIdx = `$${params.length}`;
+    params.push(accounts);
+    clauses.push(`${inboxAccountKeySql(channelSql, defaultIdx)} = ANY($${params.length}::text[])`);
+  }
+  const labels = panelList(labelIds);
+  if (labels.length) {
+    params.push(labels);
+    clauses.push(`EXISTS (
+      SELECT 1
+      FROM jsonb_array_elements(CASE WHEN jsonb_typeof(c.metadata->'conversation_labels') = 'array' THEN c.metadata->'conversation_labels' ELSE '[]'::jsonb END) AS panel_label
+      WHERE panel_label->>'id' = ANY($${params.length}::text[])
+    )`);
+  }
+  const stageList = panelList(stages).map((stage) => stage.toLowerCase());
+  if (stageList.length) {
+    params.push(stageList);
+    clauses.push(`LOWER(COALESCE(NULLIF(c.lead_status, ''), 'new')) = ANY($${params.length}::text[])`);
+  }
+  const members = panelList(memberIds);
+  if (members.length) {
+    const ids = members.map(Number).filter((id) => Number.isInteger(id) && id > 0);
+    const unassigned = members.some((member) => ["none", "unassigned"].includes(member.toLowerCase()));
+    const memberClauses = [];
+    if (ids.length) {
+      params.push(ids);
+      memberClauses.push(`s.assigned_user_id = ANY($${params.length}::bigint[])`);
+    }
+    if (unassigned) memberClauses.push("s.assigned_user_id IS NULL");
+    clauses.push(memberClauses.length ? `(${memberClauses.join(" OR ")})` : "FALSE");
+  }
+};
+
+// "Last message received or sent": a preset window or a from/to range of days
+// (inclusive; the dates are Cairo calendar days, like every date the app shows).
+export const inboxPanelActivityClauseSql = ({ params, activitySql, activity = "", activityFrom = "", activityTo = "" } = {}) => {
+  const window = INBOX_ACTIVITY_WINDOWS[lower(activity)];
+  if (window) {
+    params.push(window);
+    return `${activitySql} >= NOW() - $${params.length}::interval`;
+  }
+  const isDay = (value) => /^\d{4}-\d{2}-\d{2}$/.test(text(value));
+  const parts = [];
+  if (isDay(activityFrom)) {
+    params.push(text(activityFrom));
+    parts.push(`${activitySql} >= ($${params.length}::date::timestamp AT TIME ZONE 'Africa/Cairo')`);
+  }
+  if (isDay(activityTo)) {
+    params.push(text(activityTo));
+    parts.push(`${activitySql} < (($${params.length}::date + 1)::timestamp AT TIME ZONE 'Africa/Cairo')`);
+  }
+  return parts.length ? `(${parts.join(" AND ")})` : "";
+};
+
 // How many messages the customer has sent while waiting for an answer.
 //
 // Unread means "this customer is waiting for a reply", not "this arrived since you last
@@ -2641,7 +2731,7 @@ const inboxCursorClauseSql = (activityExpression, activityIdx, sessionIdx) => `(
     OR (${activityExpression} = ${activityIdx}::timestamp AND s.session_id < ${sessionIdx}::text)
   )`;
 
-export const loadAiInbox = async ({ tenantId, filter = "all", channelFilter = "", limit = 200, search = "", messageLimit = 30, summaryOnly = false, readFilter = "", favoriteOnly = false, assignedUserId = null, beforeActivityAt = "", beforeSessionId = "", sessionKeys = [], hiddenKeys = null } = {}) => {
+export const loadAiInbox = async ({ tenantId, filter = "all", channelFilter = "", limit = 200, search = "", messageLimit = 30, summaryOnly = false, readFilter = "", favoriteOnly = false, assignedUserId = null, beforeActivityAt = "", beforeSessionId = "", sessionKeys = [], hiddenKeys = null, accountKeys = [], labelIds = [], stages = [], memberIds = [], activity = "", activityFrom = "", activityTo = "" } = {}) => {
   const loadAiInboxStartedAt = Date.now();
   await ensureAiSalesAgentSchema();
   await ensureAiConversationMemorySchema();
@@ -2753,6 +2843,7 @@ export const loadAiInbox = async ({ tenantId, filter = "all", channelFilter = ""
     params.push(Math.trunc(safeAssignedUserId));
     clauses.push(`s.assigned_user_id = $${params.length}::bigint`);
   }
+  appendInboxPanelFilterClauses({ clauses, params, channelSql: INBOX_RESOLVED_CHANNEL_SQL, accountKeys, labelIds, stages, memberIds });
   // Targeted lookup: several callers need ONE conversation and used to load the
   // whole inbox (messages included) to .find() it — 30s+ per open. The keys
   // match every identity a route id can arrive as; explicit ::text[] on each
@@ -2790,6 +2881,8 @@ export const loadAiInbox = async ({ tenantId, filter = "all", channelFilter = ""
 
   if (summaryOnly) {
     const summaryStartedAt = Date.now();
+    const activityClause = inboxPanelActivityClauseSql({ params, activitySql: summaryActivitySql, activity, activityFrom, activityTo });
+    if (activityClause) clauses.push(activityClause);
     if (hasCursor) {
       params.push(cursorActivityAt);
       const activityIdx = `$${params.length}`;

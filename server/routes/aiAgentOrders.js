@@ -2611,6 +2611,52 @@ router.post("/channels/meta/webhook", async (req, res) => {
 // only when due, so a stale first read still self-heals in one request).
 const channelAccountsSyncLastRun = new Map();
 const CHANNEL_ACCOUNTS_SYNC_COOLDOWN_MS = 60 * 1000;
+/*
+ * The Accounts tab of the inbox filter panel: every line a conversation can
+ * belong to, keyed exactly the way the list filter matches it
+ * ("<platform>:<id>" — see appendInboxPanelFilterClauses). WhatsApp lists the
+ * Evolution instances from the registry plus the official Cloud numbers, which
+ * are not in the registry. Inbox permission, not settings: anyone who reads the
+ * inbox may filter it, and only names leave here.
+ */
+router.get("/filter-accounts", protect, inboxView(), async (req, res) => {
+  try {
+    const tenantId = toTenantId(req);
+    const registry = await listChannelAccounts({ tenantId }).catch(() => []);
+    const accounts = [];
+    const seen = new Set();
+    const add = (platform, id, label, provider) => {
+      const key = `${platform}:${envText(id)}`;
+      if (!envText(id) || seen.has(key)) return;
+      seen.add(key);
+      accounts.push({ key, platform, label: envText(label) || envText(id), provider });
+    };
+    for (const account of registry) {
+      const platform = envText(account.platform);
+      if (platform === "whatsapp") add("whatsapp", account.external_account_id, account.display_name, account.provider || "evolution");
+      if (platform === "facebook_messenger") add("facebook_messenger", account.metadata?.page_id || account.external_account_id, account.display_name, "meta");
+      if (platform === "instagram") add("instagram", account.external_account_id, account.display_name, "meta");
+    }
+    const cloud = await db.query(
+      `
+      SELECT phone_number_id, display_phone_number, verified_name
+      FROM whatsapp_cloud_integrations
+      WHERE tenant_id = $1 AND COALESCE(phone_number_id, '') <> ''
+      ORDER BY updated_at DESC NULLS LAST, id DESC
+      `,
+      [tenantId]
+    ).catch(() => ({ rows: [] }));
+    for (const row of cloud.rows) {
+      const name = envText(row.verified_name);
+      const phone = envText(row.display_phone_number);
+      add("whatsapp", `cloud:${envText(row.phone_number_id)}`, name && phone ? `${name} · ${phone}` : name || phone, "cloud");
+    }
+    return res.json({ success: true, accounts });
+  } catch (error) {
+    return sendError(res, error, "Failed to load inbox accounts");
+  }
+});
+
 router.get("/channel-accounts", protect, permit("settings", "view"), async (req, res) => {
   try {
     const tenantId = toTenantId(req);
@@ -3173,6 +3219,15 @@ router.get("/conversations", protect, inboxView(), async (req, res) => {
       assignedUserId: assignedUserFilter(req),
       beforeActivityAt: String(req.query?.before_activity_at || ""),
       beforeSessionId: String(req.query?.before_session_id || ""),
+      // The filter panel (comma lists; OR inside a tab, AND across tabs). In SQL
+      // for the same reason as read_filter — see appendInboxPanelFilterClauses.
+      accountKeys: String(req.query?.account_ids || ""),
+      labelIds: String(req.query?.label_ids || ""),
+      stages: String(req.query?.stage_ids || ""),
+      memberIds: String(req.query?.member_ids || ""),
+      activity: String(req.query?.activity || ""),
+      activityFrom: String(req.query?.activity_from || ""),
+      activityTo: String(req.query?.activity_to || ""),
       hiddenKeys,
     });
     scheduleMissingWhatsappProfileSync({ tenantId, conversations: inbox.conversations });

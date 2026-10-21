@@ -611,6 +611,58 @@
       "noOthers": "No other labels",
       "hint": "Add more than one label to this customer"
     },
+    "filterPanel": {
+      "title": "Filter conversations",
+      "tabs": {
+        "accounts": "Accounts",
+        "labels": "Labels",
+        "stages": "Stages",
+        "members": "Members",
+        "activity": "Activity",
+        "saved": "Saved"
+      },
+      "search": {
+        "accounts": "Search accounts...",
+        "labels": "Search labels...",
+        "stages": "Search stages...",
+        "members": "Search members..."
+      },
+      "clear": "Clear",
+      "clearAll": "Clear all",
+      "remove": "Remove {{name}}",
+      "loading": "Loading...",
+      "nothing": "Nothing matches",
+      "noAccounts": "No connected accounts yet",
+      "official": "Official",
+      "unassigned": "Unassigned",
+      "activityHint": "Last message received or sent",
+      "anyTime": "Any time",
+      "last24h": "Last 24 hours",
+      "last3d": "Last 3 days",
+      "last7d": "Last 7 days",
+      "customRange": "Custom range",
+      "from": "From",
+      "to": "To",
+      "noSaved": "No saved filters yet",
+      "noSavedHint": "Pick filters on the other tabs, then save them here.",
+      "saveCurrent": "Save current filters",
+      "saveNamePlaceholder": "Name this filter",
+      "save": "Save",
+      "deleteSaved": "Delete saved filter",
+      "filtersCount_one": "{{count}} filter",
+      "filtersCount_other": "{{count}} filters"
+    },
+    "crmCard": {
+      "title": "Conversation",
+      "stage": "Stage",
+      "labels": "Labels",
+      "editLabels": "Edit",
+      "noLabels": "No labels yet",
+      "owner": "Owner",
+      "assign": "Assign",
+      "reassign": "Change",
+      "stageError": "Could not change the stage"
+    },
     "composer": {
       "placeholder": "Type your message...",
       "customerWaiting": "Customer waiting for a reply ({{time}})",

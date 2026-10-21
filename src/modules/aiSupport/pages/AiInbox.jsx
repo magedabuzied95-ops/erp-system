@@ -66,6 +66,7 @@ import {
   Truck,
   User,
   UserCheck,
+  SlidersHorizontal,
   UserPlus,
   Users,
   X,
@@ -130,6 +131,9 @@ import AvatarZoom from "../components/AvatarZoom.jsx";
 import CustomerAvatar from "../components/CustomerAvatar.jsx";
 import WaitingOrbit from "../components/WaitingOrbit.jsx";
 import ReplyWaitClock from "../components/ReplyWaitClock.jsx";
+import InboxFilterPanel from "../components/InboxFilterPanel.jsx";
+import ConversationCrmCard from "../components/ConversationCrmCard.jsx";
+import { EMPTY_PANEL_FILTERS, conversationMatchesPanelFilters, panelFilterCount, panelFilterParams } from "../lib/inboxFilterPanel.js";
 import InboxTopBar from "../components/InboxTopBar.jsx";
 import { chromeModeFor, platformCanvas, resolveMessagePlatform } from "../components/messagePlatform.js";
 import { useTheme } from "../../../theme/useTheme";
@@ -4622,7 +4626,17 @@ export default function AiInbox({ reviewerMode = false }) {
   const [channelFilter, setChannelFilter] = useState(() => deepLinkChannelRef.current || "all");
   // Which specific account (WhatsApp number / page) within the selected channel;
   // stores the channel_accounts row id as a string, or "all".
-  const [accountFilter, setAccountFilter] = useState("all");
+  // The Genie-style filter panel (accounts / labels / stages / members /
+  // activity). Applied by the list API in SQL — see lib/inboxFilterPanel.js.
+  const [panelFilters, setPanelFilters] = useState(EMPTY_PANEL_FILTERS);
+  const [filterPanelOpen, setFilterPanelOpen] = useState(false);
+  const filterPanelAnchorRef = useRef(null);
+  const panelParams = useMemo(() => panelFilterParams(panelFilters), [panelFilters]);
+  const panelActive = Object.keys(panelParams).length > 0;
+  const inboxStageOptions = useMemo(
+    () => Object.entries(LEAD_STATUS_META).map(([id, meta]) => ({ id, label: t(meta.labelKey) })),
+    [t]
+  );
   const [channelAccounts, setChannelAccounts] = useState([]);
   const [mobileView, setMobileView] = useState("list");
   const [search, setSearch] = useState("");
@@ -4913,7 +4927,8 @@ export default function AiInbox({ reviewerMode = false }) {
     // A read-filtered request returns a different set entirely, so it must neither be
     // served from that cache nor written back into it — either way the next warm "All"
     // open would render a filtered slice as if it were the whole channel.
-    const listCacheEnabled = !reviewerMode && readFilter === "all" && assignedFilter === "all";
+    // Favourites and the filter panel narrow the set the same way.
+    const listCacheEnabled = !reviewerMode && readFilter === "all" && assignedFilter === "all" && favoriteFilter === "all" && !panelActive;
     const cachedPages = listCacheEnabled
       ? await Promise.all(warmChannels.map((ch) => inboxCache.primeList(ch).then((r) => asArray(r?.conversations)).catch(() => [])))
       : warmChannels.map(() => []);
@@ -4974,6 +4989,7 @@ export default function AiInbox({ reviewerMode = false }) {
           // never arrive, so "starred" would silently mean "starred and recent".
           ...(favoriteFilter === "all" ? {} : { favorite_only: 1 }),
           ...(assignedFilter === "me" ? { assigned_user_id: "me" } : {}),
+          ...panelParams,
         },
         headers,
         perfComponent: `AiInbox.conversations.${backendChannel}`,
@@ -5199,7 +5215,7 @@ export default function AiInbox({ reviewerMode = false }) {
         }
       }
     }
-  }, [assignedFilter, channelFilter, debouncedSearch, filter, headers, readFilter, reviewerMode, tenantId]);
+  }, [assignedFilter, channelFilter, debouncedSearch, favoriteFilter, filter, headers, panelActive, panelParams, readFilter, reviewerMode, tenantId]);
 
   // Shared inboxCache housekeeping: expiry sweep on mount, and wipe on logout /
   // user switch so one account's cached inbox is never shown to the next.
@@ -5523,22 +5539,6 @@ export default function AiInbox({ reviewerMode = false }) {
     if (!key) return "";
     return accountDirectory.get(`${platform}:${key}`) || key;
   }, [accountDirectory, accountsByPlatform]);
-  const accountFilterOptions = useMemo(() => {
-    const platform = backendChannelFilter(channelFilter);
-    const accounts = accountsByPlatform.get(platform) || [];
-    return accounts.length > 1
-      ? accounts.map((account) => ({ id: String(account.id), label: clean(account.display_name) || clean(account.external_account_id) }))
-      : [];
-  }, [accountsByPlatform, channelFilter]);
-  // The keys this filter accepts: the account's own id plus its page id, so an
-  // Instagram thread stamped with either identifier still matches.
-  const selectedAccountKeys = useMemo(() => {
-    if (accountFilter === "all") return null;
-    const account = channelAccounts.find((row) => String(row?.id) === accountFilter);
-    if (!account) return null;
-    const keys = new Set([clean(account.external_account_id), clean(account.metadata?.page_id)].filter(Boolean));
-    return keys.size ? keys : null;
-  }, [accountFilter, channelAccounts]);
   const filteredConversations = useMemo(() => {
     const items = [...conversations];
     const activeChannelFilterAllowed = inboxSection === "social_comments"
@@ -5581,8 +5581,10 @@ export default function AiInbox({ reviewerMode = false }) {
       if (channelFilter === "all" || !activeChannelFilterAllowed) return true;
       return normalizeConversationChannel(conversation) === channelFilter;
     };
-    const matchesAccountFilter = (conversation = {}) =>
-      !selectedAccountKeys || selectedAccountKeys.has(conversationAccountKey(conversation));
+    // The list API already applied the panel; this keeps a row the socket adds
+    // later from slipping past it.
+    const matchesPanelFilter = (conversation = {}) =>
+      !panelActive || conversationMatchesPanelFilters(conversation, panelFilters, { accountKey: conversationAccountKey(conversation) });
     const matchesInboxFilter = (conversation = {}) => {
       if (filter === "all") return true;
       if (filter === "messages") return isMessageThread(conversation) && matchesMessagePlatform(conversation, messagePlatformFilter);
@@ -5603,7 +5605,7 @@ export default function AiInbox({ reviewerMode = false }) {
       }
       return true;
     };
-    const sorted = items.filter(matchesInboxFilter).filter(matchesLeadFilter).filter(matchesFavoriteFilter).filter(matchesReadFilter).filter(matchesAssignedFilter).filter(matchesChannelFilter).filter(matchesAccountFilter).sort((a, b) => {
+    const sorted = items.filter(matchesInboxFilter).filter(matchesLeadFilter).filter(matchesFavoriteFilter).filter(matchesReadFilter).filter(matchesAssignedFilter).filter(matchesChannelFilter).filter(matchesPanelFilter).sort((a, b) => {
       const left = sortValue(a);
       const right = sortValue(b);
       if (right.primary !== left.primary) return right.primary - left.primary;
@@ -5611,7 +5613,7 @@ export default function AiInbox({ reviewerMode = false }) {
       return clean(b.session_id || b.conversation_key || b.conversation_id || "").localeCompare(clean(a.session_id || a.conversation_key || a.conversation_id || ""));
     });
     return sorted;
-  }, [assignedFilter, channelFilter, commentPlatformFilter, conversations, filter, inboxMe.id, inboxSection, leadFilter, leadSort, messagePlatformFilter, favoriteFilter, readFilter, selectedAccountKeys]);
+  }, [assignedFilter, channelFilter, commentPlatformFilter, conversations, filter, inboxMe.id, inboxSection, leadFilter, leadSort, messagePlatformFilter, favoriteFilter, panelActive, panelFilters, readFilter]);
   const visibleConversations = useMemo(
     () => (inboxSection === "conversations" ? filteredConversations : []),
     [filteredConversations, inboxSection]
@@ -7756,6 +7758,37 @@ export default function AiInbox({ reviewerMode = false }) {
     }
   };
 
+  // The stage (lead status) — set from Customer 360's conversation card. Same
+  // endpoint and patch as the PWA's stage picker.
+  const updateConversationLeadStatus = useCallback(async (nextLeadStatus) => {
+    if (!selectedConversation?.session_id) return;
+    const leadStatus = normalizeLeadStatus(nextLeadStatus);
+    const sessionId = selectedConversation.session_id;
+    const conversationIdentifier = selectedConversation.conversation_key || sessionId;
+    setLeadActionLoading("lead_status");
+    try {
+      const payload = await api.patch(aiAgentInboxEndpoint(sessionId, "/lead-status"), {
+        tenant_id: tenantId,
+        lead_status: leadStatus,
+      }, { headers, perfComponent: "AiInbox.updateLeadStatus" });
+      const returned = payload?.conversation || {};
+      patchConversation(conversationIdentifier, (conversation) => ({
+        ...conversation,
+        ...returned,
+        lead_status: returned.lead_status || leadStatus,
+        channel_metadata: {
+          ...(conversation.channel_metadata || {}),
+          ...(returned.channel_metadata || {}),
+          lead_status: returned.lead_status || leadStatus,
+        },
+      }));
+    } catch (err) {
+      setToast({ tone: "rose", text: err?.message || t("aiSupport.inbox.crmCard.stageError") });
+    } finally {
+      setLeadActionLoading("");
+    }
+  }, [headers, patchConversation, selectedConversation?.conversation_key, selectedConversation?.session_id, t, tenantId]);
+
   const updateConversationLabels = useCallback(async (nextLabels) => {
     if (!selectedConversation?.session_id) return false;
     const labels = normalizeAiInboxConversationLabels(nextLabels);
@@ -8205,6 +8238,7 @@ export default function AiInbox({ reviewerMode = false }) {
           read_filter: readFilter,
           ...(favoriteFilter === "all" ? {} : { favorite_only: 1 }),
           ...(assignedFilter === "me" ? { assigned_user_id: "me" } : {}),
+          ...panelParams,
           before_activity_at: listCursors[backendChannel].activity_at,
           before_session_id: listCursors[backendChannel].session_id,
         },
@@ -8228,7 +8262,7 @@ export default function AiInbox({ reviewerMode = false }) {
       loadingMoreRef.current = false;
       setLoadingMoreConversations(false);
     }
-  }, [api, assignedFilter, channelFilter, debouncedSearch, favoriteFilter, filter, headers, listCursors, readFilter, setInbox, tenantId]);
+  }, [api, assignedFilter, channelFilter, debouncedSearch, favoriteFilter, filter, headers, listCursors, panelParams, readFilter, setInbox, tenantId]);
 
   /*
    * Send a file the operator picked. Upload and send are one request: the
@@ -9697,7 +9731,6 @@ export default function AiInbox({ reviewerMode = false }) {
             onSelectChannel={() => {
               setInboxSection("conversations");
               setChannelFilter("all");
-              setAccountFilter("all");
               setSelectedSocialCommentId("");
               setMobileView("list");
             }}
@@ -9908,7 +9941,6 @@ export default function AiInbox({ reviewerMode = false }) {
               onSelectChannel={(value) => {
                 setInboxSection("conversations");
                 setChannelFilter(value);
-                setAccountFilter("all");
                 setMobileView("list");
               }}
             />
@@ -9941,11 +9973,35 @@ export default function AiInbox({ reviewerMode = false }) {
 	                      <Pill tone="cyan">{filteredConversations.length}</Pill>
 	                    </div>
 	                  </div>
-	                  <div className="flex items-center gap-2">
+	                  <div ref={filterPanelAnchorRef} className="flex items-center gap-2">
 	                    <label className="relative flex min-w-0 flex-1 items-center rounded-xl border border-white/10 bg-slate-950/70 h-10">
 	                      <Search className={`pointer-events-none absolute top-1/2 h-4 w-4 -translate-y-1/2 text-slate-500 ${isArabic ? "right-3" : "left-3"}`} />
 	                      <input value={search} onChange={(event) => setSearch(event.target.value)} placeholder={t("aiSupport.inbox.ui.searchCustomerMessage")} className={`h-10 w-full min-w-0 rounded-xl bg-transparent text-sm font-bold text-white outline-none placeholder:text-slate-600 ${isArabic ? "pr-9 pl-3 text-right" : "pl-9 pr-3 text-left"}`} />
 	                    </label>
+	                      <button
+	                        type="button"
+	                        onClick={() => setFilterPanelOpen((current) => !current)}
+	                        title={t("aiSupport.inbox.filterPanel.title")}
+	                        aria-label={t("aiSupport.inbox.filterPanel.title")}
+	                        aria-expanded={filterPanelOpen}
+	                        aria-haspopup="dialog"
+	                        data-inbox-filter="panel"
+	                        className={`relative grid h-10 w-10 shrink-0 place-items-center rounded-xl border transition ${panelActive || filterPanelOpen ? "border-cyan-300/40 bg-cyan-400/15" : "border-white/10 bg-slate-950/70 hover:border-white/20"}`}
+	                      >
+	                        <SlidersHorizontal className={`h-4 w-4 ${panelActive || filterPanelOpen ? "text-cyan-200" : "text-slate-400"}`} />
+	                        {panelActive ? (
+	                          <span className="absolute -top-1.5 -end-1.5 grid h-4 min-w-4 place-items-center rounded-full bg-primary px-1 text-[10px] font-black text-primary-foreground">{panelFilterCount(panelFilters)}</span>
+	                        ) : null}
+	                      </button>
+	                      <InboxFilterPanel
+	                        open={filterPanelOpen}
+	                        anchorRef={filterPanelAnchorRef}
+	                        onClose={() => setFilterPanelOpen(false)}
+	                        value={panelFilters}
+	                        onChange={setPanelFilters}
+	                        stageOptions={inboxStageOptions}
+	                        storageKey={`m1.inbox.savedFilters.${inboxMe.id || "me"}`}
+	                      />
 	                      <button type="button" onClick={() => setFavoriteFilter(favoriteFilter === "favorites" ? "all" : "favorites")} title={t("aiSupport.inbox.ui.favorites")} aria-label={t("aiSupport.inbox.ui.favorites")} aria-pressed={favoriteFilter === "favorites"} className={`grid h-10 w-10 shrink-0 place-items-center rounded-xl border transition ${favoriteFilter === "favorites" ? "border-amber-300/40 bg-amber-400/15" : "border-white/10 bg-slate-950/70 hover:border-white/20"}`}>
 	                        <Star className={`h-4 w-4 ${favoriteFilter === "favorites" ? "text-amber-300 fill-amber-300" : "text-slate-400"}`} />
 	                      </button>
@@ -9978,21 +10034,6 @@ export default function AiInbox({ reviewerMode = false }) {
 	                      <CheckCheck className="h-4 w-4" />
 	                    </button>
 	                  </div>
-	                  {accountFilterOptions.length ? (
-	                    <div className="flex items-center gap-1 overflow-x-auto rounded-xl border border-white/10 bg-slate-950/70 p-1">
-	                      {[{ id: "all", label: t("aiSupport.inbox.ui.accountFilterAll") }, ...accountFilterOptions].map((option) => (
-	                        <button
-	                          key={option.id}
-	                          type="button"
-	                          onClick={() => setAccountFilter(option.id)}
-	                          aria-pressed={accountFilter === option.id}
-	                          className={`shrink-0 truncate rounded-lg px-2.5 py-1.5 text-[11px] font-black transition ${accountFilter === option.id ? "bg-cyan-400/15 text-cyan-100" : "text-slate-400 hover:text-white"}`}
-	                        >
-	                          {option.label}
-	                        </button>
-	                      ))}
-	                    </div>
-	                  ) : null}
 	                </div>
 	              ) : null}
 	            </div>
@@ -10416,6 +10457,20 @@ export default function AiInbox({ reviewerMode = false }) {
         open={customerDrawer.open}
         onClose={() => setCustomerDrawer((current) => ({ ...current, open: false }))}
         onOpenTeamTools={reviewerMode || !selectedConversation ? null : () => { teamToolsOpenedAtRef.current = Date.now(); setTeamToolsOpen(true); }}
+        summaryLead={reviewerMode || !selectedConversation || isCommentConversation(selectedConversation) ? null : (
+          <ConversationCrmCard
+            conversation={selectedConversation}
+            stageOptions={inboxStageOptions}
+            currentStage={conversationLeadStatus(selectedConversation)}
+            busy={["lead_status", "labels"].includes(leadActionLoading) ? leadActionLoading : ""}
+            onStageChange={updateConversationLeadStatus}
+            onLabelsChange={updateConversationLabels}
+            onAssign={() => {
+              setCustomerDrawer((current) => ({ ...current, open: false }));
+              window.setTimeout(() => { teamToolsOpenedAtRef.current = Date.now(); setTeamToolsOpen(true); }, 60);
+            }}
+          />
+        )}
         customer={customerDrawer.customer}
         customerId={customerDrawer.customerId}
         // Without the conversation the drawer's orders tab is history only: no استبدال,

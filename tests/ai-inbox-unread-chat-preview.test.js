@@ -78,7 +78,7 @@ test("the read filter runs in SQL, over every conversation and not over the fetc
   assert.match(agentSource, /readFilterClauseSql\(readFilter, "m\.latest_message_created_at"\)/);
   assert.match(agentSource, /readFilterClauseSql\(readFilter, "m\.created_at"\)/);
   // A refetch has to follow the chip, or the filter would apply to a stale page.
-  assert.match(inboxSource, /\}, \[channelFilter, debouncedSearch, filter, headers, readFilter, reviewerMode, tenantId\]\);/);
+  assert.match(inboxSource, /\}, \[assignedFilter, channelFilter, debouncedSearch, favoriteFilter, filter, headers, panelActive, panelParams, readFilter, reviewerMode, tenantId\]\);/);
 });
 
 test("the default list view keeps its exact WHERE clause", () => {
@@ -101,7 +101,8 @@ test("the default list view keeps its exact WHERE clause", () => {
 test("a read-filtered page is never written to or served from the channel cache", () => {
   // The cache entry means "the newest N of this channel"; a filtered slice stored under
   // that key would render as the whole channel on the next warm open.
-  assert.match(inboxSource, /const listCacheEnabled = !reviewerMode && readFilter === "all";/);
+  // Every server-side narrowing (assignee, favourites, the filter panel) is a filtered slice too.
+  assert.match(inboxSource, /const listCacheEnabled = !reviewerMode && readFilter === "all" && assignedFilter === "all" && favoriteFilter === "all" && !panelActive;/);
   assert.match(inboxSource, /if \(listCacheEnabled\) inboxCache\.saveList\(channelPages\[index\], backendChannel\);/);
 });
 

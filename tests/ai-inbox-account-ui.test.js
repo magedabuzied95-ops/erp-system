@@ -39,18 +39,14 @@ test("conversationAccountKey reads the account stamps the webhooks write", async
   assert.equal(conversationAccountKey({ channel: "web_chat" }), "");
 });
 
-test("the inbox fetches the account registry and filters by it", () => {
+test("the inbox fetches the account registry; the filter panel narrows the list by account", () => {
   assert.match(inboxPage, /api\.get\("\/ai-agent\/channel-accounts"/);
-  assert.match(inboxPage, /const \[accountFilter, setAccountFilter\] = useState\("all"\)/);
-  assert.match(inboxPage, /\.filter\(matchesAccountFilter\)/);
-  assert.match(inboxPage, /selectedAccountKeys\.has\(conversationAccountKey\(conversation\)\)/);
-  // deps: the memo must recompute when the account selection changes
-  assert.match(inboxPage, /readFilter, selectedAccountKeys\]\);/);
-});
-
-test("changing the channel resets the account sub-filter", () => {
-  const resets = inboxPage.match(/setChannelFilter\((?:value|"all")\);\s*\n\s*(?:setSelectedSocialCommentId\(""\);\s*\n\s*)?setAccountFilter\("all"\)|setAccountFilter\("all"\)/g) || [];
-  assert.ok(resets.length >= 2, `expected both channel-rail handlers to reset the account filter, found ${resets.length}`);
+  // The per-channel chip row is gone: accounts are a tab of the filter panel,
+  // sent to the list API (account_ids) and re-checked for socket rows.
+  assert.doesNotMatch(inboxPage, /setAccountFilter/);
+  assert.ok(inboxPage.includes("...panelParams,"));
+  assert.ok(inboxPage.includes(".filter(matchesPanelFilter)"));
+  assert.ok(inboxPage.includes("conversationMatchesPanelFilters(conversation, panelFilters, { accountKey: conversationAccountKey(conversation) })"));
 });
 
 test("the conversation card can carry an account badge", () => {
@@ -59,12 +55,6 @@ test("the conversation card can carry an account badge", () => {
   assert.match(inboxPage, /\{accountLabel \? <Pill tone="zinc">/);
   // badge only when the platform has more than one account
   assert.match(inboxPage, /accountsByPlatform\.get\(platform\) \|\| \[\]\)\.length < 2\) return ""/);
-});
-
-test("the account filter row appears only with more than one account", () => {
-  assert.match(inboxPage, /accounts\.length > 1\s*\? accounts\.map/);
-  assert.match(inboxPage, /accountFilterOptions\.length \? \(/);
-  assert.match(inboxPage, /aiSupport\.inbox\.ui\.accountFilterAll/);
 });
 
 test("the WhatsApp panel manages instances: list, add with verification, pause", () => {
