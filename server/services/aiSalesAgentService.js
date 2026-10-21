@@ -2613,7 +2613,12 @@ export const appendInboxPanelFilterClauses = ({ clauses, params, channelSql, acc
     const memberClauses = [];
     if (ids.length) {
       params.push(ids);
-      memberClauses.push(`s.assigned_user_id = ANY($${params.length}::bigint[])`);
+      // The owner, or a team member added to the conversation (metadata.participants).
+      memberClauses.push(`(s.assigned_user_id = ANY($${params.length}::bigint[]) OR EXISTS (
+        SELECT 1
+        FROM jsonb_array_elements(CASE WHEN jsonb_typeof(c.metadata->'participants') = 'array' THEN c.metadata->'participants' ELSE '[]'::jsonb END) AS participant
+        WHERE (participant->>'user_id') ~ '^[0-9]+$' AND (participant->>'user_id')::bigint = ANY($${params.length}::bigint[])
+      ))`);
     }
     if (unassigned) memberClauses.push("s.assigned_user_id IS NULL");
     clauses.push(memberClauses.length ? `(${memberClauses.join(" OR ")})` : "FALSE");

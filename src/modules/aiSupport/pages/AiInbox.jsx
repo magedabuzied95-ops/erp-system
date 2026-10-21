@@ -2459,7 +2459,9 @@ function InboxChatHeader({
       : "border border-rose-300/20 bg-rose-400/10 text-rose-100";
   return (
     <>
-    <div dir="ltr" data-ai-inbox-compact-contact-header="true" className="rounded-xl border border-white/10 bg-white/[0.05] px-2 py-1.5 shadow-[0_8px_24px_rgba(0,0,0,0.14)] backdrop-blur">
+    {/* @container: when the side panel narrows the chat the header drops its button
+        labels (icons + tooltips stay) instead of wrapping onto a second line. */}
+    <div dir="ltr" data-ai-inbox-compact-contact-header="true" className="@container rounded-xl border border-white/10 bg-white/[0.05] px-2 py-1.5 shadow-[0_8px_24px_rgba(0,0,0,0.14)] backdrop-blur">
       <div className="flex items-center justify-between gap-2">
         <div data-ai-inbox-contact-identity="left" className="flex min-w-0 items-center gap-2">
           {showBack ? (
@@ -2533,24 +2535,25 @@ function InboxChatHeader({
                 </span>
               </Pill>
               {/* The ad / WhatsApp campaign this chat came from (GENI's megaphone line). */}
-              <CampaignAttributionChip conversation={conversation} variant="desktop" />
+              <span className="hidden @[700px]:contents"><CampaignAttributionChip conversation={conversation} variant="desktop" /></span>
             </div>
           </div>
         </div>
-        <div data-ai-inbox-header-actions="right" className="flex flex-wrap items-center justify-end gap-1.5">
-          <button type="button" onClick={() => setLabelsOpen(true)} disabled={loading || labelsSaving} className="inline-flex h-8 items-center gap-1.5 rounded-xl border border-amber-300/25 bg-amber-400/10 px-2.5 text-[11px] font-black text-amber-100 transition hover:bg-amber-400/15 disabled:opacity-50">
-            <Tag className="h-3.5 w-3.5" /> {t("aiSupport.inbox.header.addLabel")}
+        <div data-ai-inbox-header-actions="right" className="flex shrink-0 flex-nowrap items-center justify-end gap-1.5 @[820px]:flex-wrap">
+          <button type="button" onClick={() => setLabelsOpen(true)} disabled={loading || labelsSaving} title={t("aiSupport.inbox.header.addLabel")} aria-label={t("aiSupport.inbox.header.addLabel")} className="inline-flex h-8 items-center gap-1.5 rounded-xl border border-amber-300/25 bg-amber-400/10 px-2.5 text-[11px] font-black text-amber-100 transition hover:bg-amber-400/15 disabled:opacity-50">
+            <Tag className="h-3.5 w-3.5" /> <span className="hidden @[820px]:inline">{t("aiSupport.inbox.header.addLabel")}</span>
           </button>
           {onOpenTeamTools ? (
             <button
               type="button"
               onClick={() => onOpenTeamTools()}
+              title={t("aiSupport.teamTools.title")}
               disabled={loading}
               aria-pressed={teamToolsOpen}
               data-ai-inbox-team-tools="open"
               className={`inline-flex h-8 items-center gap-1.5 rounded-xl border px-2.5 text-[11px] font-black transition disabled:opacity-50 ${teamToolsOpen ? "border-cyan-300/40 bg-cyan-400/15 text-cyan-100" : "border-cyan-300/25 bg-cyan-400/10 text-cyan-100 hover:bg-cyan-400/15"}`}
             >
-              <Users className="h-3.5 w-3.5" /> {t("aiSupport.teamTools.title")}
+              <Users className="h-3.5 w-3.5" /> <span className="hidden @[820px]:inline">{t("aiSupport.teamTools.title")}</span>
               {conversation?.assigned_user_name || conversation?.assigned_user?.name ? (
                 <span className="max-w-[90px] truncate rounded-full bg-white/10 px-1.5 text-[10px] font-bold text-white">{conversation?.assigned_user?.name || conversation?.assigned_user_name}</span>
               ) : null}
@@ -2583,10 +2586,11 @@ function InboxChatHeader({
             type="button"
             onClick={() => onToggleAi?.()}
             disabled={loading}
+            title={status === "human_takeover" ? t("aiSupport.inbox.header.returnToAi") : t(conversationAiEnabled ? "aiSupport.inbox.header.aiOn" : "aiSupport.inbox.header.aiOff")}
             className={`inline-flex h-8 items-center gap-1.5 rounded-2xl px-2.5 text-[11px] font-black transition disabled:opacity-50 ${aiTone}`}
           >
             <Bot className="h-3.5 w-3.5" />
-            {status === "human_takeover" ? t("aiSupport.inbox.header.returnToAi") : t(conversationAiEnabled ? "aiSupport.inbox.header.aiOn" : "aiSupport.inbox.header.aiOff")}
+            <span className="hidden @[680px]:inline">{status === "human_takeover" ? t("aiSupport.inbox.header.returnToAi") : t(conversationAiEnabled ? "aiSupport.inbox.header.aiOn" : "aiSupport.inbox.header.aiOff")}</span>
           </button>
           {headerActions ? (
             <ConversationActionsMenu
@@ -10606,7 +10610,11 @@ export default function AiInbox({ reviewerMode = false }) {
                 setCustomerDrawerTab("summary");
                 openCustomerDrawer(selectedConversation, { customerId: customer360Identifier(selectedConversation), source: "inbox_side_panel", platform: selectedConversation.channel || selectedConversation.source });
               }}
-              onTransfer={canReply ? () => { teamToolsOpenedAtRef.current = Date.now(); setTeamToolsOpen(true); } : undefined}
+              tenantId={tenantId}
+              canManageParticipants={canReply}
+              onAssigned={handleTeamAssigned}
+              onParticipantsChange={(participants) => patchConversation(selectedConversation.conversation_key || selectedConversation.session_id, (conversation) => ({ ...conversation, channel_metadata: { ...(conversation.channel_metadata || {}), participants } }))}
+              onNotice={(tone, text) => setToast({ tone, text })}
             />
               </aside>
           ) : null}

@@ -70,7 +70,10 @@ test("the server builds one clause per tab, with typed parameters", () => {
   assert.match(clauses[1], /conversation_labels/);
   assert.match(clauses[1], /ANY\(\$5::text\[\]\)/);
   assert.match(clauses[2], /COALESCE\(NULLIF\(c\.lead_status, ''\), 'new'\)\) = ANY\(\$6::text\[\]\)/);
-  assert.equal(clauses[3], "(s.assigned_user_id = ANY($7::bigint[]) OR s.assigned_user_id IS NULL)");
+  // The owner or an added participant, or nobody.
+  assert.ok(clauses[3].startsWith("((s.assigned_user_id = ANY($7::bigint[]) OR EXISTS ("));
+  assert.ok(clauses[3].includes("c.metadata->'participants'"));
+  assert.ok(clauses[3].endsWith(" OR s.assigned_user_id IS NULL)"));
   assert.deepEqual(params[6], [7]);
 });
 

@@ -4761,6 +4761,50 @@ router.patch("/conversations/:conversationId/lead", protect, inboxReply(), async
   }
 });
 
+/*
+ * Participants (Genie's side panel): the team members on this conversation
+ * besides its owner. The owner is assigned_user_id (Transfer chat = the assign
+ * route); the others live in ai_channel_conversations.metadata.participants as
+ * [{ user_id, name, added_by, added_at }]. The Members filter matches both.
+ */
+router.patch("/conversations/:conversationId/participants", protect, inboxReply(), async (req, res) => {
+  try {
+    const { tenantId, conversation } = await loadLeadConversation(req);
+    if (!conversation) return sendError(res, Object.assign(new Error("Conversation not found"), { status: 404 }), "Conversation not found");
+    const action = envText(req.body?.action).toLowerCase();
+    const userId = Number(req.body?.user_id);
+    if (!["add", "remove"].includes(action) || !Number.isInteger(userId) || userId <= 0) {
+      return sendError(res, Object.assign(new Error("action (add | remove) and user_id are required"), { status: 400 }), "Invalid participant");
+    }
+    const current = Array.isArray(conversation.channel_metadata?.participants) ? conversation.channel_metadata.participants : [];
+    const others = current.filter((item) => Number(item?.user_id) !== userId);
+    const next = action === "add"
+      ? [...others, { user_id: userId, name: envText(req.body?.name).slice(0, 120), added_by: userDisplayName(req.user), added_at: new Date().toISOString() }].slice(-20)
+      : others;
+    const sessionId = envText(conversation.session_id);
+    const raw = sessionId.includes(":") ? sessionId.split(":").slice(1).join(":") : sessionId;
+    const result = await db.query(
+      `UPDATE ai_channel_conversations c
+          SET metadata = COALESCE(c.metadata, '{}'::jsonb) || jsonb_build_object('participants', $3::jsonb),
+              updated_at = CURRENT_TIMESTAMP
+        WHERE c.id = (
+          SELECT id FROM ai_channel_conversations
+           WHERE tenant_id = $1
+             AND (external_conversation_id = ANY($2::text[]) OR CONCAT(channel, ':', external_conversation_id) = ANY($2::text[]))
+           ORDER BY updated_at DESC
+           LIMIT 1
+        )
+        RETURNING c.metadata->'participants' AS participants`,
+      [tenantId, [...new Set([sessionId, raw].filter(Boolean))], JSON.stringify(next)]
+    );
+    if (!result.rows.length) return sendError(res, Object.assign(new Error("Conversation not found"), { status: 404 }), "Conversation not found");
+    emitToRooms([`tenant:${tenantId}`], "ai_inbox:refresh", { tenant_id: tenantId, session_id: sessionId, reason: "participants_updated", at: new Date().toISOString() });
+    return res.json({ success: true, participants: result.rows[0].participants || [] });
+  } catch (error) {
+    return sendError(res, error, "Failed to update participants");
+  }
+});
+
 // Genie's Archive / Unarchive: out of the list with the history intact, back on a
 // newer message (inboxViewClauseSql "archived").
 const archiveRoute = (archived) => async (req, res) => {

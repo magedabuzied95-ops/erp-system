@@ -2,7 +2,6 @@ import { useEffect, useMemo, useState } from "react";
 import { createPortal } from "react-dom";
 import { useTranslation } from "react-i18next";
 import {
-  ArrowLeftRight,
   Eye,
   FileText,
   Footprints,
@@ -17,7 +16,6 @@ import {
   Sparkles,
   Star,
   Tag,
-  UserPlus,
   UserRound,
   X,
 } from "lucide-react";
@@ -25,6 +23,7 @@ import { api } from "../../../shared/api/api";
 import { aiInboxConversationEndpoint } from "../lib/conversationHelpers";
 import { aiInboxLabelsFromConversation } from "../../../../shared/aiInboxConversationLabels.js";
 import { resolveChatMediaUrl } from "../../../shared/lib/imageUrls";
+import ConversationParticipants from "./ConversationParticipants.jsx";
 
 /*
  * Genie's conversation side panel (opens from the customer's photo), shaped for
@@ -123,7 +122,12 @@ export default function ConversationSidePanel({
   onOpenOrders,
   onOpenLead,
   onOpenCustomer360,
-  onTransfer,
+  // Participants (ConversationParticipants): owner + added members.
+  tenantId,
+  canManageParticipants = false,
+  onAssigned,
+  onParticipantsChange,
+  onNotice,
   // Inline: a column of the inbox grid beside the chat (Genie), not a floating sheet.
   inline = false,
 }) {
@@ -189,7 +193,6 @@ export default function ConversationSidePanel({
     }
   };
   const q = query.toLowerCase();
-  const assigned = clean(conversation.assigned_user_name || conversation.assigned_user?.name);
   const shoeFacts = [
     [t("aiSupport.inbox.sidePanel.size"), clean(profile.preferred_size || profile.size_preference || profile.preferences?.size)],
     [t("aiSupport.inbox.sidePanel.colors"), [].concat(profile.preferred_colors || profile.preferences?.colors || []).filter(Boolean).join("، ")],
@@ -275,31 +278,16 @@ export default function ConversationSidePanel({
               </Section>
             ) : null}
 
-            <Section
-              icon={UserRound}
-              title={t("aiSupport.inbox.sidePanel.participants")}
-              action={onTransfer ? (
-                <span className="flex gap-1.5">
-                  <button type="button" onClick={onTransfer} className="inline-flex items-center gap-1 rounded-lg border border-border px-2 py-1 text-xs font-semibold hover:bg-surface-hover"><ArrowLeftRight className="h-3.5 w-3.5" />{t("aiSupport.inbox.sidePanel.transfer")}</button>
-                  <button type="button" onClick={onTransfer} className="inline-flex items-center gap-1 rounded-lg border border-border px-2 py-1 text-xs font-semibold hover:bg-surface-hover"><UserPlus className="h-3.5 w-3.5" />{t("aiSupport.inbox.sidePanel.add")}</button>
-                </span>
-              ) : null}
-            >
-              <ul className="space-y-2">
-                <li className="flex items-center gap-2 text-sm">
-                  <span className="grid h-8 w-8 place-items-center rounded-full bg-primary-subtle text-xs font-black text-primary">{(assigned || "?").slice(0, 2).toUpperCase()}</span>
-                  <span dir="auto" className="min-w-0 flex-1 truncate">{assigned || t("aiSupport.inbox.filterPanel.unassigned")}</span>
-                  {assigned ? <span className="rounded-full bg-primary-subtle px-2 py-0.5 text-[10px] font-bold text-primary">{t("aiSupport.inbox.sidePanel.owner")}</span> : null}
-                </li>
-                {staffViewers.map((viewer) => (
-                  <li key={viewer.id || viewer.name} className="flex items-center gap-2 text-sm">
-                    <span className="relative grid h-8 w-8 place-items-center rounded-full bg-surface-soft text-xs font-black">{clean(viewer.name).slice(0, 2).toUpperCase()}<span className="absolute -bottom-0.5 -end-0.5 h-2.5 w-2.5 rounded-full border-2 border-surface bg-emerald-500" /></span>
-                    <span dir="auto" className="min-w-0 flex-1 truncate">{viewer.name}</span>
-                    <span className="text-[10px] text-text-muted">{t("aiSupport.inbox.sidePanel.viewingNow")}</span>
-                  </li>
-                ))}
-              </ul>
-            </Section>
+            <ConversationParticipants
+              conversation={conversation}
+              headers={headers}
+              tenantId={tenantId}
+              staffViewers={staffViewers}
+              canManage={canManageParticipants}
+              onAssigned={onAssigned}
+              onParticipantsChange={onParticipantsChange}
+              onNotice={onNotice}
+            />
           </>
         ) : null}
 

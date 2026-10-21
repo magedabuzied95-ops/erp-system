@@ -2268,6 +2268,20 @@
       "noMedia": "No media found",
       "searchStarred": "Search starred messages...",
       "noStarred": "No starred messages"
+    },
+    "participants": {
+      "search": "Search the team...",
+      "nobody": "No one to add",
+      "added": "{{name}} added to the conversation",
+      "removed": "{{name}} removed",
+      "failed": "That did not work — try again",
+      "you": "You",
+      "roleEmployee": "Employee",
+      "roleAdmin": "Admin",
+      "makeOwner": "Make owner",
+      "unassign": "Remove the owner",
+      "remove": "Remove from the conversation",
+      "empty": "No one on this conversation yet"
     }
   },
   "integrations": {

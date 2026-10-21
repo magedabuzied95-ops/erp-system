@@ -2280,6 +2280,20 @@
       "noMedia": "مفيش وسائط",
       "searchStarred": "ابحث في الرسايل المميزة...",
       "noStarred": "مفيش رسايل مميزة"
+    },
+    "participants": {
+      "search": "ابحث في الفريق...",
+      "nobody": "مفيش حد يتضاف",
+      "added": "{{name}} اتضاف للمحادثة",
+      "removed": "{{name}} اتشال",
+      "failed": "محصلش — جرّب تاني",
+      "you": "أنت",
+      "roleEmployee": "موظف",
+      "roleAdmin": "أدمن",
+      "makeOwner": "خليه المسؤول",
+      "unassign": "شيل المسؤول",
+      "remove": "شيله من المحادثة",
+      "empty": "مفيش حد على المحادثة دي لسه"
     }
   },
   "integrations": {
