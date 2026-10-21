@@ -1466,7 +1466,11 @@ export const releaseCancelledBostaShipment = async (orderId, { actorName = "", s
     if (error?.code === "BOSTA_PARCEL_LEFT_STORE") throw error;
     // Deleted at Bosta: nothing there to collect or deliver.
     if (Number(error?.status) !== 404) {
-      throw Object.assign(new Error(text(error?.payload?.message) || error?.message || "Bosta could not be reached"), { status: 502, code: "BOSTA_STATUS_UNAVAILABLE" });
+      // 409, never 5xx: Cloudflare replaces an origin 502 with its own page, so the
+      // browser only ever saw "could not complete" — Bosta's own answer went with it.
+      const detail = text(error?.payload?.message) || text(error?.payload?.error) || error?.message || "Bosta could not be reached";
+      console.error("[bosta] release: Bosta refused the lookup/terminate", { orderId, identifier, status: error?.status, detail, payload: error?.payload });
+      throw Object.assign(new Error(`Bosta ${error?.status || ""}: ${detail}`.trim()), { status: 409, code: "BOSTA_LOOKUP_FAILED", payload: { bosta_status: error?.status ?? null, detail } });
     }
   }
 

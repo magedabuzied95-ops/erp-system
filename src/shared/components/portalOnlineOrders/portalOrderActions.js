@@ -89,7 +89,8 @@ export const PORTAL_ACTION_ERROR_CODES = [
   "ORDER_HAS_SHIPMENT",
   "BOSTA_NO_SHIPMENT",
   "BOSTA_PARCEL_LEFT_STORE",
-  "BOSTA_STATUS_UNAVAILABLE",
+  // BOSTA_LOOKUP_FAILED is deliberately NOT here: its message carries Bosta's own answer,
+  // which the generic sentence shows after its dash.
   "FULL_PAYMENT_AFTER_SHIPMENT",
   "RETURN_REFUSED",
   "ORDER_LOCKED",
