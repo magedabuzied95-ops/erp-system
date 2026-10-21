@@ -78,6 +78,8 @@ function Kbd({ children }) {
   return <kbd className="rounded border border-border bg-surface-soft px-1.5 py-0.5 font-mono text-[10px] text-text-muted">{children}</kbd>;
 }
 
+const SHORTCUT_FALLBACK_PATHS = ["/orders", "/products", "/dashboard", "/customers", "/pos"];
+
 export function useRecentPageShortcuts({ items = [], userId, currentPath = "", limit = 2 }) {
   const [tick, setTick] = useState(0);
   useEffect(() => {
@@ -91,7 +93,15 @@ export function useRecentPageShortcuts({ items = [], userId, currentPath = "", l
   }, []);
   return useMemo(() => {
     const byPath = new Map(items.map((item) => [item.to, item]));
-    return recentPagePaths(userId, currentPath).map((path) => byPath.get(path)).filter(Boolean).slice(0, limit);
+    const picked = recentPagePaths(userId, currentPath).map((path) => byPath.get(path)).filter(Boolean).slice(0, limit);
+    // Two shortcuts always (Genie shows the last two pages): until there is that
+    // much history, the most used pages of the shop fill the gap.
+    for (const path of SHORTCUT_FALLBACK_PATHS) {
+      if (picked.length >= limit) break;
+      const item = byPath.get(path);
+      if (item && path !== currentPath && !picked.includes(item)) picked.push(item);
+    }
+    return picked;
     // tick: re-read storage after a visit
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [currentPath, items, limit, userId, tick]);

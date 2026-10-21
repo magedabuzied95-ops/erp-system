@@ -66,3 +66,23 @@ test("every lead and panel string exists in both locales", () => {
     for (const key of ["newOrder", "sendProduct", "sendBySize", "orders", "lead", "customer360", "contextSummary", "participants", "transfer", "noMedia", "noStarred"]) assert.ok(inbox.sidePanel?.[key], `${locale} sidePanel.${key}`);
   }
 });
+
+test("the side panel is a column beside the chat, not a sheet over the list", () => {
+  assert.match(page, /data-ai-inbox-side-column="true"/);
+  assert.match(page, /<ConversationSidePanel\s+inline/);
+  assert.match(page, /\$\{sidePanelOpen && selectedConversation && !reviewerMode \? "has-side-panel" : ""\}/);
+  const css = read("src/modules/aiSupport/pages/AiInboxDesktop.css");
+  assert.match(css, /\.ai-omni-workspace\.has-side-panel \{\s*grid-template-columns: 72px minmax\(340px, 400px\) minmax\(390px, 1fr\) minmax\(320px, 360px\);/);
+  assert.match(panel, /return inline \? panel : createPortal\(panel/);
+});
+
+test("the lead form resizes by dragging its edge and stays on the right", () => {
+  assert.match(lead, /data-lead-drawer-resize="true"/);
+  assert.match(lead, /window\.innerWidth - moveEvent\.clientX/);
+  assert.match(lead, /<div dir="ltr" className="fixed inset-0 z-\[1150\] flex justify-end/);
+});
+
+test("the two shortcuts beside quick search are always there", () => {
+  const palette = read("src/shared/components/CommandPalette.jsx");
+  assert.match(palette, /const SHORTCUT_FALLBACK_PATHS = \["\/orders", "\/products", "\/dashboard", "\/customers", "\/pos"\];/);
+});

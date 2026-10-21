@@ -10041,7 +10041,7 @@ export default function AiInbox({ reviewerMode = false }) {
         {/* A top-bar page takes the workspace's place, Genie-style. The workspace stays mounted
             underneath (hidden) so returning to Chats keeps the open thread, draft and scroll. */}
         {conversationExpanded ? null : renderControlCenter()}
-        <section className={`ai-omni-workspace relative ${controlCenterOpen && !conversationExpanded ? "!hidden" : ""}`}>
+        <section className={`ai-omni-workspace relative ${sidePanelOpen && selectedConversation && !reviewerMode ? "has-side-panel" : ""} ${controlCenterOpen && !conversationExpanded ? "!hidden" : ""}`}>
           {/* Expanding scales up the WHOLE workspace — channel rail, conversation
               list and chat. It used to hide the rail, which turned "expand" into
               "chat only" and cost you channel switching at the exact moment you
@@ -10580,6 +10580,36 @@ export default function AiInbox({ reviewerMode = false }) {
               <EmptyBlock text="لا توجد محادثات حاليًا" />
             )}
           </main>
+          {/* Genie's side panel: a fourth column beside the chat, never over the list. */}
+          {sidePanelOpen && selectedConversation && !reviewerMode ? (
+            <aside className="ai-omni-panel ai-omni-side-panel min-h-0" data-ai-inbox-side-column="true">
+            <ConversationSidePanel
+              inline
+              open={sidePanelOpen}
+              conversation={selectedConversation}
+              headers={headers}
+              stageOptions={inboxStageOptions.filter((stage) => stage.id !== PANEL_NO_STAGE)}
+              currentStage={conversationLeadStage(selectedConversation)}
+              staffViewers={staffPresence.othersOn(selectedConversation.session_id)}
+              onClose={() => setSidePanelOpen(false)}
+              onStageChange={canReply ? updateConversationLeadStatus : undefined}
+              onEditLabels={canReply ? () => setLabelsEditOpen(true) : undefined}
+              onCreateOrder={canReply ? () => setOrderComposerOpen(true) : undefined}
+              onSendProduct={canReply ? () => openProductCardPicker() : undefined}
+              onSendBySize={canReply ? () => openProductCardPicker({ sizeMode: true, allowMultiple: true }) : undefined}
+              onOpenOrders={() => {
+                setCustomerDrawerTab("orders");
+                openCustomerDrawer(selectedConversation, { customerId: customer360Identifier(selectedConversation), source: "inbox_side_panel", platform: selectedConversation.channel || selectedConversation.source });
+              }}
+              onOpenLead={() => setLeadDrawerOpen(true)}
+              onOpenCustomer360={() => {
+                setCustomerDrawerTab("summary");
+                openCustomerDrawer(selectedConversation, { customerId: customer360Identifier(selectedConversation), source: "inbox_side_panel", platform: selectedConversation.channel || selectedConversation.source });
+              }}
+              onTransfer={canReply ? () => { teamToolsOpenedAtRef.current = Date.now(); setTeamToolsOpen(true); } : undefined}
+            />
+              </aside>
+          ) : null}
         </section>
       </div>
       {/* Assign / remind / sequence for the open conversation. One drawer for
@@ -10612,30 +10642,6 @@ export default function AiInbox({ reviewerMode = false }) {
       ) : null}
       {selectedConversation && !reviewerMode ? (
         <>
-          <ConversationSidePanel
-            open={sidePanelOpen}
-            conversation={selectedConversation}
-            headers={headers}
-            stageOptions={inboxStageOptions.filter((stage) => stage.id !== PANEL_NO_STAGE)}
-            currentStage={conversationLeadStage(selectedConversation)}
-            staffViewers={staffPresence.othersOn(selectedConversation.session_id)}
-            onClose={() => setSidePanelOpen(false)}
-            onStageChange={canReply ? updateConversationLeadStatus : undefined}
-            onEditLabels={canReply ? () => setLabelsEditOpen(true) : undefined}
-            onCreateOrder={canReply ? () => setOrderComposerOpen(true) : undefined}
-            onSendProduct={canReply ? () => openProductCardPicker() : undefined}
-            onSendBySize={canReply ? () => openProductCardPicker({ sizeMode: true, allowMultiple: true }) : undefined}
-            onOpenOrders={() => {
-              setCustomerDrawerTab("orders");
-              openCustomerDrawer(selectedConversation, { customerId: customer360Identifier(selectedConversation), source: "inbox_side_panel", platform: selectedConversation.channel || selectedConversation.source });
-            }}
-            onOpenLead={() => setLeadDrawerOpen(true)}
-            onOpenCustomer360={() => {
-              setCustomerDrawerTab("summary");
-              openCustomerDrawer(selectedConversation, { customerId: customer360Identifier(selectedConversation), source: "inbox_side_panel", platform: selectedConversation.channel || selectedConversation.source });
-            }}
-            onTransfer={canReply ? () => { teamToolsOpenedAtRef.current = Date.now(); setTeamToolsOpen(true); } : undefined}
-          />
           <LeadDrawer
             open={leadDrawerOpen}
             conversation={selectedConversation}

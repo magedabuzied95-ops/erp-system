@@ -124,6 +124,8 @@ export default function ConversationSidePanel({
   onOpenLead,
   onOpenCustomer360,
   onTransfer,
+  // Inline: a column of the inbox grid beside the chat (Genie), not a floating sheet.
+  inline = false,
 }) {
   const { t, i18n } = useTranslation();
   const [tab, setTab] = useState("info");
@@ -203,11 +205,13 @@ export default function ConversationSidePanel({
     onOpenCustomer360 ? { key: "c360", icon: UserRound, label: t("aiSupport.inbox.sidePanel.customer360"), run: onOpenCustomer360 } : null,
   ].filter(Boolean);
 
-  return createPortal(
+  const panel = (
     <aside
       aria-label={t("aiSupport.inbox.sidePanel.title")}
       data-conversation-side-panel="true"
-      className="fixed bottom-3 end-3 top-[4.5rem] z-[1000] flex w-[360px] max-w-[calc(100vw-1.5rem)] flex-col overflow-hidden rounded-2xl border border-border bg-surface-soft text-text shadow-2xl"
+      className={inline
+        ? "flex h-full min-h-0 w-full flex-col overflow-hidden rounded-3xl border border-border bg-surface-soft text-text"
+        : "fixed bottom-3 end-3 top-[4.5rem] z-[1000] flex w-[360px] max-w-[calc(100vw-1.5rem)] flex-col overflow-hidden rounded-2xl border border-border bg-surface-soft text-text shadow-2xl"}
     >
       <div className="flex shrink-0 items-start justify-between gap-2 px-4 pb-2 pt-3">
         <div className="min-w-0">
@@ -364,7 +368,7 @@ export default function ConversationSidePanel({
           </>
         ) : null}
       </div>
-    </aside>,
-    document.fullscreenElement || document.body
+    </aside>
   );
+  return inline ? panel : createPortal(panel, document.fullscreenElement || document.body);
 }

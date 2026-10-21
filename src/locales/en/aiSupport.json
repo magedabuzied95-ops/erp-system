@@ -639,7 +639,8 @@
         "pos_order": "branch purchase",
         "manual": "set by hand",
         "auto": "automatic"
-      }
+      },
+      "resize": "Drag to resize"
     },
     "leadStatus": {
       "new": "New",

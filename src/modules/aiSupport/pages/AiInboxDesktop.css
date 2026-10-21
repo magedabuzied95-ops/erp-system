@@ -25,6 +25,11 @@
   min-height: 0;
 }
 
+/* Genie's side panel (customer photo): a fourth column beside the chat. */
+.ai-inbox-desktop .ai-omni-workspace.has-side-panel {
+  grid-template-columns: 72px minmax(340px, 400px) minmax(390px, 1fr) minmax(320px, 360px);
+}
+
 .ai-inbox-desktop .ai-omni-list-panel {
   border-color: rgba(255, 255, 255, 0.14) !important;
   border-radius: 1.125rem !important;
@@ -291,6 +296,10 @@ html.dark .ai-inbox-desktop .ai-omni-chat-panel [class*="bg-[#eefaf8]"] {
     grid-template-columns: minmax(360px, 400px) minmax(390px, 1fr);
   }
 
+  .ai-inbox-desktop .ai-omni-workspace.has-side-panel {
+    grid-template-columns: minmax(320px, 360px) minmax(360px, 1fr) minmax(300px, 340px);
+  }
+
   .ai-inbox-desktop .ai-omni-channel-rail {
     display: none;
   }
@@ -308,6 +317,11 @@ html.dark .ai-inbox-desktop .ai-omni-chat-panel [class*="bg-[#eefaf8]"] {
 
   .ai-inbox-desktop .ai-omni-workspace {
     display: flex;
+  }
+
+  .ai-inbox-desktop .ai-omni-side-panel {
+    width: min(340px, 40vw);
+    flex: none;
   }
 
   .ai-inbox-desktop .ai-omni-list-panel {

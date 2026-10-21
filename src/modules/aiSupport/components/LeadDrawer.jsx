@@ -39,6 +39,18 @@ import { resolveProductImageUrl } from "../../../shared/lib/imageUrls";
  * to the conversation (PATCH /conversations/:id/lead).
  */
 
+// Genie's form widens and narrows by dragging its edge; the width is kept per browser.
+const WIDTH_STORAGE_KEY = "m1.inbox.leadDrawerWidth";
+const MIN_WIDTH = 440;
+const readWidth = () => {
+  try {
+    const value = Number(window.localStorage.getItem(WIDTH_STORAGE_KEY));
+    return Number.isFinite(value) && value >= MIN_WIDTH ? value : 980;
+  } catch {
+    return 980;
+  }
+};
+
 const STAGE_PROBABILITY = { new: 10, contacted: 25, interested: 45, negotiation: 70, won: 100, lost: 0 };
 const LOST_REASONS = ["price", "size_unavailable", "color_unavailable", "bought_elsewhere", "shipping", "no_reply", "not_serious", "other"];
 const clean = (value) => String(value ?? "").trim();
@@ -96,6 +108,30 @@ export default function LeadDrawer({
   const [note, setNote] = useState("");
   const [noting, setNoting] = useState(false);
   const [lostPrompt, setLostPrompt] = useState(false);
+  const [width, setWidth] = useState(readWidth);
+  const startResize = (event) => {
+    event.preventDefault();
+    const pointerId = event.pointerId;
+    const handle = event.currentTarget;
+    handle.setPointerCapture?.(pointerId);
+    const move = (moveEvent) => {
+      // The drawer hugs the right edge, so its width is the distance from there.
+      const next = Math.max(MIN_WIDTH, Math.min(window.innerWidth - 40, window.innerWidth - moveEvent.clientX));
+      setWidth(next);
+    };
+    const up = () => {
+      handle.removeEventListener("pointermove", move);
+      handle.removeEventListener("pointerup", up);
+      handle.removeEventListener("pointercancel", up);
+      setWidth((current) => {
+        try { window.localStorage.setItem(WIDTH_STORAGE_KEY, String(Math.round(current))); } catch { /* per-browser nicety only */ }
+        return current;
+      });
+    };
+    handle.addEventListener("pointermove", move);
+    handle.addEventListener("pointerup", up);
+    handle.addEventListener("pointercancel", up);
+  };
   const attribution = useConversationAttribution(open ? conversation : null);
   const clicks = Array.isArray(attribution?.clicks) ? attribution.clicks : [];
   const labels = useMemo(() => aiInboxLabelsFromConversation(conversation || {}), [conversation]);
@@ -168,8 +204,20 @@ export default function LeadDrawer({
   ];
 
   return createPortal(
-    <div className="fixed inset-0 z-[1150] flex justify-end bg-black/35" onMouseDown={(event) => { if (event.target === event.currentTarget) onClose?.(); }}>
-      <div role="dialog" aria-label={t("aiSupport.inbox.lead.title")} className="flex h-full w-full max-w-[980px] flex-col overflow-hidden border-s border-border bg-surface text-text shadow-2xl">
+    // dir="ltr" on the backdrop only pins the drawer to the right edge in both
+    // languages (Genie); the drawer itself follows the page's direction.
+    <div dir="ltr" className="fixed inset-0 z-[1150] flex justify-end bg-black/35" onMouseDown={(event) => { if (event.target === event.currentTarget) onClose?.(); }}>
+      <div
+        role="separator"
+        aria-orientation="vertical"
+        aria-label={t("aiSupport.inbox.lead.resize")}
+        onPointerDown={startResize}
+        data-lead-drawer-resize="true"
+        className="group relative z-10 -me-1.5 w-3 shrink-0 cursor-col-resize touch-none"
+      >
+        <span className="absolute inset-y-0 start-1/2 w-0.5 -translate-x-1/2 bg-border transition group-hover:bg-primary" />
+      </div>
+      <div role="dialog" dir={typeof document !== "undefined" ? document.documentElement.dir || "ltr" : "ltr"} aria-label={t("aiSupport.inbox.lead.title")} style={{ width: Math.min(width, typeof window !== "undefined" ? window.innerWidth : width) }} className="flex h-full max-w-full flex-col overflow-hidden border-s border-border bg-surface text-text shadow-2xl">
         <div className="flex shrink-0 items-center justify-between gap-3 border-b border-border px-4 py-3">
           <button type="button" onClick={onClose} aria-label={t("aiSupport.inbox.lead.close")} className="grid h-9 w-9 place-items-center rounded-lg text-text-muted hover:bg-surface-hover">
             <X className="h-5 w-5" />
