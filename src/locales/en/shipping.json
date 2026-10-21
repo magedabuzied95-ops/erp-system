@@ -328,18 +328,22 @@
       },
       "settle": {
         "title": "The courier handed the cash in",
-        "hint": "Pick the orders he paid in. The net goes into the drawer shift; his fee is posted as a shipping expense.",
+        "hint": "Pick the orders he paid in and type what customers paid by InstaPay or Visa. The rest is cash into the drawer shift; his fee is posted as a shipping expense.",
         "gross": "Collected from {{count}} orders",
         "fees": "Courier fee",
         "feesHint": "Automatic: {{fee}} × orders — type another amount if different",
-        "net": "Into the drawer",
+        "net": "Net after his fee",
         "shift": "Shift",
         "shiftPlaceholder": "Pick the open shift",
         "noOpenShift": "No open shift — open one at the till first",
         "noSelection": "Pick the orders first",
         "noShift": "Pick the shift",
         "submit": "Record the hand-in",
-        "done": "Recorded — {{net}} went into the drawer"
+        "done": "Recorded — {{net}} went into the drawer",
+        "instapay": "InstaPay",
+        "card": "Visa",
+        "cash": "Cash into the drawer",
+        "paymentsExceed": "InstaPay + Visa is more than the net"
       },
       "backlog": {
         "title": "Orders that already went out and are still open",
@@ -357,7 +361,7 @@
       "history": {
         "title": "Courier hand-ins",
         "fee": "His fee",
-        "drawer": "Into drawer"
+        "drawer": "Net"
       }
     }
   }

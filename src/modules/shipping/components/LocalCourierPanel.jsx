@@ -77,6 +77,9 @@ function CollectionsSection({ settings, shifts, onSettled, refreshKey }) {
   const [shiftId, setShiftId] = useState("");
   const [fees, setFees] = useState("");
   const [notes, setNotes] = useState("");
+  // InstaPay / Visa the customers paid straight to the shop; the rest is the cash he hands in.
+  const [instapay, setInstapay] = useState("");
+  const [card, setCard] = useState("");
   const [saving, setSaving] = useState(false);
 
   const load = useCallback(async () => {
@@ -102,17 +105,24 @@ function CollectionsSection({ settings, shifts, onSettled, refreshKey }) {
   const defaultFees = round2((Number(settings.fee_per_order) || 0) * selectedRows.length);
   const feeValue = fees === "" ? defaultFees : round2(fees);
   const net = round2(gross - feeValue);
+  const instapayValue = round2(instapay);
+  const cardValue = round2(card);
+  const cash = round2(net - instapayValue - cardValue);
+  const needsShift = cash > 0;
   const shiftOptions = shifts.map((shift) => ({ value: String(shift.id), label: `${shift.cashier_name}${shift.branch_name ? ` — ${shift.branch_name}` : ""} · ${fmtDate(shift.opened_at)}` }));
 
   const submit = async (event) => {
     event.preventDefault();
     if (!selectedRows.length) return toast.error(t("shipping.settlements.local.settle.noSelection"));
-    if (!shiftId) return toast.error(t("shipping.settlements.local.settle.noShift"));
+    if (cash < 0) return toast.error(t("shipping.settlements.local.settle.paymentsExceed"));
+    if (needsShift && !shiftId) return toast.error(t("shipping.settlements.local.settle.noShift"));
     setSaving(true);
     try {
-      const result = await api.post("/shipping/local-courier/settlements", { order_ids: selectedRows.map((row) => row.id), fees_amount: feeValue, shift_id: Number(shiftId), notes });
+      const result = await api.post("/shipping/local-courier/settlements", { order_ids: selectedRows.map((row) => row.id), fees_amount: feeValue, shift_id: needsShift ? Number(shiftId) : null, payments: { cash, instapay: instapayValue, card: cardValue }, notes });
       toast.success(t("shipping.settlements.local.settle.done", { net: fmtMoney(result?.settlement?.net_amount) }));
       setFees("");
+      setInstapay("");
+      setCard("");
       setNotes("");
       await load();
       onSettled();
@@ -172,17 +182,28 @@ function CollectionsSection({ settings, shifts, onSettled, refreshKey }) {
         <div className={labelClass}>{t("shipping.settlements.local.settle.net")}
           <div className={`mt-1 rounded-[var(--radius-control)] border border-[var(--border)] bg-[var(--card-soft)] px-3 py-2 text-lg font-black ${net < 0 ? "text-rose-300" : "text-emerald-200"}`}>{fmtMoney(net)}</div>
         </div>
-        <div className={labelClass}>{t("shipping.settlements.local.settle.shift")}
+        <div className="grid grid-cols-2 gap-2">
+          <label className={labelClass}>{t("shipping.settlements.local.settle.instapay")}
+            <input type="number" min="0" step="0.01" value={instapay} placeholder="0" onChange={(event) => setInstapay(event.target.value)} className={`${inputClass} mt-1`} />
+          </label>
+          <label className={labelClass}>{t("shipping.settlements.local.settle.card")}
+            <input type="number" min="0" step="0.01" value={card} placeholder="0" onChange={(event) => setCard(event.target.value)} className={`${inputClass} mt-1`} />
+          </label>
+        </div>
+        <div className={labelClass}>{t("shipping.settlements.local.settle.cash")}
+          <div className={`mt-1 rounded-[var(--radius-control)] border border-[var(--border)] bg-[var(--card-soft)] px-3 py-2 text-lg font-black ${cash < 0 ? "text-rose-300" : "text-amber-100"}`}>{fmtMoney(cash)}</div>
+        </div>
+        {needsShift ? (<div className={labelClass}>{t("shipping.settlements.local.settle.shift")}
           {shifts.length ? (
             <div className="mt-1"><ThemedSelect value={shiftId} onChange={setShiftId} options={shiftOptions} placeholder={t("shipping.settlements.local.settle.shiftPlaceholder")} ariaLabel={t("shipping.settlements.local.settle.shift")} triggerClassName={inputClass} /></div>
           ) : (
             <div className="mt-1 rounded-[var(--radius-control)] border border-rose-400/40 bg-rose-500/10 px-3 py-2 text-xs font-bold text-rose-200">{t("shipping.settlements.local.settle.noOpenShift")}</div>
           )}
-        </div>
+        </div>) : null}
         <label className={labelClass}>{t("shipping.settlements.form.notes")}
           <textarea rows={2} value={notes} onChange={(event) => setNotes(event.target.value)} className="mt-1 w-full rounded-[var(--radius-control)] border border-[var(--border)] bg-[var(--card)] px-3 py-2 text-sm font-bold text-[var(--text)] outline-none focus:border-emerald-300/50" />
         </label>
-        <button type="submit" disabled={saving || !selectedRows.length || !shiftId || net < 0} className={`${primaryButton} w-full`}>
+        <button type="submit" disabled={saving || !selectedRows.length || (needsShift && !shiftId) || net < 0 || cash < 0} className={`${primaryButton} w-full`}>
           {saving ? <Loader2 className="h-4 w-4 animate-spin" /> : <Banknote className="h-4 w-4" />} {t("shipping.settlements.local.settle.submit")}
         </button>
       </form>
@@ -314,7 +335,7 @@ function HistorySection({ refreshKey }) {
                 <td className="px-3 py-3">{row.orders_count}</td>
                 <td className="px-3 py-3 font-bold">{fmtMoney(row.gross_amount)}</td>
                 <td className="px-3 py-3 text-orange-200">{fmtMoney(row.fees_amount)}</td>
-                <td className="px-3 py-3 font-black text-emerald-200">{fmtMoney(row.net_amount)}</td>
+                <td className="px-3 py-3"><div className="font-black text-emerald-200">{fmtMoney(row.net_amount)}</div>{row.payment_breakdown ? <div className="text-[11px] font-bold text-[var(--muted)]">{["cash", "instapay", "card"].filter((method) => Number(row.payment_breakdown[method]) > 0).map((method) => `${t(`shipping.settlements.local.settle.${method}`)} ${fmtMoney(row.payment_breakdown[method])}`).join(" · ")}</div> : null}</td>
                 <td className="px-3 py-3 text-xs text-[var(--muted)]">{row.created_by_name || "-"}</td>
               </tr>
             ))}

@@ -91,6 +91,7 @@ export const createLocalCourierSettlementController = async (req, res) => {
       orderIds: body.order_ids,
       feesAmount: body.fees_amount,
       shiftId: body.shift_id,
+      payments: body.payments && typeof body.payments === "object" ? body.payments : null,
       notes: body.notes,
       createdBy: req.user?.id || null,
     });

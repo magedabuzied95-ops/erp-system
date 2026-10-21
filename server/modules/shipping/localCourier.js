@@ -10,7 +10,7 @@
 //                   shift as cash_in (net of his fee), and his fee becomes a shipping expense.
 // A refused parcel comes back through cancelOrder, the same restock as a returned Bosta parcel.
 import db from "../../database/db.js";
-import { ensureAccountingSchema, recordCashDrawerEvent } from "../../services/accountingService.js";
+import { ensureAccountingSchema, recordCashDrawerEvent, recordFinancialAccountActivity } from "../../services/accountingService.js";
 import { sendShipmentNotificationForStatus } from "../../services/whatsappShippingService.js";
 import { syncDeliveryOrderFavorite } from "../../services/deliveryOrderFavoriteService.js";
 import { resolveGovernorateId } from "../../../shared/codPolicy.js";
@@ -61,7 +61,8 @@ export const localCourierBlockReason = (order = {}) => {
 let schemaReady = null;
 export const ensureLocalCourierSchema = async () => {
   if (!schemaReady) {
-    schemaReady = db.query(`
+    // courier_settlements must exist first, or the memoised ALTER below silently does nothing.
+    schemaReady = ensureCourierSettlementSchema().then(() => db.query(`
       CREATE TABLE IF NOT EXISTS local_courier_settings (
         tenant_key BIGINT PRIMARY KEY,
         courier_name VARCHAR(120) NOT NULL DEFAULT '',
@@ -69,7 +70,10 @@ export const ensureLocalCourierSchema = async () => {
         fee_per_order NUMERIC(12,2) NOT NULL DEFAULT 0,
         updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
       )
-    `).catch((error) => {
+    `))
+      // How a hand-in arrived: { cash, instapay, card } (nullable, metadata-only).
+      .then(() => db.query(`ALTER TABLE IF EXISTS courier_settlements ADD COLUMN IF NOT EXISTS payment_breakdown JSONB NULL`))
+      .catch((error) => {
       schemaReady = null;
       throw error;
     });
@@ -352,16 +356,31 @@ export const listOpenDrawerShifts = async ({ tenantId = null } = {}) => {
   return result.rows;
 };
 
-export const createLocalCourierSettlement = async ({ tenantId = null, orderIds = [], feesAmount = null, shiftId = null, notes = "", createdBy = null } = {}) => {
+// How the hand-in arrived. Customers pay the courier in cash, but also by InstaPay or card
+// straight to the shop: cash goes into the drawer shift, the rest to the account each method
+// maps to (the same mapping the till uses).
+export const LOCAL_COURIER_PAYMENT_METHODS = ["cash", "instapay", "card"];
+export const normalizeHandInPayments = (payments, net) => {
+  if (!payments || typeof payments !== "object") return { cash: round2(net), instapay: 0, card: 0 };
+  const split = Object.fromEntries(LOCAL_COURIER_PAYMENT_METHODS.map((method) => [method, round2(payments[method])]));
+  if (Object.values(split).some((value) => !Number.isFinite(value) || value < 0)) throw httpError(400, "INVALID_PAYMENTS", "المبالغ لازم تكون أرقام صفر أو أكتر");
+  const total = round2(split.cash + split.instapay + split.card);
+  if (Math.abs(total - round2(net)) > 0.009) {
+    throw httpError(400, "PAYMENTS_MISMATCH", `الكاش + انستا باي + فيزا (${total.toFixed(2)}) لازم يساوي الصافي (${round2(net).toFixed(2)})`, { total, net: round2(net) });
+  }
+  return split;
+};
+
+export const createLocalCourierSettlement = async ({ tenantId = null, orderIds = [], feesAmount = null, shiftId = null, payments = null, notes = "", createdBy = null } = {}) => {
   if (tenantId === null || tenantId === undefined) throw httpError(400, "TENANT_REQUIRED", "tenant_id is required");
   const ids = [...new Set((Array.isArray(orderIds) ? orderIds : []).map(Number).filter((id) => Number.isInteger(id) && id > 0))];
   if (!ids.length) throw httpError(400, "NO_ORDERS_SELECTED", "اختار الأوردرات اللي المندوب سلّم فلوسها");
-  if (!toNumberOrNull(shiftId)) throw httpError(400, "SHIFT_REQUIRED", "اختار الوردية اللي الفلوس هتدخل درجها");
   if (!toNumberOrNull(createdBy)) throw httpError(400, "USER_REQUIRED", "لازم تكون داخل بحساب مستخدم");
   // DDL before the transaction: inside it, ALTER TABLE waits on the transaction's own row locks.
   await ensureAccountingSchema();
   await ensureCourierSettlementSchema();
   await ensureCourierCostSchema();
+  await ensureLocalCourierSchema();
   // Created outside the transaction: its INSERT is wrapped in a catch, and a failed statement
   // inside a transaction would abort it and turn the COMMIT into a silent rollback.
   await expenseCategoryId(db, Number(tenantId), LOCAL_COURIER_EXPENSE_CATEGORY);
@@ -372,11 +391,6 @@ export const createLocalCourierSettlement = async ({ tenantId = null, orderIds =
   const client = await db.connect();
   try {
     await client.query("BEGIN");
-    const shift = (await client.query(
-      `SELECT id, branch_id FROM cash_drawer_shifts WHERE id = $1 AND tenant_id = $2 AND status = 'open' FOR UPDATE`,
-      [Number(shiftId), Number(tenantId)]
-    )).rows[0];
-    if (!shift) throw httpError(409, "SHIFT_CLOSED", "الوردية دي اتقفلت — اختار وردية مفتوحة");
     const rows = (await client.query(
       `SELECT * FROM orders WHERE id = ANY($1::bigint[]) AND (tenant_id = $2 OR tenant_id IS NULL) ORDER BY id FOR UPDATE`,
       [ids, Number(tenantId)]
@@ -390,15 +404,26 @@ export const createLocalCourierSettlement = async ({ tenantId = null, orderIds =
     const gross = round2(rows.reduce((sum, row) => sum + (Number(row.courier_collected_amount) || 0), 0));
     const net = round2(gross - fees);
     if (net < 0) throw httpError(400, "FEES_EXCEED", "أجرة المندوب أكبر من الفلوس اللي حصّلها");
+    const split = normalizeHandInPayments(payments, net);
+    // Only cash needs a drawer; an all-InstaPay hand-in never touches one.
+    let shift = null;
+    if (split.cash > 0) {
+      if (!toNumberOrNull(shiftId)) throw httpError(400, "SHIFT_REQUIRED", "اختار الوردية اللي الكاش هيدخل درجها");
+      shift = (await client.query(
+        `SELECT id, branch_id FROM cash_drawer_shifts WHERE id = $1 AND tenant_id = $2 AND status = 'open' FOR UPDATE`,
+        [Number(shiftId), Number(tenantId)]
+      )).rows[0];
+      if (!shift) throw httpError(409, "SHIFT_CLOSED", "الوردية دي اتقفلت — اختار وردية مفتوحة");
+    }
     const when = new Date();
 
     const settlement = (await client.query(
       `
-      INSERT INTO courier_settlements (tenant_id, provider, reference, settled_at, gross_amount, fees_amount, net_amount, orders_count, notes, created_by, expected_fees_amount)
-      VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11)
+      INSERT INTO courier_settlements (tenant_id, provider, reference, settled_at, gross_amount, fees_amount, net_amount, orders_count, notes, created_by, expected_fees_amount, payment_breakdown)
+      VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12::jsonb)
       RETURNING *
       `,
-      [Number(tenantId), LOCAL_COURIER_PROVIDER, `shift:${shift.id}`, when.toISOString(), gross, fees, net, ids.length, text(notes) || null, Number(createdBy), round2(settings.fee_per_order * ids.length)]
+      [Number(tenantId), LOCAL_COURIER_PROVIDER, shift ? `shift:${shift.id}` : null, when.toISOString(), gross, fees, net, ids.length, text(notes) || null, Number(createdBy), round2(settings.fee_per_order * ids.length), JSON.stringify(split)]
     )).rows[0];
     let allocated = 0;
     for (const [index, row] of rows.entries()) {
@@ -409,13 +434,14 @@ export const createLocalCourierSettlement = async ({ tenantId = null, orderIds =
         [settlement.id, row.id, round2(row.courier_collected_amount), share]
       );
     }
-    const event = { at: when.toISOString(), action: "courier_settled", provider: LOCAL_COURIER_PROVIDER, settlement_id: settlement.id, shift_id: shift.id };
+    const event = { at: when.toISOString(), action: "courier_settled", provider: LOCAL_COURIER_PROVIDER, settlement_id: settlement.id, shift_id: shift?.id || null, payments: split };
     await client.query(
       `UPDATE orders SET courier_settlement_id = $2, courier_settled_at = $3, shipment_timeline = COALESCE(shipment_timeline, '[]'::jsonb) || $4::jsonb, updated_at = NOW() WHERE id = ANY($1::bigint[])`,
       [ids, settlement.id, when.toISOString(), JSON.stringify([event])]
     );
-    // What physically lands in the drawer is the net: the courier kept his fee from the cash.
-    if (net > 0) {
+    // The courier kept his fee, so the methods add up to the net. Cash physically lands in the
+    // drawer; InstaPay and card land on the account each method maps to.
+    if (split.cash > 0) {
       await recordCashDrawerEvent(client, {
         tenantId: Number(tenantId),
         shiftId: shift.id,
@@ -423,9 +449,24 @@ export const createLocalCourierSettlement = async ({ tenantId = null, orderIds =
         eventType: "cash_in",
         sourceType: "courier_settlement",
         sourceId: settlement.id,
-        amount: net,
+        amount: split.cash,
         createdBy: Number(createdBy),
         requireOpenShift: true,
+      });
+    }
+    for (const method of ["instapay", "card"]) {
+      if (!(split[method] > 0)) continue;
+      await recordFinancialAccountActivity(client, {
+        tenantId: Number(tenantId),
+        branchId: shift?.branch_id || null,
+        paymentMethod: method,
+        entryType: "in",
+        sourceType: "courier_settlement",
+        sourceId: settlement.id,
+        amount: split[method],
+        notes: `${courierLabel(settings)} — تسوية #${settlement.id} (${method === "card" ? "فيزا" : "انستا باي"})`,
+        createdBy: Number(createdBy),
+        idempotent: false,
       });
     }
     // His fee is a cost of the shop; the profit report reads only the expenses table.
@@ -443,7 +484,7 @@ export const createLocalCourierSettlement = async ({ tenantId = null, orderIds =
       if (feeExpenseId) await client.query(`UPDATE courier_settlements SET fee_expense_id = $2 WHERE id = $1`, [settlement.id, feeExpenseId]);
     }
     await client.query("COMMIT");
-    return { ...settlement, fee_expense_id: feeExpenseId, order_ids: ids, shift_id: shift.id };
+    return { ...settlement, fee_expense_id: feeExpenseId, order_ids: ids, shift_id: shift?.id || null, payments: split };
   } catch (error) {
     await client.query("ROLLBACK").catch(() => {});
     throw error;

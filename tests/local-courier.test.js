@@ -103,3 +103,18 @@ test("the shop courier's cash never settles as a Bosta bank transfer, and the ol
   const controller = readFileSync(new URL("../server/controllers/ordersController.js", import.meta.url), "utf8");
   assert.match(controller, /providerKey === "local_courier"[\s\S]{0,400}markLocalCourierDelivered/);
 });
+
+test("a hand-in splits across cash, InstaPay and card, and the split must add up to the net", async () => {
+  const { normalizeHandInPayments } = await import("../server/modules/shipping/localCourier.js");
+  // Nothing typed: the whole net is cash for the drawer.
+  assert.deepEqual(normalizeHandInPayments(null, 1105), { cash: 1105, instapay: 0, card: 0 });
+  assert.deepEqual(normalizeHandInPayments({ cash: 400, instapay: 505, card: 200 }, 1105), { cash: 400, instapay: 505, card: 200 });
+  assert.throws(() => normalizeHandInPayments({ cash: 400, instapay: 505, card: 0 }, 1105), (error) => error.code === "PAYMENTS_MISMATCH");
+  assert.throws(() => normalizeHandInPayments({ cash: -5, instapay: 1110, card: 0 }, 1105), (error) => error.code === "INVALID_PAYMENTS");
+});
+
+test("only cash goes through the drawer shift; InstaPay and card land on their mapped accounts", () => {
+  const source = readFileSync(new URL("../server/modules/shipping/localCourier.js", import.meta.url), "utf8");
+  assert.match(source, /if \(split\.cash > 0\) \{\s*await recordCashDrawerEvent\([\s\S]{0,500}amount: split\.cash/);
+  assert.match(source, /for \(const method of \["instapay", "card"\]\)[\s\S]{0,300}recordFinancialAccountActivity\([\s\S]{0,300}paymentMethod: method/);
+});
