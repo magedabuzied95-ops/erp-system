@@ -483,7 +483,7 @@ function OrderCard({ order, ui, onOpen, selectable = false, selected = false, on
             <ShippingFeePill order={order} ui={ui} />
           </div>
           {/* The card's far corner (left in Arabic): edit / delete, manager portal only. */}
-          {onManage && !selectable ? <OrderManageMenu order={order} ui={ui} onEdit={onManage.edit} onDelete={onManage.remove} /> : null}
+          {onManage && !selectable ? <OrderManageMenu order={order} ui={ui} onEdit={onManage.edit} onDelete={onManage.remove} onRelease={onManage.release} /> : null}
         </div>
       </div>
 
@@ -1305,8 +1305,19 @@ export default function PortalOnlineOrdersBoard({
     return () => window.clearTimeout(timer);
   }, [flash]);
   const manageHandlers = useMemo(() => (editOrder && deleteOrder
-    ? { edit: (order) => setManageTarget({ mode: "edit", order }), remove: (order) => setManageTarget({ mode: "delete", order }) }
-    : null), [editOrder, deleteOrder]);
+    ? {
+      edit: (order) => setManageTarget({ mode: "edit", order }),
+      remove: (order) => setManageTarget({ mode: "delete", order }),
+      // INV-2212: the owner looked for the way out of a cancelled parcel in this ⋮, not in
+      // the order's action bar. Opens the order straight on the release confirmation.
+      release: runAction
+        ? (order) => {
+          void loadSelection(order);
+          setSelection((current) => (current && current.id === order.id ? { ...current, confirming: "release_shipment", actionError: "", notice: "" } : current));
+        }
+        : null,
+    }
+    : null), [editOrder, deleteOrder, runAction, loadSelection]);
 
   const saveEdit = async (orderId, payload) => {
     const response = await editOrderRef.current(orderId, payload);

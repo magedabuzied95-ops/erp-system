@@ -1,5 +1,6 @@
 import { useEffect, useMemo, useRef, useState } from "react";
-import { AlertTriangle, Loader2, MoreVertical, Pencil, Trash2, X } from "lucide-react";
+import { AlertTriangle, Loader2, MoreVertical, Pencil, Trash2, Undo2, X } from "lucide-react";
+import { portalOrderActionsFor } from "./portalOrderActions";
 import { api } from "../../api/api";
 import ThemedSelect from "../../ui/ThemedSelect";
 import { bostaCityPatch, bostaDistrictPatch, bostaZonePatch, buildBostaPickerOptions } from "../../lib/shippingCheckout";
@@ -15,10 +16,11 @@ const text = (value = "") => String(value ?? "").trim();
 export const orderIsManageable = (order = {}) =>
   ["new", "confirmed"].includes(order.group) && !text(order.shipment?.tracking_number) && !text(order.shipment?.delivery_id);
 
-export function OrderManageMenu({ order, ui, onEdit, onDelete }) {
+export function OrderManageMenu({ order, ui, onEdit, onDelete, onRelease = null }) {
   const [open, setOpen] = useState(false);
   const rootRef = useRef(null);
   const manageable = orderIsManageable(order);
+  const releasable = Boolean(onRelease) && portalOrderActionsFor(order).includes("release_shipment");
 
   useEffect(() => {
     if (!open) return undefined;
@@ -64,6 +66,17 @@ export function OrderManageMenu({ order, ui, onEdit, onDelete }) {
             <Trash2 className="h-4 w-4 text-danger" />
             {ui.tb("manage.delete")}
           </button>
+          {releasable ? (
+            <button
+              type="button"
+              role="menuitem"
+              onClick={() => { setOpen(false); onRelease(order); }}
+              className="flex w-full items-center gap-2 border-t border-border px-3 py-2.5 text-start text-sm font-black hover:bg-surface-hover"
+            >
+              <Undo2 className="h-4 w-4" />
+              {ui.tb("actions.releaseShipment")}
+            </button>
+          ) : null}
           {!manageable ? <div className="border-t border-border px-3 py-2 text-[11px] font-bold leading-4 text-text-muted">{ui.tb("manage.lockedHint")}</div> : null}
         </div>
       ) : null}
