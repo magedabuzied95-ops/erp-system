@@ -3,6 +3,7 @@ import { useTranslation } from "react-i18next";
 import {
   AlertTriangle,
   Banknote,
+  Bike,
   Check,
   Clock,
   Copy,
@@ -57,7 +58,7 @@ const ATTENTION_GROUP = "attention";
 const RANGES = ["today", "7d", "30d", "90d", "all"];
 const DEFAULT_RANGE = "30d";
 const POLL_MS = 60_000;
-const PROVIDER_KEYS = ["bosta", "in_store_delivery", "manual", "pickup"];
+const PROVIDER_KEYS = ["bosta", "local_courier", "in_store_delivery", "manual", "pickup"];
 const EMPTY_BULK = { running: "", done: 0, total: 0, confirming: false, results: null, error: "", notice: "" };
 
 // A window opened before the request (after an await it is a blocked popup); if the
@@ -593,6 +594,10 @@ function timelineLabel(event, ui) {
  */
 const actionNotice = ({ ui, action, input, response }) => {
   if (action === "send_confirmation" && response?.queued) return ui.tb("actionDone.send_confirmation_queued");
+  if (action === "local_courier_delivered") {
+    const collected = Number(response?.collected) || 0;
+    return collected > 0 ? ui.tb("actionDone.local_courier_delivered_collected", { amount: ui.money(collected) }) : ui.tb("actionDone.local_courier_delivered");
+  }
   if (action === "shipping_fee_paid") {
     const done = ui.tb(`actionDone.${input?.scope === "order_total" ? "order_paid_in_full" : "shipping_fee_paid"}`);
     const minutes = Number(response?.payment_receipt_delay_minutes) || 0;
@@ -601,13 +606,15 @@ const actionNotice = ({ ui, action, input, response }) => {
   return ui.tb(`actionDone.${action}`);
 };
 
-const ACTION_ICON = { confirm: Check, send_confirmation: Send, ready_to_ship: Package, create_shipment: Truck, print_awb: Printer, shipping_fee_paid: Banknote, release_shipment: Undo2 };
-const ACTION_LABEL = { confirm: "actions.confirmOrder", send_confirmation: "actions.sendConfirmation", ready_to_ship: "actions.readyToShip", create_shipment: "actions.createShipment", print_awb: "actions.printAwb", shipping_fee_paid: "actions.shippingFeePaid", release_shipment: "actions.releaseShipment" };
+const ACTION_ICON = { confirm: Check, send_confirmation: Send, ready_to_ship: Package, create_shipment: Truck, print_awb: Printer, shipping_fee_paid: Banknote, release_shipment: Undo2, local_courier_dispatch: Bike, local_courier_delivered: Check, local_courier_returned: Undo2 };
+const ACTION_LABEL = { confirm: "actions.confirmOrder", send_confirmation: "actions.sendConfirmation", ready_to_ship: "actions.readyToShip", create_shipment: "actions.createShipment", print_awb: "actions.printAwb", shipping_fee_paid: "actions.shippingFeePaid", release_shipment: "actions.releaseShipment", local_courier_dispatch: "actions.localCourierDispatch", local_courier_delivered: "actions.localCourierDelivered", local_courier_returned: "actions.localCourierReturned" };
 const SHIPPING_FEE_METHODS = ["vodafone_cash", "instapay", "cash"];
 
 // Shipping the parcel and printing its airway bill have their own permission (every
 // employee has it); the rest of the flow needs can_act.
-const SHIP_ACTIONS = new Set(["create_shipment", "print_awb"]);
+const SHIP_ACTIONS = new Set(["create_shipment", "print_awb", "local_courier_dispatch", "local_courier_delivered"]);
+// The shop's courier: closing the money or cancelling the order takes a second, explicit tap.
+const LOCAL_COURIER_CONFIRM = { local_courier_delivered: "Delivered", local_courier_returned: "Returned" };
 
 function OrderActionBar({ order, ui, state = {}, onAction, onCancelConfirm, canAct = false, canShip = false }) {
   // The money step asks what the transfer covered: the shipping fee, or the whole order
@@ -657,6 +664,20 @@ function OrderActionBar({ order, ui, state = {}, onAction, onCancelConfirm, canA
             <button type="button" disabled={busy} onClick={() => onAction("release_shipment")} className="inline-flex min-h-[var(--control-height-lg)] items-center justify-center gap-2 rounded-[var(--radius-control)] bg-primary px-3 text-sm font-black text-primary-foreground disabled:opacity-60">
               {busy ? <Loader2 className="h-4 w-4 animate-spin" /> : <Undo2 className="h-4 w-4" />}
               {ui.tb("actions.releaseConfirmYes")}
+            </button>
+            <button type="button" disabled={busy} onClick={onCancelConfirm} className="inline-flex min-h-[var(--control-height-lg)] items-center justify-center rounded-[var(--radius-control)] border border-border bg-surface px-3 text-sm font-black text-text disabled:opacity-60">
+              {ui.tb("actions.cancel")}
+            </button>
+          </div>
+        </div>
+      ) : LOCAL_COURIER_CONFIRM[state.confirming] ? (
+        <div className="rounded-[var(--radius-control)] bg-warning-subtle p-3">
+          <div className="text-sm font-black text-text">{ui.tb(`actions.localCourier${LOCAL_COURIER_CONFIRM[state.confirming]}ConfirmTitle`, { amount: ui.money(order.money?.collect_on_delivery) })}</div>
+          <div className="mt-1 text-xs font-bold leading-5 text-text">{ui.tb(`actions.localCourier${LOCAL_COURIER_CONFIRM[state.confirming]}ConfirmBody`, { amount: ui.money(order.money?.collect_on_delivery) })}</div>
+          <div className="mt-2.5 grid grid-cols-2 gap-2">
+            <button type="button" disabled={busy} onClick={() => onAction(state.confirming)} className="inline-flex min-h-[var(--control-height-lg)] items-center justify-center gap-2 rounded-[var(--radius-control)] bg-primary px-3 text-sm font-black text-primary-foreground disabled:opacity-60">
+              {busy ? <Loader2 className="h-4 w-4 animate-spin" /> : <Check className="h-4 w-4" />}
+              {ui.tb("actions.localCourierConfirmYes")}
             </button>
             <button type="button" disabled={busy} onClick={onCancelConfirm} className="inline-flex min-h-[var(--control-height-lg)] items-center justify-center rounded-[var(--radius-control)] border border-border bg-surface px-3 text-sm font-black text-text disabled:opacity-60">
               {ui.tb("actions.cancel")}
@@ -1182,6 +1203,10 @@ export default function PortalOnlineOrdersBoard({
     // Taking a parcel off the order also asks for a second tap.
     if (action === "release_shipment" && current.confirming !== "release_shipment") {
       patchSelection(orderId, { confirming: "release_shipment", actionError: "", notice: "" });
+      return;
+    }
+    if (LOCAL_COURIER_CONFIRM[action] && current.confirming !== action) {
+      patchSelection(orderId, { confirming: action, actionError: "", notice: "" });
       return;
     }
     // Money: the second tap names how the customer paid.

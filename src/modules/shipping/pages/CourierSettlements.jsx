@@ -6,6 +6,7 @@ import { ArrowRight, Banknote, CheckCheck, Landmark, Loader2, RefreshCw, Search,
 import toast from "react-hot-toast";
 import { api } from "../../../shared/api/api";
 import { CourierCostsPanel, CourierPackagesPanel } from "../components/CourierCostsPanels";
+import LocalCourierPanel from "../components/LocalCourierPanel";
 
 // The courier's money has two moments. Step one (delivered ⇒ collected) happens on
 // the webhook without anyone's hand; this page is step two: the bank transfer is
@@ -106,7 +107,7 @@ export default function CourierSettlements() {
   const [bostaBalance, setBostaBalance] = useState(null);
 
   const load = useCallback(async () => {
-    if (tab === "packages" || tab === "costs") return;
+    if (tab === "packages" || tab === "costs" || tab === "local") return;
     setLoading(true);
     try {
       const [collections, settlements] = await Promise.all([
@@ -213,6 +214,7 @@ export default function CourierSettlements() {
           </div>
         </header>
 
+        {tab !== "local" ? (<>
         <section className="grid gap-3 sm:grid-cols-3">
           <Kpi label={t("shipping.settlements.kpi.pending")} value={fmtMoney(summary.pending_amount)} sub={t("shipping.settlements.kpi.pendingCount", { count: Number(summary.pending_count || 0) })} tone="text-sky-200" />
           <Kpi label={t("shipping.settlements.kpi.settled")} value={fmtMoney(summary.settled_amount)} sub={t("shipping.settlements.kpi.settledCount", { count: Number(summary.settled_count || 0) })} tone="text-emerald-200" />
@@ -234,6 +236,7 @@ export default function CourierSettlements() {
             </div>
           </section>
         ) : null}
+        </>) : null}
 
         <div className="flex flex-wrap gap-2">
           {tabButton("pending", t("shipping.settlements.tabs.pending"))}
@@ -241,9 +244,10 @@ export default function CourierSettlements() {
           {tabButton("history", t("shipping.settlements.tabs.history"))}
           {tabButton("packages", t("shipping.settlements.tabs.packages"))}
           {tabButton("costs", t("shipping.settlements.tabs.costs"))}
+          {tabButton("local", t("shipping.settlements.tabs.local"))}
         </div>
 
-        {tab === "packages" ? <CourierPackagesPanel provider={PROVIDER} accounts={accounts} /> : tab === "costs" ? <CourierCostsPanel provider={PROVIDER} /> : tab !== "history" ? (
+        {tab === "local" ? <LocalCourierPanel /> : tab === "packages" ? <CourierPackagesPanel provider={PROVIDER} accounts={accounts} /> : tab === "costs" ? <CourierCostsPanel provider={PROVIDER} /> : tab !== "history" ? (
           <div className={`grid gap-5 ${tab === "pending" ? "xl:grid-cols-[1fr_22rem]" : ""}`}>
             <section className="rounded-[var(--radius-card)] border border-[var(--border)] bg-[var(--surface)] p-4 shadow-2xl shadow-[var(--shadow)]">
               <div className="mb-4 grid gap-2 md:grid-cols-4">

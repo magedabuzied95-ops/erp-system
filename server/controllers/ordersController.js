@@ -7971,6 +7971,18 @@ export const updateOrderShipment = async (req, res) => {
       return res.status(400).json({ success: false, message: "Unsupported shipment action" });
     }
 
+    // The shop's own courier: "delivered" must also close the money (the customer's cash is now
+    // with him), which this generic write never did — that gap is what left these orders owing.
+    if (providerKey === "local_courier" && ["delivered", "out_for_delivery", "in_transit"].includes(nextStatus)) {
+      await client.query("ROLLBACK");
+      const { dispatchWithLocalCourier, markLocalCourierDelivered } = await import("../modules/shipping/localCourier.js");
+      const args = { orderId: loaded.order.id, tenantId, actorName: String(req.user?.name || req.user?.email || ""), source: "order_page" };
+      const order = nextStatus === "delivered"
+        ? (await markLocalCourierDelivered(args)).order
+        : await dispatchWithLocalCourier(args);
+      return res.json({ success: true, provider: "local_courier", shipping_status: order.shipping_status, status: order.shipment_status, order });
+    }
+
     const nullableText = (value) => {
       const next = String(value ?? "").trim();
       return next || null;

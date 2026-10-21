@@ -275,7 +275,7 @@ export const getShippingCenterMeta = async () => {
     db.query("SELECT id, name FROM branches ORDER BY name").catch(() => ({ rows: [] })),
   ]);
   return {
-    providers: [...new Set(["bosta", "mylerz", "aramex", "shipblu", "in_store_delivery", ...providers.rows.map((row) => row.provider).filter(Boolean)])],
+    providers: [...new Set(["bosta", "local_courier", "mylerz", "aramex", "shipblu", "in_store_delivery", ...providers.rows.map((row) => row.provider).filter(Boolean)])],
     branches: branches.rows,
     statuses: CENTER_STATUSES,
   };

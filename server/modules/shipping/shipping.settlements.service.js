@@ -357,6 +357,13 @@ export const createCourierSettlement = async ({
       error.status = 409;
       throw error;
     }
+    // The shop's own courier hands cash into a drawer shift, never a bank transfer (localCourier.js).
+    const localParcels = rows.rows.filter((row) => String(row.shipping_provider || row.shipping_provider_id || "").trim().toLowerCase() === "local_courier");
+    if (localParcels.length) {
+      const error = new Error(`الأوردرات دي مع المندوب — تتسوّى من تبويب المندوب: ${localParcels.map((row) => row.public_order_number || row.invoice_number || row.id).join(", ")}`);
+      error.status = 409;
+      throw error;
+    }
     const alreadySettled = rows.rows.filter((row) => row.courier_settlement_id);
     if (alreadySettled.length) {
       const error = new Error(`الطلبات دي اتسوّت قبل كده: ${alreadySettled.map((row) => row.public_order_number || row.invoice_number || row.id).join(", ")}`);

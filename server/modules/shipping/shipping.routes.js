@@ -40,6 +40,14 @@ import {
   saveCourierCostSettingsController,
   voidCourierPackageController,
 } from "./shipping.settlements.controller.js";
+import {
+  createLocalCourierSettlementController,
+  getLocalCourierSettingsController,
+  listLocalCourierBacklogController,
+  localCourierOrderActionController,
+  markLocalCourierBacklogController,
+  saveLocalCourierSettingsController,
+} from "./localCourier.controller.js";
 
 const router = express.Router();
 
@@ -95,5 +103,14 @@ router.post("/courier-costs/packages/:id/void", protect, permit("orders", "edit"
 router.post("/courier-costs/packages/calibrate", protect, permit("orders", "edit"), calibrateCourierPackagesController);
 router.get("/courier-costs/report", protect, permit("orders", "view"), getCourierCostReportController);
 router.put("/courier-costs/settings", protect, permit("orders", "edit"), saveCourierCostSettingsController);
+
+// The shop's own motorcycle courier (localCourier.js): out → delivered (customer's cash is now
+// with the courier) → settled into an open drawer shift. Same grants as the Bosta screens.
+router.get("/local-courier/settings", protect, permit("orders", "view"), getLocalCourierSettingsController);
+router.put("/local-courier/settings", protect, permit("orders", "edit"), saveLocalCourierSettingsController);
+router.get("/local-courier/backlog", protect, permit("orders", "view"), listLocalCourierBacklogController);
+router.post("/local-courier/backlog/delivered", protect, permit("orders", "edit"), markLocalCourierBacklogController);
+router.post("/local-courier/settlements", protect, permit("orders", "edit"), createLocalCourierSettlementController);
+router.post("/local-courier/orders/:id/:action", protect, permit("orders", "edit"), localCourierOrderActionController);
 
 export default router;

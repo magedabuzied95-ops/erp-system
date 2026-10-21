@@ -55,12 +55,17 @@ const placeholderProvider = (key, name) => ({
   },
 });
 
+// The shop's own motorcycle courier (modules/shipping/localCourier.js): offline like in-store
+// delivery, but a key of its own so its parcels and the cash they bring back stay apart.
+const localCourierProvider = { ...inStoreDeliveryProvider, key: "local_courier", name: "Local Courier" };
+
 export const shippingProviderCatalog = [
   bostaProvider,
   placeholderProvider("mylerz", "Mylerz"),
   placeholderProvider("aramex", "Aramex"),
   placeholderProvider("shipblu", "ShipBlu"),
   inStoreDeliveryProvider,
+  localCourierProvider,
 ];
 
 export const shippingProviders = {
@@ -69,6 +74,7 @@ export const shippingProviders = {
   aramex: shippingProviderCatalog.find((provider) => provider.key === "aramex"),
   shipblu: shippingProviderCatalog.find((provider) => provider.key === "shipblu"),
   in_store_delivery: inStoreDeliveryProvider,
+  local_courier: localCourierProvider,
   manual: inStoreDeliveryProvider,
   store_pickup: inStoreDeliveryProvider,
 };

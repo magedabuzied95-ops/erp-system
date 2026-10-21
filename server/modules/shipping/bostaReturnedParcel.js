@@ -46,13 +46,13 @@ export const RETURNED_TO_STORE_REASON = "الشحنة رجعت من بوسطة �
 
 // No users row behind the courier: user id stays null, and the role is NOT super_admin
 // (that would drop tenant scoping inside cancelOrder).
-const courierRequest = (order) => ({
+const courierRequest = (order, courier = {}) => ({
   params: { id: String(order.id) },
-  body: { reason: RETURNED_TO_STORE_REASON },
+  body: { reason: courier.reason || RETURNED_TO_STORE_REASON },
   query: {},
   headers: {},
   tenantId: order.tenant_id ?? null,
-  user: { id: null, tenant_id: order.tenant_id ?? null, tenantId: order.tenant_id ?? null, role: "system", name: "بوسطة" },
+  user: { id: null, tenant_id: order.tenant_id ?? null, tenantId: order.tenant_id ?? null, role: "system", name: courier.name || "بوسطة" },
 });
 
 const defaultDeps = {
@@ -66,8 +66,8 @@ const defaultDeps = {
   // A returned EXCHANGE parcel: the swap never happened, so the return on the original
   // is voided and the credit reversed (onlineExchange.js) after the replacement is cancelled.
   voidExchange: async (input) => (await import("../orders/onlineExchange.js")).voidReturnedExchange(input),
-  stamp: async ({ orderId, at, source }) => {
-    const event = { action: "returned_to_store", provider: "bosta", status: "returned", source, at, label: "رجعت من بوسطة للمخزن" };
+  stamp: async ({ orderId, at, source, courier = {} }) => {
+    const event = { action: "returned_to_store", provider: courier.provider || "bosta", status: "returned", source, at, label: courier.label || "رجعت من بوسطة للمخزن" };
     await db.query(
       `UPDATE orders SET
          shipping_status = 'returned',
@@ -91,11 +91,12 @@ export const returnedParcelSkipReason = (order = {}) => {
   return "";
 };
 
-export const receiveReturnedBostaParcel = async (order = {}, { source = "bosta", at = null, deps: injected = {} } = {}) => {
+// `courier` names who brought it back when it was not Bosta (the shop's own courier, localCourier.js).
+export const receiveReturnedBostaParcel = async (order = {}, { source = "bosta", at = null, courier = {}, deps: injected = {} } = {}) => {
   const deps = { ...defaultDeps, ...injected };
   const skip = returnedParcelSkipReason(order);
   if (skip) return { received: false, reason: skip };
-  const { statusCode, payload } = await deps.cancelHandler(courierRequest(order));
+  const { statusCode, payload } = await deps.cancelHandler(courierRequest(order, courier));
   if (statusCode >= 400) {
     console.warn("[bosta-return] cancel refused", { orderId: order.id, statusCode, message: payload?.message });
     return { received: false, reason: "cancel_refused", message: payload?.message || "" };
@@ -109,7 +110,7 @@ export const receiveReturnedBostaParcel = async (order = {}, { source = "bosta",
   }
   // cancelOrder leaves the shipment columns alone; the stamp keeps them on "returned" and
   // records when the parcel came back, for the board and the order's history.
-  await deps.stamp({ orderId: order.id, at: at || new Date().toISOString(), source });
+  await deps.stamp({ orderId: order.id, at: at || new Date().toISOString(), source, ...(courier.provider ? { courier } : {}) });
   console.log("[bosta-return] parcel received back; order cancelled and stock restored", { orderId: order.id, source });
   return { received: true, order: payload?.order || null, exchange: exchangeVoid };
 };

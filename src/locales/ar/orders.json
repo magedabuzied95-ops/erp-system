@@ -989,7 +989,15 @@
       "releaseShipment": "فك الشحنة الملغية",
       "releaseConfirmTitle": "فك الشحنة {{tracking}} من الأوردر؟",
       "releaseConfirmBody": "هنسأل بوسطة الأول: لو الشحنة ملغية أو المندوب لسه ما استلمهاش هتتلغي وتتشال من الأوردر، والأوردر يرجع جاهز للشحن تقدر تعدّله وتعمل له شحنة جديدة. لو المندوب استلمها مش هتتفك.",
-      "releaseConfirmYes": "أيوه، فك الشحنة"
+      "releaseConfirmYes": "أيوه، فك الشحنة",
+      "localCourierDispatch": "خرج مع المندوب",
+      "localCourierDelivered": "اتسلم مع المندوب",
+      "localCourierReturned": "رجع مع المندوب",
+      "localCourierDeliveredConfirmTitle": "العميل استلم الأوردر من المندوب؟",
+      "localCourierDeliveredConfirmBody": "الأوردر هيتقفل متسلم ومدفوع، و{{amount}} هتتسجل إنها مع المندوب لحد ما يسلمها للدرج.",
+      "localCourierReturnedConfirmTitle": "العميل رفض الأوردر ورجع مع المندوب؟",
+      "localCourierReturnedConfirmBody": "الأوردر هيتلغي والقطع هترجع المخزن.",
+      "localCourierConfirmYes": "أيوه، أكّد"
     },
     "detail": {
       "orderStatus": "حالة الأوردر",
@@ -1069,6 +1077,7 @@
     },
     "providers": {
       "bosta": "بوسطة",
+      "local_courier": "مندوب المحل",
       "in_store_delivery": "توصيل المحل",
       "manual": "يدوي",
       "pickup": "استلام من الفرع"
@@ -1084,6 +1093,10 @@
       "shipping_fee_waived": "تم تخطّي المقدّم، والمندوب هيحصّل المبلغ كله",
       "order_paid_in_full": "تم تسجيل دفع الأوردر كامل",
       "release_shipment": "الشحنة اتفكت — الأوردر رجع تقدر تعدّله وتشحنه من جديد",
+      "local_courier_dispatch": "الأوردر خرج مع المندوب",
+      "local_courier_delivered": "الأوردر اتقفل متسلم",
+      "local_courier_delivered_collected": "الأوردر اتقفل متسلم — {{amount}} مع المندوب لحد ما يسلمها للدرج",
+      "local_courier_returned": "الأوردر اتلغى والمخزون رجع",
       "receiptDelayed": "رسالة تأكيد الدفع هتوصل العميل خلال {{minutes}} دقايق"
     },
     "actionErrors": {
@@ -1115,6 +1128,7 @@
       "BOSTA_PARCEL_LEFT_STORE": "المندوب استلم الشحنة دي بالفعل — مينفعش تتفك، هترجع كمرتجع",
       "BOSTA_STATUS_UNAVAILABLE": "مقدرناش نوصل لبوسطة نتأكد من حالة الشحنة — جرّب كمان شوية",
       "FULL_PAYMENT_AFTER_SHIPMENT": "الشحنة اتعملت على بوسطة بالمبلغ القديم — الغي الشحنة الأول وبعدين سجّل دفع الأوردر كامل",
+      "RETURN_REFUSED": "السيستم رفض إلغاء الأوردر — افتحه من صفحة الطلبات",
       "ORDER_LOCKED": "لا يمكن تعديل أو حذف الأوردر في حالته الحالية",
       "NOTHING_TO_SAVE": "لا توجد تعديلات للحفظ",
       "CUSTOMER_NAME_REQUIRED": "اسم العميل مطلوب",

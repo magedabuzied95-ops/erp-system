@@ -334,16 +334,16 @@ export const saveCourierCostSettings = async ({ tenantId = null, provider = "bos
   return { ...saved, reconcile };
 };
 
-const expenseCategoryId = async (client, tenantId) => {
+export const expenseCategoryId = async (client, tenantId, category = COURIER_EXPENSE_CATEGORY) => {
   try {
     const existing = await client.query(
       `SELECT id FROM expense_categories WHERE LOWER(name) = LOWER($1) AND ($2::bigint IS NULL OR tenant_id = $2::bigint OR tenant_id IS NULL) ORDER BY tenant_id NULLS LAST, id LIMIT 1`,
-      [COURIER_EXPENSE_CATEGORY, tenantId ?? null]
+      [category, tenantId ?? null]
     );
     if (existing.rows[0]) return existing.rows[0].id;
     const inserted = await client.query(
       `INSERT INTO expense_categories (tenant_id, name, type_key, description, is_active) VALUES ($1, $2, 'shipping', $3, TRUE) RETURNING id`,
-      [tenantId ?? null, COURIER_EXPENSE_CATEGORY, "قيود تلقائية: استهلاك باقات بوسطة ورسوم التحويلات"]
+      [tenantId ?? null, category, category === COURIER_EXPENSE_CATEGORY ? "قيود تلقائية: استهلاك باقات بوسطة ورسوم التحويلات" : "قيود تلقائية: أجرة المندوب من تسويات الدرج"]
     );
     return inserted.rows[0]?.id || null;
   } catch {
@@ -356,7 +356,7 @@ const expenseCategoryId = async (client, tenantId) => {
  * Writes (or rewrites) the automatic expense row behind one cost. A row whose amount drops
  * to zero is cancelled, not deleted, so its id stays valid for the posting that owns it.
  */
-export const upsertCourierExpense = async (client, { tenantId = null, expenseId = null, amount, title, day, notes = "", paymentMethod = "prepaid", moneyAccountId = null }) => {
+export const upsertCourierExpense = async (client, { tenantId = null, expenseId = null, amount, title, day, notes = "", paymentMethod = "prepaid", moneyAccountId = null, category = COURIER_EXPENSE_CATEGORY }) => {
   const value = round2(amount);
   const status = value > 0 ? "paid" : "cancelled";
   const tz = getAppTimeZone();
@@ -373,14 +373,14 @@ export const upsertCourierExpense = async (client, { tenantId = null, expenseId 
     return expenseId;
   }
   if (value <= 0) return null;
-  const categoryId = await expenseCategoryId(client, tenantId);
+  const categoryId = await expenseCategoryId(client, tenantId, category);
   const inserted = await client.query(
     `
     INSERT INTO expenses (tenant_id, title, amount, category, category_id, expense_type, note, notes, payment_method, status, money_account_id, expense_date, created_at, paid_at, updated_at)
     VALUES ($1, $2, $3, $4, $5, 'shipping', $6, $6, $7, 'paid', $8, $9::date, (($9::date + TIME '12:00') AT TIME ZONE $10), (($9::date + TIME '12:00') AT TIME ZONE $10), NOW())
     RETURNING id
     `,
-    [tenantId ?? null, title, value, COURIER_EXPENSE_CATEGORY, categoryId, notes, paymentMethod, toNumberOrNull(moneyAccountId), day, tz]
+    [tenantId ?? null, title, value, category, categoryId, notes, paymentMethod, toNumberOrNull(moneyAccountId), day, tz]
   );
   return inserted.rows[0]?.id || null;
 };

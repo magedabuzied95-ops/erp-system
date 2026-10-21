@@ -166,7 +166,8 @@ const writePackingChecklist = (orderId, value) => {
 const normalizeComparable = (value) => String(value || "").trim().toLowerCase().replace(/[_-]+/g, " ");
 const normalizeShippingProviderKey = (value) => normalizeComparable(value).replace(/\s+/g, "_");
 const isBostaShippingProvider = (value) => normalizeShippingProviderKey(value) === "bosta";
-const supportedShippingProviders = ["bosta", "mylerz", "shipblu", "in_store_delivery"];
+// local_courier: the shop's own motorcycle courier (server: modules/shipping/localCourier.js).
+const supportedShippingProviders = ["bosta", "local_courier", "mylerz", "shipblu", "in_store_delivery"];
 const resolveShippingProviderKey = (value) => {
   const normalized = normalizeShippingProviderKey(value);
   return supportedShippingProviders.includes(normalized) ? normalized : "bosta";

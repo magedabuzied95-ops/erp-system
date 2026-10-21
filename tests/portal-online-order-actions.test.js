@@ -4,8 +4,8 @@ import { readFileSync } from "node:fs";
 
 import { PORTAL_SHIP_ACTIONS, runPortalOrderAction } from "../server/modules/shipping/shipping.portal.actions.js";
 
-test("only booking the parcel and printing its airway bill are open to every employee", () => {
-  assert.deepEqual([...PORTAL_SHIP_ACTIONS].sort(), ["create_shipment", "print_awb"]);
+test("only booking the parcel, printing its airway bill and the shop courier's hand-over are open to every employee", () => {
+  assert.deepEqual([...PORTAL_SHIP_ACTIONS].sort(), ["create_shipment", "local_courier_delivered", "local_courier_dispatch", "print_awb"]);
 });
 import { employeeCanActOnOnlineOrders, setEmployeeOnlineOrdersAccess } from "../server/modules/shipping/shipping.portal.access.js";
 import { portalOrderActionsFor } from "../src/shared/components/portalOnlineOrders/portalOrderActions.js";
@@ -189,8 +189,8 @@ test("a failing audit log never fails the action", async () => {
 
 test("the screen offers exactly the next step of the flow", () => {
   assert.deepEqual(portalOrderActionsFor(orderIn("new")), ["confirm", "send_confirmation"]);
-  assert.deepEqual(portalOrderActionsFor(orderIn("confirmed")), ["ready_to_ship", "create_shipment"]);
-  assert.deepEqual(portalOrderActionsFor(orderIn("confirmed", { status: "ready_to_ship" })), ["create_shipment"]);
+  assert.deepEqual(portalOrderActionsFor(orderIn("confirmed")), ["ready_to_ship", "create_shipment", "local_courier_dispatch"]);
+  assert.deepEqual(portalOrderActionsFor(orderIn("confirmed", { status: "ready_to_ship" })), ["create_shipment", "local_courier_dispatch"]);
   assert.deepEqual(portalOrderActionsFor(orderIn("confirmed", { shipment: { provider: "mylerz" } })), ["ready_to_ship"]);
   assert.deepEqual(portalOrderActionsFor(orderIn("shipping", { shipping_status: "in_transit", shipment: { provider: "bosta", tracking_number: "1" } })), ["print_awb"]);
   assert.deepEqual(portalOrderActionsFor(orderIn("shipping", { shipment: { provider: "in_store_delivery", tracking_number: "in-store-1" } })), []);

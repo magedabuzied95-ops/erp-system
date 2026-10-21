@@ -140,7 +140,8 @@
       "settled": "Settled",
       "history": "Transfers",
       "packages": "Bosta packages",
-      "costs": "Shipping cost"
+      "costs": "Shipping cost",
+      "local": "Shop courier"
     },
     "filters": {
       "search": "Search order, customer or tracking",
@@ -308,6 +309,55 @@
       "pickups": {
         "title": "Pickup days that cost a fee",
         "hint": "Days Bosta picked up fewer parcels than the threshold — the fee is deducted from the transfer and shared by that day's parcels."
+      }
+    },
+    "local": {
+      "intro": "Damietta orders that go out with the shop's courier: delivered closes them as paid; when he hands the cash in it goes into a drawer shift and his fee becomes an expense.",
+      "settings": {
+        "name": "Courier name",
+        "phone": "Courier phone",
+        "fee": "Fee per order (EGP)",
+        "save": "Save",
+        "saved": "Courier details saved"
+      },
+      "collections": {
+        "title": "Cash still with the courier",
+        "withCourier": "He holds {{amount}} from {{count}} orders",
+        "deliveredAt": "Delivered",
+        "empty": "The courier holds no cash right now"
+      },
+      "settle": {
+        "title": "The courier handed the cash in",
+        "hint": "Pick the orders he paid in. The net goes into the drawer shift; his fee is posted as a shipping expense.",
+        "gross": "Collected from {{count}} orders",
+        "fees": "Courier fee",
+        "feesHint": "Automatic: {{fee}} × orders — type another amount if different",
+        "net": "Into the drawer",
+        "shift": "Shift",
+        "shiftPlaceholder": "Pick the open shift",
+        "noOpenShift": "No open shift — open one at the till first",
+        "noSelection": "Pick the orders first",
+        "noShift": "Pick the shift",
+        "submit": "Record the hand-in",
+        "done": "Recorded — {{net}} went into the drawer"
+      },
+      "backlog": {
+        "title": "Orders that already went out and are still open",
+        "hint": "Online orders with no Bosta parcel that still read as not delivered. Tick the ones the courier really delivered: they close as paid and join the cash he holds.",
+        "damiettaOnly": "Damietta only",
+        "submit": "Delivered by the courier ({{count}})",
+        "confirm": "Close {{count}} orders as delivered by the courier? {{amount}} is recorded with him.",
+        "done": "{{count}} orders closed",
+        "skipped": "{{count}} skipped (already closed or with another courier)",
+        "address": "Address",
+        "createdAt": "Order date",
+        "owed": "Owed",
+        "empty": "No open orders"
+      },
+      "history": {
+        "title": "Courier hand-ins",
+        "fee": "His fee",
+        "drawer": "Into drawer"
       }
     }
   }

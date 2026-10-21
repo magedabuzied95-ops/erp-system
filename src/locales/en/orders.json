@@ -989,7 +989,15 @@
       "releaseShipment": "Release cancelled shipment",
       "releaseConfirmTitle": "Take shipment {{tracking}} off this order?",
       "releaseConfirmBody": "Bosta is asked first: a cancelled parcel, or one the courier has not picked up yet, is cancelled and removed, and the order goes back to ready to ship so you can edit it and ship it again. A parcel the courier already took cannot be released.",
-      "releaseConfirmYes": "Yes, release it"
+      "releaseConfirmYes": "Yes, release it",
+      "localCourierDispatch": "Out with our courier",
+      "localCourierDelivered": "Delivered by our courier",
+      "localCourierReturned": "Returned by our courier",
+      "localCourierDeliveredConfirmTitle": "Did the customer receive it from our courier?",
+      "localCourierDeliveredConfirmBody": "The order closes as delivered and paid; {{amount}} is recorded with the courier until he hands it into the drawer.",
+      "localCourierReturnedConfirmTitle": "Did the customer refuse it?",
+      "localCourierReturnedConfirmBody": "The order is cancelled and the pieces go back to stock.",
+      "localCourierConfirmYes": "Yes, confirm"
     },
     "detail": {
       "orderStatus": "Order status",
@@ -1069,6 +1077,7 @@
     },
     "providers": {
       "bosta": "Bosta",
+      "local_courier": "Shop courier",
       "in_store_delivery": "Shop delivery",
       "manual": "Manual",
       "pickup": "Store pickup"
@@ -1084,6 +1093,10 @@
       "shipping_fee_waived": "Advance skipped; the courier collects the full amount",
       "order_paid_in_full": "Whole order recorded as paid",
       "release_shipment": "Shipment released — the order can be edited and shipped again",
+      "local_courier_dispatch": "The order is out with our courier",
+      "local_courier_delivered": "The order is closed as delivered",
+      "local_courier_delivered_collected": "Closed as delivered — {{amount}} is with the courier until he hands it in",
+      "local_courier_returned": "The order is cancelled and back in stock",
       "receiptDelayed": "the customer gets the payment receipt in {{minutes}} min"
     },
     "actionErrors": {
@@ -1115,6 +1128,7 @@
       "BOSTA_PARCEL_LEFT_STORE": "The courier already picked this parcel up — it cannot be released; it comes back as a return",
       "BOSTA_STATUS_UNAVAILABLE": "Could not reach Bosta to check the parcel — try again shortly",
       "FULL_PAYMENT_AFTER_SHIPMENT": "The Bosta parcel was booked with the old amount — cancel it first, then record the whole order as paid",
+      "RETURN_REFUSED": "The ERP refused to cancel the order — open it from the orders page",
       "ORDER_LOCKED": "This order cannot be edited or deleted in its current status",
       "NOTHING_TO_SAVE": "Nothing to save",
       "CUSTOMER_NAME_REQUIRED": "Customer name is required",

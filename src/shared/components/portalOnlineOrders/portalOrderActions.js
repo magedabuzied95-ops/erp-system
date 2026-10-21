@@ -12,7 +12,10 @@ const BOSTA_BOOKABLE_PROVIDERS = new Set(["", "bosta", "manual", "in_store_deliv
 
 // "shipping_fee_waived" is offered inside the money step rather than as a button of its own:
 // it is the same decision seen from the other side (nobody paid the advance and nobody will).
-export const PORTAL_ORDER_ACTIONS = ["confirm", "send_confirmation", "ready_to_ship", "create_shipment", "print_awb", "shipping_fee_paid", "shipping_fee_waived", "release_shipment"];
+export const PORTAL_ORDER_ACTIONS = ["confirm", "send_confirmation", "ready_to_ship", "create_shipment", "print_awb", "shipping_fee_paid", "shipping_fee_waived", "release_shipment", "local_courier_dispatch", "local_courier_delivered", "local_courier_returned"];
+
+// The shop's own motorcycle courier (server: localCourier.js) — Damietta orders that never go to Bosta.
+export const LOCAL_COURIER_PROVIDER = "local_courier";
 
 // Booked but never picked up, or cancelled at Bosta — the only parcels that can be taken off.
 const RELEASABLE_SHIPPING_STATUSES = new Set(["", "created", "shipment_created", "cancelled", "canceled"]);
@@ -38,8 +41,11 @@ export const portalOrderActionsFor = (order = {}) => {
     if (status !== "ready_to_ship") actions.push("ready_to_ship");
     // Outside the COD governorates the fee comes first; the server refuses the parcel until then.
     if (feeAwaiting) actions.unshift("shipping_fee_paid");
-    else if (!hasParcel && BOSTA_BOOKABLE_PROVIDERS.has(provider)) actions.push("create_shipment");
+    else if (!hasParcel && BOSTA_BOOKABLE_PROVIDERS.has(provider)) actions.push("create_shipment", "local_courier_dispatch");
   }
+  // Out with the shop's courier: he either hands it over (the customer's cash is now with him)
+  // or brings it back refused.
+  if (order.group === "shipping" && provider === LOCAL_COURIER_PROVIDER) actions.push("local_courier_delivered", "local_courier_returned");
   if (order.group === "new" && feeAwaiting) actions.push("shipping_fee_paid");
   if (hasParcel && provider === "bosta") actions.push("print_awb");
   // A parcel the courier never took (or Bosta already cancelled): hand the order back so it
@@ -85,6 +91,7 @@ export const PORTAL_ACTION_ERROR_CODES = [
   "BOSTA_PARCEL_LEFT_STORE",
   "BOSTA_STATUS_UNAVAILABLE",
   "FULL_PAYMENT_AFTER_SHIPMENT",
+  "RETURN_REFUSED",
   "ORDER_LOCKED",
   "NOTHING_TO_SAVE",
   "CUSTOMER_NAME_REQUIRED",

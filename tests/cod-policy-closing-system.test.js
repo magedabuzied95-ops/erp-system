@@ -183,7 +183,7 @@ test("the board offers تم دفع الشحن instead of the Bosta button while 
   const awaiting = { group: "confirmed", status: "confirmed", shipment: { provider: "bosta" }, money: { shipping_fee_advance: { required: true, status: "awaiting_payment", amount: 90 } } };
   assert.deepEqual(portalOrderActionsFor(awaiting), ["shipping_fee_paid", "ready_to_ship"]);
   const paid = { ...awaiting, money: { shipping_fee_advance: { required: true, status: "paid", amount: 90 } } };
-  assert.deepEqual(portalOrderActionsFor(paid), ["ready_to_ship", "create_shipment"]);
+  assert.deepEqual(portalOrderActionsFor(paid), ["ready_to_ship", "create_shipment", "local_courier_dispatch"]);
   assert.equal(shippingFeeAdvanceState({ money: { shipping_fee_advance: { required: false } } }), null);
 });
 

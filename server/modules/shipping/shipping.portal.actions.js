@@ -6,6 +6,7 @@ import { getPortalOnlineOrder } from "./shipping.portal.service.js";
 import { createBostaShipmentForOrder, fetchBostaShipmentLabels, releaseCancelledBostaShipment } from "./shipping.service.js";
 import { markShippingFeePaid, waiveShippingFeeAdvance } from "./shippingFeeAdvance.js";
 import { markOrderPaidInFull } from "./markOrderPaidInFull.js";
+import { dispatchWithLocalCourier, markLocalCourierDelivered, markLocalCourierReturned } from "./localCourier.js";
 import { notifyPaymentProofApproved, PAYMENT_APPROVED_DELAY_MS } from "./paymentProofLink.js";
 import { isWhatsappNumberMissingError } from "../../utils/whatsappNotOnNumber.js";
 
@@ -19,11 +20,13 @@ import { isWhatsappNumberMissingError } from "../../utils/whatsappNotOnNumber.js
 // Bosta create with its duplicate guard and customer notification, the AWB fetch —
 // and records who pressed the button on the order timeline and in the portal audit log.
 
-export const PORTAL_ORDER_ACTIONS = ["confirm", "send_confirmation", "ready_to_ship", "create_shipment", "print_awb", "shipping_fee_paid", "shipping_fee_waived", "release_shipment"];
+export const PORTAL_ORDER_ACTIONS = ["confirm", "send_confirmation", "ready_to_ship", "create_shipment", "print_awb", "shipping_fee_paid", "shipping_fee_waived", "release_shipment", "local_courier_dispatch", "local_courier_delivered", "local_courier_returned"];
 // Shipping the parcel and printing its airway bill are open to EVERY employee in the
 // employee portal (owner request 2026-09-10: whoever packs, ships). Confirming an
-// order stays with managers and the employees switched on.
-export const PORTAL_SHIP_ACTIONS = ["create_shipment", "print_awb"];
+// order stays with managers and the employees switched on. The shop's own courier is
+// shipping too: whoever hands the parcel over records it (a refused parcel cancels the
+// order, so "returned" stays with the employees switched on).
+export const PORTAL_SHIP_ACTIONS = ["create_shipment", "print_awb", "local_courier_dispatch", "local_courier_delivered"];
 
 // Why sendOrderConfirmation declined, as a code the portal can say in Arabic.
 const CONFIRMATION_SEND_CODES = {
@@ -107,6 +110,9 @@ const defaultDeps = {
   markShippingFeePaid,
   waiveShippingFeeAdvance,
   markOrderPaidInFull,
+  dispatchWithLocalCourier,
+  markLocalCourierDelivered,
+  markLocalCourierReturned,
   appendTimeline: (entry) => appendTimeline(db, entry),
   audit: recordEmployeePortalAudit,
 };
@@ -220,6 +226,17 @@ export const runPortalOrderAction = async ({ actor = {}, surface = "employee_por
     if (normalized(order.shipment.provider) !== "bosta") throw actionError(409, "OTHER_COURIER", "This order is booked with another courier", { provider: order.shipment.provider });
     if (CLOSED_ORDER_STATUSES.has(status)) throw actionError(409, "ORDER_LOCKED", "This order is closed");
     await deps.releaseShipment(order.id, { actorName, source: surface });
+  } else if (key === "local_courier_dispatch") {
+    // The shop's own motorcycle courier (localCourier.js) — no Bosta parcel, no airway bill.
+    if (order.group === "new") throw actionError(409, "ORDER_NOT_CONFIRMED", "Confirm the order before shipping it");
+    if (order.group !== "confirmed") throw actionError(409, "BOSTA_SHIPMENT_EXISTS", "This order already left", { tracking_number: order.shipment.tracking_number });
+    await deps.dispatchWithLocalCourier({ orderId: order.id, tenantId, actorName, source: surface });
+  } else if (key === "local_courier_delivered") {
+    if (order.group === "new") throw actionError(409, "ORDER_NOT_CONFIRMED", "Confirm the order before closing it");
+    const delivered = await deps.markLocalCourierDelivered({ orderId: order.id, tenantId, actorName, source: surface });
+    result = { collected: Number(delivered?.collected) || 0 };
+  } else if (key === "local_courier_returned") {
+    await deps.markLocalCourierReturned({ orderId: order.id, tenantId, source: surface });
   } else if (key === "print_awb") {
     if (!order.shipment.tracking_number && !order.shipment.delivery_id) {
       throw actionError(409, "BOSTA_NO_PRINTABLE_LABEL", "This order has no shipment to print yet");
