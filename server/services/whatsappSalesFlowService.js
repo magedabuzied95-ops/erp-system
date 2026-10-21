@@ -1,3 +1,4 @@
+import { AsyncLocalStorage } from "node:async_hooks";
 import db from "../database/db.js";
 import { getConversationMemory, updateConversationMemory } from "./aiConversationMemory.js";
 import {
@@ -12,7 +13,13 @@ import { agentActionAllowed } from "./aiAgentActionPolicy.js";
 import { resolveSocialProductDisplayPrice } from "../utils/customerDisplayPrice.js";
 import { absolutePublicUploadUrl } from "../utils/publicUrl.js";
 import { customerSizeLabel, customerSizeLabels, matchOfferedSize } from "./footwearSizeResolver.js";
-import { sendChoiceListMessage, sendCtaUrlMessage, sendImageMessage, sendReplyButtonsMessage, sendTextMessage } from "./whatsappGatewayService.js";
+import {
+  sendChoiceListMessage as gatewayChoiceList,
+  sendCtaUrlMessage as gatewayCtaUrl,
+  sendImageMessage as gatewayImage,
+  sendReplyButtonsMessage as gatewayReplyButtons,
+  sendTextMessage as gatewayText,
+} from "./whatsappGatewayService.js";
 
 /* ======================================================
    THE SAME SALE, ON WHATSAPP
@@ -154,8 +161,78 @@ export const parseSizeRowId = (value = "") => {
   }
 };
 
+// The number this sale is running on: "cloud:<phone_number_id>" for the official number, empty for
+// the Evolution default. Every reply of one tap leaves from it, so the customer stays in one chat.
+const flowNumber = new AsyncLocalStorage();
+const flowInstance = () => text(flowNumber.getStore()?.instance || "");
+
+// Evolution echoes every message we send back through its webhook, and that echo is what puts the
+// reply in the inbox. Cloud API sends no echo, so on the official number each reply is written to
+// the transcript here — the same row shape the official chatbot flows write.
+const recordCloudReply = async (sending, { phone, message = "", actions = [], imageUrl = "" }) =>
+  recordWhatsappCloudReply({
+    result: await sending,
+    tenantId: flowNumber.getStore()?.tenantId,
+    instance: flowInstance(),
+    phone,
+    message,
+    actions,
+    imageUrl,
+  });
+
+export const recordWhatsappCloudReply = async ({ result = null, tenantId = 1, instance = "", phone = "", message = "", actions = [], imageUrl = "" } = {}) => {
+  if (!text(instance).startsWith("cloud:") || !text(message)) return result;
+  try {
+    tenantId = Number(tenantId || 1);
+    const conversationKey = whatsappConversationId(phone);
+    const messageId = text(result?.message_id || "");
+    const { appendWhatsappOutboundSupportReply } = await import("./aiSupportLogService.js");
+    const saved = await appendWhatsappOutboundSupportReply({
+      tenantId,
+      sessionId: conversationKey,
+      message: text(message),
+      messageType: actions.length ? "interactive" : "text",
+      senderType: "system",
+      suggestedActions: actions.map(text).filter(Boolean),
+      visualAttachments: imageUrl ? [{ type: "image", url: imageUrl }] : [],
+      source: "whatsapp_sales_flow",
+      channel: "whatsapp",
+      deliveryStatus: "sent",
+      externalMessageId: messageId,
+      providerMessageId: messageId,
+      whatsappInstance: instance,
+      remoteJid: conversationKey,
+      resolvedReplyJid: conversationKey,
+      resolvedPhone: text(phone),
+      preserveExactMessage: true,
+      sourcePath: "whatsapp_sales_flow",
+      insertSource: "whatsapp_sales_flow",
+      confidence: 1,
+      detectedIntent: "whatsapp_sales_flow",
+    });
+    if (saved) {
+      const { emitToRooms } = await import("../utils/socket.js");
+      emitToRooms([`tenant:${tenantId}`], "ai_inbox:message", {
+        tenant_id: tenantId,
+        session_id: conversationKey,
+        channel: "whatsapp",
+        message: { ...saved, from_me: true, direction: "outbound" },
+      });
+    }
+  } catch (error) {
+    console.warn("WHATSAPP_SALES_FLOW_TRANSCRIPT_FAILED", { message: error?.message || String(error) });
+  }
+  return result;
+};
+
+const sendTextMessage = (args = {}) => recordCloudReply(gatewayText(args), { phone: args.phone, message: args.message });
+const sendImageMessage = (args = {}) => recordCloudReply(gatewayImage(args), { phone: args.phone, message: args.caption, imageUrl: args.imageUrl });
+const sendChoiceListMessage = (args = {}) => recordCloudReply(gatewayChoiceList(args), { phone: args.phone, message: args.description, actions: (args.rows || []).map((row) => row?.title) });
+const sendReplyButtonsMessage = (args = {}) => recordCloudReply(gatewayReplyButtons(args), { phone: args.phone, message: args.description, actions: (args.buttons || []).map((button) => button?.displayText) });
+const sendCtaUrlMessage = (args = {}) => recordCloudReply(gatewayCtaUrl(args), { phone: args.phone, message: args.text, actions: [args.displayText] });
+
 const send = async ({ phone, message }) =>
-  sendTextMessage({ phone, message: text(message) }).catch((error) => {
+  sendTextMessage({ phone, message: text(message), instance: flowInstance() }).catch((error) => {
     console.warn("WHATSAPP_SALES_FLOW_SEND_FAILED", { phone_suffix: text(phone).slice(-4), message: error?.message || String(error) });
     return null;
   });
@@ -194,6 +271,7 @@ const presentSizes = async ({ tenantId, phone, conversationId, productId, color,
   const bodyText = `${lead}\n\nالمقاسات المتاحة في اللون ده:\n${customerSizeLabels(sizes).join(" · ")}`;
   await sendChoiceListMessage({
     phone,
+    instance: flowInstance(),
     title: text(product?.name || "اختار المقاس"),
     description: `${bodyText}\n\nاضغط «اختار المقاس» وحدد مقاسك 👟`,
     buttonText: "اختار المقاس",
@@ -273,7 +351,7 @@ const sendSummary = async ({ tenantId, phone, conversationId, productId, color, 
   const imageUrl = rawImage ? absolutePublicUploadUrl(rawImage) : "";
   let photoSent = false;
   if (imageUrl) {
-    photoSent = await sendImageMessage({ phone, imageUrl, caption })
+    photoSent = await sendImageMessage({ phone, imageUrl, caption, instance: flowInstance() })
       .then(() => true)
       .catch((error) => {
         console.warn("WHATSAPP_SUMMARY_IMAGE_FAILED", { conversation_id: conversationId, message: error?.message || String(error) });
@@ -286,6 +364,7 @@ const sendSummary = async ({ tenantId, phone, conversationId, productId, color, 
 
   await sendReplyButtonsMessage({
     phone,
+    instance: flowInstance(),
     title: "تفاصيل طلبك",
     description: buttonsBody,
     footer: "M1 Store",
@@ -344,6 +423,7 @@ const sendAddressLink = async ({ tenantId, phone, conversationId, flow, productI
   const body = "☑ ممتاز\nفاضل بس بيانات الشحن 📦\nاضغط الزرار تحت وكمل بياناتك، وبعدها أكد الطلب ❤️";
   await sendCtaUrlMessage({
     phone,
+    instance: flowInstance(),
     title: "بيانات الشحن",
     text: body,
     displayText: "إملا بيانات الشحن 📦",
@@ -362,7 +442,10 @@ const sendAddressLink = async ({ tenantId, phone, conversationId, flow, productI
 
 const CONFIRM_WORDS = ["تأكيد", "تاكيد", "أكد", "اكد", "confirm", "ok", "تمام"];
 
-export const handleWhatsappSalesFlow = async ({
+export const handleWhatsappSalesFlow = async ({ instance = "", ...input } = {}) =>
+  flowNumber.run({ instance: text(instance), tenantId: input.tenantId || 1 }, () => runWhatsappSalesFlow(input));
+
+const runWhatsappSalesFlow = async ({
   tenantId = 1,
   phone = "",
   buttonId = "",

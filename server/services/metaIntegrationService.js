@@ -20654,11 +20654,19 @@ export const completeSocialCommentOrderFromAddressRequest = async ({
     : (conversationId.startsWith(AI_AGENT_CHANNELS.INSTAGRAM)
       ? AI_AGENT_CHANNELS.INSTAGRAM
       : AI_AGENT_CHANNELS.FACEBOOK_MESSENGER);
-  // One sender for the rest of this function: Evolution for WhatsApp, the Meta pipeline otherwise.
+  // One sender for the rest of this function: WhatsApp from the number the customer wrote to (the
+  // official Cloud number or Evolution), the Meta pipeline otherwise.
   const sendConfirmation = async (messageText) => {
     if (!isWhatsapp) return null;
-    const { sendTextMessage } = await import("./whatsappGatewayService.js");
-    return sendTextMessage({ phone: senderId, message: text(messageText) }).catch((error) => {
+    const { resolveWhatsappConversationInstance, sendTextMessage } = await import("./whatsappGatewayService.js");
+    const instance = text(await resolveWhatsappConversationInstance({ tenantId: tenantId || 1, conversationId }).catch(() => ""));
+    return sendTextMessage({ phone: senderId, message: text(messageText), instance })
+      .then(async (result) => {
+        // Cloud sends no echo, so the confirmation is written to the inbox here.
+        const { recordWhatsappCloudReply } = await import("./whatsappSalesFlowService.js");
+        return recordWhatsappCloudReply({ result, tenantId: tenantId || 1, instance, phone: senderId, message: messageText });
+      })
+      .catch((error) => {
       console.warn("WHATSAPP_ORDER_CONFIRMATION_SEND_FAILED", { conversation_id: conversationId, message: error?.message || String(error) });
       return null;
     });

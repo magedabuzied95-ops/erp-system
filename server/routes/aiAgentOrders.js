@@ -1979,7 +1979,34 @@ export const handleWhatsappCloudWebhookRequest = async (req, res) => {
       // text is only the button label. The AI grounds colours from TEXT, so the label is swapped
       // for the catalog sentence — what the Evolution route does for the same tap. The transcript
       // already holds the raw tap, as it does there.
-      const cloudColorTap = String(message.raw?.message?.interactive?.button_reply?.id || "").match(/^choose_color:(\d+)$/);
+      // First refusal goes to the deterministic sale (colour → size list → summary → confirm →
+      // address link), exactly as on the Evolution route; it answers from this same number and
+      // returns handled:false for anything it does not own, so the AI keeps everything else.
+      const cloudTapId = String(
+        message.raw?.message?.interactive?.button_reply?.id
+        || message.raw?.message?.interactive?.list_reply?.id
+        || message.raw?.message?.button?.payload
+        || ""
+      );
+      try {
+        const { handleWhatsappSalesFlow } = await import("../services/whatsappSalesFlowService.js");
+        const flowResult = await handleWhatsappSalesFlow({
+          tenantId,
+          phone: message.external_customer_id,
+          buttonId: cloudTapId,
+          messageText: message.message_text || "",
+          instance: metadata?.phone_number_id ? `cloud:${metadata.phone_number_id}` : "",
+        });
+        if (flowResult?.handled === true) {
+          console.info("[whatsapp:cloud-sales-flow]", { reason: flowResult.reason, button: cloudTapId, phoneSuffix: String(message.external_customer_id || "").slice(-4) });
+          results.push({ external_customer_id: message.external_customer_id, conversation_id: message.external_conversation_id, sent: true, reason: flowResult.reason });
+          continue;
+        }
+      } catch (salesFlowError) {
+        // Never let the flow cost the message: the AI answers it exactly as before.
+        console.warn("[whatsapp:cloud-sales-flow-failed]", { message: salesFlowError?.message || String(salesFlowError) });
+      }
+      const cloudColorTap = cloudTapId.match(/^choose_color:(\d+)$/);
       if (cloudColorTap) {
         try {
           const picked = (await db.query(

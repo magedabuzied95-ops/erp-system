@@ -2254,7 +2254,26 @@ export const sendReplyButtonsMessage = async ({
   footer = "",
   buttons = [],
   fallbackText = "",
+  instance = "",
 } = {}) => {
+  if (isCloudTransport(instance)) {
+    // Cloud reply buttons: same three-button cap; a refusal still reaches the customer as text.
+    const normalizedCloudPhone = normalizeEgyptPhone(phone);
+    if (!normalizedCloudPhone) throw gatewayError("A valid WhatsApp phone number is required", "WHATSAPP_PHONE_REQUIRED", 400);
+    try {
+      return await whatsappCloud.sendInteractiveButtons({
+        phone: normalizedCloudPhone,
+        bodyText: text(description).slice(0, 1024),
+        title,
+        footer,
+        buttons: (Array.isArray(buttons) ? buttons : []).map((button) => ({ id: text(button?.id), title: text(button?.displayText) })).filter((button) => button.id && button.title),
+        phoneNumberId: resolveWhatsappTransport(instance).phoneNumberId,
+      });
+    } catch (error) {
+      console.warn("[whatsapp:cloud-reply-buttons-fallback]", { phoneSuffix: normalizedCloudPhone.slice(-4), message: error?.message || String(error) });
+      return sendTextMessage({ phone: normalizedCloudPhone, message: text(fallbackText) || text(description), instance });
+    }
+  }
   if (provider() !== "evolution") {
     throw gatewayError("Interactive buttons are only supported on the Evolution provider", "WHATSAPP_BUTTONS_UNSUPPORTED", 409);
   }
@@ -2314,7 +2333,40 @@ export const sendChoiceListMessage = async ({
   sectionTitle = "",
   rows = [],
   fallbackText = "",
+  instance = "",
 } = {}) => {
+  if (isCloudTransport(instance)) {
+    // Cloud's own interactive list (up to ten rows). A refusal still reaches the customer as text.
+    const normalizedCloudPhone = normalizeEgyptPhone(phone);
+    if (!normalizedCloudPhone) throw gatewayError("A valid WhatsApp phone number is required", "WHATSAPP_PHONE_REQUIRED", 400);
+    const cloudRows = (Array.isArray(rows) ? rows : [])
+      .map((row) => ({ id: text(row?.rowId).slice(0, 200), title: text(row?.title).slice(0, 24), description: text(row?.description).slice(0, 72) }))
+      .filter((row) => row.id && row.title)
+      .slice(0, 10);
+    if (!cloudRows.length) throw gatewayError("A list needs at least one row", "WHATSAPP_LIST_EMPTY", 400);
+    try {
+      return await whatsappCloud.sendCloudPayload({
+        phoneNumberId: resolveWhatsappTransport(instance).phoneNumberId,
+        message: {
+          to: whatsappCloud.toGraphRecipient(normalizedCloudPhone),
+          type: "interactive",
+          interactive: {
+            type: "list",
+            ...(text(title) ? { header: { type: "text", text: text(title).slice(0, 60) } } : {}),
+            body: { text: text(description).slice(0, 4096) },
+            ...(text(footer) ? { footer: { text: text(footer).slice(0, 60) } } : {}),
+            action: {
+              button: text(buttonText).slice(0, 20),
+              sections: [{ title: text(sectionTitle || title).slice(0, 24), rows: cloudRows }],
+            },
+          },
+        },
+      });
+    } catch (error) {
+      console.warn("[whatsapp:cloud-choice-list-fallback]", { phoneSuffix: normalizedCloudPhone.slice(-4), message: error?.message || String(error) });
+      return sendTextMessage({ phone: normalizedCloudPhone, message: text(fallbackText) || text(description), instance });
+    }
+  }
   if (provider() !== "evolution") {
     throw gatewayError("Interactive list is only supported on the Evolution provider", "WHATSAPP_BUTTONS_UNSUPPORTED", 409);
   }
