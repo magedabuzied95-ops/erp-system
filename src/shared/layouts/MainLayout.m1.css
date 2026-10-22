@@ -48,8 +48,10 @@ html[data-density="compact"] .m1-shell-sidebar nav a{min-height:37px!important;f
    grid-cols utility are matched by the [class] tests and left untouched -
    `xl:grid-cols-3` is a different class token than `grid-cols-3`. */
 @media(max-width:639px){.m1-shell-content .grid:not([class*=" grid-cols-"]):not([class^="grid-cols-"]){grid-template-columns:minmax(0,1fr)}}
-/* Side chat (Genie): the panel is a third shell column; the page narrows to make room and the grid animates the move. Folded, it is a 56px rail. */
-.m1-shell-root{--side-chat-width:420px}
+/* Side chat (Genie): a third shell column reserves the width (the grid animates the page narrowing) while the panel itself is FIXED to the viewport — the shell root is overflow-x:hidden, which turns it into a scroll container and kills position:sticky, so a sticky panel scrolled away with the page. Folded, it is a 56px rail; the width tweens either way. */
+.m1-shell-root{--side-chat-width:420px;--side-chat-ease:.32s cubic-bezier(.22,1,.36,1)}
 .m1-shell-root--side-chat-collapsed{--side-chat-width:56px}
-@media(min-width:1024px){.m1-shell-root.m1-shell-root--side-chat{grid-template-columns:260px minmax(0,1fr) var(--side-chat-width)!important}.m1-shell-root.m1-shell-root--side-chat.m1-shell-root--sidebar-autohide{grid-template-columns:64px minmax(0,1fr) var(--side-chat-width)!important}.m1-side-chat{position:sticky;top:0;height:100vh;min-width:0;box-shadow:-18px 0 48px rgba(0,0,0,.14)}.m1-side-chat--rail{width:56px;box-shadow:none}[dir="rtl"] .m1-side-chat{box-shadow:18px 0 48px rgba(0,0,0,.14)}}
-@media(max-width:1023px){.m1-side-chat{height:100dvh}}
+@media(min-width:1024px){.m1-shell-root.m1-shell-root--side-chat{grid-template-columns:260px minmax(0,1fr) var(--side-chat-width)!important}.m1-shell-root.m1-shell-root--side-chat.m1-shell-root--sidebar-autohide{grid-template-columns:64px minmax(0,1fr) var(--side-chat-width)!important}.m1-side-chat-slot{width:var(--side-chat-width);transition:width var(--side-chat-ease)}.m1-side-chat{position:fixed;top:0;bottom:0;inset-inline-end:0;z-index:35;height:100vh;width:var(--side-chat-width);min-width:0;overflow:hidden;box-shadow:-18px 0 48px rgba(0,0,0,.14);transition:width var(--side-chat-ease);animation:m1-side-chat-in var(--side-chat-ease)}[dir="rtl"] .m1-side-chat{box-shadow:18px 0 48px rgba(0,0,0,.14);--side-chat-slide:-100%}.m1-side-chat--rail{box-shadow:none}}
+@media(max-width:1023px){.m1-side-chat{position:fixed;inset:0;z-index:60;height:100dvh;width:auto}}
+@keyframes m1-side-chat-in{from{transform:translateX(var(--side-chat-slide,100%));opacity:.4}to{transform:none;opacity:1}}
+@media(prefers-reduced-motion:reduce){.m1-side-chat,.m1-side-chat-slot{transition:none;animation:none}}

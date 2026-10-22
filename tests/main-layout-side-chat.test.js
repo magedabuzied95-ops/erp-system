@@ -24,6 +24,11 @@ const en = JSON.parse(readFileSync("src/locales/en/aiSupport.json", "utf8"));
 
 test("the shell docks the panel as a third grid column and narrows the page", () => {
   assert.match(layout, /const sideChatOpen = Boolean\(sideChat\.open\)/);
+  // The panel is fixed (the overflow-x:hidden shell root kills sticky, and a
+  // sticky panel scrolled away with the page); the slot reserves its column.
+  assert.match(layout, /sideChatOpen \? <div className="m1-side-chat-slot hidden lg:block" aria-hidden="true" \/> : null/);
+  assert.match(css, /\.m1-side-chat-slot\{width:var\(--side-chat-width\)/);
+  assert.match(css, /@media\(max-width:1023px\)\{\.m1-side-chat\{position:fixed;inset:0;z-index:60/);
   assert.match(layout, /sideChatOpen \? "m1-shell-root--side-chat" : ""/);
   assert.match(layout, /<SideChatPanel \/>/);
   assert.match(css, /\.m1-shell-root\.m1-shell-root--side-chat\{grid-template-columns:260px minmax\(0,1fr\) var\(--side-chat-width\)!important\}/);
@@ -33,20 +38,19 @@ test("the shell docks the panel as a third grid column and narrows the page", ()
 test("the header toggle folds the panel to a rail (Genie), it never widens", () => {
   assert.match(layout, /sideChat\.collapsed \? "m1-shell-root--side-chat-collapsed"/);
   assert.match(css, /\.m1-shell-root--side-chat-collapsed\{--side-chat-width:56px\}/);
-  assert.match(css, /\.m1-side-chat--rail\{width:56px/);
-  assert.match(panel, /data-side-chat-state="collapsed"/);
+  assert.match(panel, /data-side-chat-state=\{collapsed \? "collapsed" : conversation \? "thread" : "list"\}/);
   assert.match(panel, /onClick=\{toggleSideChatCollapsed\}/);
   assert.doesNotMatch(panel, /expanded|Maximize2|Minimize2/);
   assert.doesNotMatch(css, /side-chat-expanded/);
-  // The rail is desktop-only; phones get the whole screen or nothing.
-  assert.match(panel, /m1-side-chat--rail hidden .*lg:flex/);
-  assert.match(panel, /fixed inset-0 z-\[60\] .*lg:static/);
+  // One aside for every look, so the width tweens instead of remounting.
+  assert.equal((panel.match(/<aside\s/g) || []).length, 1);
+  assert.match(panel, /\{collapsed \? rail : conversation \? \(/);
+  assert.match(css, /\.m1-side-chat\{position:fixed;top:0;bottom:0;inset-inline-end:0;[^}]*transition:width var\(--side-chat-ease\)/);
 });
 
 test("the panel holds the conversation list, and a thread goes back to it", () => {
   assert.match(store, /export const openSideChatList = /);
   assert.match(store, /export const backToSideChatList = /);
-  assert.match(panel, /data-side-chat-state=\{conversation \? "thread" : "list"\}/);
   assert.match(panel, /onClick=\{backToSideChatList\}/);
   assert.match(panel, /<PanelList activeKey="" \/>/);
   assert.match(panel, /useInboxConversations\(\{ view, limit: 40, search: debounced \}\)/);

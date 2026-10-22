@@ -106,31 +106,25 @@ export default function SideChatPanel() {
   const key = sideChatConversationKey(conversation || {});
   const collapseLabel = t(collapsed ? "aiSupport.inbox.sideChat.open" : "aiSupport.inbox.sideChat.collapse");
 
-  if (collapsed) {
-    // The folded rail (desktop only — the grid column shrinks to it). Phones
-    // never fold: the panel there is the whole screen or nothing.
-    return (
-      <aside
-        data-side-chat="true"
-        data-side-chat-state="collapsed"
-        aria-label={t("aiSupport.inbox.sideChat.title")}
-        className="m1-side-chat m1-side-chat--rail hidden flex-col items-center gap-1 border-s border-border bg-surface pt-2 text-text lg:flex lg:h-screen"
-      >
-        <HeaderButton onClick={toggleSideChatCollapsed} label={collapseLabel}><PanelRightOpen className="h-4 w-4 rtl:-scale-x-100" /></HeaderButton>
-        <HeaderButton onClick={closeSideChat} label={t("aiSupport.inbox.sideChat.close")} className="hover:bg-danger-subtle hover:text-danger"><X className="h-4 w-4" /></HeaderButton>
-        {conversation ? (
-          <button type="button" onClick={toggleSideChatCollapsed} title={conversationDisplayName(conversation)} aria-label={conversationDisplayName(conversation)} className="mt-2">
-            <CustomerAvatar name={conversationDisplayName(conversation)} url={clean(conversation.customer_avatar_url || conversation.avatar_url)} className="h-8 w-8 overflow-hidden rounded-full" iconClassName="h-4 w-4" />
-          </button>
-        ) : null}
-      </aside>
-    );
-  }
-
   const openInInbox = () => {
     closeSideChat();
     navigate(`/admin/ai-inbox${conversation ? `?conversation=${encodeURIComponent(clean(conversation.session_id || key))}` : ""}`);
   };
+
+  // One <aside> for every look, so the width tweens between the panel and the
+  // folded rail (MainLayout.m1.css) instead of a remount. The rail is desktop
+  // only — phones never fold, the panel there is the whole screen or nothing.
+  const rail = (
+    <div className="flex h-full flex-col items-center gap-1 pt-2">
+      <HeaderButton onClick={toggleSideChatCollapsed} label={collapseLabel}><PanelRightOpen className="h-4 w-4 rtl:-scale-x-100" /></HeaderButton>
+      <HeaderButton onClick={closeSideChat} label={t("aiSupport.inbox.sideChat.close")} className="hover:bg-danger-subtle hover:text-danger"><X className="h-4 w-4" /></HeaderButton>
+      {conversation ? (
+        <button type="button" onClick={toggleSideChatCollapsed} title={conversationDisplayName(conversation)} aria-label={conversationDisplayName(conversation)} className="mt-2">
+          <CustomerAvatar name={conversationDisplayName(conversation)} url={clean(conversation.customer_avatar_url || conversation.avatar_url)} className="h-8 w-8 overflow-hidden rounded-full" iconClassName="h-4 w-4" />
+        </button>
+      ) : null}
+    </div>
+  );
 
   const chrome = (
     <>
@@ -143,11 +137,11 @@ export default function SideChatPanel() {
   return (
     <aside
       data-side-chat="true"
-      data-side-chat-state={conversation ? "thread" : "list"}
+      data-side-chat-state={collapsed ? "collapsed" : conversation ? "thread" : "list"}
       aria-label={t("aiSupport.inbox.sideChat.title")}
-      className="m1-side-chat fixed inset-0 z-[60] flex flex-col bg-surface text-text lg:static lg:inset-auto lg:z-20 lg:h-screen lg:border-s lg:border-border"
+      className={`m1-side-chat flex flex-col bg-surface text-text lg:border-s lg:border-border ${collapsed ? "m1-side-chat--rail" : ""}`}
     >
-      {conversation ? (
+      {collapsed ? rail : conversation ? (
         <QuickConversationThread
           key={key}
           item={conversation}

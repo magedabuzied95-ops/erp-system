@@ -1087,6 +1087,9 @@ function MainLayout() {
           </div>
         </div>
       </main>
+      {/* The panel is fixed to the viewport; this slot is the grid column that
+          keeps the page narrowed to make room for it. */}
+      {sideChatOpen ? <div className="m1-side-chat-slot hidden lg:block" aria-hidden="true" /> : null}
       <SideChatPanel />
       <CommandPalette items={paletteItems} userId={paletteUserId} currentPath={currentSidebarPath} />
     </div>
