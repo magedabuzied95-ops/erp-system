@@ -32,7 +32,8 @@
       "allShippingStatuses": "All shipping statuses",
       "allPaymentStatuses": "All payment statuses",
       "codOrPrepaid": "COD / Prepaid",
-      "prepaid": "Prepaid"
+      "prepaid": "Prepaid",
+      "button": "Filters"
     },
     "bulk": {
       "createShipments": "Create Shipments",

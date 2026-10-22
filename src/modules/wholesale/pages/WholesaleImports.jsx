@@ -570,7 +570,7 @@ export default function WholesaleImports() {
   const { t } = useTranslation();
   const [tab, setTab] = useState("shipments");
   return (
-    <div className="mx-auto w-full max-w-5xl space-y-4 p-4">
+    <div className="mx-auto w-full max-w-5xl space-y-4 p-4 max-md:space-y-3 max-md:p-0 max-md:[&_input:not([type=checkbox])]:text-base max-md:[&_select]:text-base max-md:[&_textarea]:text-base">
       <header>
         <h1 className="text-xl font-black text-[var(--text)]">{t("orders.wholesale.imports.title")}</h1>
         <p className="text-sm font-bold text-[var(--text-muted)]">{t("orders.wholesale.imports.subtitle")}</p>

@@ -161,7 +161,7 @@ export default function WholesalePayments() {
   useEffect(() => { setRows(null); load(); }, [load]);
 
   return (
-    <div className="mx-auto grid max-w-5xl gap-4 p-4">
+    <div className="mx-auto grid max-w-5xl gap-4 p-4 max-md:gap-3 max-md:p-0 max-md:[&_input:not([type=checkbox])]:text-base max-md:[&_select]:text-base max-md:[&_textarea]:text-base">
       <header>
         <h1 className="text-2xl font-black text-[var(--text)]">{t("orders.wholesale.payments.title")}</h1>
         <p className="mt-1 text-sm font-bold text-[var(--muted)]">{t("orders.wholesale.payments.subtitle")}</p>

@@ -15,14 +15,14 @@ const tierStyles = {
 };
 
 const StatCard = ({ label, value, icon: Icon, hint }) => (
-  <div className="rounded-[var(--radius-card)] border border-[var(--border)] bg-[var(--surface)] p-5 shadow-[var(--shadow-card)]">
-    <div className="flex items-start justify-between gap-4">
-      <div>
-        <p className="text-xs uppercase tracking-[0.2em] text-[var(--muted)]">{label}</p>
-        <p className="mt-3 text-3xl font-black text-[var(--text)]">{value}</p>
+  <div className="min-w-0 rounded-[var(--radius-card)] border border-[var(--border)] bg-[var(--surface)] p-5 shadow-[var(--shadow-card)] max-md:p-3">
+    <div className="flex items-start justify-between gap-4 max-md:gap-2">
+      <div className="min-w-0">
+        <p className="text-xs uppercase tracking-[0.2em] text-[var(--muted)] max-md:tracking-normal">{label}</p>
+        <p className="mt-3 break-words text-3xl font-black text-[var(--text)] max-md:mt-1 max-md:text-xl">{value}</p>
         {hint ? <p className="mt-2 text-sm text-[var(--muted)]">{hint}</p> : null}
       </div>
-      <div className="rounded-2xl border border-primary/20 bg-primary/10 p-3 text-primary">
+      <div className="rounded-2xl border border-primary/20 bg-primary/10 p-3 text-primary max-md:hidden">
         <Icon className="h-5 w-5" />
       </div>
     </div>
@@ -94,8 +94,8 @@ function LoyaltyDashboard() {
   }, [summary.tierDistribution]);
 
   return (
-    <div className="space-y-6 text-[var(--text)]">
-      <div className="flex flex-col justify-between gap-4 rounded-[var(--radius-card)] border border-[var(--border)] bg-[var(--card)] p-6 shadow-[var(--shadow-card)] xl:flex-row xl:items-center">
+    <div className="space-y-6 text-[var(--text)] max-md:space-y-3 max-md:[&_input:not([type=checkbox])]:text-base max-md:[&_select]:text-base">
+      <div className="flex flex-col justify-between gap-4 rounded-[var(--radius-card)] border border-[var(--border)] bg-[var(--card)] p-6 shadow-[var(--shadow-card)] xl:flex-row xl:items-center max-md:gap-3 max-md:rounded-none max-md:border-0 max-md:bg-transparent max-md:p-0 max-md:shadow-none">
         <div>
           <h1 className="m1-page-title">{t("loyalty.dashboard.title")}</h1>
         </div>
@@ -112,7 +112,7 @@ function LoyaltyDashboard() {
 
       {error ? <div className="rounded-2xl border border-amber-500/20 bg-amber-500/10 px-4 py-3 text-sm text-amber-100">{error}</div> : null}
 
-      <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-4">
+      <div className="grid grid-cols-2 gap-4 md:grid-cols-2 xl:grid-cols-4 max-md:gap-2">
         <StatCard label={t("loyalty.dashboard.stats.totalCustomers")} value={loading ? "..." : summary.totalCustomers || 0} icon={UsersRound} />
         <StatCard label={t("loyalty.dashboard.stats.pointsIssued")} value={loading ? "..." : Number(summary.totalPointsIssued || 0).toLocaleString()} icon={Coins} />
         <StatCard label={t("loyalty.dashboard.stats.pointsRedeemed")} value={loading ? "..." : Number(summary.totalPointsRedeemed || 0).toLocaleString()} icon={Gift} />
@@ -120,7 +120,7 @@ function LoyaltyDashboard() {
       </div>
 
       <div className="grid gap-6 xl:grid-cols-[1.5fr_1fr]">
-        <div className="rounded-[var(--radius-card)] border border-[var(--border)] bg-[var(--card)] p-5">
+        <div className="min-w-0 rounded-[var(--radius-card)] border border-[var(--border)] bg-[var(--card)] p-5 max-md:p-3">
           <div className="flex items-center justify-between gap-4">
             <div>
               <h2 className="m1-section-title">{t("loyalty.dashboard.top.title")}</h2>
@@ -133,9 +133,9 @@ function LoyaltyDashboard() {
               <Link
                 key={customer.id}
                 to={`/loyalty/customers/${customer.id}`}
-                className="flex items-center justify-between gap-4 rounded-[var(--radius-card)] border border-[var(--border)] bg-[var(--surface)] px-4 py-3 transition hover:border-primary/30 hover:bg-primary/5"
+                className="flex items-center justify-between gap-4 rounded-[var(--radius-card)] border border-[var(--border)] bg-[var(--surface)] px-4 py-3 transition hover:border-primary/30 hover:bg-primary/5 max-md:gap-2 max-md:px-3"
               >
-                <div>
+                <div className="min-w-0">
                   <p className="font-semibold text-[var(--text)]">{customer.name}</p>
                   <p className="mt-1 text-xs text-[var(--muted)]">
                     Lifetime spend {Number(customer.lifetime_spent || 0).toLocaleString()} EGP
@@ -153,7 +153,7 @@ function LoyaltyDashboard() {
           </div>
         </div>
 
-        <div className="rounded-[var(--radius-card)] border border-[var(--border)] bg-[var(--card)] p-5">
+        <div className="min-w-0 rounded-[var(--radius-card)] border border-[var(--border)] bg-[var(--card)] p-5 max-md:p-3">
           <h2 className="m1-section-title">{t("loyalty.dashboard.tiers.title")}</h2>
           <div className="mt-5 space-y-3">
             {Object.entries(tierCounts).map(([tier, count]) => (
@@ -172,7 +172,7 @@ function LoyaltyDashboard() {
       </div>
 
       <div className="grid gap-6 xl:grid-cols-[1.4fr_1fr]">
-        <div className="rounded-[var(--radius-card)] border border-[var(--border)] bg-[var(--card)] p-5">
+        <div className="min-w-0 rounded-[var(--radius-card)] border border-[var(--border)] bg-[var(--card)] p-5 max-md:p-3">
           <h2 className="m1-section-title">{t("loyalty.dashboard.history.title")}</h2>
           <div className="mt-5 overflow-x-auto rounded-2xl border border-[var(--border)]">
             <table className="m1-table m1-table--compact min-w-full text-left text-sm">
@@ -200,7 +200,7 @@ function LoyaltyDashboard() {
           </div>
         </div>
 
-        <div className="rounded-[var(--radius-card)] border border-[var(--border)] bg-[var(--card)] p-5">
+        <div className="min-w-0 rounded-[var(--radius-card)] border border-[var(--border)] bg-[var(--card)] p-5 max-md:p-3">
           <h2 className="m1-section-title">{t("loyalty.dashboard.rules.title")}</h2>
           <div className="mt-5 space-y-3">
             {rules.map((rule) => (
