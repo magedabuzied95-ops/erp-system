@@ -401,6 +401,65 @@ html.dark .ai-inbox-desktop .ai-omni-chat-panel [class*="bg-[#eefaf8]"] {
     border-radius: 0;
   }
 
+  /* The customer panel (tap the photo) was a third column beside the chat: the
+     chat shrank to half a phone and the panel ran off-screen. It covers the
+     chat instead; its × returns to it. */
+  .ai-inbox-desktop .ai-omni-side-panel {
+    position: fixed;
+    inset: 0;
+    z-index: 60;
+    width: 100% !important;
+    padding-top: env(safe-area-inset-top);
+    padding-bottom: env(safe-area-inset-bottom);
+    overflow-y: auto;
+    background: var(--bg);
+  }
+
+  /* The composer is the PWA's WhatsApp row: + | text (⚡ beside it) | camera |
+     mic, and the mic gives way to Send once there is text. Everything else the
+     desktop row shows as icons lives in the + sheet. */
+  .ai-inbox-desktop [data-ai-inbox-composer-shell] {
+    border-radius: 22px;
+    padding: 0.25rem 0.375rem;
+  }
+
+  .ai-inbox-desktop [data-ai-inbox-composer-row] {
+    flex-wrap: nowrap;
+    gap: 0.125rem;
+  }
+
+  .ai-inbox-desktop [data-ai-inbox-composer-row] > textarea {
+    order: 0;
+    flex: 1 1 auto;
+  }
+
+  .ai-inbox-desktop [data-composer-desktop-only] {
+    display: none !important;
+  }
+
+  .ai-inbox-desktop [data-composer-phone-only] {
+    display: grid !important;
+  }
+
+  .ai-inbox-desktop [data-composer-voice] {
+    order: 1;
+  }
+
+  .ai-inbox-desktop [data-has-draft="true"] [data-composer-voice],
+  .ai-inbox-desktop [data-has-draft="true"] [data-composer-camera],
+  .ai-inbox-desktop [data-composer-mode="note"] [data-composer-voice],
+  .ai-inbox-desktop [data-composer-mode="note"] [data-composer-camera] {
+    display: none !important;
+  }
+
+  .ai-inbox-desktop [data-composer-mode="reply"][data-has-draft="false"]:has([data-composer-voice]) [data-composer-send] {
+    display: none;
+  }
+
+  .ai-inbox-desktop [data-composer-send] {
+    border-radius: 9999px;
+  }
+
   /* iOS zooms the page into any field under 16px on focus. Outranks
      AiMarketing.m1.css's 13px on every field of this route. */
   .ai-inbox-desktop .ai-omni-frame textarea,
@@ -485,3 +544,39 @@ html.dark .ai-inbox-desktop .ai-omni-chat-panel [class*="bg-[#eefaf8]"] {
 .dark .ai-inbox-topbar__item.is-current { background: rgba(34, 211, 238, 0.12); color: #cffafe; }
 .ai-inbox-topbar__tools { display: flex; flex: none; align-items: center; gap: 0.25rem; margin-inline-start: auto; }
 .ai-inbox-topbar__bell { display: flex; flex: none; align-items: center; }
+
+/* The phone composer's + sheet (ManualReplyComposer), rendered on <body>. */
+.ai-inbox-attach-sheet {
+  position: fixed;
+  inset: 0;
+  z-index: 400;
+}
+.ai-inbox-attach-sheet__scrim {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  background: rgba(15, 23, 42, 0.4);
+  cursor: default;
+}
+.ai-inbox-attach-sheet__panel {
+  position: absolute;
+  inset-inline: 0;
+  bottom: 0;
+  padding: 0.75rem 1rem calc(1.25rem + env(safe-area-inset-bottom));
+  border-radius: 26px 26px 0 0;
+  background: var(--surface, #fff);
+  box-shadow: 0 -20px 60px rgba(15, 23, 42, 0.25);
+}
+.ai-inbox-attach-sheet__grip {
+  width: 3rem;
+  height: 6px;
+  margin: 0 auto 1rem;
+  border-radius: 9999px;
+  background: var(--border, #cbd5e1);
+}
+.ai-inbox-attach-sheet__label {
+  color: var(--text, #0f172a);
+  font-size: 12px;
+  font-weight: 600;
+  text-align: center;
+}

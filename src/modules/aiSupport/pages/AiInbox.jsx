@@ -73,6 +73,8 @@ import {
   XCircle,
   Zap,
   Clapperboard,
+  Camera,
+  PackagePlus,
 } from "lucide-react";
 import {
   FaFacebookF,
@@ -2454,6 +2456,7 @@ function InboxChatHeader({
   const sourceLabel = getConversationSourceLabel(conversation);
   const SourceIcon = getConversationSourceIcon(conversation);
   const conversationAiEnabled = isConversationAiEnabled(conversation);
+  const assigneeName = clean(conversation?.assigned_user?.name || conversation?.assigned_user_name);
   const aiTone = status === "human_takeover"
     ? "border-amber-300/20 bg-amber-400/10 text-amber-100"
     : conversationAiEnabled
@@ -2531,7 +2534,10 @@ function InboxChatHeader({
                 <span key={label.id} className={`inline-flex h-6 items-center rounded-md border px-2 text-[10px] font-black ${conversationLabelClass(label.color)}`}>{label.name}</span>
               ))}
               {conversationLabels.length > 4 ? <span className="text-[9px] font-black text-slate-400">+{conversationLabels.length - 4}</span> : null}
-              {/* A phone-width header keeps the name; the channel is already in the list row. */}
+              {/* A phone-width header keeps the name: the channel shrinks to its icon. */}
+              <span title={sourceLabel} aria-label={sourceLabel} className={`grid h-5 w-5 shrink-0 place-items-center rounded-full @[480px]:hidden ${isSocialComment ? "bg-blue-500/15 text-blue-300" : isWhatsappChannel(channel) ? "bg-emerald-500/15 text-emerald-400" : channel.includes("instagram") ? "bg-rose-500/15 text-rose-400" : channel.includes("messenger") ? "bg-cyan-500/15 text-cyan-400" : "bg-white/10 text-slate-300"}`}>
+                <SourceIcon className="h-3 w-3" />
+              </span>
               <span className="hidden @[480px]:contents">
               <Pill tone={isSocialComment ? "blue" : isWhatsappChannel(channel) ? "emerald" : channel.includes("instagram") ? "rose" : channel.includes("messenger") ? "cyan" : "zinc"}>
                 <span className="inline-flex items-center gap-1">
@@ -2559,9 +2565,13 @@ function InboxChatHeader({
               data-ai-inbox-team-tools="open"
               className={`inline-flex h-8 items-center gap-1.5 rounded-xl border px-2.5 text-[11px] font-black transition disabled:opacity-50 ${teamToolsOpen ? "border-cyan-300/40 bg-cyan-400/15 text-cyan-100" : "border-cyan-300/25 bg-cyan-400/10 text-cyan-100 hover:bg-cyan-400/15"}`}
             >
-              <Users className="h-3.5 w-3.5" /> <span className="hidden @[820px]:inline">{t("aiSupport.teamTools.title")}</span>
-              {conversation?.assigned_user_name || conversation?.assigned_user?.name ? (
-                <span className="max-w-[90px] truncate rounded-full bg-white/10 px-1.5 text-[10px] font-bold text-white">{conversation?.assigned_user?.name || conversation?.assigned_user_name}</span>
+              {/* On a phone the assignee IS the button: their initials in place of the icon. */}
+              <Users className={`h-3.5 w-3.5 ${assigneeName ? "hidden @[480px]:block" : ""}`} /> <span className="hidden @[820px]:inline">{t("aiSupport.teamTools.title")}</span>
+              {assigneeName ? (
+                <>
+                  <span title={assigneeName} className="grid h-5 min-w-5 place-items-center rounded-full bg-cyan-400/25 px-1 text-[9px] font-black uppercase text-white @[480px]:hidden">{initialsOf(assigneeName)}</span>
+                  <span className="hidden max-w-[90px] truncate rounded-full bg-white/10 px-1.5 text-[10px] font-bold text-white @[480px]:inline">{assigneeName}</span>
+                </>
               ) : null}
             </button>
           ) : null}
@@ -2614,6 +2624,9 @@ function InboxChatHeader({
     </>
   );
 }
+
+// "Maged Admin" → "MA", as ConversationParticipants draws a person.
+const initialsOf = (name = "") => (clean(name).split(/\s+/).map((part) => part[0]).join("").slice(0, 2) || "?").toUpperCase();
 
 // Day separators for the chat transcript ("اليوم" / "أمس" / "12 ديسمبر 2026"), matching
 // the portal chat. Styled for the AI Inbox dark theme so it stays consistent.
@@ -3088,6 +3101,11 @@ function ManualReplyComposer({
   const textareaRef = useRef(null);
   const emojiButtonRef = useRef(null);
   const [emojiPickerOpen, setEmojiPickerOpen] = useState(false);
+  // Phone: the PWA's WhatsApp row (+ | text | camera | mic→send); the + opens a sheet
+  // of everything the desktop row shows as icons.
+  const [attachSheetOpen, setAttachSheetOpen] = useState(false);
+  const cameraInputRef = useRef(null);
+  const hasDraft = Boolean(clean(value));
   const normalizedValidation = normalizeValidationSummary(validationSummary || {});
   const normalizedConfidence = normalizeConfidenceEngineSummary(confidenceEngineSummary || {});
   const slashCommandActive = /^\s*\//.test(String(value || ""));
@@ -3252,6 +3270,7 @@ function ManualReplyComposer({
         dir="ltr"
         data-ai-inbox-composer-shell="true"
         data-composer-mode={noteMode ? "note" : "reply"}
+        data-has-draft={hasDraft ? "true" : "false"}
         onDragOver={(event) => {
           if (!attachmentsAllowed || !event.dataTransfer?.types?.includes?.("Files")) return;
           event.preventDefault();
@@ -3275,6 +3294,17 @@ function ManualReplyComposer({
         <div data-ai-inbox-composer-row="true" className="flex min-h-10 min-w-0 flex-1 items-end">
           <button
             type="button"
+            onClick={() => setAttachSheetOpen(true)}
+            aria-label={t("aiSupport.inbox.pwa.attachImage")}
+            aria-expanded={attachSheetOpen}
+            data-composer-phone-only="true"
+            className="mb-0.5 hidden h-9 w-9 shrink-0 place-items-center rounded-full text-slate-600 transition hover:bg-slate-200/70 dark:text-slate-300 dark:hover:bg-white/10"
+          >
+            <Plus className="h-6 w-6" strokeWidth={1.75} />
+          </button>
+          <button
+            type="button"
+            data-composer-desktop-only="true"
             onClick={() => onOpenProductPicker?.()}
             disabled={loading}
             title={t("aiSupport.inbox.composer.attachProduct")}
@@ -3292,6 +3322,7 @@ function ManualReplyComposer({
               title={t("aiSupport.inbox.sharePost.button")}
               aria-label={t("aiSupport.inbox.sharePost.button")}
               data-ai-inbox-share-post="true"
+              data-composer-desktop-only="true"
               className="mb-1 grid h-8 w-8 shrink-0 place-items-center rounded-lg text-slate-500 transition hover:bg-slate-200/70 hover:text-slate-800 disabled:opacity-40 dark:text-slate-400 dark:hover:bg-white/10 dark:hover:text-slate-100"
             >
               <Clapperboard className="h-5 w-5" />
@@ -3304,6 +3335,7 @@ function ManualReplyComposer({
             type="button"
             onClick={() => imageInputRef.current?.click()}
             disabled={loading || noteMode || !canSendLive}
+            data-composer-desktop-only="true"
             title={noteMode ? t("aiSupport.inbox.composer.attachImageNoteMode") : t("aiSupport.inbox.composer.attachMedia")}
             aria-label={t("aiSupport.inbox.composer.attachMedia")}
             className="mb-1 grid h-8 w-8 shrink-0 place-items-center rounded-lg text-slate-500 transition hover:bg-slate-200/70 hover:text-slate-800 disabled:opacity-40 dark:text-slate-400 dark:hover:bg-white/10 dark:hover:text-slate-100"
@@ -3311,7 +3343,7 @@ function ManualReplyComposer({
             <ImageIcon className="h-5 w-5" />
           </button>
           {onRecordVoice ? (
-            <span className="mb-1">
+            <span className="mb-1" data-composer-voice="true">
               <VoiceNoteRecorder
                 tone="dark"
                 disabled={loading || noteMode || !canSendLive}
@@ -3327,6 +3359,7 @@ function ManualReplyComposer({
             // for a read made inside the click itself.
             onClick={() => void pasteFromClipboard()}
             disabled={!attachmentsAllowed}
+            data-composer-desktop-only="true"
             title={t("aiSupport.inbox.composer.pasteFromClipboard")}
             aria-label={t("aiSupport.inbox.composer.pasteFromClipboard")}
             className="mb-1 grid h-8 w-8 shrink-0 place-items-center rounded-lg text-slate-500 transition hover:bg-slate-200/70 hover:text-slate-800 disabled:opacity-40 dark:text-slate-400 dark:hover:bg-white/10 dark:hover:text-slate-100"
@@ -3343,6 +3376,20 @@ function ManualReplyComposer({
               const file = event.target.files?.[0] || null;
               // Reset first: picking the SAME file twice must fire onChange
               // again, and it will not if the value is still set.
+              event.target.value = "";
+              if (file) onAttachImage?.(file);
+            }}
+          />
+          {/* The phone's camera button: same upload path, straight to the camera. */}
+          <input
+            ref={cameraInputRef}
+            type="file"
+            accept="image/*,video/*"
+            capture="environment"
+            className="hidden"
+            aria-hidden="true"
+            onChange={(event) => {
+              const file = event.target.files?.[0] || null;
               event.target.value = "";
               if (file) onAttachImage?.(file);
             }}
@@ -3374,7 +3421,7 @@ function ManualReplyComposer({
             placeholder={noteMode ? t("aiSupport.inbox.composer.writeInternalNote") : canSendLive ? t("aiSupport.inbox.composer.placeholder") : t("aiSupport.inbox.composer.notePlaceholder")}
             className="min-h-10 min-w-0 flex-1 resize-none overflow-hidden border-0 bg-transparent px-2 py-2 text-sm font-medium leading-6 text-slate-900 outline-none placeholder:text-slate-400 dark:text-slate-100 dark:placeholder:text-slate-500"
           />
-          {!noteMode && !isCommentConversation ? <ReplyWaitClock since={customerWaitingSinceAt} /> : null}
+          {!noteMode && !isCommentConversation ? <span data-composer-desktop-only="true" className="contents"><ReplyWaitClock since={customerWaitingSinceAt} /></span> : null}
           {quickReplies.length > 0 && !noteMode ? (
             <button
               type="button"
@@ -3388,7 +3435,7 @@ function ManualReplyComposer({
               <Zap className="h-5 w-5" />
             </button>
           ) : null}
-          <button ref={emojiButtonRef} type="button" onClick={() => setEmojiPickerOpen((current) => !current)} title={t("aiSupport.inbox.composer.emoji")} aria-label={t("aiSupport.inbox.composer.emoji")} aria-expanded={emojiPickerOpen} className={`mb-1 grid h-8 w-8 shrink-0 place-items-center rounded-lg transition ${emojiPickerOpen ? "bg-amber-100 text-amber-700 dark:bg-amber-400/15 dark:text-amber-300" : "text-slate-500 hover:bg-slate-200/70 hover:text-slate-800 dark:text-slate-400 dark:hover:bg-white/10 dark:hover:text-slate-100"}`}>
+          <button ref={emojiButtonRef} type="button" data-composer-desktop-only="true" onClick={() => setEmojiPickerOpen((current) => !current)} title={t("aiSupport.inbox.composer.emoji")} aria-label={t("aiSupport.inbox.composer.emoji")} aria-expanded={emojiPickerOpen} className={`mb-1 grid h-8 w-8 shrink-0 place-items-center rounded-lg transition ${emojiPickerOpen ? "bg-amber-100 text-amber-700 dark:bg-amber-400/15 dark:text-amber-300" : "text-slate-500 hover:bg-slate-200/70 hover:text-slate-800 dark:text-slate-400 dark:hover:bg-white/10 dark:hover:text-slate-100"}`}>
             <Smile className="h-5 w-5" />
           </button>
           <AppleEmojiPicker
@@ -3402,11 +3449,23 @@ function ManualReplyComposer({
             type="button"
             onClick={() => onOpenAvailableBySizePicker?.()}
             disabled={loading}
+            data-composer-desktop-only="true"
             title={t("aiSupport.inbox.composer.availableProducts")}
             aria-label={t("aiSupport.inbox.composer.availableProducts")}
             className="mb-1 grid h-8 w-8 shrink-0 place-items-center rounded-lg text-slate-500 transition hover:bg-slate-200/70 hover:text-slate-800 disabled:opacity-40 dark:text-slate-400 dark:hover:bg-white/10 dark:hover:text-slate-100"
           >
             <FileText className="h-5 w-5" />
+          </button>
+          <button
+            type="button"
+            onClick={() => cameraInputRef.current?.click()}
+            disabled={loading || noteMode || !canSendLive}
+            aria-label={t("aiSupport.inbox.pwa.attachCamera")}
+            data-composer-phone-only="true"
+            data-composer-camera="true"
+            className="mb-0.5 hidden h-9 w-9 shrink-0 place-items-center rounded-full text-slate-600 transition hover:bg-slate-200/70 disabled:opacity-40 dark:text-slate-300 dark:hover:bg-white/10"
+          >
+            <Camera className="h-[22px] w-[22px]" strokeWidth={1.75} />
           </button>
         </div>
         <button
@@ -3415,11 +3474,48 @@ function ManualReplyComposer({
           disabled={loading || !clean(value) || slashCommandActive || (!noteMode && !canSendLive)}
           title={submitTitle}
           aria-label={submitLabel}
+          data-composer-send="true"
           className={`ml-1 grid h-10 w-10 shrink-0 place-items-center rounded-xl text-white transition disabled:cursor-not-allowed disabled:opacity-45 ${noteMode ? "bg-amber-600 hover:bg-amber-700" : "bg-amber-500 hover:bg-amber-600"}`}
         >
           {loading ? <Loader2 className="h-5 w-5 animate-spin" /> : noteMode ? <Pencil className="h-5 w-5" /> : <Send className="h-5 w-5" />}
         </button>
       </div>
+      {/* Portalled: the composer's backdrop-blur makes it the box a fixed child is placed in. */}
+      {attachSheetOpen ? createPortal(
+        <div className="ai-inbox-attach-sheet" data-ai-inbox-attach-sheet="true">
+          <button type="button" aria-label={t("aiSupport.inbox.pwa.close")} onClick={() => setAttachSheetOpen(false)} className="ai-inbox-attach-sheet__scrim" />
+          <div dir="rtl" className="ai-inbox-attach-sheet__panel">
+            <div className="ai-inbox-attach-sheet__grip" aria-hidden="true" />
+            <div className="grid grid-cols-4 gap-3">
+              {[
+                { key: "photos", label: t("aiSupport.inbox.pwa.attachPhotos"), Icon: ImageIcon, tone: "bg-sky-100 text-sky-600", disabled: loading || noteMode || !canSendLive, action: () => imageInputRef.current?.click() },
+                { key: "camera", label: t("aiSupport.inbox.pwa.attachCamera"), Icon: Camera, tone: "bg-slate-200 text-slate-700", disabled: loading || noteMode || !canSendLive, action: () => cameraInputRef.current?.click() },
+                { key: "product", label: t("aiSupport.inbox.pwa.attachProduct"), Icon: PackagePlus, tone: "bg-emerald-100 text-emerald-600", disabled: loading, action: () => onOpenProductPicker?.() },
+                { key: "available", label: t("aiSupport.inbox.composer.availableProducts"), Icon: FileText, tone: "bg-indigo-100 text-indigo-600", disabled: loading, action: () => onOpenAvailableBySizePicker?.() },
+                ...(onOpenSharePost && !isCommentConversation ? [{ key: "share_post", label: t("aiSupport.inbox.sharePost.button"), Icon: Clapperboard, tone: "bg-rose-100 text-rose-600", disabled: loading || noteMode || !canSendLive, action: () => onOpenSharePost() }] : []),
+                { key: "paste", label: t("aiSupport.inbox.pwa.attachPaste"), Icon: ClipboardPaste, tone: "bg-amber-100 text-amber-700", disabled: !attachmentsAllowed, action: () => void pasteFromClipboard() },
+              ].map((tile) => (
+                <button
+                  key={tile.key}
+                  type="button"
+                  disabled={tile.disabled}
+                  // No await before a clipboard read: Safari only shows its Paste
+                  // callout for a read made inside the tap itself.
+                  onClick={() => { setAttachSheetOpen(false); tile.action(); }}
+                  className="flex flex-col items-center gap-2 py-1 disabled:opacity-40"
+                  data-ai-inbox-attach={tile.key}
+                >
+                  <span className={`grid h-14 w-14 place-items-center rounded-[20px] ${tile.tone}`}>
+                    <tile.Icon className="h-6 w-6" strokeWidth={1.75} />
+                  </span>
+                  <span className="ai-inbox-attach-sheet__label">{tile.label}</span>
+                </button>
+              ))}
+            </div>
+          </div>
+        </div>,
+        document.body,
+      ) : null}
     </div>
   );
 }
@@ -4662,15 +4758,22 @@ export default function AiInbox({ reviewerMode = false }) {
     } catch {
       // Storage blocked: the app simply opens where its manifest says.
     }
+    // iOS zooms into a focused field and leaves the chat zoomed; maximum-scale=1 stops
+    // that auto-zoom (pinch-to-zoom still works on iOS). Only while the inbox is open.
+    const viewport = document.querySelector('meta[name="viewport"]');
+    const viewportBefore = viewport?.getAttribute("content") || "";
+    if (viewport && !/maximum-scale/.test(viewportBefore)) viewport.setAttribute("content", `${viewportBefore}, maximum-scale=1`);
+    const restoreViewport = () => { if (viewport) viewport.setAttribute("content", viewportBefore); };
     const link = document.querySelector('link[rel="manifest"]');
     const title = document.querySelector('meta[name="apple-mobile-web-app-title"]');
-    if (!link) return undefined;
+    if (!link) return restoreViewport;
     const previous = { href: link.getAttribute("href"), title: title?.getAttribute("content") };
     link.setAttribute("href", "/erp-inbox-manifest.webmanifest?v=1");
     title?.setAttribute("content", "M1 Inbox");
     return () => {
       link.setAttribute("href", previous.href);
       if (title && previous.title) title.setAttribute("content", previous.title);
+      restoreViewport();
     };
   }, [reviewerMode]);
   const [search, setSearch] = useState("");
