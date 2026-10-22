@@ -1,0 +1,185 @@
+/* TikTok Ads module — section tabs, ads list toolbar, connect page facts. App tokens only. */
+
+.tiktok-ads-shell {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+  min-width: 0;
+}
+
+.tiktok-ads-sections {
+  display: flex;
+  gap: 6px;
+  border-bottom: 1px solid var(--border);
+  overflow-x: auto;
+}
+
+.tiktok-ads-sections__link {
+  padding: 10px 14px;
+  border-bottom: 2px solid transparent;
+  color: var(--muted);
+  font-weight: 600;
+  white-space: nowrap;
+  text-decoration: none;
+}
+
+.tiktok-ads-sections__link.is-active {
+  border-bottom-color: var(--primary);
+  color: var(--text);
+}
+
+.tiktok-ads-page {
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+  min-width: 0;
+}
+
+.tiktok-ads-notice {
+  padding: 10px 14px;
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  background: var(--surface);
+  color: var(--text);
+  font-size: 0.875rem;
+  line-height: 1.6;
+}
+
+.tiktok-ads-notice--warning {
+  border-color: var(--warning);
+  background: var(--warning-soft);
+}
+
+.tiktok-ads-notice--danger {
+  border-color: var(--danger);
+  background: var(--danger-soft);
+  color: var(--danger);
+}
+
+.tiktok-ads-toolbar {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 10px;
+}
+
+.tiktok-ads-toolbar__account {
+  font-weight: 700;
+  color: var(--text);
+}
+
+.tiktok-ads-toolbar .m1-field,
+.tiktok-ads-toolbar > :last-child {
+  min-width: 0;
+  flex: 1 1 200px;
+}
+
+.tiktok-ads-presets {
+  display: inline-flex;
+  flex-wrap: wrap;
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  overflow: hidden;
+}
+
+.tiktok-ads-presets__item {
+  padding: 7px 12px;
+  border: 0;
+  background: var(--surface);
+  color: var(--muted);
+  font: inherit;
+  font-size: 0.8125rem;
+  cursor: pointer;
+}
+
+.tiktok-ads-presets__item + .tiktok-ads-presets__item {
+  border-inline-start: 1px solid var(--border);
+}
+
+.tiktok-ads-presets__item.is-active {
+  background: var(--primary-soft);
+  color: var(--primary);
+  font-weight: 700;
+}
+
+.tiktok-ads-drill {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+.tiktok-ads-drill__chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 5px 10px;
+  border: 1px solid var(--border);
+  border-radius: 999px;
+  background: var(--surface-soft);
+  color: var(--text);
+  font: inherit;
+  font-size: 0.8125rem;
+  cursor: pointer;
+}
+
+.tiktok-ads-name {
+  display: inline-block;
+  max-width: 320px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  vertical-align: middle;
+}
+
+.tiktok-ads-name--link {
+  padding: 0;
+  border: 0;
+  background: none;
+  color: var(--primary);
+  font: inherit;
+  font-weight: 600;
+  text-align: start;
+  cursor: pointer;
+}
+
+.tiktok-ads-facts {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(min(100%, 180px), 1fr));
+  gap: 12px;
+  margin: 0;
+}
+
+.tiktok-ads-facts dt {
+  color: var(--muted);
+  font-size: 0.8125rem;
+}
+
+.tiktok-ads-facts dd {
+  margin: 2px 0 0;
+  color: var(--text);
+  font-weight: 600;
+  overflow-wrap: anywhere;
+}
+
+.tiktok-ads-scopes {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 6px;
+  margin-top: 14px;
+}
+
+.tiktok-ads-scopes__label {
+  color: var(--muted);
+  font-size: 0.8125rem;
+}
+
+.tiktok-ads-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin-top: 14px;
+}
+
+.tiktok-ads-page .m1-card .tiktok-ads-notice {
+  margin-top: 12px;
+}

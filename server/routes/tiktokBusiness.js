@@ -22,6 +22,9 @@
 
 import express from "express";
 
+import { isTikTokAdsState } from "../modules/tiktokAds/tiktokAdsCore.js";
+import { tiktokAdsOAuthCallback } from "../modules/tiktokAds/tiktokAds.routes.js";
+
 import { protect } from "../middleware/authMiddleware.js";
 import permit from "../middleware/permissionMiddleware.js";
 import { getTenantId } from "../utils/requestScope.js";
@@ -165,6 +168,9 @@ const settingsRedirect = (params = {}) => {
 };
 
 const oauthCallbackHandler = async (req, res) => {
+  // The app has ONE advertiser redirect URL and it is this one: an advertiser (TikTok Ads)
+  // login carries a state minted by the TikTok Ads module, which completes it.
+  if (isTikTokAdsState(req.query?.state)) return tiktokAdsOAuthCallback(req, res);
   try {
     await ensureSchemaReady();
     const { tenantId, scopes } = await handleTikTokBusinessOAuthCallback({

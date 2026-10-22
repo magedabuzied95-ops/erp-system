@@ -38,6 +38,7 @@ import sales from "../../locales/en/sales.json";
 import salesAnalytics from "../../locales/en/salesAnalytics.json";
 import suppliers from "../../locales/en/suppliers.json";
 import surveillance from "../../locales/en/surveillance.json";
+import tiktokAds from "../../locales/en/tiktokAds.json";
 import transfers from "../../locales/en/transfers.json";
 import waOfficialAccounts from "../../locales/en/waOfficialAccounts.json";
 import waOfficialAnalytics from "../../locales/en/waOfficialAnalytics.json";
@@ -83,6 +84,7 @@ export default {
   "salesAnalytics": salesAnalytics,
   "suppliers": suppliers,
   "surveillance": surveillance,
+  "tiktokAds": tiktokAds,
   "transfers": transfers,
   "waOfficialAccounts": waOfficialAccounts,
   "waOfficialAnalytics": waOfficialAnalytics,

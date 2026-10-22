@@ -225,6 +225,7 @@ const AccountSecurity = lazy(() => import("./modules/security/AccountSecurity"))
 const AmazonCenter = lazy(() => import("./modules/amazon/AmazonCenter"));
 const AmazonIntegrationSettings = lazy(() => import("./modules/amazon/AmazonCenter").then((module) => ({ default: module.AmazonIntegrationSettingsPage })));
 const MetaAdsModule = lazy(() => import("./modules/metaAds/MetaAdsModule"));
+const TikTokAdsModule = lazy(() => import("./modules/tiktokAds/TikTokAdsModule"));
 
 import ProtectedRoute from "./shared/auth/ProtectedRoute";
 import DebugErrorBoundary from "./shared/components/DebugErrorBoundary";
@@ -2189,6 +2190,16 @@ function App() {
           element={
             <ProtectedRoute requiredPermissions={["meta_ads.view"]}>
               <MetaAdsModule />
+            </ProtectedRoute>
+          }
+        />
+
+        {/* TikTok Ads (Marketing API): connect the advertiser account, campaigns / ad groups / ads with insights. */}
+        <Route
+          path="tiktok-ads/*"
+          element={
+            <ProtectedRoute requiredPermissions={["tiktok_ads.view"]}>
+              <TikTokAdsModule />
             </ProtectedRoute>
           }
         />

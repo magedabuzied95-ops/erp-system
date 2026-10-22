@@ -22,6 +22,7 @@ const SECTION_TITLE_KEYS = {
 
 const ITEM_LABEL_KEYS = {
   "Meta Ads": "sidebar.metaAds",
+  "TikTok Ads": "sidebar.tiktokAds",
   Amazon: "sidebar.amazon",
   Dashboard: "sidebar.dashboard",
   Notifications: "sidebar.notifications",

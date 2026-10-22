@@ -14,6 +14,10 @@ const CORE_PERMISSIONS = [
   // pause, sync, connect accounts, edit records. Admin roles receive both automatically.
   ["meta_ads", "view"],
   ["meta_ads", "manage"],
+  // TikTok Ads (Marketing API). view = every TikTok Ads screen; manage = connect, disconnect, sync.
+  // Admin roles receive both automatically.
+  ["tiktok_ads", "view"],
+  ["tiktok_ads", "manage"],
   ["ai_inbox_messenger", "view"],
   ["ai_inbox_messenger", "reply"],
   ["ai_inbox_instagram", "view"],

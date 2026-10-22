@@ -680,6 +680,9 @@ const { startAmazonScheduler } = await import("./modules/amazon/amazonScheduler.
 const { default: metaAdsRoutes, metaAdsPublicRoutes } = await import("./modules/metaAds/metaAds.routes.js");
 const { ensureMetaAdsSchema } = await import("./modules/metaAds/metaAdsSchema.js");
 const { startMetaAdsScheduler } = await import("./modules/metaAds/metaAdsScheduler.js");
+const { default: tiktokAdsRoutes } = await import("./modules/tiktokAds/tiktokAds.routes.js");
+const { ensureTikTokAdsSchema } = await import("./modules/tiktokAds/tiktokAdsSchema.js");
+const { startTikTokAdsScheduler } = await import("./modules/tiktokAds/tiktokAdsScheduler.js");
 const { default: waOfficialRoutes, waOfficialPublicRoutes } = await import("./modules/whatsappOfficial/waOfficial.routes.js");
 const { ensureOrderIdentityAlertsSchema, startOrderIdentitySweeper } = await import("./modules/orders/addressIdentityAlerts.js");
 const { ensureTikTokEventsSchema, startTikTokEventsWorker } = await import("./modules/tiktok/tiktokEventsApi.js");
@@ -2021,6 +2024,8 @@ app.use("/api/amazon", amazonRoutes);
 // The public router carries only the OAuth callback and the signature-checked webhook.
 app.use("/api/meta-ads-public", metaAdsPublicRoutes);
 app.use("/api/meta-ads", metaAdsRoutes);
+// TikTok Ads (Marketing API, advertiser OAuth). Its OAuth callback rides the TikTok Business one.
+app.use("/api/tiktok-ads", tiktokAdsRoutes);
 // Official WhatsApp (Cloud API) menu sections: accounts settings, connect, analytics, chatbot flows.
 app.use("/api/whatsapp-official-public", waOfficialPublicRoutes);
 app.use("/api/whatsapp-official", waOfficialRoutes);
@@ -2475,6 +2480,7 @@ const runDeferredStartupSyncs = async ({ skipStartupSyncs = false } = {}) => {
       startSocialCommentJobWorker();
       startAmazonScheduler({ register: (interval) => backgroundIntervals.add(interval) });
       startMetaAdsScheduler({ register: (interval) => backgroundIntervals.add(interval) });
+      startTikTokAdsScheduler({ register: (interval) => backgroundIntervals.add(interval) });
       // WhatsApp template campaigns: launches scheduled campaigns when they fall due.
       void import("./services/marketingBroadcastService.js").then((m) => m.startMarketingCampaignScheduler({ register: (interval) => backgroundIntervals.add(interval) })).catch((error) => console.error("[server] campaign scheduler failed to start", error?.message));
 
@@ -2747,6 +2753,10 @@ const bootstrapStartup = async () => {
     await ensureMetaAdsSchema(db)
       .then(() => console.log("[server] meta ads schema ensured"))
       .catch((error) => console.error("[server] meta ads schema failed; Meta Ads disabled", { message: error?.message || String(error) }));
+    // TikTok Ads tables are new and self-contained: a failure disables the TikTok Ads module only.
+    await ensureTikTokAdsSchema(db)
+      .then(() => console.log("[server] tiktok ads schema ensured"))
+      .catch((error) => console.error("[server] tiktok ads schema failed; TikTok Ads disabled", { message: error?.message || String(error) }));
     await ensureNotificationsSchema(db);
     // Same-address alerts: nullable columns + a trigger on orders and a new table. A failure (a
     // lock that does not come within 5s) turns the feature off for this boot, never the backend.
