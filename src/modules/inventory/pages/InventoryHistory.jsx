@@ -8,6 +8,7 @@ import { api } from "../../../shared/api/api";
 import { formatCurrency } from "../../../shared/lib/currency";
 import { Pagination } from "../../../shared/ui";
 import InventoryShell from "../components/InventoryShell";
+import PhoneFilters from "../components/PhoneFilters";
 import { formatDateTime } from "../../purchases/lib/flowStore";
 
 import { useTranslation } from "react-i18next";
@@ -156,16 +157,17 @@ function InventoryHistory() {
         { to: "/stock-transfers", label: tt("inventory.tabs.transfers") },
       ]}
     >
-      <div className="grid gap-3 md:grid-cols-3 xl:grid-cols-4">
+      <div className="grid grid-cols-2 gap-3 md:grid-cols-3 xl:grid-cols-4">
         <Metric label={tt("inventory.tabs.movements")} value={movements.length} />
         <Metric label={tt("inventory.movements.inbound")} value={summary.inbound} tone="emerald" />
         <Metric label={tt("inventory.movements.outbound")} value={summary.outbound} tone="rose" />
         <Metric label={tt("inventory.metrics.totalRows")} value={pagination.total || movements.length} tone="blue" />
       </div>
 
-      <div className="rounded-[var(--radius-card)] border border-border bg-surface p-4 shadow-2xl shadow-black/10">
-        <div className="grid gap-3 xl:grid-cols-[minmax(0,1.2fr)_160px_160px_180px_180px_180px_auto]">
-          <label className="relative block xl:col-span-1">
+      {/* Phone: search + one Filters button (ids, dates, type). */}
+      <div className="m1-catalog-flat rounded-[var(--radius-card)] border border-border bg-surface p-4 shadow-2xl shadow-black/10">
+        <div className="grid gap-3 max-md:grid-cols-[minmax(0,1fr)_auto] xl:grid-cols-[minmax(0,1.2fr)_160px_160px_180px_180px_180px_auto]">
+          <label className="relative block min-w-0 xl:col-span-1">
             <Search className="pointer-events-none absolute left-4 top-1/2 h-4 w-4 -translate-y-1/2 text-text-muted" />
             <input
               value={filters.search}
@@ -175,6 +177,10 @@ function InventoryHistory() {
             />
           </label>
 
+          <PhoneFilters
+            activeCount={[filters.productId, filters.variantId && filters.variantId !== (routeVariantId || "") ? filters.variantId : "", filters.dateFrom, filters.dateTo, filters.movementType].filter(Boolean).length}
+            onClear={() => setFilters((prev) => ({ ...prev, productId: "", variantId: routeVariantId || "", movementType: "", dateFrom: "", dateTo: "" }))}
+          >
           <Field label={tt("inventory.table.product")} value={filters.productId} onChange={(value) => setFilters((prev) => ({ ...prev, productId: value }))} placeholder={tt("inventory.movements.productId")} />
           <Field label={tt("inventory.tableHeaders.variant")} value={filters.variantId} onChange={(value) => setFilters((prev) => ({ ...prev, variantId: value }))} placeholder={tt("inventory.movements.variantId")} />
           <Field label={tt("inventory.labels.from")} value={filters.dateFrom} onChange={(value) => setFilters((prev) => ({ ...prev, dateFrom: value }))} type="date" />
@@ -204,6 +210,7 @@ function InventoryHistory() {
             <X className="h-4 w-4" />
             {tt("inventory.actions.reset")}
           </button>
+          </PhoneFilters>
         </div>
       </div>
 

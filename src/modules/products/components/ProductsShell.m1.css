@@ -56,4 +56,8 @@
 
 html[data-density="compact"] .m1-products-catalog tbody td{padding-top:8px!important;padding-bottom:8px!important}
 html[data-density="compact"] .m1-products-heading{padding:16px!important}
-@media(max-width:767px){.m1-products-heading{padding:15px!important}.m1-products-primary-action,.m1-products-secondary-action{width:100%;justify-content:center}.m1-products-catalog{padding:10px!important}.m1-products-catalog article{background:var(--surface)!important;border-color:var(--border)!important;border-radius:var(--radius-card)!important}}
+/* Phone: the heading and the catalog card lose their frames (the heading via
+   .m1-catalog-flat in catalogPhone.css), so the product cards use the full
+   width instead of sitting in card-in-card padding. Header actions share rows
+   (flex:1) instead of each taking a full-width line. */
+@media(max-width:767px){.m1-products-heading{padding:15px!important}.m1-products-heading .mobile-scroll-tabs{margin-top:12px!important;padding-top:0;border-top:0}.m1-products-primary-action,.m1-products-secondary-action{flex:1 1 auto;min-height:44px;justify-content:center}.m1-products-catalog{padding:0!important;border:0!important;border-radius:0!important;background:transparent!important;box-shadow:none!important}.m1-products-catalog article{background:var(--surface)!important;border-color:var(--border)!important;border-radius:var(--radius-card)!important}}

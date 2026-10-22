@@ -790,6 +790,7 @@
     "zoomOut": "تصغير",
     "selectAll": "تحديد الكل",
     "clear": "مسح",
+    "filters": "فلاتر",
     "commandPalette": {
       "open": "بحث سريع",
       "placeholderShort": "اكتب عشان تروح لأي مكان…",

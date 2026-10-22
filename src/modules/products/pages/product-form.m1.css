@@ -36,3 +36,12 @@
 html[data-density="compact"] .m1-product-section {
   padding: 16px;
 }
+
+/* Phone: four nested paddings (shell, section p-5/p-6, colour group, size row)
+   left the size inputs ~250px wide at 375. The section gives back 8-12px a side. */
+@media (max-width: 767px) {
+  .m1-product-section,
+  html[data-density="compact"] .m1-product-section {
+    padding: 12px;
+  }
+}

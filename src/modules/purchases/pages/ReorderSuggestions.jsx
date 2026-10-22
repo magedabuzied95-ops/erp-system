@@ -18,6 +18,7 @@ import toast from "react-hot-toast";
 import { api } from "../../../shared/api/api";
 import { resolveProductImageUrl } from "../../../shared/lib/imageUrls";
 import FlowShell from "../components/FlowShell";
+import PhoneFilters from "../../inventory/components/PhoneFilters";
 
 const statusTone = {
   BUY_NOW: {
@@ -170,9 +171,10 @@ function ReorderSuggestions() {
       <div className="space-y-3">
         <SummaryStrip kpis={kpis} locale={numberLocale} />
 
-        <div className="rounded-2xl border border-white/10 bg-zinc-950/90 p-3 shadow-2xl shadow-black/10">
-          <div className="grid gap-2 lg:grid-cols-[1.4fr_0.75fr_0.75fr_0.75fr]">
-            <label className="relative block">
+        {/* Phone: search + one Filters button (status / supplier / carton). */}
+        <div className="m1-catalog-flat rounded-2xl border border-white/10 bg-zinc-950/90 p-3 shadow-2xl shadow-black/10">
+          <div className="grid gap-2 max-md:grid-cols-[minmax(0,1fr)_auto] lg:grid-cols-[1.4fr_0.75fr_0.75fr_0.75fr]">
+            <label className="relative block min-w-0">
               <Search className="pointer-events-none absolute end-3 top-1/2 h-4 w-4 -translate-y-1/2 text-zinc-500" />
               <input
                 value={filters.search}
@@ -181,13 +183,18 @@ function ReorderSuggestions() {
                 className="h-[var(--control-height-lg)] w-full rounded-[var(--radius-control)] border border-white/10 bg-white/5 pe-10 ps-4 text-sm font-bold text-white outline-none placeholder:text-zinc-500 focus:border-emerald-400/50"
               />
             </label>
+            <PhoneFilters
+              activeCount={[filters.status, filters.supplier, filters.carton].filter((value) => value && value !== "all").length}
+              onClear={() => setFilters((prev) => ({ ...prev, status: "all", supplier: "all", carton: "all" }))}
+            >
             <FilterSelect label={t("purchases.filters.status")} value={filters.status} onChange={(value) => setFilters((prev) => ({ ...prev, status: value }))} options={["all", "BUY_NOW", "WATCH", "DO_NOT_BUY"]} labels={{ all: t("purchases.reorder.allStatuses"), BUY_NOW: t("purchases.reorder.status.buyNow"), WATCH: t("purchases.reorder.status.watch"), DO_NOT_BUY: t("purchases.reorder.status.doNotBuy") }} />
             <FilterSelect label={t("purchases.filters.supplier")} value={filters.supplier} onChange={(value) => setFilters((prev) => ({ ...prev, supplier: value }))} options={supplierOptions} labels={{ all: t("purchases.reorder.allSuppliers") }} />
             <FilterSelect label={t("purchases.reorder.cartonSize")} value={filters.carton} onChange={(value) => setFilters((prev) => ({ ...prev, carton: value }))} options={cartonOptions} labels={{ all: t("purchases.reorder.allSizes"), small: t("purchases.reorder.smallCarton"), medium: t("purchases.reorder.mediumCarton"), large: t("purchases.reorder.largeCarton") }} />
+            </PhoneFilters>
           </div>
         </div>
 
-        <div className="rounded-2xl border border-white/10 bg-zinc-950/90 p-2 shadow-2xl shadow-black/10">
+        <div className="m1-catalog-flat rounded-2xl border border-white/10 bg-zinc-950/90 p-2 shadow-2xl shadow-black/10">
           {loading ? (
             <div className="grid gap-2">
               {Array.from({ length: 6 }).map((_, index) => <div key={index} className="h-24 animate-pulse rounded-2xl bg-white/5" />)}
@@ -229,11 +236,11 @@ function ReorderSuggestions() {
 function SummaryStrip({ kpis, locale }) {
   const { t } = useTranslation();
   return (
-    <div className="grid gap-2 xl:grid-cols-[0.8fr_0.8fr_0.8fr_1.4fr]">
+    <div className="grid gap-2 max-md:grid-cols-3 xl:grid-cols-[0.8fr_0.8fr_0.8fr_1.4fr]">
       <SummaryCard label={t("purchases.reorder.status.buyNow")} value={kpis.buyNow} icon={<ShoppingBag className="h-4 w-4" />} tone="emerald" />
       <SummaryCard label={t("purchases.reorder.overstockRisk")} value={kpis.overstock} icon={<ShieldAlert className="h-4 w-4" />} tone="rose" />
       <SummaryCard label={t("purchases.reorder.avgSellThrough")} value={`${kpis.avgSellThrough}%`} icon={<Gauge className="h-4 w-4" />} tone="amber" />
-      <div className="min-h-20 rounded-2xl border border-white/10 bg-zinc-950/90 p-3">
+      <div className="min-h-20 rounded-2xl border border-white/10 bg-zinc-950/90 p-3 max-md:col-span-3">
         <div className="mb-2 flex items-center gap-2 text-xs font-black text-zinc-400">
           <TrendingUp className="h-4 w-4 text-emerald-300" />
           {t("purchases.reorder.fastestProducts")}
@@ -258,12 +265,12 @@ function SummaryCard({ label, value, icon, tone }) {
     rose: "border-rose-400/15 bg-rose-400/10 text-rose-100",
   };
   return (
-    <div className={`flex min-h-20 items-center justify-between rounded-2xl border p-3 ${classes[tone]}`}>
-      <div>
-        <div className="text-xs font-black text-current/75">{label}</div>
-        <div className="mt-1 text-2xl font-black leading-none text-white">{value}</div>
+    <div className={`flex min-h-20 min-w-0 items-center justify-between rounded-2xl border p-3 max-md:p-2.5 ${classes[tone]}`}>
+      <div className="min-w-0">
+        <div className="text-xs font-black text-current/75 max-md:line-clamp-2">{label}</div>
+        <div className="mt-1 text-2xl font-black leading-none text-white max-md:text-xl">{value}</div>
       </div>
-      <div className="rounded-xl border border-white/10 bg-black/20 p-2">{icon}</div>
+      <div className="rounded-xl border border-white/10 bg-black/20 p-2 max-md:hidden">{icon}</div>
     </div>
   );
 }

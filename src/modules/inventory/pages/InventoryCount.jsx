@@ -25,6 +25,7 @@ import { api } from "../../../shared/api/api";
 import { getProductAudienceValues, productMatchesAudience } from "../../../shared/lib/productAudiences";
 import { getCurrentUser, getUserRole, isAdminUser } from "../../../shared/auth/authStorage";
 import InventoryShell from "../components/InventoryShell";
+import useIsPhone from "../components/useIsPhone";
 import StatusBadge from "../../purchases/components/StatusBadge";
 import SmartPosFilters from "../../pos/components/SmartPosFilters";
 import { formatDateTime, normalizeWarehouse } from "../../purchases/lib/flowStore";
@@ -1382,7 +1383,7 @@ function InventoryCountPage() {
             <div className="space-y-4">
               {sessionError ? <div className="rounded-[var(--radius-card)] border border-rose-500/20 bg-rose-500/10 p-4 text-sm text-rose-100">{sessionError}</div> : null}
 
-              <div className="rounded-[var(--radius-card)] border border-border bg-surface p-4 shadow-2xl shadow-black/10">
+              <div className="rounded-[var(--radius-card)] border border-border bg-surface p-4 shadow-2xl shadow-black/10 max-md:p-3">
                 <div className="flex flex-col gap-4 lg:flex-row lg:items-start lg:justify-between">
                   <div className="min-w-0">
                     <div className="flex flex-wrap items-center gap-2">
@@ -1581,7 +1582,7 @@ function InventoryCountPage() {
                     {tt("inventory.count.addManually")}
                   </button>
 
-                  <div className="grid gap-3 rounded-[var(--radius-card)] border border-border bg-black/20 p-3 sm:grid-cols-3">
+                  <div className="grid grid-cols-3 gap-3 rounded-[var(--radius-card)] border border-border bg-black/20 p-3">
                     <div>
                       <div className="text-[10px] uppercase tracking-[0.18em] text-text-muted">{tt("inventory.count.productsCounted")}</div>
                       <div className="mt-1 text-lg font-black text-text">{itemSummary.groups}</div>
@@ -1769,14 +1770,14 @@ function InventoryCountPage() {
           <div className="space-y-4">
             {sessionsError ? <div className="rounded-[var(--radius-card)] border border-rose-500/20 bg-rose-500/10 p-4 text-sm text-rose-100">{sessionsError}</div> : null}
 
-            <div className="grid gap-3 md:grid-cols-2 xl:grid-cols-4">
+            <div className="grid grid-cols-2 gap-3 xl:grid-cols-4">
               <MetricCard label={tt("inventory.count.metrics.totalSessions")} value={sessionSummary.total} tone="blue" />
               <MetricCard label={tt("inventory.count.metrics.drafts")} value={sessionSummary.draft} tone="amber" />
               <MetricCard label={tt("inventory.count.inProgress")} value={sessionSummary.inProgress} tone="emerald" />
               <MetricCard label={tt("inventory.count.status.completed")} value={sessionSummary.completed} tone="rose" />
             </div>
 
-            <div className="rounded-[var(--radius-card)] border border-border bg-surface p-5 shadow-2xl shadow-black/10">
+            <div className="rounded-[var(--radius-card)] border border-border bg-surface p-5 shadow-2xl shadow-black/10 max-md:p-3">
               <div className="flex flex-col gap-3 lg:flex-row lg:items-center lg:justify-between">
                 <div>
                   <h2 className="m1-section-title text-text">{tt("inventory.count.sessions")}</h2>
@@ -2144,6 +2145,7 @@ function MobileGroupedCountCard({ group, disabled, busy, onAddColor, onMatchSyst
 }
 
 function GroupedCountRow({ item, compact = false, disabled, inputRef, onCountChange, onCountCommit, onReasonCommit, onNotesCommit, onAdvance }) {
+  const isPhone = useIsPhone();
   const counted = Number(item.counted_quantity || 0);
   const system = Number(item.system_quantity || 0);
   const diff = Number(item.difference_quantity || counted - system);
@@ -2167,6 +2169,14 @@ function GroupedCountRow({ item, compact = false, disabled, inputRef, onCountCha
   const decrementCount = () => commitCount(Math.max(0, counted - 1));
   const handleReasonChange = (reason) => { if (disabled) return; setReasonDraft(reason); void onReasonCommit(item.id, { reason }); };
   const handleNotesBlur = (value) => { if (disabled) return; void onNotesCommit(item.id, { notes: value }); };
+  if (compact && isPhone) {
+    // Phone count row (the warehouse counts on a phone). Two lines: size,
+    // expected and difference on top, then a full-width stepper with 44px
+    // targets. The single-line row below squeezed a 132px stepper into a ~66px
+    // track at 375px, so it painted over the difference column; it stays for
+    // the tablet/laptop compact layout (md to 1366px).
+    return (<div className="inventory-count-mobile-row-compact rounded-[var(--radius-card)] border border-border bg-surface-soft shadow-none" style={{ boxShadow: "none", borderRadius: "14px", padding: "8px 10px" }}><span style={{ display: "none" }} data-testid="mobile-grouped-count-row" /><div className="flex items-center justify-between gap-3"><div className="min-w-0"><div className="truncate text-base font-black leading-tight text-text">{item.size || "--"}</div><div className="mt-0.5 text-[10px] uppercase tracking-[0.16em] text-text-muted">{tt("inventory.count.size")}</div></div><div className="flex shrink-0 items-start gap-4 text-end"><div><div className="text-[10px] font-bold uppercase tracking-[0.16em] text-text-muted">{tt("inventory.count.expected")}</div><div className="mt-0.5 text-sm font-black tabular-nums text-text">{system}</div></div><div className="min-w-[56px]"><div className="text-[10px] font-bold uppercase tracking-[0.16em] text-text-muted">{tt("inventory.count.difference")}</div><div className={`mt-0.5 text-sm font-black tabular-nums ${diffTone}`}>{diff > 0 ? `+${diff}` : diff < 0 ? `-${Math.abs(diff)}` : tt("inventory.count.matched")}</div></div></div></div><div className="mt-2 flex items-center gap-2" aria-label={tt("inventory.count.actual")}><button type="button" disabled={disabled} onClick={decrementCount} className="inline-flex h-11 w-12 shrink-0 items-center justify-center rounded-[var(--radius-control)] border border-border bg-black/30 text-xl font-black text-text transition-colors hover:bg-surface-hover disabled:opacity-40" aria-label={tt("inventory.count.decrement")}>-</button><input ref={inputRef} type="number" inputMode="numeric" disabled={disabled} value={counted} onChange={(event) => handleCountChange(event.target.value)} onKeyDown={(event) => { if (event.key === "Enter") { event.preventDefault(); onAdvance?.(item.id, event.currentTarget); } }} aria-label={tt("inventory.count.actual")} className="h-11 min-w-0 flex-1 rounded-[var(--radius-control)] border border-border bg-surface px-2 text-center text-lg font-black text-text outline-none tabular-nums placeholder:text-text-muted disabled:opacity-50" /><button type="button" disabled={disabled} onClick={incrementCount} className="inline-flex h-11 w-12 shrink-0 items-center justify-center rounded-[var(--radius-control)] border border-border bg-emerald-500/15 text-xl font-black text-emerald-200 transition-colors hover:bg-emerald-500/25 disabled:opacity-40" aria-label={tt("inventory.count.increment")}>+</button></div></div>);
+  }
   if (compact) {
     return (<div className="inventory-count-mobile-row-compact rounded-[var(--radius-card)] border border-border bg-surface-soft shadow-none" style={{ boxShadow: "none", borderRadius: "14px", padding: "8px 10px" }}><span style={{ display: "none" }} data-testid="mobile-grouped-count-row" /><div className="grid min-h-[52px] grid-cols-[minmax(0,1fr)_72px_minmax(0,1.35fr)_64px] items-center gap-2"><div className="min-w-0"><div className="truncate text-sm font-black leading-tight text-text">{item.size || "--"}</div><div className="mt-0.5 text-[10px] uppercase tracking-[0.16em] text-text-muted">{tt("inventory.count.size")}</div></div><div className="min-w-0"><div className="text-[10px] font-bold uppercase tracking-[0.16em] text-text-muted">{tt("inventory.count.expected")}</div><div className="mt-0.5 text-sm font-black tabular-nums text-text">{system}</div></div><div className="min-w-0"><div className="text-[10px] font-bold uppercase tracking-[0.16em] text-text-muted">{tt("inventory.count.actual")}</div><div className="mt-1 flex items-center gap-1.5"><button type="button" disabled={disabled} onClick={decrementCount} className="inline-flex h-[var(--control-height-sm)] w-7 shrink-0 items-center justify-center rounded-[var(--radius-control)] border border-border bg-black/30 text-base font-black text-text transition-colors hover:bg-surface-hover disabled:opacity-40" aria-label={tt("inventory.count.decrement")}>-</button><input ref={inputRef} type="number" inputMode="numeric" disabled={disabled} value={counted} onChange={(event) => handleCountChange(event.target.value)} onKeyDown={(event) => { if (event.key === "Enter") { event.preventDefault(); onAdvance?.(item.id, event.currentTarget); } }} className="h-[var(--control-height-sm)] w-16 shrink-0 rounded-[var(--radius-control)] border border-border bg-surface px-1.5 text-center text-sm font-black text-text outline-none tabular-nums placeholder:text-text-muted disabled:opacity-50" /><button type="button" disabled={disabled} onClick={incrementCount} className="inline-flex h-[var(--control-height-sm)] w-7 shrink-0 items-center justify-center rounded-[var(--radius-control)] border border-border bg-emerald-500/15 text-base font-black text-emerald-200 transition-colors hover:bg-emerald-500/25 disabled:opacity-40" aria-label={tt("inventory.count.increment")}>+</button></div></div><div className="min-w-[64px] text-end"><div className="text-[10px] font-bold uppercase tracking-[0.16em] text-text-muted">{tt("inventory.count.difference")}</div><div className={`mt-0.5 text-sm font-black tabular-nums ${diffTone}`}>{diff > 0 ? `+${diff}` : diff < 0 ? `-${Math.abs(diff)}` : tt("inventory.count.matched")}</div></div></div></div>);
   }
@@ -2221,7 +2231,7 @@ function ScopeModal({ branches, warehouses, form, setForm, onClose, onCreate }) 
   return (
     <div className="fixed inset-0 z-50 flex items-end justify-center bg-black/70 p-0 backdrop-blur-sm sm:items-center sm:p-4">
       <button type="button" className="absolute inset-0 cursor-default" onClick={onClose} aria-label={tt("common.close")} />
-      <div className="relative w-full max-w-2xl rounded-t-3xl border border-border bg-surface p-5 shadow-2xl shadow-black sm:rounded-[var(--radius-card)]">
+      <div className="relative max-h-[calc(100dvh-0.5rem)] w-full max-w-2xl overflow-y-auto rounded-t-3xl border border-border bg-surface p-5 pb-[max(1.25rem,env(safe-area-inset-bottom))] shadow-2xl shadow-black sm:max-h-[calc(100dvh-2rem)] sm:rounded-[var(--radius-card)] sm:pb-5">
         <div className="flex items-start justify-between gap-3">
           <div>
             <div className="text-xs font-semibold uppercase tracking-[0.18em] text-emerald-300">{tt("inventory.count.startNew")}</div>

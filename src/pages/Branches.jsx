@@ -24,6 +24,7 @@ import {
 import { api } from "../shared/api/api";
 import { isAdminUser } from "../shared/auth/authStorage";
 import { SafeImage, SafeRender } from "../shared/components/SafeRender";
+import "../modules/inventory/components/catalogPhone.css";
 
 const emptyForm = {
   name: "",
@@ -528,11 +529,11 @@ function Branches() {
   };
 
   return (
-    <div className="min-h-screen bg-[radial-gradient(circle_at_top,_color-mix(in_srgb,var(--primary)_10%,transparent),transparent_32%),linear-gradient(180deg,var(--bg)_0%,var(--surface)_100%)] text-[var(--text)]">
-      <div className="mx-auto flex w-full flex-col gap-5 px-4 py-4 lg:px-6">
-        <section className="rounded-[var(--radius-card)] border border-[var(--border)] bg-[var(--surface)] p-5 shadow-2xl shadow-[var(--shadow)]">
-          <div className="flex flex-col gap-4 xl:flex-row xl:items-center xl:justify-between">
-            <div>
+    <div className="m1-catalog-page min-h-screen bg-[radial-gradient(circle_at_top,_color-mix(in_srgb,var(--primary)_10%,transparent),transparent_32%),linear-gradient(180deg,var(--bg)_0%,var(--surface)_100%)] text-[var(--text)]">
+      <div className="mx-auto flex w-full flex-col gap-5 px-4 py-4 lg:px-6 max-md:gap-3 max-md:px-0 max-md:pt-0">
+        <section className="m1-catalog-flat rounded-[var(--radius-card)] border border-[var(--border)] bg-[var(--surface)] p-5 shadow-2xl shadow-[var(--shadow)]">
+          <div className="flex flex-col gap-4 max-md:flex-row max-md:flex-wrap max-md:items-center max-md:justify-between max-md:gap-3 xl:flex-row xl:items-center xl:justify-between">
+            <div className="min-w-0">
               <h1 className="m1-page-title text-[var(--text)]">{t("branches.title")}</h1>
             </div>
             <button
@@ -552,7 +553,7 @@ function Branches() {
           </div>
         ) : null}
 
-        <section className="grid gap-3 md:grid-cols-4">
+        <section className="grid grid-cols-2 gap-3 md:grid-cols-4">
           <Kpi label={t("branches.stats.total")} value={stats.total} icon={<Building2 className="h-5 w-5" />} />
           <Kpi label={t("branches.stats.active")} value={stats.active} tone="emerald" icon={<CheckCircle2 className="h-5 w-5" />} />
           <Kpi label={t("branches.stats.mapped")} value={stats.mapped} tone="cyan" icon={<Warehouse className="h-5 w-5" />} />
@@ -635,8 +636,8 @@ function Branches() {
       </div>
 
       {modalOpen ? (
-        <div className="fixed inset-0 z-50 flex items-end justify-center bg-black/70 px-4 py-6 backdrop-blur-sm lg:items-center">
-          <div className="w-full max-w-3xl rounded-[var(--radius-card)] border border-[var(--border)] bg-[var(--surface)] p-5 shadow-2xl shadow-black/50">
+        <div className="fixed inset-0 z-50 flex items-end justify-center bg-black/70 px-4 py-6 backdrop-blur-sm max-sm:px-0 max-sm:pb-0 max-sm:pt-2 lg:items-center">
+          <div className="max-h-[calc(100dvh-0.5rem)] w-full max-w-3xl overflow-y-auto rounded-[var(--radius-card)] border border-[var(--border)] bg-[var(--surface)] p-5 shadow-2xl shadow-black/50 max-sm:rounded-b-none max-sm:px-3 max-sm:pb-[max(1.25rem,env(safe-area-inset-bottom))] sm:max-h-[calc(100dvh-3rem)]">
             <div className="flex items-start justify-between gap-4">
               <div>
                 <div className="text-xs font-black uppercase tracking-[0.18em] text-[var(--primary)]">
@@ -730,7 +731,7 @@ function Branches() {
 
       {viewBranch ? (
         <div className="fixed inset-0 z-50 flex items-end justify-center overflow-y-auto bg-black/70 px-3 py-4 backdrop-blur-sm sm:px-4 lg:items-center lg:py-6">
-          <div className="max-h-[calc(100vh-2rem)] w-full max-w-5xl overflow-y-auto rounded-[var(--radius-card)] border border-[var(--border)] bg-[var(--surface)] p-4 shadow-2xl shadow-black/50 sm:p-5">
+          <div className="max-h-[calc(100dvh-2rem)] w-full max-w-5xl overflow-y-auto rounded-[var(--radius-card)] border border-[var(--border)] bg-[var(--surface)] p-4 shadow-2xl shadow-black/50 sm:p-5">
             <div className="flex items-start justify-between gap-4">
               <div>
                 <div className="text-xs font-black uppercase tracking-[0.18em] text-[var(--primary)]">{t("branches.view")}</div>
@@ -947,8 +948,8 @@ function Branches() {
       ) : null}
 
       {deleteTarget ? (
-        <div className="fixed inset-0 z-50 flex items-end justify-center bg-black/70 px-4 py-6 backdrop-blur-sm lg:items-center">
-          <div className="w-full max-w-lg rounded-[var(--radius-card)] border border-red-500/20 bg-[var(--surface)] p-5 shadow-2xl shadow-black/50">
+        <div className="fixed inset-0 z-50 flex items-end justify-center bg-black/70 px-4 py-6 backdrop-blur-sm max-sm:px-0 max-sm:pb-0 lg:items-center">
+          <div className="max-h-[calc(100dvh-0.5rem)] w-full max-w-lg overflow-y-auto rounded-[var(--radius-card)] max-sm:rounded-b-none max-sm:pb-[max(1.25rem,env(safe-area-inset-bottom))] border border-red-500/20 bg-[var(--surface)] p-5 shadow-2xl shadow-black/50">
             <div className="flex items-start gap-4">
               <div className="flex h-12 w-12 shrink-0 items-center justify-center rounded-2xl border border-red-500/20 bg-red-500/10 text-red-200">
                 <AlertTriangle className="h-5 w-5" />

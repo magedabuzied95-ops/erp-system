@@ -16,6 +16,7 @@ import {
 import toast from "react-hot-toast";
 import { api } from "../../../shared/api/api";
 import InventoryShell from "../components/InventoryShell";
+import PhoneFilters from "../components/PhoneFilters";
 import PurchaseAlertPatternSummary from "../components/PurchaseAlertPatternSummary";
 import {
   getGroupedPurchaseAlertPresentation,
@@ -472,7 +473,7 @@ function InventoryDashboard() {
         </div>
       ) : null}
 
-      <div className="grid gap-3 md:grid-cols-2 xl:grid-cols-4">
+      <div className="grid grid-cols-2 gap-3 xl:grid-cols-4">
         <Kpi label={t("inventory.kpis.inventoryValue")} value={<InlineLtrValue>{formatCurrency(kpis.inventoryValue)}</InlineLtrValue>} tone="blue" />
         <Kpi label={t("inventory.kpis.lowStockAlerts")} value={<InlineLtrValue>{lowStockAlerts.length}</InlineLtrValue>} tone="amber" />
         <Kpi label={t("inventory.kpis.inboundMoves")} value={<InlineLtrValue>{kpis.inbound}</InlineLtrValue>} tone="emerald" />
@@ -483,7 +484,9 @@ function InventoryDashboard() {
           amber -> orange gradient wash, which made gold the background of the
           section instead of an accent. The amber stays where it carries meaning
           — the icon, the count badge and the low-stock severity cards. */}
-      <section className="rounded-[var(--radius-card)] border border-border bg-surface p-4 shadow-sm">
+      {/* Phone: the stock list is the page, so the purchase-alert board moves
+          below it (order-last) and its four selects go behind one Filters button. */}
+      <section className="rounded-[var(--radius-card)] border border-border bg-surface p-4 shadow-sm max-md:order-last max-md:p-3">
         <div className="flex flex-wrap items-start justify-between gap-3 border-b border-border pb-4">
           <div>
             <div className="flex items-center gap-2">
@@ -524,6 +527,11 @@ function InventoryDashboard() {
         </div>
 
         <div className="mt-4 grid gap-3 md:grid-cols-2 xl:grid-cols-4">
+          <PhoneFilters
+            activeCount={Object.values(purchaseAlertFilters).filter((value) => value && value !== "all").length}
+            onClear={() => setPurchaseAlertFilters((current) => ({ ...current, brand: "all", category: "all", manufacturer: "all", alertType: "all" }))}
+            className="w-full"
+          >
           <label className="space-y-2">
             <span className="text-xs font-bold uppercase tracking-[0.18em] text-text-muted">
               {t("inventory.purchaseAlerts.filters.brand")}
@@ -586,6 +594,7 @@ function InventoryDashboard() {
               <option value="carton_threshold">{t("inventory.purchaseAlerts.groups.carton_threshold")}</option>
             </select>
           </label>
+          </PhoneFilters>
         </div>
 
         <div className="mt-5 space-y-6">
@@ -593,7 +602,7 @@ function InventoryDashboard() {
             { key: "missing_sizes", title: t("inventory.purchaseAlerts.groups.missing_sizes"), items: purchaseAlertGroups.missingSizes },
             { key: "carton_threshold", title: t("inventory.purchaseAlerts.groups.carton_threshold"), items: purchaseAlertGroups.cartonThreshold },
           ].map((group) => (
-            <div key={group.key} className="rounded-[var(--radius-card)] border border-border bg-surface p-4">
+            <div key={group.key} className="rounded-[var(--radius-card)] border border-border bg-surface p-4 max-md:border-0 max-md:p-0">
               <div className="flex flex-wrap items-center justify-between gap-3">
                 <h4 className="text-lg font-black text-text">{group.title}</h4>
                 <span className="rounded-full border border-border bg-surface-soft px-3 py-1 text-xs font-black text-text">
@@ -706,7 +715,7 @@ function InventoryDashboard() {
       </section>
 
       <div className="grid grid-cols-1 gap-4 xl:grid-cols-[minmax(0,1.1fr)_minmax(360px,0.9fr)]">
-        <div className="rounded-[var(--radius-card)] border border-border bg-surface p-4 shadow-2xl shadow-black/10">
+        <div className="m1-catalog-flat rounded-[var(--radius-card)] border border-border bg-surface p-4 shadow-2xl shadow-black/10">
           <div className="relative">
             <Search className="pointer-events-none absolute right-4 top-1/2 h-4 w-4 -translate-y-1/2 text-text-muted" />
             <input
@@ -717,7 +726,42 @@ function InventoryDashboard() {
             />
           </div>
 
-          <div className="mt-4 overflow-x-auto">
+          {/* Phone: one card per variant instead of the 980px table. */}
+          <div className="mt-3 space-y-2 md:hidden">
+            {loading ? (
+              Array.from({ length: 4 }).map((_, index) => (
+                <div key={index} className="h-20 animate-pulse rounded-[var(--radius-card)] border border-border bg-surface-soft" />
+              ))
+            ) : filtered.length === 0 ? (
+              <div className="rounded-[var(--radius-card)] border border-dashed border-border bg-surface-soft p-8 text-center">
+                <ShoppingBag className="mx-auto h-10 w-10 text-text-muted" />
+                <h3 className="m1-section-title mt-3 text-text">{t("inventory.empty.rowsTitle")}</h3>
+                <p className="mt-2 text-sm text-text-muted">{t("inventory.empty.rowsSubtitle")}</p>
+              </div>
+            ) : (
+              filtered.map((variant) => {
+                const low = Number(variant.stock || 0) <= 10;
+                return (
+                  <div key={String(variant.id)} className="flex items-center gap-3 rounded-[var(--radius-card)] border border-border bg-surface p-3">
+                    <div className="min-w-0 flex-1">
+                      <div className="truncate font-semibold text-text">{variant.product_name || variant.name}</div>
+                      <div className="mt-0.5 truncate text-xs text-text-muted">{variant.color || t("inventory.labels.default")} / {variant.size || t("inventory.labels.oneSize")}</div>
+                      <div className="mt-1.5 flex flex-wrap items-center gap-x-3 gap-y-1 text-xs text-text-muted">
+                        <span>{t("inventory.tableHeaders.stock")}: <span className="font-bold text-text"><InlineLtrValue>{variant.stock}</InlineLtrValue></span></span>
+                        <span className="min-w-0 truncate"><InlineLtrValue>{variant.sku || "—"}</InlineLtrValue></span>
+                        <StatusBadge value={low ? formatInventoryStatusLabel(t("inventory.status.low")) : formatInventoryStatusLabel(t("inventory.status.active"))} />
+                      </div>
+                    </div>
+                    <Link to={`/inventory/variant/${variant.id}/history`} aria-label={t("inventory.actions.inventoryHistory")} className="inline-flex h-10 w-10 shrink-0 items-center justify-center rounded-[var(--radius-control)] border border-border bg-surface-soft text-text">
+                      <Clock3 className="h-4 w-4" />
+                    </Link>
+                  </div>
+                );
+              })
+            )}
+          </div>
+
+          <div className="mt-4 overflow-x-auto max-md:hidden">
             <div className="min-w-[980px]">
               <div className="grid grid-cols-[1.6fr_0.8fr_0.8fr_0.8fr_0.8fr_0.8fr_0.8fr] rounded-[var(--radius-card)] border border-border bg-surface-soft px-4 py-3 text-right text-xs uppercase tracking-[0.18em] text-text-muted">
                 <div>{t("inventory.tableHeaders.product")}</div>
@@ -770,7 +814,7 @@ function InventoryDashboard() {
         </div>
 
         <div className="space-y-4">
-          <div className="rounded-[var(--radius-card)] border border-border bg-surface p-5 shadow-2xl shadow-black/10">
+          <div className="rounded-[var(--radius-card)] border border-border bg-surface p-5 shadow-2xl shadow-black/10 max-sm:p-3">
             <h3 className="m1-section-title text-text">{t("inventory.empty.warehouseTitle")}</h3>
             <div className="mt-4 space-y-3">
               {warehouses.map((warehouse) => (
@@ -787,7 +831,7 @@ function InventoryDashboard() {
             </div>
           </div>
 
-          <div className="rounded-[var(--radius-card)] border border-border bg-surface p-5 shadow-2xl shadow-black/10">
+          <div className="rounded-[var(--radius-card)] border border-border bg-surface p-5 shadow-2xl shadow-black/10 max-sm:p-3">
             <h3 className="m1-section-title text-text">{t("inventory.empty.timelineTitle")}</h3>
             <div className="mt-4 space-y-3">
               {[...movements].slice(0, 5).map((movement, index) => (
@@ -804,7 +848,7 @@ function InventoryDashboard() {
             </div>
           </div>
 
-          <div className="rounded-[var(--radius-card)] border border-border bg-surface p-5 shadow-2xl shadow-black/10">
+          <div className="rounded-[var(--radius-card)] border border-border bg-surface p-5 shadow-2xl shadow-black/10 max-sm:p-3">
             <div className="flex items-center justify-between gap-3">
               <div>
                 <h3 className="m1-section-title text-text">{t("inventory.alerts.title")}</h3>
@@ -1022,9 +1066,9 @@ function Kpi({ label, value, tone = "zinc" }) {
     zinc: "border-border bg-surface-soft text-text",
   };
   return (
-    <div className={`rounded-[var(--radius-card)] border p-4 shadow-xl ${classes[tone]}`}>
-      <div className="text-[11px] uppercase tracking-[0.18em] text-text-muted">{label}</div>
-      <div className="mt-2 text-2xl font-black text-text">{value}</div>
+    <div className={`min-w-0 rounded-[var(--radius-card)] border p-4 shadow-xl max-sm:p-3 ${classes[tone]}`}>
+      <div className="truncate text-[11px] uppercase tracking-[0.18em] text-text-muted">{label}</div>
+      <div className="mt-2 truncate text-2xl font-black text-text max-sm:text-lg">{value}</div>
     </div>
   );
 }

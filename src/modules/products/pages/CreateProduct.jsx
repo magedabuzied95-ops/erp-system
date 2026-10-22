@@ -3685,7 +3685,7 @@ function CreateProduct({ portal = null } = {}) {
                                   {(isColorOnlyMode ? group.sizes.slice(0, 1) : group.sizes).map((row, rowIndex) => (
                                   <div
                                     key={row.id}
-                                    className={`grid gap-2 rounded-[var(--radius-card)] border border-border bg-surface p-3 xl:min-w-0 xl:items-start xl:py-2 ${isColorOnlyMode ? "xl:grid-cols-[120px_minmax(130px,1fr)_minmax(160px,1fr)_minmax(130px,1fr)_110px]" : "xl:grid-cols-[minmax(90px,110px)_110px_minmax(130px,150px)_minmax(160px,185px)_minmax(220px,280px)_190px]"}`}
+                                    className={`grid gap-2 rounded-[var(--radius-card)] border border-border bg-surface p-3 max-lg:grid-cols-2 xl:min-w-0 xl:items-start xl:py-2 ${isColorOnlyMode ? "xl:grid-cols-[120px_minmax(130px,1fr)_minmax(160px,1fr)_minmax(130px,1fr)_110px]" : "xl:grid-cols-[minmax(90px,110px)_110px_minmax(130px,150px)_minmax(160px,185px)_minmax(220px,280px)_190px]"}`}
                                   >
                                       {!isColorOnlyMode ? <div>
                                         <label className="text-[11px] font-semibold uppercase tracking-[0.14em] text-text-muted xl:sr-only">
@@ -3720,7 +3720,7 @@ function CreateProduct({ portal = null } = {}) {
                                           className="mt-1.5 h-[var(--control-height-md)] w-full rounded-[var(--radius-control)] border border-border bg-surface px-3 text-sm text-text outline-none placeholder:text-text-muted xl:mt-0"
                                         />
                                       </div>
-                                      <div>
+                                      <div className={isColorOnlyMode ? "max-lg:col-span-2" : undefined}>
                                         <label className="text-[11px] font-semibold uppercase tracking-[0.14em] text-text-muted xl:sr-only">{t("products.selected.barcode", "Barcode")}</label>
                                         <input
                                           value={row.barcode}
@@ -3729,7 +3729,7 @@ function CreateProduct({ portal = null } = {}) {
                                           className="mt-1.5 h-[var(--control-height-md)] w-full rounded-[var(--radius-control)] border border-border bg-surface px-3 text-sm text-text outline-none placeholder:text-text-muted xl:mt-0"
                                         />
                                       </div>
-                                      <div>
+                                      <div className="max-lg:col-span-2">
                                         <label className="text-[11px] font-semibold uppercase tracking-[0.14em] text-text-muted xl:sr-only">{t("products.fields.articleCode", "Article Code")}</label>
                                         <ArticleCodeMultiInput
                                           compact
@@ -3741,7 +3741,7 @@ function CreateProduct({ portal = null } = {}) {
                                           placeholder="L122-40"
                                         />
                                       </div>
-                                      <div className="flex items-start">
+                                      <div className="flex items-start max-lg:col-span-2">
                                         <button
                                           type="button"
                                           onClick={() => removeSizeRow(group.id, row.id)}

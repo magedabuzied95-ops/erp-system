@@ -16,6 +16,7 @@ import {
 } from "lucide-react";
 import { ResponsiveTabs } from "../../../shared/components/mobile/ResponsiveMobile";
 import "./ProductsShell.m1.css";
+import "../../inventory/components/catalogPhone.css";
 
 export default function ProductsShell({
   title,
@@ -44,14 +45,14 @@ export default function ProductsShell({
   ];
 
   return (
-    <div className="m1-products-page w-full min-w-0 max-w-none space-y-4 overflow-x-hidden sm:space-y-6">
-      <div className="m1-products-heading rounded-[var(--radius-card)] border border-[var(--border)] bg-[var(--surface)] p-3 shadow-[0_22px_70px_var(--shadow)] sm:rounded-[28px] sm:p-5 xl:p-6">
-        <div className="flex flex-col gap-4 xl:flex-row xl:items-end xl:justify-between">
+    <div className="m1-catalog-page m1-products-page w-full min-w-0 max-w-none space-y-4 overflow-x-hidden sm:space-y-6">
+      <div className="m1-catalog-flat m1-products-heading rounded-[var(--radius-card)] border border-[var(--border)] bg-[var(--surface)] p-3 shadow-[0_22px_70px_var(--shadow)] sm:rounded-[28px] sm:p-5 xl:p-6">
+        <div className="flex flex-col gap-4 max-md:flex-row max-md:flex-wrap max-md:items-center max-md:justify-between max-md:gap-3 xl:flex-row xl:items-end xl:justify-between">
           {/* No eyebrow. "وحدة المنتجات" over "كتالوج المنتجات" said the word
               twice and bought nothing: the sidebar already says which module
               this is, and on a phone the label plus its tracking cost a line
               of the first screen. One title per screen. */}
-          <div className="max-w-3xl">
+          <div className="min-w-0 max-w-3xl">
             <h1 className="m1-display text-[var(--text)]">
               {title}
             </h1>
@@ -66,7 +67,7 @@ export default function ProductsShell({
         </div>
 
         {hideTabs ? null : (
-        <ResponsiveTabs className="mobile-scroll-tabs mt-4 sm:mt-6">
+        <ResponsiveTabs className="m1-catalog-tabs mobile-scroll-tabs mt-4 sm:mt-6">
           {tabs.map(({ to, label, icon: Icon }) => {
             const active =
                   location.pathname === to ||

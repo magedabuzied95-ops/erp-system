@@ -229,7 +229,7 @@ function SmartWarehouse() {
         { to: "/warehouses", label: tt("inventory.tabs.warehouses") },
       ]}
     >
-      <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-5">
+      <div className="m1-catalog-tabs grid gap-3 max-md:flex max-md:gap-2 sm:grid-cols-2 xl:grid-cols-5">
         {tabs.map((tab) => {
           const Icon = tab.icon;
           const active = activeTab === tab.id;

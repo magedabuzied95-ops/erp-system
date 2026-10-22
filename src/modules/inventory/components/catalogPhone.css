@@ -1,0 +1,68 @@
+/* Catalog phone layer — products, inventory, warehouses, purchases, suppliers.
+
+   Phone only (< 768px). Desktop never matches any rule here. Imported by the
+   three module shells (ProductsShell, InventoryShell, FlowShell) and by
+   PhoneFilters, so every catalog screen gets the same phone behaviour:
+
+   - .m1-catalog-flat   a header / filter card that framed the page drops its
+                        frame below md, so content uses the whole width instead
+                        of sitting in card-in-card padding.
+   - .m1-catalog-tabs   the module sub-nav is ONE horizontally scrolling chip
+                        row bleeding to the screen edge (the shell content has a
+                        12px gutter below lg), never a 3-row wrapped grid.
+   - fields are 16px so iOS Safari does not zoom the page on focus. */
+
+@media (max-width: 767px) {
+  .m1-catalog-page :is(input:not([type="checkbox"]):not([type="radio"]):not([type="range"]):not([type="file"]):not([type="color"]), select, textarea),
+  .m1-phone-filters :is(input:not([type="checkbox"]):not([type="radio"]):not([type="range"]):not([type="file"]):not([type="color"]), select, textarea) {
+    font-size: 16px !important;
+  }
+
+  .m1-catalog-page .m1-catalog-flat {
+    padding: 0 !important;
+    border: 0 !important;
+    border-radius: 0 !important;
+    background: transparent !important;
+    box-shadow: none !important;
+  }
+
+  .m1-catalog-page .m1-catalog-tabs {
+    flex-wrap: nowrap !important;
+    overflow-x: auto;
+    overscroll-behavior-x: contain;
+    margin-inline: -12px;
+    padding-inline: 12px;
+    padding-bottom: 2px;
+    -webkit-overflow-scrolling: touch;
+    scrollbar-width: none;
+  }
+
+  .m1-catalog-page .m1-catalog-tabs::-webkit-scrollbar {
+    display: none;
+  }
+
+  .m1-catalog-page .m1-catalog-tabs > * {
+    flex-shrink: 0;
+    white-space: nowrap;
+  }
+
+  /* A long row of buttons (bulk actions) scrolls sideways instead of wrapping
+     into a wall of pills. */
+  .m1-catalog-page .m1-catalog-hscroll {
+    flex-wrap: nowrap !important;
+    overflow-x: auto;
+    -webkit-overflow-scrolling: touch;
+    scrollbar-width: none;
+  }
+
+  .m1-catalog-page .m1-catalog-hscroll > * {
+    flex-shrink: 0;
+    white-space: nowrap;
+  }
+
+  /* Native date inputs refuse to shrink below their intrinsic width. */
+  .m1-phone-filters input[type="date"] {
+    width: 100%;
+    min-width: 0;
+  }
+}

@@ -16,6 +16,7 @@ import toast from "react-hot-toast";
 import { api } from "../../../shared/api/api";
 import { resolveProductImageUrl } from "../../../shared/lib/imageUrls";
 import InventoryShell from "../components/InventoryShell";
+import PhoneFilters from "../components/PhoneFilters";
 import { formatDateTime } from "../../purchases/lib/flowStore";
 import { getProductsWithVariants } from "../../products/services/productsApi";
 
@@ -443,16 +444,17 @@ function StockMovements() {
         { to: "/warehouses", label: tt("inventory.tabs.warehouses") },
       ]}
     >
-      <div className="grid gap-3 md:grid-cols-3 xl:grid-cols-4">
+      <div className="grid grid-cols-2 gap-3 md:grid-cols-3 xl:grid-cols-4">
         <Metric label={tt("inventory.movements.productGroups")} value={summary.productGroups} tone="emerald" />
         <Metric label={tt("inventory.movements.rows")} value={summary.movementRows} tone="blue" />
         <Metric label={tt("inventory.movements.netQuantity")} value={formatSignedQuantity(summary.netQuantity)} tone="violet" />
         <Metric label={tt("inventory.movements.rowLimit")} value={rowCount} tone="amber" />
       </div>
 
-      <div className="rounded-[var(--radius-card)] border border-border bg-surface p-4 shadow-2xl shadow-black/10">
-        <div className="grid gap-3 xl:grid-cols-[minmax(0,1.4fr)_180px_180px_180px_180px_auto]">
-          <label className="relative block xl:col-span-1">
+      {/* Phone: search + one Filters button (type / grade / category / rows). */}
+      <div className="m1-catalog-flat rounded-[var(--radius-card)] border border-border bg-surface p-4 shadow-2xl shadow-black/10">
+        <div className="grid gap-3 max-md:grid-cols-[minmax(0,1fr)_auto] xl:grid-cols-[minmax(0,1.4fr)_180px_180px_180px_180px_auto]">
+          <label className="relative block min-w-0 xl:col-span-1">
             <Search className="pointer-events-none absolute left-4 top-1/2 h-4 w-4 -translate-y-1/2 text-text-muted" />
             <input
               value={search}
@@ -462,6 +464,10 @@ function StockMovements() {
             />
           </label>
 
+          <PhoneFilters
+            activeCount={[movementType, grade, category].filter(Boolean).length + (rowCount !== 200 ? 1 : 0)}
+            onClear={() => { setMovementType(""); setGrade(""); setCategory(""); setRowCount(200); }}
+          >
           <label className="block">
             <div className="mb-2 flex items-center gap-2 text-[10px] uppercase tracking-[0.18em] text-text-muted">
               <SlidersHorizontal className="h-3.5 w-3.5" />
@@ -541,11 +547,12 @@ function StockMovements() {
           >
             {tt("inventory.actions.reset")}
           </button>
+          </PhoneFilters>
         </div>
       </div>
 
       <div className="rounded-[var(--radius-card)] border border-border bg-surface shadow-2xl shadow-black/10">
-        <div className="flex flex-col gap-2 border-b border-border px-5 py-4 sm:flex-row sm:items-center sm:justify-between">
+        <div className="flex flex-col gap-2 border-b border-border px-5 py-4 max-sm:px-3 sm:flex-row sm:items-center sm:justify-between">
           <div>
             <h3 className="m1-section-title text-text">{tt("inventory.movements.log")}</h3>
             <p className="mt-1 text-sm text-text-muted">{tt("inventory.movements.groupedHint")}</p>
@@ -571,7 +578,7 @@ function StockMovements() {
             </div>
           </div>
         ) : (
-          <div className="space-y-3 p-3">
+          <div className="space-y-3 p-3 max-sm:p-2">
             {groupedMovements.map((group) => {
               const expanded = expandedGroups.includes(group.key);
               const imageUrl = resolveProductImageUrl(group.product_image_url || "");
