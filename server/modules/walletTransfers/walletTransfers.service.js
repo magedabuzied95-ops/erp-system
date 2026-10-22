@@ -128,9 +128,12 @@ const findCandidateOrders = async (client, transfer) => {
           - $3::numeric
         ) < 0.01
         -- The payment card's upload: the transfer is the shipping fee alone.
+        -- Only an order the courier still collects on: a prepaid InstaPay / wallet order also
+        -- names the wallet here, and its shipping fee is not what it owes.
         OR (
           LOWER(COALESCE(shipping_payment_method, '')) = ANY($4::text[])
           AND ABS(COALESCE(shipping_fee, 0) - $3::numeric) < 0.01
+          AND (LOWER(COALESCE(payment_method, '')) IN ('cod', 'cash_on_delivery') OR COALESCE(cod_amount, 0) > 0)
         )
       )
       AND NOT EXISTS (SELECT 1 FROM wallet_transfers wt WHERE wt.order_id = orders.id AND wt.status = 'matched')
@@ -148,6 +151,10 @@ const confirmOrderForTransfer = async (client, { transfer, orderId, matchMethod,
   if (!order) return null;
   // The automatic path only ever approves an order still waiting; a person may override that.
   if (matchMethod !== "manual" && text(order.transfer_proof_status).toLowerCase() !== "pending") return null;
+  // The order is credited with the money this transfer carried, never more: a 60 EGP transfer
+  // that matched on the shipping fee must not mark a 1,500 EGP InstaPay order paid in full.
+  const transferAmount = Math.max(0, Number(transfer.amount) || 0);
+  if (!transferAmount) return null;
   let confirmation = null;
   if (text(order.transfer_proof_status).toLowerCase() !== "approved") {
     confirmation = await applyTransferPaymentConfirmation(client, {
@@ -156,6 +163,7 @@ const confirmOrderForTransfer = async (client, { transfer, orderId, matchMethod,
       loyaltyTenantId: transfer.tenant_id ?? null,
       userId,
       logTag: "wallet-transfers.confirm",
+      paidAmount: Number(order.paid_amount || 0) + transferAmount,
     });
   }
   const updated = await client.query(

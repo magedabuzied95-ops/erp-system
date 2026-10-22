@@ -73,7 +73,8 @@ test("the POS return route never pays out the body's refund_amount", () => {
 
 test("the returns page route pays the prorated line total and refuses cancelled invoices", () => {
   assert.doesNotMatch(createReturn, /requestedRefundAmount/);
-  assert.match(createReturn, /effectiveRefundAmount = Number\(proratedRefundTotal\.toFixed\(2\)\);/);
+  assert.match(createReturn, /goodsRefund: Number\(proratedRefundTotal\.toFixed\(2\)\)/);
+  assert.match(createReturn, /effectiveRefundAmount = refundSplit\.payable;/);
   assert.match(createReturn, /capLineRefundGross\(originalItem, quantity, requestedGross\)/);
   assert.match(createReturn, /normalizeOrderStatus\(orderRow\.status\) === "cancelled"/);
   assert.match(createReturn, /if \(!items\.some\(\(item\) => Number\(item\?\.quantity \|\| 0\) > 0\)\)/);

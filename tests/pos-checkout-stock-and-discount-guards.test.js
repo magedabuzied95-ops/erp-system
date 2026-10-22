@@ -178,13 +178,14 @@ test("discount settings are coerced from however they were stored", async () => 
   assert.deepEqual(defaults, { allowDiscount: true, maxDiscountPercent: 20 });
 });
 
-test("createOrder enforces the limit on item + invoice discount, managers bypass, offline replays pass", () => {
+test("createOrder enforces the limit on item + invoice discount + below-price lines, managers bypass, offline replays park", () => {
   const source = createOrderSource();
   const block = slice(source, "const discountLimitCheck = evaluatePosDiscountLimit({", "// Loyalty money is points");
-  assert.match(block, /manualDiscount: itemDiscountAmount \+ normalizedInvoiceDiscountAmount,/);
+  assert.match(block, /manualDiscount: itemDiscountAmount \+ normalizedInvoiceDiscountAmount \+ createBelowFloorDiscount,/);
   assert.doesNotMatch(block, /coupon|verifiedLoyaltyDiscount/i);
   assert.match(block, /canOverridePosDiscount\(client, req\.user\?\.id \|\| null\)/);
-  assert.match(block, /if \(offline_origin\) \{\s*console\.warn\("\[orders:discount-limit-offline-accepted\]"/);
+  // The request sets offline_origin, so it cannot waive the limit: a replay parks (409) for a manager.
+  assert.match(block, /if \(offline_origin\) \{\s*console\.warn\("\[orders:discount-limit-offline-parked\]"[\s\S]*res\.status\(409\)/);
   assert.match(block, /res\.status\(403\)\.json\(\{[\s\S]*code: "POS_DISCOUNT_LIMIT"/);
   assert.ok(source.indexOf("const discountLimitCheck") < source.indexOf("INSERT INTO orders ("));
 });
@@ -192,7 +193,7 @@ test("createOrder enforces the limit on item + invoice discount, managers bypass
 test("editOrder enforces the same limit before rewriting the invoice", () => {
   const source = editOrderSource();
   const block = slice(source, "const editDiscountLimitCheck = evaluatePosDiscountLimit({", "const serviceValue");
-  assert.match(block, /manualDiscount: discountValue,/);
+  assert.match(block, /manualDiscount: discountValue \+ editBelowFloorDiscount,/);
   assert.match(block, /code: "POS_DISCOUNT_LIMIT"/);
   assert.match(block, /canOverridePosDiscount\(client, req\.user\?\.id \|\| null\)/);
   assert.ok(source.indexOf("const editDiscountLimitCheck") < source.indexOf("DELETE FROM order_items"));

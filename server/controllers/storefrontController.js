@@ -5393,12 +5393,15 @@ export const getProductByToken = async (req, res) => {
 
 export const searchProducts = listProducts;
 
-const resolveCustomer = async (client, tenantId, checkout = {}, customerColumns = null, runQuery = queryWithContext) => {
+// `trustCustomerId`: only the authenticated till may name a customer by id. The public checkout
+// is anonymous, so an id there would book the order (and its WhatsApp messages) to whoever owns
+// that number and echo their phone and email back; it is resolved by the typed phone instead.
+const resolveCustomer = async (client, tenantId, checkout = {}, customerColumns = null, runQuery = queryWithContext, { trustCustomerId = false } = {}) => {
   void customerColumns;
   void runQuery;
   return resolveOrCreateCustomerAccount(client, {
     tenantId,
-    customerId: checkout.customer_id || checkout.customerId || null,
+    customerId: trustCustomerId ? checkout.customer_id || checkout.customerId || null : null,
     name: toText(checkout.full_name || checkout.customer_name || "Online Customer"),
     phone: checkout.primary_phone || checkout.customer_phone || checkout.phone || "",
     email: checkout.email || checkout.customer_email || "",
@@ -5991,7 +5994,7 @@ export const createWebsiteOrder = async (req, res) => {
     });
 
     markCheckoutStep("upsert customer", { table: "customers", phone: checkout.primary_phone });
-    const customer = await resolveCustomer(client, tenantId, checkout, checkoutColumns.customers, runCheckoutQuery);
+    const customer = await resolveCustomer(client, tenantId, checkout, checkoutColumns.customers, runCheckoutQuery, { trustCustomerId: posOnlineOrder });
     markCheckoutStep("upsert customer:done", { table: "customers", customerId: customer?.id });
     const pricingSettings = await loadStorefrontPricingSettings(tenantId);
     let subtotal = 0;
@@ -6280,7 +6283,8 @@ export const createWebsiteOrder = async (req, res) => {
       customer_name: checkout.full_name,
       customer_phone: customer?.phone || normalizePhone(checkout.primary_phone),
       customer_secondary_phone: secondaryPhone.value || null,
-      customer_email: checkout.email || customer?.email || "",
+      // An anonymous shopper who typed someone's phone must not get that account's email back.
+      customer_email: checkout.email || (posOnlineOrder ? customer?.email : "") || "",
       channel: "storefront",
       source: "website",
       customer_type: "online",
