@@ -94,7 +94,7 @@ function ProfitAndLoss() {
         />
       ) : null}
 
-      <div className="grid gap-3 md:grid-cols-2 xl:grid-cols-4">
+      <div className="grid gap-3 max-md:grid-cols-2 max-md:gap-2 md:grid-cols-2 xl:grid-cols-4">
         <FinanceMetricCard label={t("accounting.reports.metrics.grossSales")} value={formatCurrency(report.revenue?.gross_sales || 0)} tone="emerald" icon={<TrendingUp className="h-5 w-5" />} />
         <FinanceMetricCard label={t("accounting.reports.metrics.netSales")} value={formatCurrency(report.revenue?.net_sales || 0)} tone="cyan" icon={<BarChart3 className="h-5 w-5" />} />
         <FinanceMetricCard label={t("accounting.reports.metrics.cogs")} value={formatCurrency(report.cogs?.total_cogs || 0)} tone="rose" icon={<Calculator className="h-5 w-5" />} />
@@ -108,7 +108,7 @@ function ProfitAndLoss() {
       ) : null}
 
       <div className="grid gap-4 xl:grid-cols-[1.3fr_0.7fr]">
-        <div className="rounded-3xl border border-white/10 bg-zinc-950/90 p-5 shadow-2xl shadow-black/10">
+        <div className="rounded-3xl border border-white/10 bg-zinc-950/90 p-5 shadow-2xl shadow-black/10 max-md:rounded-none max-md:border-0 max-md:bg-transparent! max-md:p-0 max-md:shadow-none">
           <h3 className="m1-section-title text-white">{t("accounting.reports.cards.profitLossStatement")}</h3>
           <div className="mt-4 space-y-2">
             <Line label={t("accounting.reports.metrics.grossSales")} value={report.revenue?.gross_sales || 0} />
@@ -122,7 +122,7 @@ function ProfitAndLoss() {
           </div>
         </div>
 
-        <div className="rounded-3xl border border-white/10 bg-zinc-950/90 p-5 shadow-2xl shadow-black/10">
+        <div className="rounded-3xl border border-white/10 bg-zinc-950/90 p-5 shadow-2xl shadow-black/10 max-md:rounded-none max-md:border-0 max-md:bg-transparent! max-md:p-0 max-md:shadow-none">
           <h3 className="m1-section-title text-white">{t("accounting.reports.cards.expensesByCategory")}</h3>
           <div className="mt-4 space-y-3">
             {expenses.length === 0 ? (

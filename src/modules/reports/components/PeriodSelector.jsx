@@ -99,7 +99,7 @@ export default function PeriodSelector({ filters, allowedComparisons, onPresetCh
                     value={customFrom}
                     max={customTo}
                     onChange={(event) => setCustomFrom(event.target.value)}
-                    className="h-[var(--control-height-md)] w-full rounded-[var(--radius-control)] border border-[var(--border)] bg-[var(--card)] px-2 text-[12px] text-[var(--text)] outline-none focus:border-[var(--primary)]"
+                    className="h-[var(--control-height-md)] w-full min-w-0 rounded-[var(--radius-control)] border border-[var(--border)] bg-[var(--card)] px-2 text-[12px] text-[var(--text)] outline-none focus:border-[var(--primary)]"
                   />
                 </label>
                 <label className="block">
@@ -111,7 +111,7 @@ export default function PeriodSelector({ filters, allowedComparisons, onPresetCh
                     value={customTo}
                     min={customFrom}
                     onChange={(event) => setCustomTo(event.target.value)}
-                    className="h-[var(--control-height-md)] w-full rounded-[var(--radius-control)] border border-[var(--border)] bg-[var(--card)] px-2 text-[12px] text-[var(--text)] outline-none focus:border-[var(--primary)]"
+                    className="h-[var(--control-height-md)] w-full min-w-0 rounded-[var(--radius-control)] border border-[var(--border)] bg-[var(--card)] px-2 text-[12px] text-[var(--text)] outline-none focus:border-[var(--primary)]"
                   />
                 </label>
               </div>

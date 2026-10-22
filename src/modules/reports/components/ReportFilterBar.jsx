@@ -3,6 +3,7 @@ import { useTranslation } from "react-i18next";
 import { Filter, X } from "lucide-react";
 
 import { fetchFilterOptions } from "../services/analyticsV2Api";
+import PhoneFilterSheet from "../../accounting/components/PhoneFilterSheet";
 
 /**
  * The filter controls the legacy page had and this one did not.
@@ -89,10 +90,14 @@ export default function ReportFilterBar({ filters, onChange, period }) {
   if (!options) return null;
   if (!visible.length && !active.length && !unsupported.length) return null;
 
+  // Phones: the dimension dropdowns fold behind one filter button (with the active count)
+  // that opens a bottom sheet, so the first screen shows numbers rather than controls.
   return (
+    <div className="mb-4 md:contents">
+    <PhoneFilterSheet label={t("overview.filters.label")} activeCount={active.length}>
     <section
       aria-label={t("overview.filters.label")}
-      className="mb-4 rounded-[var(--radius-card)] border border-[var(--border)] bg-[var(--card)] px-3 py-2.5"
+      className="mb-4 rounded-[var(--radius-card)] border border-[var(--border)] bg-[var(--card)] px-3 py-2.5 max-md:mb-0 max-md:border-0 max-md:bg-transparent! max-md:p-0 max-md:[&_label]:w-full max-md:[&_select]:w-full max-md:[&_select]:max-w-none max-md:[&_select]:min-h-11"
     >
       <div className="flex flex-wrap items-end gap-2.5">
         <span className="inline-flex h-[var(--control-height-sm)] items-center gap-1.5 text-[12px] font-semibold text-[var(--text-secondary)]">
@@ -147,5 +152,7 @@ export default function ReportFilterBar({ filters, onChange, period }) {
         </p>
       ) : null}
     </section>
+    </PhoneFilterSheet>
+    </div>
   );
 }

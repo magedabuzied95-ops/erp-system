@@ -222,21 +222,21 @@ function Accounts() {
             />
           ) : null}
 
-          <div className="grid gap-3 md:grid-cols-2 xl:grid-cols-4">
+          <div className="grid gap-3 max-md:grid-cols-2 max-md:gap-2 md:grid-cols-2 xl:grid-cols-4">
             <FinanceMetricCard label={tt("accounting.accounts.metrics.total")} value={accountsData.summary.total || 0} tone="cyan" icon={<BookCopy className="h-5 w-5" />} />
             <FinanceMetricCard label={tt("accounting.accounts.metrics.active")} value={accountsData.summary.active || 0} tone="emerald" icon={<Wallet className="h-5 w-5" />} />
             <FinanceMetricCard label={tt("accounting.accounts.metrics.assets")} value={accountsData.summary.by_type?.asset || 0} tone="amber" icon={<ArrowDownLeft className="h-5 w-5" />} />
             <FinanceMetricCard label={tt("accounting.accounts.metrics.expenses")} value={accountsData.summary.by_type?.expense || 0} tone="rose" icon={<ArrowUpRight className="h-5 w-5" />} />
           </div>
 
-          <div className="rounded-3xl border border-white/10 bg-zinc-950/90 p-5 shadow-2xl shadow-black/10">
+          <div className="rounded-3xl border border-white/10 bg-zinc-950/90 p-5 shadow-2xl shadow-black/10 max-md:rounded-none max-md:border-0 max-md:bg-transparent! max-md:p-0 max-md:shadow-none">
             <div className="flex flex-col gap-3 md:flex-row md:items-end md:justify-between">
               <div>
                 <h3 className="m1-section-title text-white">{tt("accounting.accounts.tree")}</h3>
                 <p className="mt-1 text-sm text-zinc-400">{tt("accounting.accounts.defaultsHint")}</p>
               </div>
               <div className="flex flex-wrap gap-2">
-                <label className="flex min-w-[260px] items-center gap-3 rounded-[var(--radius-card)] border border-white/10 bg-white/5 px-4 py-3 text-zinc-300">
+                <label className="flex min-w-[260px] items-center gap-3 rounded-[var(--radius-card)] border border-white/10 bg-white/5 px-4 py-3 text-zinc-300 max-md:min-w-0 max-md:flex-1">
                   <Search className="h-4 w-4 text-zinc-500" />
                   <input
                     value={accountSearch}
@@ -335,7 +335,7 @@ function Accounts() {
             />
           ) : null}
 
-          <div className="grid gap-3 md:grid-cols-3">
+          <div className="grid gap-3 max-md:grid-cols-2 max-md:gap-2 md:grid-cols-3">
             <FinanceMetricCard label={t("accounting.common.metrics.totalDebit")} value={formatCurrency(totals.debit || 0)} tone="emerald" icon={<ArrowDownLeft className="h-5 w-5" />} />
             <FinanceMetricCard label={t("accounting.common.metrics.totalCredit")} value={formatCurrency(totals.credit || 0)} tone="rose" icon={<ArrowUpRight className="h-5 w-5" />} />
             <FinanceMetricCard label={t("accounting.common.metrics.endingBalance")} value={formatCurrency(totals.ending_balance || 0)} tone={Number(totals.ending_balance || 0) >= 0 ? "cyan" : "rose"} icon={<Wallet className="h-5 w-5" />} />

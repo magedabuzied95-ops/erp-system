@@ -606,7 +606,7 @@ function AiInsightsCenter({ insights, loading }) {
             Automated analysis for sales, stock, people, customers, loyalty, shifts, expenses, and profit movement.
           </p>
         </div>
-        <div className="grid grid-cols-4 gap-2 sm:min-w-[420px]">
+        <div className="grid grid-cols-4 gap-2 max-sm:grid-cols-2 sm:min-w-[420px]">
           {["critical", "warning", "success", "info"].map((key) => (
             <div key={key} className={`rounded-2xl border ${severityStyles[key].border} ${severityStyles[key].bg} p-3 text-center`}>
               <div className="text-xl font-black text-white">{Number(summary[key] || 0)}</div>

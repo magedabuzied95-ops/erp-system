@@ -1,4 +1,5 @@
 import { useTranslation } from "react-i18next";
+import "../../accounting/components/financeMobile.css";
 
 /**
  * Shared shell for the Reporting Center pages.
@@ -25,7 +26,7 @@ export function ReportsPage({ dir, children }) {
     // No horizontal padding here: the app shell's .m1-shell-content already applies
     // --page-inline, and adding it again cost 60px of chart width on a 1920 monitor
     // for no visual gain.
-    <div dir={dir} className="min-h-full bg-[var(--bg)] py-5">
+    <div dir={dir} className="m1-finance-root min-h-full bg-[var(--bg)] py-5 max-md:py-3">
       {/* Fluid: the analytics grids use the room a large monitor actually has. */}
       <div className="mx-auto w-full">
         {children}
@@ -37,13 +38,13 @@ export function ReportsPage({ dir, children }) {
 /** Page title + subtitle + toolbar. */
 export function ReportsHeader({ title, subtitle, children }) {
   return (
-    <header className="mb-5 flex flex-col gap-3 xl:flex-row xl:items-end xl:justify-between">
+    <header className="mb-5 flex flex-col gap-3 max-md:mb-3 xl:flex-row xl:items-end xl:justify-between">
       <div className="min-w-0">
         <h1 className="m1-page-title text-[20px] text-[var(--text)] sm:text-[24px] 2xl:text-[28px]">
           {title}
         </h1>
         {subtitle ? (
-          <p className="mt-1 max-w-[62ch] text-[13px] text-[var(--text-secondary)] 2xl:text-[14px]">{subtitle}</p>
+          <p className="mt-1 max-w-[62ch] text-[13px] text-[var(--text-secondary)] max-md:line-clamp-2 2xl:text-[14px]">{subtitle}</p>
         ) : null}
       </div>
       {children}
@@ -60,7 +61,7 @@ export function Card({ title, subtitle, actions, children, className = "", bodyC
       className={`flex min-w-0 flex-col rounded-[var(--radius-card)] border border-[var(--border)] bg-[var(--card)] ${className}`}
     >
       {title ? (
-        <div className="flex min-h-[52px] flex-wrap items-center justify-between gap-x-3 gap-y-1.5 border-b border-[var(--border)] px-4 py-3 2xl:px-5">
+        <div className="flex min-h-[52px] flex-wrap items-center justify-between gap-x-3 gap-y-1.5 border-b border-[var(--border)] px-4 py-3 max-md:min-h-0 max-md:px-3 max-md:py-2.5 2xl:px-5">
           <div className="min-w-0">
             <h2 className="m1-section-title truncate text-[14px] text-[var(--text)] 2xl:text-[15px]">{title}</h2>
             {subtitle ? (
@@ -70,7 +71,7 @@ export function Card({ title, subtitle, actions, children, className = "", bodyC
           {actions ? <div className="flex shrink-0 items-center gap-2">{actions}</div> : null}
         </div>
       ) : null}
-      <div className={`min-w-0 flex-1 ${flush ? "" : "p-4 2xl:p-5"} ${bodyClassName}`}>{children}</div>
+      <div className={`min-w-0 flex-1 ${flush ? "" : "p-4 max-md:p-3 2xl:p-5"} ${bodyClassName}`}>{children}</div>
     </section>
   );
 }

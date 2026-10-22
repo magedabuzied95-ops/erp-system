@@ -16,9 +16,17 @@ export default function MetricTooltip({ title, definition, formula, extra, align
         aria-describedby={open ? id : undefined}
         aria-label={title}
         className="inline-flex h-5 w-5 items-center justify-center rounded-full text-[var(--text-tertiary)] outline-none transition hover:bg-[var(--surface-soft)] hover:text-[var(--text-secondary)] focus-visible:ring-2 focus-visible:ring-[var(--focus-ring)]"
-        onMouseEnter={() => setOpen(true)}
-        onMouseLeave={() => setOpen(false)}
-        onFocus={() => setOpen(true)}
+        // Pointer, not mouse, events: a tap fires a synthetic mouseenter right before its
+        // click, so a mouse-driven open was toggled shut by the same tap on a phone.
+        onPointerEnter={(event) => { if (event.pointerType === "mouse") setOpen(true); }}
+        onPointerLeave={(event) => { if (event.pointerType === "mouse") setOpen(false); }}
+        // Keyboard focus only: a tap that also focuses the button (Android) would
+        // otherwise open here and close again in the click toggle below.
+        onFocus={(event) => {
+          let keyboard = true;
+          try { keyboard = event.currentTarget.matches(":focus-visible"); } catch { /* old engine */ }
+          if (keyboard) setOpen(true);
+        }}
         onBlur={() => setOpen(false)}
         onClick={() => setOpen((value) => !value)}
         onKeyDown={(event) => {
@@ -32,7 +40,7 @@ export default function MetricTooltip({ title, definition, formula, extra, align
         <span
           id={id}
           role="tooltip"
-          className={`absolute top-6 z-30 w-64 rounded-[var(--radius-card)] border border-[var(--border)] bg-[var(--surface-raised)] p-3 text-start shadow-[var(--shadow-overlay)] ${ align === "end" ? "end-0" : "start-0" }`}
+          className={`absolute top-6 z-30 w-64 max-sm:fixed max-sm:inset-x-4 max-sm:top-auto max-sm:bottom-[calc(1rem+env(safe-area-inset-bottom))] max-sm:z-[90] max-sm:w-auto rounded-[var(--radius-card)] border border-[var(--border)] bg-[var(--surface-raised)] p-3 text-start shadow-[var(--shadow-overlay)] ${ align === "end" ? "end-0" : "start-0" }`}
         >
           <span className="block text-[13px] font-bold text-[var(--text)]">{title}</span>
           {definition ? (

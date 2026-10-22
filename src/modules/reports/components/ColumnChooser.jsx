@@ -61,7 +61,7 @@ export default function ColumnChooser({ choosable = [], hidden = [], hiddenCount
            * and a logical property does that without a mirrored stylesheet. max-h + scroll
            * so a wide table's column list stays usable on a phone.
            */
-          className="absolute end-0 z-30 mt-1 max-h-[60vh] w-[15rem] overflow-y-auto rounded-[var(--radius-card)] border border-[var(--border)] bg-[var(--card)] p-1.5 shadow-lg"
+          className="absolute end-0 z-30 mt-1 max-h-[60vh] w-[15rem] overflow-y-auto max-sm:static max-sm:w-full rounded-[var(--radius-card)] border border-[var(--border)] bg-[var(--card)] p-1.5 shadow-lg"
         >
           {choosable.map((column) => {
             const isHidden = hidden.includes(column.key);

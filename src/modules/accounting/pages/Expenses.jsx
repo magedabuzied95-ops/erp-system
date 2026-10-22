@@ -36,6 +36,7 @@ import toast from "react-hot-toast";
 import { api } from "../../../shared/api/api";
 import { CurrencyText } from "../../../shared/components/CurrencyAmount";
 import AccountingShell from "../components/AccountingShell";
+import PhoneFilterSheet from "../components/PhoneFilterSheet";
 import FinanceMetricCard from "../components/FinanceMetricCard";
 import { formatCurrency } from "../lib/financeStore";
 import ThemedSelect from "../../../shared/ui/ThemedSelect";
@@ -114,7 +115,7 @@ const blankRecurring = {
 
 const labels = {
   en: {
-    module: "Expenses Center",
+    module: "Expenses Center",
     dashboard: "Dashboard",
     expenses: "All Expenses",
     create: "Add / Edit",
@@ -181,7 +182,7 @@ const labels = {
     advanceDeducted: "Advance marked deducted",
   },
   ar: {
-    module: "مركز المصاريف",
+    module: "مركز المصاريف",
     dashboard: "لوحة التحكم",
     expenses: "كل المصاريف",
     create: "إضافة / تعديل",
@@ -703,7 +704,7 @@ function Expenses({ defaultTab = "dashboard", visibleTabs = null }) {
 
   return (
     <AccountingShell
-      title={copy.module}
+      title={copy.module}
       actions={
         <div className="flex flex-wrap items-center gap-2">
           <button type="button" onClick={loadAll} className="theme-button-soft px-3 py-2 text-sm" disabled={loading}>
@@ -989,7 +990,7 @@ function Expenses({ defaultTab = "dashboard", visibleTabs = null }) {
 
 function KpiGrid({ summary, copy }) {
   return (
-    <div className="grid gap-3 md:grid-cols-2 xl:grid-cols-6">
+    <div className="grid gap-3 max-md:grid-cols-2 max-md:gap-2 md:grid-cols-2 xl:grid-cols-6">
       <FinanceMetricCard label={copy.totalToday} value={formatCurrency(summary.today || 0)} tone="rose" icon={<ReceiptText className="h-5 w-5" />} />
       <FinanceMetricCard label={copy.totalMonth} value={formatCurrency(summary.month || 0)} tone="amber" icon={<Wallet className="h-5 w-5" />} />
       <FinanceMetricCard label={copy.pendingApproval} value={summary.pending_approval || 0} tone="cyan" icon={<ShieldCheck className="h-5 w-5" />} />
@@ -1184,27 +1185,39 @@ function SearchableSelect({ label, value, onChange, options, placeholder, emptyT
 
 function Panel({ title, children }) {
   return (
-    <section className="rounded-2xl border border-white/10 bg-zinc-950/90 p-4 shadow-2xl shadow-black/10">
+    <section className="rounded-2xl border border-white/10 bg-zinc-950/90 p-4 shadow-2xl shadow-black/10 max-md:rounded-none max-md:border-0 max-md:bg-transparent! max-md:p-0 max-md:shadow-none">
       <h3 className="m1-section-title text-white">{title}</h3>
-      <div className="mt-4">{children}</div>
+      <div className="mt-4 max-md:mt-3">{children}</div>
     </section>
   );
 }
 
 function Filters({ filters, setFilters, onApply, copy, t, language }) {
   return (
-    <div className="grid gap-2 rounded-2xl border border-white/10 bg-zinc-950/90 p-3 md:grid-cols-[minmax(0,1fr)_10rem_9rem_9rem_auto]">
-      <label className="relative">
-        <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-zinc-500" />
-        <input value={filters.search} onChange={(event) => setFilters((p) => ({ ...p, search: event.target.value }))} className={`${inputClass} ps-9`} placeholder={copy.search} />
+    // Phones: search stays in view; status + date range fold into one filter sheet.
+    <div className="grid gap-2 rounded-2xl border border-white/10 bg-zinc-950/90 p-3 max-md:grid-cols-[minmax(0,1fr)_auto] max-md:border-0 max-md:bg-transparent! max-md:p-0 md:grid-cols-[minmax(0,1fr)_10rem_9rem_9rem_auto]">
+      <label className="relative min-w-0">
+        <Search className="pointer-events-none absolute start-3 top-1/2 h-4 w-4 -translate-y-1/2 text-zinc-500" />
+        {/* Enter applies: on a phone the Apply button lives in the filter sheet. */}
+        <input value={filters.search} onChange={(event) => setFilters((p) => ({ ...p, search: event.target.value }))} onKeyDown={(event) => { if (event.key === "Enter") { event.preventDefault(); onApply(); } }} enterKeyHint="search" className={`${inputClass} ps-9`} placeholder={copy.search} />
       </label>
+      <PhoneFilterSheet
+        label={t("accounting.common.actions.filter")}
+        activeCount={[filters.status, filters.from, filters.to].filter(Boolean).length}
+        className="h-full max-md:w-auto"
+      >
+        {({ close }) => (
+          <>
       <select value={filters.status} onChange={(event) => setFilters((p) => ({ ...p, status: event.target.value }))} className={inputClass}>
         <option value="" className="bg-zinc-950">{copy.all}</option>
         {STATUSES.map((status) => <option key={status} value={status} className="bg-zinc-950">{statusLabel(t, language, status)}</option>)}
       </select>
       <input type="date" value={filters.from} onChange={(event) => setFilters((p) => ({ ...p, from: event.target.value }))} className={inputClass} />
       <input type="date" value={filters.to} onChange={(event) => setFilters((p) => ({ ...p, to: event.target.value }))} className={inputClass} />
-      <button type="button" onClick={onApply} className="theme-button-primary justify-center px-4 py-2 text-sm">{copy.apply}</button>
+      <button type="button" onClick={() => { onApply(); close(); }} className="theme-button-primary justify-center px-4 py-2 text-sm max-md:min-h-11 max-md:w-full">{copy.apply}</button>
+          </>
+        )}
+      </PhoneFilterSheet>
     </div>
   );
 }
@@ -1338,8 +1351,8 @@ function IconButton({ title, onClick, children }) {
 
 function ConfirmModal({ action, copy, t, language, onClose, onConfirm }) {
   return (
-    <div className="fixed inset-0 z-[120] flex items-center justify-center bg-black/70 p-4 backdrop-blur-sm">
-      <section className="w-full max-w-md rounded-2xl border border-white/10 bg-zinc-950 p-5 shadow-2xl shadow-black/60">
+    <div className="fixed inset-0 z-[120] flex items-center justify-center bg-black/70 p-4 backdrop-blur-sm max-sm:items-end max-sm:p-0">
+      <section className="w-full max-w-md rounded-2xl border border-white/10 bg-zinc-950 p-5 shadow-2xl shadow-black/60 max-sm:max-h-[calc(100dvh-env(safe-area-inset-top)-12px)] max-sm:overflow-y-auto max-sm:overscroll-contain max-sm:rounded-b-none max-sm:p-4 max-sm:pb-[calc(1rem+env(safe-area-inset-bottom))]">
         <div className="flex items-start gap-3">
           <span className="grid h-10 w-10 place-items-center rounded-xl border border-amber-300/20 bg-amber-400/10 text-amber-100"><AlertTriangle className="h-5 w-5" /></span>
           <div>
@@ -1347,7 +1360,7 @@ function ConfirmModal({ action, copy, t, language, onClose, onConfirm }) {
             <p className="mt-1 text-sm text-zinc-400">{t("accounting.expenses.confirmAction", { action: statusLabel(t, language, action.type === "paid" ? "paid" : action.type), id: action.id })}</p>
           </div>
         </div>
-        <div className="mt-5 flex justify-end gap-2">
+        <div className="mt-5 flex justify-end gap-2 max-sm:[&>button]:min-h-11 max-sm:[&>button]:flex-1 max-sm:[&>button]:justify-center">
           <button type="button" onClick={onClose} className="theme-button-soft px-4 py-2 text-sm">{t("accounting.common.actions.cancel")}</button>
           <button type="button" onClick={onConfirm} className="theme-button-primary px-4 py-2 text-sm">{copy[ action.type === "paid" ? "markPaid" : action.type ] || t("accounting.expenses.confirm")}</button>
         </div>

@@ -287,8 +287,8 @@ function paymentMappingTabs(t) {
 
 function Modal({ title, children, onClose }) {
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/70 p-4">
-      <div className="w-full max-w-xl rounded-3xl border border-white/10 bg-zinc-950 p-5 shadow-2xl shadow-black">
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/70 p-4 max-sm:items-end max-sm:p-0">
+      <div className="w-full max-w-xl rounded-3xl border border-white/10 bg-zinc-950 p-5 shadow-2xl shadow-black max-sm:max-h-[calc(100dvh-env(safe-area-inset-top)-12px)] max-sm:overflow-y-auto max-sm:overscroll-contain max-sm:rounded-b-none max-sm:p-4 max-sm:pb-[calc(1rem+env(safe-area-inset-bottom))]">
         <div className="mb-5 flex items-center justify-between gap-3">
           <h3 className="m1-section-title text-white">{title}</h3>
           <button type="button" onClick={onClose} className="rounded-[var(--radius-control)] border border-white/10 bg-white/5 p-2 text-white transition hover:bg-white/10">

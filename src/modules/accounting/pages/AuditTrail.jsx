@@ -6,6 +6,7 @@ import toast from "react-hot-toast";
 
 import { getCurrentUser, hasPermission, isAdminUser } from "../../../shared/auth/authStorage";
 import AccountingShell from "../components/AccountingShell";
+import PhoneFilterSheet from "../components/PhoneFilterSheet";
 import { accountingApi } from "../services/accountingApi";
 
 const initialFilters = {
@@ -102,7 +103,11 @@ function AuditTrail() {
       }
       tabs={auditTabs(t)}
     >
-      <form onSubmit={applyFilters} className="grid gap-3 rounded-3xl border border-white/10 bg-zinc-950/90 p-4 shadow-2xl shadow-black/10 md:grid-cols-3 xl:grid-cols-6">
+      <PhoneFilterSheet
+        label={t("accounting.common.actions.filter")}
+        activeCount={Object.values(appliedFilters || {}).filter(Boolean).length}
+      >
+      <form onSubmit={applyFilters} className="grid gap-3 rounded-3xl border border-white/10 bg-zinc-950/90 p-4 shadow-2xl shadow-black/10 max-md:rounded-none max-md:border-0 max-md:bg-transparent! max-md:p-0 max-md:shadow-none md:grid-cols-3 xl:grid-cols-6">
         <FilterField label={t("accounting.common.labels.from")}>
           <input type="date" value={filters.from_date} onChange={(event) => updateFilter("from_date", event.target.value)} className={inputClass} />
         </FilterField>
@@ -134,6 +139,7 @@ function AuditTrail() {
           <input value={filters.search} onChange={(event) => updateFilter("search", event.target.value)} placeholder={t("accounting.auditTrail.placeholders.search")} className={inputClass} />
         </div>
       </form>
+      </PhoneFilterSheet>
 
       <div className="rounded-3xl border border-white/10 bg-zinc-950 shadow-2xl shadow-black/20">
         <div className="flex items-center justify-between border-b border-white/10 p-4">
@@ -235,15 +241,15 @@ function JsonCell({ title, value, onOpen, viewLabel }) {
 
 function JsonModal({ payload, onClose }) {
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/70 p-4">
-      <div className="max-h-[86vh] w-full max-w-3xl overflow-hidden rounded-3xl border border-white/10 bg-zinc-950 shadow-2xl shadow-black">
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/70 p-4 max-sm:items-end max-sm:p-0">
+      <div className="max-h-[86vh] w-full max-w-3xl overflow-hidden rounded-3xl border border-white/10 bg-zinc-950 shadow-2xl shadow-black max-sm:max-h-[calc(100dvh-env(safe-area-inset-top)-12px)] max-sm:rounded-b-none max-sm:pb-[env(safe-area-inset-bottom)]">
         <div className="flex items-center justify-between border-b border-white/10 p-4">
           <h3 className="m1-section-title text-white">{payload.title}</h3>
           <button type="button" onClick={onClose} className="rounded-[var(--radius-control)] border border-white/10 bg-white/5 p-2 text-white transition hover:bg-white/10">
             <X className="h-5 w-5" />
           </button>
         </div>
-        <pre className="max-h-[70vh] overflow-auto p-4 text-xs leading-6 text-zinc-200">{JSON.stringify(payload.value, null, 2)}</pre>
+        <pre className="max-h-[70vh] overflow-auto p-4 text-xs leading-6 text-zinc-200 max-sm:max-h-[calc(100dvh-env(safe-area-inset-top)-6rem)]">{JSON.stringify(payload.value, null, 2)}</pre>
       </div>
     </div>
   );

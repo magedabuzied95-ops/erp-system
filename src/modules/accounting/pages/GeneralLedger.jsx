@@ -148,7 +148,7 @@ function GeneralLedger() {
         { to: "/accounting/reports", label: tt("accounting.tabs.reports") },
       ]}
     >
-      <form onSubmit={loadLedger} className="grid gap-3 rounded-3xl border border-white/10 bg-zinc-950/90 p-4 shadow-2xl shadow-black/10 md:grid-cols-4">
+      <form onSubmit={loadLedger} className="grid gap-3 rounded-3xl border border-white/10 bg-zinc-950/90 p-4 shadow-2xl shadow-black/10 max-md:grid-cols-2 max-md:gap-2 max-md:rounded-2xl max-md:p-3 max-md:shadow-none max-md:[&>*:first-child]:col-span-2 md:grid-cols-4">
         <Field label={tt("accounting.common.labels.account")}>
           <select
             value={filters.account_id}
@@ -173,8 +173,8 @@ function GeneralLedger() {
         <Field label={tt("orders.table.branch")}>
           <input type="number" min="1" value={filters.branch_id} onChange={(event) => updateFilter("branch_id", event.target.value)} placeholder={tt("accounting.common.labels.optional")} className="w-full rounded-[var(--radius-control)] border border-white/10 bg-white/5 px-3 py-2 text-sm text-white outline-none placeholder:text-zinc-500" />
         </Field>
-        <div className="md:col-span-4">
-          <button type="submit" className="inline-flex items-center gap-2 rounded-[var(--radius-control)] bg-primary px-4 py-2 text-sm font-black text-black transition hover:bg-primary">
+        <div className="flex items-end md:col-span-4 md:block">
+          <button type="submit" className="inline-flex items-center gap-2 rounded-[var(--radius-control)] bg-primary px-4 py-2 max-md:min-h-10 max-md:w-full max-md:justify-center text-sm font-black text-black transition hover:bg-primary">
             <Search className="h-4 w-4" />
             {tt("accounting.ledgers.view")}
           </button>
@@ -183,14 +183,14 @@ function GeneralLedger() {
 
       {error ? <Banner text={error} tone="amber" /> : null}
 
-      <div className="grid gap-3 md:grid-cols-2 xl:grid-cols-4">
+      <div className="grid gap-3 max-md:grid-cols-2 max-md:gap-2 md:grid-cols-2 xl:grid-cols-4">
         <FinanceMetricCard label={tt("accounting.ledgers.openingBalance")} value={formatCurrency(payload.totals.opening_balance)} tone="cyan" icon={<BookOpenText className="h-5 w-5" />} />
         <FinanceMetricCard label={tt("accounting.common.metrics.totalDebit")} value={formatCurrency(payload.totals.total_debit)} tone="emerald" icon={<BookOpenText className="h-5 w-5" />} />
         <FinanceMetricCard label={tt("accounting.common.metrics.totalCredit")} value={formatCurrency(payload.totals.total_credit)} tone="rose" icon={<BookOpenText className="h-5 w-5" />} />
         <FinanceMetricCard label={tt("accounting.common.metrics.endingBalance")} value={formatCurrency(payload.totals.closing_balance)} tone="amber" icon={<BookOpenText className="h-5 w-5" />} />
       </div>
 
-      <div className="rounded-3xl border border-white/10 bg-zinc-950/90 p-5 shadow-2xl shadow-black/10">
+      <div className="rounded-3xl border border-white/10 bg-zinc-950/90 p-5 shadow-2xl shadow-black/10 max-md:rounded-none max-md:border-0 max-md:bg-transparent! max-md:p-0 max-md:shadow-none">
         <div className="flex items-center gap-2 text-sm font-semibold text-white">
           <Filter className="h-4 w-4 text-primary" />
           {headline}

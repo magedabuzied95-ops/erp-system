@@ -387,9 +387,9 @@ function CostFixCenter() {
 
 function Metric({ label, value }) {
   return (
-    <div className="rounded-3xl border border-white/10 bg-zinc-950/90 p-5 shadow-2xl shadow-black/10">
+    <div className="rounded-3xl border border-white/10 bg-zinc-950/90 p-5 shadow-2xl shadow-black/10 max-md:rounded-2xl max-md:p-4 max-md:shadow-none">
       <div className="text-[11px] font-black uppercase tracking-[0.18em] text-zinc-500">{label}</div>
-      <div className="mt-3 text-2xl font-black text-white">{value}</div>
+      <div className="mt-3 text-2xl font-black text-white max-md:mt-1.5 max-md:text-xl max-md:[overflow-wrap:anywhere]">{value}</div>
     </div>
   );
 }

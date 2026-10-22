@@ -52,7 +52,7 @@ export default function KpiTile({ metric, kpi, level = 2, coverage = null }) {
     level === 1
       ? "text-[28px] leading-[1.1] sm:text-[34px] xl:text-[34px] 2xl:text-[34px]"
       : level === 2
-        ? "text-[20px] leading-[1.2] sm:text-[24px] 2xl:text-[24px]"
+        ? "text-[18px] leading-[1.2] sm:text-[24px] 2xl:text-[24px]"
         : "text-[16px] leading-[1.2] 2xl:text-[20px]";
 
   const paddingClass = level === 1 ? "p-4 sm:p-5 2xl:p-6" : level === 3 ? "px-3.5 py-3" : "p-4";
@@ -109,7 +109,9 @@ export default function KpiTile({ metric, kpi, level = 2, coverage = null }) {
           </span>
         ) : (
           <span
-            className={`block truncate font-extrabold tabular-nums text-[var(--text)] ${sizeClass}`}
+            // Phones: the exact money figure wraps inside a half-width tile instead of being
+            // truncated to "113,0..."; from sm up the tile is wide enough to truncate safely.
+            className={`block font-extrabold tabular-nums text-[var(--text)] [overflow-wrap:anywhere] sm:truncate ${sizeClass}`}
             title={exact || undefined}
           >
             {display}

@@ -1,0 +1,26 @@
+/*
+ * Phone rules for the finance screens (accounting, cashbox, treasury, expenses and the
+ * Reporting Center). Scoped to .m1-finance-root, which AccountingShell and ReportsPage
+ * put on their root element; the modals and bottom sheets of those pages render inside
+ * that root, so they are covered too.
+ *
+ * Desktop is untouched: everything here sits behind max-width: 767px.
+ */
+@media (max-width: 767px) {
+  /* iOS Safari zooms the page when a focused control is under 16px. The finance forms
+     use text-sm / text-[12px] throughout; on a phone every typing control is 16px. */
+  .m1-finance-root input:not([type="checkbox"]):not([type="radio"]):not([type="range"]):not([type="color"]):not([type="file"]),
+  .m1-finance-root select,
+  .m1-finance-root textarea {
+    font-size: 16px;
+  }
+
+  /* Native date inputs refuse to shrink below their intrinsic width and paint over the
+     neighbouring control; let them shrink to their grid/flex track. */
+  .m1-finance-root input[type="date"],
+  .m1-finance-root input[type="month"],
+  .m1-finance-root input[type="datetime-local"] {
+    min-width: 0;
+    max-width: 100%;
+  }
+}
