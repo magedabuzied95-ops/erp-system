@@ -1,6 +1,6 @@
 import db from "../database/db.js";
 import { AI_AGENT_CHANNELS, sendWhatsAppCloudReply } from "./aiChannelAdapterService.js";
-import { sendMetaInboxOutboundMessage } from "./metaIntegrationService.js";
+import { sendInstagramMediaShare, sendMetaInboxOutboundMessage } from "./metaIntegrationService.js";
 import { resolveWhatsappConversationInstance, sendWhatsappMediaMessage } from "./whatsappGatewayService.js";
 import { sendTelegramMedia, sendTelegramText, TELEGRAM_CHANNEL } from "./telegramBotService.js";
 import { sendTikTokDirectMediaFromUrl, sendTikTokDirectText, TIKTOK_DM_CHANNEL, tiktokConversationIdFromSessionId } from "./tiktokBusinessDmService.js";
@@ -392,4 +392,149 @@ export const sendInboxMedia = async ({
   });
   announce(tenantId, sessionId, message);
   return { message, sent: deliveryStatus === "sent", delivery_status: deliveryStatus, delivery_error: deliveryError, session_id: sessionId, channel, url };
+};
+
+/*
+ * One of our own posts, sent from the composer's "Share post" sheet.
+ *
+ * Each channel gets the richest thing it can carry:
+ *   Instagram (an Instagram post)  the post itself (MEDIA_SHARE) — the native card
+ *   Instagram (any other post)     its link
+ *   Messenger                      its link (Messenger has no post message; it draws the preview)
+ *   WhatsApp                       the clip itself when we have it, else the cover — the link as caption
+ *   Telegram                       the cover with the link as caption
+ *   TikTok                         its link (the API's own share-post type is not documented publicly)
+ * and every step falls back to the plain link, so a refusal of the rich form
+ * still reaches the customer.
+ *
+ * The bubble in the thread is the post's cover with the forwarded-post strip
+ * (share_kind), the same one a customer's forwarded reel wears — copied to our
+ * disk first, since the CDN link behind it expires.
+ */
+export const sendInboxSharedPost = async ({
+  tenantId,
+  conversationId,
+  post = {},
+  coverUrl = "",
+  staff = {},
+  clientRequestId = "",
+} = {}) => {
+  const link = text(post.permalink);
+  const cover = text(coverUrl) || text(post.thumbnail_url);
+  if (!text(post.id) || (!link && !cover)) throw Object.assign(new Error("The post has nothing to send"), { status: 400, code: "SHARE_POST_EMPTY" });
+  const conversation = await resolveInboxConversation({ tenantId, conversationId });
+  if (!conversation) throw Object.assign(new Error(`Conversation not found: ${conversationId}`), { status: 404, code: "AI_INBOX_CONVERSATION_NOT_FOUND" });
+  const { channel, recipientId, channelMetadata, sessionId } = resolveInboxRecipient(conversation);
+  const metaIds = {
+    facebookPageId: channelMetadata.page_id || channelMetadata.facebook_page_id || "",
+    instagramBusinessAccountId: channelMetadata.instagram_business_account_id || channelMetadata.instagram_account_id || "",
+  };
+  const failed = (error, fallback, code) => ({
+    sent: false,
+    delivery_status: "failed",
+    delivery_error: error?.message || fallback,
+    error_code: error?.code || code,
+  });
+  const sendLinkOnMeta = () =>
+    sendMetaInboxOutboundMessage({
+      tenantId,
+      channel: conversation.channel || conversation.source || channel,
+      recipientId,
+      messageText: link,
+      conversationId: sessionId,
+      ...metaIds,
+    }).catch((error) => failed(error, "Meta did not accept the link", "META_SEND_FAILED"));
+
+  let sendResult = null;
+  let delivery = "link";
+  let whatsappInstance = "";
+  if (!sendableChannel(channel)) {
+    sendResult = { sent: true, delivery_status: "stored" };
+  } else if (!recipientId) {
+    sendResult = { sent: false, delivery_status: "failed", delivery_error: "The conversation has no reachable recipient id." };
+  } else if (channel === AI_AGENT_CHANNELS.INSTAGRAM && post.source === "instagram") {
+    delivery = "native";
+    sendResult = await sendInstagramMediaShare({ tenantId, recipientId, mediaId: post.id, ...metaIds })
+      .catch((error) => failed(error, "Instagram did not accept the post", "INSTAGRAM_SHARE_FAILED"));
+    if (!sendResult?.sent && link) {
+      console.warn("[share-post] instagram native share refused, sending the link", { code: sendResult?.error_code || "", error: text(sendResult?.delivery_error).slice(0, 160) });
+      delivery = "link";
+      sendResult = await sendLinkOnMeta();
+    }
+  } else if (channel === AI_AGENT_CHANNELS.WHATSAPP) {
+    whatsappInstance = await whatsappInstanceFor({ tenantId, conversation, channelMetadata });
+    const sendWhatsappMedia = (mediaUrl, mediaType) =>
+      sendWhatsappMediaMessage({ phone: recipientId, mediaUrl, mediaType, caption: link, instance: whatsappInstance })
+        .then((result) => ({ ...result, sent: true, delivery_status: "sent", message_id: text(result?.result?.key?.id || result?.result?.message_id || result?.message_id || "") }))
+        .catch((error) => failed(error, `WhatsApp did not accept the ${mediaType}`, "WHATSAPP_MEDIA_SEND_FAILED"));
+    if (text(post.video_url)) {
+      delivery = "video";
+      sendResult = await sendWhatsappMedia(text(post.video_url), "video");
+    }
+    if (!sendResult?.sent && cover) {
+      delivery = "photo";
+      sendResult = await sendWhatsappMedia(absolutePublicUploadUrl(cover) || cover, "image");
+    }
+    if (!sendResult?.sent && link) {
+      delivery = "link";
+      sendResult = await sendWhatsAppCloudReply({ to: recipientId, reply: { text: link }, messageText: link, instance: whatsappInstance })
+        .catch((error) => failed(error, "WhatsApp did not accept the link", "WHATSAPP_SEND_FAILED"));
+    }
+  } else if (channel === TELEGRAM_CHANNEL) {
+    delivery = cover ? "photo" : "link";
+    sendResult = cover
+      ? await sendTelegramMedia({ chatId: recipientId, mediaUrl: absolutePublicUploadUrl(cover) || cover, mediaType: "photo", caption: link })
+        .catch((error) => failed(error, "Telegram did not accept the post", "TELEGRAM_MEDIA_SEND_FAILED"))
+      : await sendTelegramText({ chatId: recipientId, messageText: link })
+        .catch((error) => failed(error, "Telegram did not accept the link", "TELEGRAM_API_ERROR"));
+  } else if (channel === TIKTOK_DM_CHANNEL) {
+    sendResult = await sendTikTokDirectText({ tenantId, conversationId: recipientId, messageText: link })
+      .catch((error) => failed(error, "TikTok did not accept the link", "TIKTOK_DM_ERROR"));
+  } else {
+    sendResult = await sendLinkOnMeta();
+  }
+
+  const deliveryStatus = sendResult?.delivery_status || (sendResult?.sent ? "sent" : "failed");
+  const deliveryError = deliveryStatus === "failed" ? text(sendResult?.delivery_error || sendResult?.message || "The post was not delivered") : "";
+  const providerMessageId = text(sendResult?.message_id || "");
+  const rawChannel = conversation.channel || conversation.source || channel || AI_AGENT_CHANNELS.WEB_CHAT;
+  const shareKind = post.kind === "reel" ? "reel" : "post";
+
+  const message = await appendManualAiSupportReply({
+    tenantId,
+    sessionId,
+    clientRequestId,
+    message: "",
+    preserveExactMessage: true,
+    previewMessage: shareKind === "reel" ? "🎬 ريل" : "🖼️ بوست",
+    messageType: "image",
+    staffUserId: staff.id || null,
+    staffUserName: staff.name || "",
+    source: rawChannel,
+    channel: rawChannel,
+    deliveryStatus,
+    deliveryError,
+    errorCode: sendResult?.error_code || "",
+    externalMessageId: providerMessageId,
+    providerMessageId,
+    whatsappInstance: channel === AI_AGENT_CHANNELS.WHATSAPP ? whatsappInstance : "",
+    remoteJid: channel === AI_AGENT_CHANNELS.WHATSAPP ? recipientId : "",
+    visualAttachments: cover
+      ? [{
+        type: "image",
+        url: cover,
+        mime_type: "image/jpeg",
+        metadata: {
+          share_kind: shareKind,
+          share_caption: text(post.caption).slice(0, 200),
+          share_link: link,
+          share_source: text(post.source),
+          share_post_id: text(post.id),
+          share_delivery: delivery,
+        },
+      }]
+      : [],
+  });
+  announce(tenantId, sessionId, message);
+  return { message, sent: deliveryStatus === "sent", delivery_status: deliveryStatus, delivery_error: deliveryError, delivery, session_id: sessionId, channel };
 };

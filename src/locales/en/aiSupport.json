@@ -2065,7 +2065,8 @@
       "file": "File",
       "transcribed": "Auto transcript",
       "correctReply": "Correct reply",
-      "confidence": "Confidence"
+      "confidence": "Confidence",
+      "openSharedPost": "Open post"
     },
     "channelAlert": {
       "whatsappTitle": "WhatsApp is disconnected",
@@ -2306,6 +2307,35 @@
       "unassign": "Remove the owner",
       "remove": "Remove from the conversation",
       "empty": "No one on this conversation yet"
+    },
+    "sharePost": {
+      "button": "Share post",
+      "title": "Share post",
+      "close": "Close",
+      "ourPosts": "Our posts",
+      "favorites": "Favorites",
+      "refresh": "Refresh",
+      "source": {
+        "instagram": "Instagram",
+        "facebook": "Facebook",
+        "tiktok": "TikTok"
+      },
+      "empty": "No posts here yet",
+      "favoritesEmpty": "Tap the star to pin the posts that sell",
+      "loadFailed": "Could not load the posts: {{error}}",
+      "staleNote": "Refreshing the list in the background",
+      "addFavorite": "Add to favorites",
+      "removeFavorite": "Remove from favorites",
+      "sending": "Sending…",
+      "sent": "Post sent",
+      "failed": "The post was not sent",
+      "preview": "🎬 Post",
+      "delivery": {
+        "native": "The customer gets the post card itself",
+        "link": "The customer gets the post link with a preview",
+        "whatsapp": "The customer gets the clip (or cover) with the post link",
+        "telegram": "The customer gets the cover with the post link"
+      }
     }
   },
   "integrations": {

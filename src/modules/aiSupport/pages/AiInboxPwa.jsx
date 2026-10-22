@@ -9,6 +9,7 @@ import {
   ChevronLeft,
   Camera,
   Film,
+  Clapperboard,
   ClipboardPaste,
   Clock3,
   Download,
@@ -89,6 +90,7 @@ import PostProductLinksDrawer from "../components/socialAutomation/PostProductLi
 import PostAutomationSheet from "../components/socialAutomation/PostAutomationSheet.jsx";
 import { CommentTimelineCard, getSocialCommentRealTimestamp } from "../components/socialCommentTimeline.jsx";
 import ProductCardPicker from "../components/ProductCardPicker";
+import SharePostSheet from "../components/SharePostSheet";
 import InboxControlCenter from "../components/controlCenter/lazyInboxControlCenter";
 // The suggested-reply card is shared with the desktop workspace, so resolving an
 // ambiguous product, picking a colour or ticking a batch works the same in both.
@@ -2090,6 +2092,7 @@ const PwaComposerBar = memo(function PwaComposerBar({
   onPickImage,
   onPickAttachment = null,
   onPickProduct = null,
+  onPickSharePost = null,
   onRecordVoice,
   onPasteFiles,
   onPasteClipboardImage = null,
@@ -2184,6 +2187,7 @@ const PwaComposerBar = memo(function PwaComposerBar({
                     { key: "videos", label: t("aiSupport.inbox.pwa.attachVideos"), Icon: Film, tone: "bg-violet-100 text-violet-600", action: () => (onPickAttachment ? onPickAttachment("videos") : onPickImage?.()) },
                     { key: "camera", label: t("aiSupport.inbox.pwa.attachCamera"), Icon: Camera, tone: "bg-slate-200 text-slate-700", action: () => (onPickAttachment ? onPickAttachment("camera") : onPickImage?.()) },
                     ...(onPickProduct ? [{ key: "product", label: t("aiSupport.inbox.pwa.attachProduct"), Icon: PackagePlus, tone: "bg-emerald-100 text-emerald-600", action: () => onPickProduct() }] : []),
+                    ...(onPickSharePost ? [{ key: "share_post", label: t("aiSupport.inbox.sharePost.button"), Icon: Clapperboard, tone: "bg-rose-100 text-rose-600", action: () => onPickSharePost() }] : []),
                     ...(onPasteClipboardImage ? [{ key: "paste", label: t("aiSupport.inbox.pwa.attachPaste"), Icon: ClipboardPaste, tone: "bg-amber-100 text-amber-700", action: () => void onPasteClipboardImage() }] : []),
                   ].map((tile) => (
                     <button
@@ -3864,6 +3868,7 @@ export default function AiInboxPwa({ portal = null } = {}) {
   const [aiToggling, setAiToggling] = useState(false);
   const [leadActionLoading, setLeadActionLoading] = useState("");
   const [productSheetOpen, setProductSheetOpen] = useState(false);
+  const [sharePostOpen, setSharePostOpen] = useState(false);
   const [orderComposerOpen, setOrderComposerOpen] = useState(false);
   const [orderComposerBusy, setOrderComposerBusy] = useState(false);
   const [productSending, setProductSending] = useState(false);
@@ -7404,6 +7409,78 @@ export default function AiInboxPwa({ portal = null } = {}) {
     }
   }, [headers, patchConversation, readComposerText, selectedConversation, selectedConversationRouteId, setComposerText, t, tenantId]);
 
+  // A post from the Share post sheet — see the desktop sendSharedPost.
+  const sendSharedPost = useCallback(async (post) => {
+    const destination = selectedConversation;
+    const sessionId = destination?.session_id;
+    if (!post?.id || !sessionId) return false;
+    const conversationIdentifier = destination.conversation_key || sessionId;
+    const clientRequestId = buildClientRequestId();
+    const optimisticId = `sending-share-post-${clientRequestId}`;
+    const now = new Date().toISOString();
+    const optimistic = {
+      id: optimisticId,
+      session_id: sessionId,
+      client_request_id: clientRequestId,
+      customer_message: "",
+      ai_answer: "",
+      staff_message: "",
+      message_text: "",
+      sender_type: "staff",
+      message_type: "image",
+      manual_message: true,
+      staff_user_name: "Staff",
+      delivery_status: "sending",
+      created_at: now,
+      visual_attachments: [{
+        type: "image",
+        url: post.thumbnail_url,
+        mime_type: "image/jpeg",
+        metadata: { share_kind: post.kind === "reel" ? "reel" : "post", share_caption: clean(post.caption).slice(0, 200), share_link: post.permalink || "" },
+      }],
+    };
+    patchConversation(conversationIdentifier, (conversation) => ({
+      ...conversation,
+      messages: [...asArray(conversation.messages), optimistic],
+      latest_message_preview: t("aiSupport.inbox.sharePost.preview"),
+      last_activity_at: now,
+      updated_at: now,
+    }));
+    try {
+      const payload = await api.post(
+        aiInboxConversationEndpoint(selectedConversationRouteId || sessionId, "/share-post"),
+        { source: post.source, post_id: post.id, client_request_id: clientRequestId },
+        { headers, perfComponent: "AiInboxPwa.sendSharedPost" }
+      );
+      patchConversation(conversationIdentifier, (conversation) => ({
+        ...conversation,
+        messages: payload?.message
+          ? mergeMessagesByIdentity([
+              ...asArray(conversation.messages).filter((item) => item.id !== optimisticId),
+              payload.message,
+            ])
+          : asArray(conversation.messages).filter((item) => item.id !== optimisticId),
+        last_activity_at: payload?.message?.created_at || now,
+        updated_at: payload?.message?.created_at || now,
+      }));
+      if (payload?.delivery_status === "failed") {
+        toast.error(payload?.delivery_error || t("aiSupport.inbox.sharePost.failed"));
+        return false;
+      }
+      toast.success(t("aiSupport.inbox.sharePost.sent"));
+      return true;
+    } catch (error) {
+      patchConversation(conversationIdentifier, (conversation) => ({
+        ...conversation,
+        messages: asArray(conversation.messages).map((item) => (
+          item.id === optimisticId ? { ...item, delivery_status: "failed", delivery_error: error?.message || "" } : item
+        )),
+      }));
+      toast.error(error?.message || t("aiSupport.inbox.sharePost.failed"));
+      return false;
+    }
+  }, [headers, patchConversation, selectedConversation, selectedConversationRouteId, t]);
+
   const handleImageAttachmentChange = useCallback((event) => {
     const files = Array.from(event.target.files || []);
     // Reset before anything async: picking the same file twice must fire
@@ -8830,6 +8907,16 @@ export default function AiInboxPwa({ portal = null } = {}) {
                 </button>
                 <button
                   type="button"
+                  onClick={() => setSharePostOpen(true)}
+                  disabled={quickActionBusy}
+                  data-pwa-share-post-chip="true"
+                  className="inline-flex items-center gap-1.5 rounded-full border border-rose-200 bg-rose-50 px-3 py-2 text-[11px] font-semibold text-rose-700 disabled:opacity-50"
+                >
+                  <Clapperboard className="h-3.5 w-3.5" />
+                  {t("aiSupport.inbox.sharePost.button")}
+                </button>
+                <button
+                  type="button"
                   onClick={() => openAvailableBySizePicker()}
                   disabled={quickActionBusy}
                   className="inline-flex items-center gap-1.5 rounded-full border border-cyan-200 bg-cyan-50 px-3 py-2 text-[11px] font-semibold text-cyan-700 disabled:opacity-50"
@@ -9198,6 +9285,7 @@ export default function AiInboxPwa({ portal = null } = {}) {
                 onPickImage={openImagePicker}
                 onPickAttachment={pickAttachment}
                 onPickProduct={() => setProductSheetOpen(true)}
+                onPickSharePost={composerMode === "note" ? null : () => setSharePostOpen(true)}
                 onRecordVoice={(file) => sendAttachmentFile(file)}
                 onPasteFiles={handleComposerPasteFiles}
                 onPasteClipboardImage={composerMode === "note" ? null : pasteImageFromClipboard}
@@ -9244,6 +9332,13 @@ export default function AiInboxPwa({ portal = null } = {}) {
         </nav>
         ) : null}
 
+        <SharePostSheet
+          open={sharePostOpen}
+          onClose={() => setSharePostOpen(false)}
+          onShare={sendSharedPost}
+          channel={selectedConversation?.channel || selectedConversation?.source || ""}
+          headers={headers}
+        />
         <ProductSheet
           open={productSheetOpen}
           products={products}

@@ -26,7 +26,15 @@ import { getTenantId, isSuperAdminUser } from "../utils/requestScope.js";
 import { absolutePublicUploadUrl } from "../utils/publicUrl.js";
 import { emitToRooms } from "../utils/socket.js";
 import { emitMetaReviewerInboundEvent } from "../services/metaReviewerAccessService.js";
-import { sendInboxMedia, sendInboxText } from "../services/inboxOutboundService.js";
+import { sendInboxMedia, sendInboxSharedPost, sendInboxText } from "../services/inboxOutboundService.js";
+import {
+  defaultSharePostSource,
+  findSharePost,
+  listSharePosts,
+  normalizeSharePostSource,
+  persistSharePostCover,
+  setSharePostFavorite,
+} from "../services/inboxSharePostsService.js";
 import { createManualReminder, listSessionReminders, rearmReminderNotification } from "../services/aiInboxRemindersService.js";
 import {
   SEQUENCE_CHANNELS,
@@ -8174,6 +8182,60 @@ router.post(
     }
   }
 );
+
+/*
+ * "Share post" — the composer sheet that sends one of our own Instagram,
+ * Facebook or TikTok posts without leaving the inbox (TikTok's DM screen has the
+ * same button). The list is served from a cache so the sheet opens at once; see
+ * inboxSharePostsService.js. The send takes only a source and a post id: the
+ * post's URLs are read back from that cache, never from the request.
+ */
+router.get("/share-posts", protect, inboxView(), async (req, res) => {
+  try {
+    const tenantId = toTenantId(req);
+    const source = normalizeSharePostSource(req.query?.source) || defaultSharePostSource(req.query?.channel);
+    const result = await listSharePosts({ tenantId, source, refresh: envText(req.query?.refresh) === "1" });
+    return res.json({ success: true, ...result });
+  } catch (error) {
+    return sendError(res, error, "Failed to load posts");
+  }
+});
+
+router.post("/share-posts/favorite", protect, inboxReply(), async (req, res) => {
+  try {
+    const result = await setSharePostFavorite({
+      tenantId: toTenantId(req),
+      source: req.body?.source,
+      postId: req.body?.post_id,
+      favorite: req.body?.favorite !== false,
+    });
+    return res.json({ success: true, ...result });
+  } catch (error) {
+    return sendError(res, error, "Failed to save the favourite");
+  }
+});
+
+router.post("/conversations/:conversationId/share-post", protect, inboxReply(), async (req, res) => {
+  try {
+    const tenantId = toTenantId(req);
+    const post = await findSharePost({ tenantId, source: req.body?.source, postId: req.body?.post_id });
+    if (!post) {
+      throw Object.assign(new Error("That post is no longer in the list — refresh and pick it again."), { status: 404, code: "SHARE_POST_NOT_FOUND" });
+    }
+    const coverUrl = await persistSharePostCover(post);
+    const result = await sendInboxSharedPost({
+      tenantId,
+      conversationId: decodeRouteId(req.params.conversationId),
+      post,
+      coverUrl,
+      staff: { id: req.user?.id || null, name: userDisplayName(req.user) },
+      clientRequestId: requestClientRequestId(req),
+    });
+    return res.status(201).json({ success: true, ...result });
+  } catch (error) {
+    return sendError(res, error, "Failed to share the post");
+  }
+});
 
 router.post("/conversations/:conversationId/test-meta-send", protect, inboxReply(), async (req, res) => {
   const tenantId = toTenantId(req);

@@ -72,6 +72,7 @@ import {
   X,
   XCircle,
   Zap,
+  Clapperboard,
 } from "lucide-react";
 import {
   FaFacebookF,
@@ -101,6 +102,7 @@ import AILiveLogs from "../../../components/ai/AILiveLogs";
 import TranscriptMessage, { INSTAGRAM_MESSAGE_REACTIONS, MESSENGER_MESSAGE_REACTIONS, PinnedMessagesBar } from "../components/TranscriptMessage";
 import { cascadeDeliveryStatuses } from "../components/DeliveryTicks.jsx";
 import ProductCardPicker from "../components/ProductCardPicker";
+import SharePostSheet from "../components/SharePostSheet";
 import OriginPostCard from "../components/OriginPostCard.jsx";
 import { CampaignAttributionCard, CampaignAttributionChip } from "../components/CampaignAttribution.jsx";
 import InboxControlCenter from "../components/controlCenter/lazyInboxControlCenter";
@@ -2966,6 +2968,7 @@ function ManualReplyComposer({
   onChange,
   onSend,
   onOpenProductPicker,
+  onOpenSharePost = null,
   onOpenAvailableBySizePicker,
   onCreateCustomer,
   onLoadDraft,
@@ -3277,6 +3280,20 @@ function ManualReplyComposer({
           >
             <Paperclip className="h-5 w-5" />
           </button>
+          {/* TikTok's "Share post": one of our own posts, sent without leaving the inbox. */}
+          {onOpenSharePost && !isCommentConversation ? (
+            <button
+              type="button"
+              onClick={() => onOpenSharePost()}
+              disabled={loading || noteMode || !canSendLive}
+              title={t("aiSupport.inbox.sharePost.button")}
+              aria-label={t("aiSupport.inbox.sharePost.button")}
+              data-ai-inbox-share-post="true"
+              className="mb-1 grid h-8 w-8 shrink-0 place-items-center rounded-lg text-slate-500 transition hover:bg-slate-200/70 hover:text-slate-800 disabled:opacity-40 dark:text-slate-400 dark:hover:bg-white/10 dark:hover:text-slate-100"
+            >
+              <Clapperboard className="h-5 w-5" />
+            </button>
+          ) : null}
           {/* The paperclip attaches a PRODUCT; this attaches a file. Two
               different acts, so two different controls — the desktop workspace
               previously had no way to send a photo at all. */}
@@ -4755,6 +4772,7 @@ export default function AiInbox({ reviewerMode = false }) {
   const [olderMessagesLoading, setOlderMessagesLoading] = useState(false);
   const [replySending, setReplySending] = useState(false);
   const [attachmentSending, setAttachmentSending] = useState(false);
+  const [sharePostOpen, setSharePostOpen] = useState(false);
   // Where each channel's page ended, so the list can continue past it. Empty
   // means "no further pages", which is what the load-more control reads.
   const [listCursors, setListCursors] = useState({});
@@ -8547,6 +8565,79 @@ export default function AiInbox({ reviewerMode = false }) {
     [sendAttachment]
   );
 
+  // A post from the Share post sheet. The bubble is painted from the post's
+  // cover at once and reconciled with the stored row, like a photo attachment.
+  const sendSharedPost = useCallback(async (post) => {
+    const destination = selectedConversation;
+    const sessionId = destination?.session_id;
+    if (!post?.id || !sessionId) return false;
+    const conversationIdentifier = destination.conversation_key || sessionId;
+    const clientRequestId = buildClientRequestId();
+    const optimisticId = `sending-share-post-${clientRequestId}`;
+    const now = new Date().toISOString();
+    const optimistic = {
+      id: optimisticId,
+      session_id: sessionId,
+      client_request_id: clientRequestId,
+      customer_message: "",
+      ai_answer: "",
+      staff_message: "",
+      message_text: "",
+      sender_type: "staff",
+      message_type: "image",
+      manual_message: true,
+      staff_user_name: "Staff",
+      delivery_status: "sending",
+      created_at: now,
+      visual_attachments: [{
+        type: "image",
+        url: post.thumbnail_url,
+        mime_type: "image/jpeg",
+        metadata: { share_kind: post.kind === "reel" ? "reel" : "post", share_caption: clean(post.caption).slice(0, 200), share_link: post.permalink || "" },
+      }],
+    };
+    patchConversation(conversationIdentifier, (conversation) => ({
+      ...conversation,
+      messages: [...asArray(conversation.messages), optimistic],
+      latest_message_preview: t("aiSupport.inbox.sharePost.preview"),
+      last_activity_at: now,
+      updated_at: now,
+    }));
+    try {
+      const payload = await api.post(
+        aiInboxConversationEndpoint(selectedConversationRouteId || sessionId, "/share-post"),
+        { source: post.source, post_id: post.id, client_request_id: clientRequestId },
+        { headers, perfComponent: "AiInbox.sendSharedPost" }
+      );
+      patchConversation(conversationIdentifier, (conversation) => ({
+        ...conversation,
+        messages: payload?.message
+          ? mergeMessagesByIdentity([
+              ...asArray(conversation.messages).filter((item) => item.id !== optimisticId),
+              payload.message,
+            ])
+          : asArray(conversation.messages).filter((item) => item.id !== optimisticId),
+        last_activity_at: payload?.message?.created_at || now,
+        updated_at: payload?.message?.created_at || now,
+      }));
+      if (payload?.delivery_status === "failed") {
+        setToast({ tone: "rose", text: payload?.delivery_error || t("aiSupport.inbox.sharePost.failed") });
+        return false;
+      }
+      setToast({ tone: "emerald", text: t("aiSupport.inbox.sharePost.sent") });
+      return true;
+    } catch (err) {
+      patchConversation(conversationIdentifier, (conversation) => ({
+        ...conversation,
+        messages: asArray(conversation.messages).map((item) => (
+          item.id === optimisticId ? { ...item, delivery_status: "failed", delivery_error: err?.message || "" } : item
+        )),
+      }));
+      setToast({ tone: "rose", text: err?.message || t("aiSupport.inbox.sharePost.failed") });
+      return false;
+    }
+  }, [headers, patchConversation, selectedConversation, selectedConversationRouteId, setToast, t]);
+
   const handleAttachmentRejected = useCallback(() => {
     setToast({ tone: "rose", text: t("aiSupport.inbox.composer.attachmentUnsupported") });
   }, [setToast, t]);
@@ -9935,6 +10026,13 @@ export default function AiInbox({ reviewerMode = false }) {
         onRefresh={loadAiTrace}
         onClose={() => setAiTrace((current) => ({ ...current, open: false }))}
       />
+      <SharePostSheet
+        open={sharePostOpen}
+        onClose={() => setSharePostOpen(false)}
+        onShare={sendSharedPost}
+        channel={selectedConversation?.channel || selectedConversation?.source || ""}
+        headers={headers}
+      />
       {productCardPickerMounted ? (
       <ProductCardPicker
         key={productCardPickerKey}
@@ -10480,6 +10578,7 @@ export default function AiInbox({ reviewerMode = false }) {
                         attachmentSending={attachmentSending}
                         onAttachmentRejected={handleAttachmentRejected}
                         onOpenProductPicker={() => openProductCardPicker()}
+                        onOpenSharePost={() => setSharePostOpen(true)}
                         onOpenAvailableBySizePicker={() => openProductCardPicker({ sizeMode: true, allowMultiple: true })}
                         customerWaitingSinceAt={selectedCustomerWaitingSince}
                         onCreateCustomer={createLeadCustomer}
@@ -11200,6 +11299,7 @@ export default function AiInbox({ reviewerMode = false }) {
                         attachmentSending={attachmentSending}
                         onAttachmentRejected={handleAttachmentRejected}
                         onOpenProductPicker={() => openProductCardPicker()}
+                        onOpenSharePost={() => setSharePostOpen(true)}
                         onOpenAvailableBySizePicker={() => openProductCardPicker({ sizeMode: true, allowMultiple: true })}
                         customerWaitingSinceAt={selectedCustomerWaitingSince}
                         onCreateCustomer={createLeadCustomer}

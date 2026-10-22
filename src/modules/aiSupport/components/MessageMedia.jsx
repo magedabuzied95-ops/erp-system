@@ -194,6 +194,8 @@ export const messageMediaGroups = (message = {}) => {
       kind,
       shared,
       caption: shared ? clean(attachment.metadata?.share_caption) : "",
+      // Our own post sent from the Share post sheet carries where it lives.
+      link: shared ? clean(attachment.metadata?.share_link) : "",
       // Every reel received before the webhook stopped doing it carries its type
       // name as its title, and the title is what the viewer reads as the alt text.
       fileName: shared && isTypeNameTitle(fileName) ? "" : fileName,
@@ -810,6 +812,17 @@ function SharedMediaStrip({ item, tone = "customer", bare = false }) {
       </span>
       {item.caption ? (
         <span dir="auto" className={`line-clamp-2 text-[11px] leading-4 ${palette.muted}`}>{item.caption}</span>
+      ) : null}
+      {/^https?:\/\//i.test(item.link || "") ? (
+        <a
+          href={item.link}
+          target="_blank"
+          rel="noreferrer"
+          className={`inline-flex w-fit items-center gap-1 text-[11px] font-black underline-offset-2 hover:underline ${palette.title}`}
+        >
+          <ExternalLink className="h-3 w-3 shrink-0" />
+          {t("aiSupport.inbox.message.openSharedPost")}
+        </a>
       ) : null}
     </div>
   );

@@ -2077,7 +2077,8 @@
       "file": "ملف",
       "transcribed": "نص مُفرَّغ آليًا",
       "correctReply": "تصحيح الرد",
-      "confidence": "الثقة"
+      "confidence": "الثقة",
+      "openSharedPost": "فتح البوست"
     },
     "channelAlert": {
       "whatsappTitle": "واتساب غير متصل",
@@ -2318,6 +2319,35 @@
       "unassign": "شيل المسؤول",
       "remove": "شيله من المحادثة",
       "empty": "مفيش حد على المحادثة دي لسه"
+    },
+    "sharePost": {
+      "button": "شير بوست",
+      "title": "شير بوست",
+      "close": "إغلاق",
+      "ourPosts": "بوستاتنا",
+      "favorites": "المفضلة",
+      "refresh": "تحديث",
+      "source": {
+        "instagram": "إنستجرام",
+        "facebook": "فيسبوك",
+        "tiktok": "تيكتوك"
+      },
+      "empty": "مفيش بوستات هنا لسه",
+      "favoritesEmpty": "دوس على النجمة عشان تثبّت البوستات اللي بتبيع هنا",
+      "loadFailed": "مقدرناش نجيب البوستات: {{error}}",
+      "staleNote": "القائمة بتتحدّث في الخلفية",
+      "addFavorite": "ثبّت في المفضلة",
+      "removeFavorite": "شيل من المفضلة",
+      "sending": "بيتبعت…",
+      "sent": "البوست اتبعت",
+      "failed": "البوست ما اتبعتش",
+      "preview": "🎬 بوست",
+      "delivery": {
+        "native": "هيوصل للعميل كارت البوست نفسه",
+        "link": "هيوصل للعميل لينك البوست بمعاينة",
+        "whatsapp": "هيوصل الفيديو (أو الغلاف) ومعاه لينك البوست",
+        "telegram": "هيوصل غلاف البوست ومعاه اللينك"
+      }
     }
   },
   "integrations": {

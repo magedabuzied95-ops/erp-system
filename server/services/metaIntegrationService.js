@@ -26707,6 +26707,126 @@ export const sendMessengerInboxReaction = async ({
   return { result, emoji: reaction, message_id: safeMessageId };
 };
 
+/*
+ * "Share post" in the inbox composer — our own published posts, the way TikTok's
+ * DM screen offers them.
+ *
+ * Instagram can send one of the account's own posts as the post itself
+ * (attachment type MEDIA_SHARE): the customer gets the native post card and taps
+ * it to watch the reel inside Instagram. Messenger has no such message, so a
+ * Facebook post travels as its link there (Messenger draws the preview). The
+ * list is read with the same token the inbox sends with, so a conversation can
+ * never be offered a post its own account cannot share.
+ */
+const SHAREABLE_POST_LIMIT = 30;
+
+const instagramShareablePost = (item = {}) => {
+  const isVideo = text(item.media_type).toUpperCase() === "VIDEO";
+  const thumbnail = text(isVideo ? item.thumbnail_url : item.media_url) || text(item.thumbnail_url || item.media_url);
+  return {
+    id: text(item.id),
+    source: "instagram",
+    kind: isVideo || text(item.media_product_type).toUpperCase() === "REELS" ? "reel" : "post",
+    thumbnail_url: thumbnail,
+    // Only a video's media_url is worth keeping: WhatsApp sends the clip itself.
+    video_url: isVideo ? text(item.media_url) : "",
+    permalink: text(item.permalink),
+    caption: text(item.caption).slice(0, 300),
+    likes: Number(item.like_count || 0) || 0,
+    comments: Number(item.comments_count || 0) || 0,
+    views: 0,
+    created_at: text(item.timestamp),
+  };
+};
+
+const facebookShareablePost = (item = {}) => {
+  const mediaType = text(item.attachments?.data?.[0]?.media_type || item.attachments?.data?.[0]?.type).toLowerCase();
+  return {
+    id: text(item.id),
+    source: "facebook",
+    kind: mediaType.includes("video") || mediaType.includes("reel") ? "reel" : "post",
+    thumbnail_url: text(item.full_picture),
+    video_url: "",
+    permalink: text(item.permalink_url),
+    caption: text(item.message).slice(0, 300),
+    likes: 0,
+    comments: 0,
+    views: 0,
+    created_at: text(item.created_time),
+  };
+};
+
+export const fetchMetaShareablePosts = async ({ tenantId, source = "instagram", limit = SHAREABLE_POST_LIMIT } = {}) => {
+  await ensureMetaIntegrationSchema();
+  const scopedTenantId = numberOrNull(tenantId);
+  const pageSize = String(Math.min(50, Math.max(1, Number(limit) || SHAREABLE_POST_LIMIT)));
+  if (source === "facebook") {
+    const { config, token } = await resolveMetaSendConfig({ tenantId: scopedTenantId, channel: AI_AGENT_CHANNELS.FACEBOOK_MESSENGER });
+    const pageId = text(config.facebook_page_id || config.page_id);
+    if (!pageId) throw Object.assign(new Error("No Facebook Page is connected."), { status: 409, code: "META_PAGE_ID_MISSING" });
+    const payload = await callMetaGet({
+      endpoint: `/${encodeURIComponent(pageId)}/posts`,
+      token,
+      params: { fields: "id,permalink_url,full_picture,message,created_time,attachments.limit(1){media_type,type}", limit: pageSize },
+    });
+    return asArray(payload?.data).map(facebookShareablePost).filter((post) => post.id && post.thumbnail_url && post.permalink);
+  }
+  const { config, token, instagramBusinessLogin } = await resolveMetaSendConfig({ tenantId: scopedTenantId, channel: AI_AGENT_CHANNELS.INSTAGRAM });
+  const igId = text(config.instagram_business_account_id);
+  const params = {
+    fields: "id,media_type,media_product_type,media_url,thumbnail_url,permalink,caption,timestamp,like_count,comments_count",
+    limit: pageSize,
+  };
+  let payload;
+  if (instagramBusinessLogin) {
+    payload = await callInstagramGraph({ endpoint: `/${encodeURIComponent(igId || "me")}/media`, token, params });
+  } else {
+    if (!igId) throw Object.assign(new Error("No Instagram account is connected."), { status: 409, code: "INSTAGRAM_ACCOUNT_ID_MISSING" });
+    payload = await callMetaGet({ endpoint: `/${encodeURIComponent(igId)}/media`, token, params });
+  }
+  return asArray(payload?.data).map(instagramShareablePost).filter((post) => post.id && post.thumbnail_url);
+};
+
+export const sendInstagramMediaShare = async ({
+  tenantId,
+  recipientId = "",
+  mediaId = "",
+  facebookPageId = "",
+  instagramBusinessAccountId = "",
+} = {}) => {
+  await ensureMetaIntegrationSchema();
+  const scopedTenantId = numberOrNull(tenantId);
+  const safeRecipientId = text(recipientId);
+  const safeMediaId = text(mediaId);
+  if (!scopedTenantId || !safeRecipientId || !safeMediaId) {
+    throw Object.assign(new Error("tenant_id, Instagram recipient id, and post id are required"), { status: 400, code: "INSTAGRAM_SHARE_INPUT_REQUIRED" });
+  }
+  const { config, token, instagramBusinessLogin } = await resolveMetaSendConfig({
+    tenantId: scopedTenantId,
+    channel: AI_AGENT_CHANNELS.INSTAGRAM,
+    facebookPageId,
+    instagramBusinessAccountId,
+  });
+  const sendContext = {
+    channel: AI_AGENT_CHANNELS.INSTAGRAM,
+    instagram_business_login: instagramBusinessLogin,
+    resolved_instagram_account_id: text(instagramBusinessAccountId || config.instagram_business_account_id),
+    resolved_page_id: text(facebookPageId || config.facebook_page_id || config.page_id),
+    resolved_recipient_psid: safeRecipientId,
+  };
+  const result = await postMetaMessageWithThreadControl({
+    token,
+    recipientId: safeRecipientId,
+    sendContext,
+    body: {
+      recipient: { id: safeRecipientId },
+      message: { attachment: { type: "MEDIA_SHARE", payload: { id: safeMediaId } } },
+    },
+  });
+  const messageId = extractMetaMessageId(result);
+  return { sent: Boolean(messageId), delivery_status: messageId ? "sent" : "failed", message_id: messageId, result };
+};
+
 // Carousel messages for a card list: at most 10 elements each (the generic-template cap), and a
 // new one at every grade change. Labels name the grade only when the list holds more than one.
 export const metaCarouselChunks = (items = [], size = 10) => {
