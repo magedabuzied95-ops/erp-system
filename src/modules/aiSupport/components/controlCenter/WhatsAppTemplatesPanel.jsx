@@ -618,7 +618,8 @@ function AutomationTemplatesCard({ headers, onSubmitted }) {
   );
 }
 
-export default function WhatsAppTemplatesPanel({ headers }) {
+// The Meta review account sees the template studio only — never the automation templates.
+export default function WhatsAppTemplatesPanel({ headers, reviewerMode = false }) {
   const { t } = useTranslation();
   const [loading, setLoading] = useState(true);
   const [templates, setTemplates] = useState([]);
@@ -743,7 +744,7 @@ export default function WhatsAppTemplatesPanel({ headers }) {
           </div>
         </div>
         {notice ? <p className={`rounded-xl border p-2.5 text-xs font-bold ${notice.ok ? "border-emerald-300/20 bg-emerald-400/10 text-emerald-100" : "border-rose-300/20 bg-rose-400/10 text-rose-100"}`}>{notice.text}</p> : null}
-        <AutomationTemplatesCard headers={headers} onSubmitted={load} />
+        {reviewerMode ? null : <AutomationTemplatesCard headers={headers} onSubmitted={load} />}
         <div className="flex flex-wrap items-center gap-1.5">
           {["ALL", "DRAFT", "PENDING", "APPROVED", "REJECTED"].map((key) => (
             <button

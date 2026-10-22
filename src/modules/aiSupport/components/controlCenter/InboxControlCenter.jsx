@@ -262,7 +262,10 @@ export default function InboxControlCenter({
     if (permitted.includes(next)) setSection(next);
   }, [permitted]);
 
-  const panelProps = useMemo(() => ({ headers, tenantId }), [headers, tenantId]);
+  // The Meta review account never sees the store's own sending setup (the Evolution line, the
+  // automation templates and their editor): only what the official platform does.
+  const reviewerMode = Array.isArray(allowedSections);
+  const panelProps = useMemo(() => ({ headers, tenantId, reviewerMode }), [headers, tenantId, reviewerMode]);
 
   if (!open) return null;
 
@@ -287,7 +290,7 @@ export default function InboxControlCenter({
       ) : null}
       {section === "comments" ? <CommentsSettingsPanel {...(commentsProps || {})} light={false} /> : null}
       {section === "invoice_messages" ? <WhatsappMessageVariantsEditor initialType="invoice_receipt" /> : null}
-      {section === "wa_templates" ? <WhatsAppTemplatesPanel headers={headers} /> : null}
+      {section === "wa_templates" ? <WhatsAppTemplatesPanel headers={headers} reviewerMode={reviewerMode} /> : null}
       {section === "wa_send_routes" ? <WhatsAppSendRoutesPanel headers={headers} /> : null}
       {section === "fb_pages" ? <MetaAccountsPanel headers={headers} mode="messenger" /> : null}
       {section === "fb_connect" ? <MetaAccountsPanel headers={headers} mode="connect_messenger" /> : null}

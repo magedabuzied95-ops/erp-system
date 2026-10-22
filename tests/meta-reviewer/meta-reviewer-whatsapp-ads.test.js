@@ -233,3 +233,17 @@ test("normal admin users are unaffected: no reviewer grants, no narrowing", asyn
     assert.equal(req.metaReviewer, undefined);
   }
 });
+
+/* ------------------------------------------------- the store's own sending setup stays hidden */
+
+test("the reviewer cannot read, edit or submit the automation templates (Evolution routing, owner wording)", async () => {
+  const { matchMetaReviewerRoute } = await import("../../server/services/metaReviewerRoutePolicy.js");
+  for (const [method, path] of [
+    ["GET", "/api/whatsapp/templates/automation"],
+    ["PUT", "/api/whatsapp/templates/automation/delivered"],
+    ["DELETE", "/api/whatsapp/templates/automation/delivered"],
+    ["POST", "/api/whatsapp/templates/automation/submit"],
+  ]) {
+    assert.equal(matchMetaReviewerRoute(method, path), null, `${method} ${path} must not be on the reviewer allowlist`);
+  }
+});

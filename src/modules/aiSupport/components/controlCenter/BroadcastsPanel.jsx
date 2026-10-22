@@ -156,7 +156,9 @@ function MessagePreview({ header = "", body = "", footer = "" }) {
   );
 }
 
-export default function BroadcastsPanel({ headers, tenantId }) {
+// The Meta review account only ever runs template campaigns on the official number, so the
+// WhatsApp Web text type is not offered (or named) there.
+export default function BroadcastsPanel({ headers, tenantId, reviewerMode = false }) {
   const { t, i18n } = useTranslation();
   const locale = String(i18n?.language || "ar").startsWith("ar") ? "ar-EG" : "en-GB";
   const formatWhen = useCallback(
@@ -405,7 +407,7 @@ export default function BroadcastsPanel({ headers, tenantId }) {
         {notices}
         <div className="flex flex-wrap items-center gap-2">
           <span className="text-xs font-black text-slate-400">{t("aiSupport.campaigns.count", { count: broadcasts.length })}</span>
-          <ActionButton tone="primary" icon={Plus} className="ms-auto" onClick={() => { setError(""); setMessage(""); setPreview(null); setForm({ ...EMPTY_FORM, channel_mode: templates.length ? "template" : "text" }); }}>
+          <ActionButton tone="primary" icon={Plus} className="ms-auto" onClick={() => { setError(""); setMessage(""); setPreview(null); setForm({ ...EMPTY_FORM, channel_mode: templates.length || reviewerMode ? "template" : "text" }); }}>
             {t("aiSupport.campaigns.new")}
           </ActionButton>
         </div>
@@ -436,7 +438,7 @@ export default function BroadcastsPanel({ headers, tenantId }) {
                       <td className="px-3 py-2.5">
                         <div dir="auto" className="max-w-[220px] truncate font-black text-white">{row.name || `#${row.id}`}</div>
                         <div className="text-[10.5px] text-slate-500">
-                          {isTemplate ? t("aiSupport.campaigns.type.template") : t("aiSupport.campaigns.type.text")}
+                          {isTemplate || reviewerMode ? t("aiSupport.campaigns.type.template") : t("aiSupport.campaigns.type.text")}
                         </div>
                         {row.last_error ? <div dir="auto" className="max-w-[220px] truncate text-[10.5px] text-rose-200" title={row.last_error}>{row.last_error}</div> : null}
                       </td>
@@ -543,9 +545,11 @@ export default function BroadcastsPanel({ headers, tenantId }) {
               <button type="button" className={chipClass(isTemplate)} onClick={() => patch({ channel_mode: "template" })}>
                 {t("aiSupport.campaigns.type.template")}
               </button>
-              <button type="button" className={chipClass(!isTemplate)} onClick={() => patch({ channel_mode: "text" })}>
-                {t("aiSupport.campaigns.type.text")}
-              </button>
+              {reviewerMode ? null : (
+                <button type="button" className={chipClass(!isTemplate)} onClick={() => patch({ channel_mode: "text" })}>
+                  {t("aiSupport.campaigns.type.text")}
+                </button>
+              )}
             </div>
           </Field>
 
