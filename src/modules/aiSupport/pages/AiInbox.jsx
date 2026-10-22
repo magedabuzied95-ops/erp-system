@@ -4654,6 +4654,14 @@ export default function AiInbox({ reviewerMode = false }) {
   // picks this manifest on a direct load; arriving by an in-app link needs the swap.
   useEffect(() => {
     if (reviewerMode) return undefined;
+    try {
+      // Inside the installed app: launch (index.html) and sign-in (Login.jsx) come back here.
+      if (window.matchMedia?.("(display-mode: standalone)").matches || window.navigator.standalone === true) {
+        localStorage.setItem("erp_standalone_home", "/admin/ai-inbox");
+      }
+    } catch {
+      // Storage blocked: the app simply opens where its manifest says.
+    }
     const link = document.querySelector('link[rel="manifest"]');
     const title = document.querySelector('meta[name="apple-mobile-web-app-title"]');
     if (!link) return undefined;

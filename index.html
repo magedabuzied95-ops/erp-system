@@ -275,6 +275,14 @@
           if (standalone && erpInboxMatch && window.localStorage) {
             window.localStorage.setItem("erp_standalone_home", "/admin/ai-inbox");
           }
+          // Safari reads the manifest once per page load, so an icon added after reaching
+          // the inbox by an in-app link still starts at "/". The installed app remembers
+          // the inbox (AiInbox.jsx sets it too) and launches back into it.
+          var standaloneHome = standalone && window.localStorage && window.localStorage.getItem("erp_standalone_home");
+          if (standaloneHome && path === "/") {
+            window.location.replace(standaloneHome);
+            return;
+          }
           if (standalone && (path === "/" || path === "/login") && lastAiInboxUrl) {
             window.location.replace(lastAiInboxUrl);
             return;
