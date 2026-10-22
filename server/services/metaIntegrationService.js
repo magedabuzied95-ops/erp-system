@@ -45,6 +45,7 @@ import {
 import { commentPollKey, createCommentCountMemo, graphCommentCount, planCommentPoll } from "./socialCommentPollMemo.js";
 import { inboundAttachmentLabel, materializeInboundAttachments } from "./inboundMediaService.js";
 import { partsFromMetaEchoAttachments } from "../utils/sentMessageButtons.js";
+import { isMetaEchoToStore } from "../utils/metaEchoesToStore.js";
 import { createNotification, ensureNotificationsSchema } from "./notificationsService.js";
 import {
   AI_AGENT_CHANNELS,
@@ -1932,8 +1933,14 @@ export const classifyMetaCarouselEcho = async ({ tenantId = null, message = {} }
     Boolean(ourSend) &&
     urls.every((url) => ourSend.imageUrls.has(url));
   if (!isTemplate && !onlyOurTemplatePhotos) return { isCardSet: false, duplicate: false, cards: [] };
+  // A sender that writes no row of its own (the comment → DM automation) named this message: its
+  // echo is the only record the thread will get, whatever else went to this customer lately.
+  if (isMetaEchoToStore(message?.external_message_id)) return { isCardSet: true, duplicate: false, cards };
   if (ourSend) return { isCardSet: true, duplicate: true, cards };
-  // After a restart the note is gone, but by then the sender's row is long since stored.
+  // After a restart the note is gone, but by then the sender's row is long since stored. Only a
+  // row written around the moment this template left counts — a carousel sent minutes earlier is
+  // another message, not this one.
+  const echoAt = Date.parse(text(message?.timestamp)) || Date.now();
   const sibling = await db.query(
     `
     SELECT 1
@@ -1946,10 +1953,11 @@ export const classifyMetaCarouselEcho = async ({ tenantId = null, message = {} }
         product_cards NOT IN ('[]'::jsonb, 'null'::jsonb)
         OR suggested_products NOT IN ('[]'::jsonb, 'null'::jsonb)
       )
-      AND created_at >= NOW() - INTERVAL '3 minutes'
+      AND created_at BETWEEN to_timestamp($3::double precision / 1000) - INTERVAL '45 seconds'
+                         AND to_timestamp($3::double precision / 1000) + INTERVAL '45 seconds'
     LIMIT 1
     `,
-    [numberOrNull(tenantId), text(message?.external_conversation_id)]
+    [numberOrNull(tenantId), text(message?.external_conversation_id), echoAt]
   ).then((result) => result.rows.length > 0).catch(() => false);
   return { isCardSet: true, duplicate: sibling, cards };
 };
