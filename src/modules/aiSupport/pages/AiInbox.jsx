@@ -2512,7 +2512,7 @@ function InboxChatHeader({
           <div className="min-w-0">
             {/* One line: on a narrow header the chips beside the name clip instead of wrapping. */}
             <div className="flex flex-nowrap items-center gap-2 overflow-hidden @[820px]:flex-wrap">
-              <div className="min-w-0 shrink max-w-[14rem] @[480px]:shrink-0">
+              <div className="min-w-0 shrink max-w-[14rem] md:shrink-0">
                 <button
                   type="button"
                   onClick={(event) => {
@@ -2535,10 +2535,10 @@ function InboxChatHeader({
               ))}
               {conversationLabels.length > 4 ? <span className="text-[9px] font-black text-slate-400">+{conversationLabels.length - 4}</span> : null}
               {/* A phone-width header keeps the name: the channel shrinks to its icon. */}
-              <span title={sourceLabel} aria-label={sourceLabel} className={`grid h-5 w-5 shrink-0 place-items-center rounded-full @[480px]:hidden ${isSocialComment ? "bg-blue-500/15 text-blue-300" : isWhatsappChannel(channel) ? "bg-emerald-500/15 text-emerald-400" : channel.includes("instagram") ? "bg-rose-500/15 text-rose-400" : channel.includes("messenger") ? "bg-cyan-500/15 text-cyan-400" : "bg-white/10 text-slate-300"}`}>
+              <span title={sourceLabel} aria-label={sourceLabel} className={`grid h-5 w-5 shrink-0 place-items-center rounded-full md:hidden ${isSocialComment ? "bg-blue-500/15 text-blue-300" : isWhatsappChannel(channel) ? "bg-emerald-500/15 text-emerald-400" : channel.includes("instagram") ? "bg-rose-500/15 text-rose-400" : channel.includes("messenger") ? "bg-cyan-500/15 text-cyan-400" : "bg-white/10 text-slate-300"}`}>
                 <SourceIcon className="h-3 w-3" />
               </span>
-              <span className="hidden @[480px]:contents">
+              <span className="hidden md:contents">
               <Pill tone={isSocialComment ? "blue" : isWhatsappChannel(channel) ? "emerald" : channel.includes("instagram") ? "rose" : channel.includes("messenger") ? "cyan" : "zinc"}>
                 <span className="inline-flex items-center gap-1">
                   <SourceIcon className={`h-3 w-3 ${isSocialComment ? "text-blue-100" : channel.includes("instagram") ? "text-rose-100" : channel.includes("messenger") ? "text-cyan-100" : "text-slate-100"}`} />
@@ -2566,11 +2566,11 @@ function InboxChatHeader({
               className={`inline-flex h-8 items-center gap-1.5 rounded-xl border px-2.5 text-[11px] font-black transition disabled:opacity-50 ${teamToolsOpen ? "border-cyan-300/40 bg-cyan-400/15 text-cyan-100" : "border-cyan-300/25 bg-cyan-400/10 text-cyan-100 hover:bg-cyan-400/15"}`}
             >
               {/* On a phone the assignee IS the button: their initials in place of the icon. */}
-              <Users className={`h-3.5 w-3.5 ${assigneeName ? "hidden @[480px]:block" : ""}`} /> <span className="hidden @[820px]:inline">{t("aiSupport.teamTools.title")}</span>
+              <Users className={`h-3.5 w-3.5 ${assigneeName ? "hidden md:block" : ""}`} /> <span className="hidden @[820px]:inline">{t("aiSupport.teamTools.title")}</span>
               {assigneeName ? (
                 <>
-                  <span title={assigneeName} className="grid h-5 min-w-5 place-items-center rounded-full bg-cyan-400/25 px-1 text-[9px] font-black uppercase text-white @[480px]:hidden">{initialsOf(assigneeName)}</span>
-                  <span className="hidden max-w-[90px] truncate rounded-full bg-white/10 px-1.5 text-[10px] font-bold text-white @[480px]:inline">{assigneeName}</span>
+                  <span title={assigneeName} className="grid h-5 min-w-5 place-items-center rounded-full bg-cyan-400/25 px-1 text-[9px] font-black uppercase text-white md:hidden">{initialsOf(assigneeName)}</span>
+                  <span className="hidden max-w-[90px] truncate rounded-full bg-white/10 px-1.5 text-[10px] font-bold text-white md:inline">{assigneeName}</span>
                 </>
               ) : null}
             </button>
@@ -4746,6 +4746,17 @@ export default function AiInbox({ reviewerMode = false }) {
   );
   const [channelAccounts, setChannelAccounts] = useState([]);
   const [mobileView, setMobileView] = useState("list");
+  const [isPhone, setIsPhone] = useState(() => typeof window !== "undefined" && window.matchMedia("(max-width: 767px)").matches);
+  useEffect(() => {
+    const query = window.matchMedia("(max-width: 767px)");
+    const sync = () => setIsPhone(query.matches);
+    sync();
+    query.addEventListener?.("change", sync);
+    return () => query.removeEventListener?.("change", sync);
+  }, []);
+  const renderSidePanelShell = (panel) => (isPhone
+    ? createPortal(<aside className="ai-inbox-phone-side-panel" data-ai-inbox-side-column="true">{panel}</aside>, document.body)
+    : <aside className="ai-omni-panel ai-omni-side-panel min-h-0" data-ai-inbox-side-column="true">{panel}</aside>);
   // "Add to Home Screen" from here installs the ERP opened on the inbox. index.html
   // picks this manifest on a direct load; arriving by an in-app link needs the swap.
   useEffect(() => {
@@ -10821,9 +10832,11 @@ export default function AiInbox({ reviewerMode = false }) {
               <EmptyBlock text="لا توجد محادثات حاليًا" />
             )}
           </main>
-          {/* Genie's side panel: a fourth column beside the chat, never over the list. */}
-          {sidePanelOpen && selectedConversation && !reviewerMode ? (
-            <aside className="ai-omni-panel ai-omni-side-panel min-h-0" data-ai-inbox-side-column="true">
+          {/* Genie's side panel: a fourth column beside the chat, never over the list.
+              On a phone it is a full-screen sheet on <body>: iOS Safari clips a fixed
+              element inside the shell's scroll container, so in place it stayed a
+              squeezed column running off-screen. */}
+          {sidePanelOpen && selectedConversation && !reviewerMode ? renderSidePanelShell(
             <ConversationSidePanel
               inline
               open={sidePanelOpen}
@@ -10853,7 +10866,6 @@ export default function AiInbox({ reviewerMode = false }) {
               onParticipantsChange={(participants) => patchConversation(selectedConversation.conversation_key || selectedConversation.session_id, (conversation) => ({ ...conversation, channel_metadata: { ...(conversation.channel_metadata || {}), participants } }))}
               onNotice={(tone, text) => setToast({ tone, text })}
             />
-              </aside>
           ) : null}
         </section>
       </div>

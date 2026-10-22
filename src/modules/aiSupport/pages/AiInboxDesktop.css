@@ -401,19 +401,6 @@ html.dark .ai-inbox-desktop .ai-omni-chat-panel [class*="bg-[#eefaf8]"] {
     border-radius: 0;
   }
 
-  /* The customer panel (tap the photo) was a third column beside the chat: the
-     chat shrank to half a phone and the panel ran off-screen. It covers the
-     chat instead; its × returns to it. */
-  .ai-inbox-desktop .ai-omni-side-panel {
-    position: fixed;
-    inset: 0;
-    z-index: 60;
-    width: 100% !important;
-    padding-top: env(safe-area-inset-top);
-    padding-bottom: env(safe-area-inset-bottom);
-    overflow-y: auto;
-    background: var(--bg);
-  }
 
   /* The composer is the PWA's WhatsApp row: + | text (⚡ beside it) | camera |
      mic, and the mic gives way to Send once there is text. Everything else the
@@ -579,4 +566,17 @@ html.dark .ai-inbox-desktop .ai-omni-chat-panel [class*="bg-[#eefaf8]"] {
   font-size: 12px;
   font-weight: 600;
   text-align: center;
+}
+
+/* Phone: the customer panel (tap the photo) as a full-screen sheet over the chat,
+   rendered on <body> by AiInbox.jsx — iOS clipped it as a fixed child in place. */
+.ai-inbox-phone-side-panel {
+  position: fixed;
+  inset: 0;
+  z-index: 60;
+  overflow-y: auto;
+  overscroll-behavior: contain;
+  padding-top: env(safe-area-inset-top);
+  padding-bottom: env(safe-area-inset-bottom);
+  background: var(--bg);
 }

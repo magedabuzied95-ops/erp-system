@@ -275,6 +275,12 @@
           if (standalone && erpInboxMatch && window.localStorage) {
             window.localStorage.setItem("erp_standalone_home", "/admin/ai-inbox");
           }
+          // iOS zooms into a focused field and leaves the chat zoomed. Set before first
+          // paint on the inbox (AiInbox.jsx also sets it when reached in-app).
+          var inboxViewport = erpInboxMatch && document.querySelector('meta[name="viewport"]');
+          if (inboxViewport && String(inboxViewport.getAttribute("content") || "").indexOf("maximum-scale") === -1) {
+            inboxViewport.setAttribute("content", inboxViewport.getAttribute("content") + ", maximum-scale=1");
+          }
           // Safari reads the manifest once per page load, so an icon added after reaching
           // the inbox by an in-app link still starts at "/". The installed app remembers
           // the inbox (AiInbox.jsx sets it too) and launches back into it.
