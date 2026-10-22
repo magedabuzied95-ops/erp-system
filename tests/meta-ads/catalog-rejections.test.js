@@ -2,7 +2,7 @@ import test from "node:test";
 import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
 
-import { rejectionRowsFromProducts } from "../../server/modules/metaAds/metaAdsCatalogRejections.js";
+import { rejectionRowsFromProducts, reviewStatusCounts } from "../../server/modules/metaAds/metaAdsCatalogRejections.js";
 import { excludedFromMetaFeed } from "../../server/services/metaCatalogFeedService.js";
 
 const read = (path) => readFileSync(new URL(path, import.meta.url), "utf8");
@@ -36,6 +36,13 @@ test("exclusions are applied to the feed and kept up to date", () => {
   const jobs = read("../../server/modules/metaAds/integrations/integrations.jobs.js");
   assert.match(jobs, /syncAccounts\("job-insights-backfill", \{ days: 0, structure: false, rejections: true \}\)/);
   const sync = read("../../server/modules/metaAds/metaAdsCatalogRejections.js");
-  assert.match(sync, /filter: \{ review_status: \{ eq: "rejected" \} \}/);
+  // Graph's review_status filter returned nothing on the live catalogue: read all, filter here.
+  assert.match(sync, /fields: "id,retailer_id,retailer_product_group_id,name,review_status"/);
+  assert.doesNotMatch(sync, /filter: \{ review_status/);
+  assert.match(sync, /catalog_review_statuses: statuses/);
   assert.doesNotMatch(sync, /DELETE FROM meta_catalog_feed_exclusions/);
+});
+
+test("the sync reports how many products sit in each review status", () => {
+  assert.deepEqual(reviewStatusCounts([{ review_status: "approved" }, { review_status: "REJECTED" }, { review_status: "rejected" }, {}]), { approved: 1, rejected: 2, none: 1 });
 });

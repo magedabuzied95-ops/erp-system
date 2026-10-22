@@ -31,16 +31,31 @@ const catalogIdsOf = async (tenantId, accountId) => {
   return rows.map((row) => row.catalog_id);
 };
 
+// How many products sit in each review status, for the sync result (a wrong field or value shows
+// up here as zero rejections next to a non-zero total).
+export const reviewStatusCounts = (products = []) => {
+  const counts = {};
+  for (const product of Array.isArray(products) ? products : []) {
+    const key = text(product?.review_status).toLowerCase() || "none";
+    counts[key] = (counts[key] || 0) + 1;
+  }
+  return counts;
+};
+
 export const syncCatalogRejections = async (ctx) => {
   const token = requireToken(ctx);
   const tenantId = ctx.account.tenant_id;
   const catalogs = await catalogIdsOf(tenantId, ctx.account.id);
   let found = 0;
+  const statuses = {};
   for (const catalogId of catalogs) {
+    // Every product, filtered here: Graph's `filter` on review_status returned nothing on the
+    // shop's catalogue (2026-10-22) while Commerce Manager listed 291 rejected items.
     const products = await graphGetAll(`/${catalogId}/products`, token, {
       fields: "id,retailer_id,retailer_product_group_id,name,review_status",
-      filter: { review_status: { eq: "rejected" } },
-    }, { limit: 20000 });
+      limit: 500,
+    }, { limit: 50000 });
+    for (const [key, value] of Object.entries(reviewStatusCounts(products))) statuses[key] = (statuses[key] || 0) + value;
     const rows = rejectionRowsFromProducts(products);
     for (const row of rows) {
       await db.query(
@@ -59,5 +74,5 @@ export const syncCatalogRejections = async (ctx) => {
     const { clearMetaCatalogFeedCache } = await import("../../services/metaCatalogFeedService.js");
     clearMetaCatalogFeedCache();
   }
-  return { catalog_rejections: found };
+  return { catalog_rejections: found, catalog_review_statuses: statuses };
 };
