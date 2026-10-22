@@ -393,6 +393,9 @@ export const buildMetaCatalogItem = (
     gender: audience.gender,
     age_group: audience.age_group,
     google_product_category: categories.googleProductCategory,
+    // Not emitted in Meta's XML: the shop's own classification (sneakers, bags...), which the
+    // TikTok feed sends as product_type.
+    product_type: text(row.product_type),
     fb_product_category: categories.facebookProductCategory,
   };
   if (comparePrice > sellingPrice && sellingPrice > 0) {

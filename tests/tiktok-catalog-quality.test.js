@@ -118,3 +118,24 @@ test("feed ids are read back exactly from the CSV the feed writes, quotes includ
   const ids = parseFeedSkuIds(tiktokCatalogCsv([{ sku_id: "NAJ-J1-41" }, { sku_id: 'ODD"ID' }]));
   assert.deepEqual([...ids], ["NAJ-J1-41", 'ODD"ID']);
 });
+
+/* ------------------------------------------------------------------ product_type */
+
+test("product_type carries the shop's classification, labelled for a human, through the real Meta builder", () => {
+  assert.equal(tiktokRow({ product_type: "sneakers" }).product_type, "Sneakers");
+  assert.equal(tiktokRow({ product_type: "winter_collection" }).product_type, "Winter Collection");
+  assert.equal(tiktokRow({ product_type: "bags" }).product_type, "Bags");
+  assert.equal(tiktokRow({ product_type: "kids_shoes" }).product_type, "Kids Shoes", "an unknown key is title-cased, not dropped");
+});
+
+test("a product with no classification falls back to its Google category's last level", () => {
+  const withCategory = tiktokCatalogRow({ ...buildMetaCatalogItem(row({})), product_type: "", google_product_category: "Apparel & Accessories > Shoes > Athletic Shoes" }).row;
+  assert.equal(withCategory.product_type, "Athletic Shoes");
+  assert.equal(tiktokRow({}).product_type, "", "nothing invented when neither exists");
+});
+
+test("product_type is a TikTok column and never reaches Meta's XML", async () => {
+  assert.ok(TIKTOK_CATALOG_COLUMNS.includes("product_type"));
+  const { metaCatalogItemXml } = await import("../server/services/metaCatalogFeedService.js");
+  assert.doesNotMatch(metaCatalogItemXml(buildMetaCatalogItem(row({ product_type: "sneakers" }))), /product_type/);
+});

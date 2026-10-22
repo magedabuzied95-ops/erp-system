@@ -39,6 +39,7 @@ export const TIKTOK_CATALOG_COLUMNS = Object.freeze([
   "gender",
   "age_group",
   "google_product_category",
+  "product_type",
   // "no_photo" when the size has no photo of its own and ships the shop's logo instead —
   // a Product Set filter keeps it out of ads without removing its id from the catalogue.
   "custom_label_0",
@@ -79,6 +80,27 @@ export const isTikTokImageUrl = (url = "") => /^https:\/\/\S+\.(jpe?g|png)(\?\S*
 const threeLevels = (category = "") => text(category).split(">").map((part) => part.trim()).filter(Boolean).slice(0, 3).join(" > ");
 
 /*
+ * TikTok's "product type" is the shop's own category, free text. The ERP stores one of five
+ * canonical keys (productClassificationsService.js); anything else is title-cased as stored.
+ * A row with none falls back to the last level of its Google category ("Athletic Shoes").
+ */
+const PRODUCT_TYPE_LABELS = Object.freeze({
+  sneakers: "Sneakers",
+  bags: "Bags",
+  crocs: "Crocs",
+  slippers: "Slippers",
+  winter_collection: "Winter Collection",
+});
+
+export const tiktokProductType = (item = {}) => {
+  const stored = cleanText(item.product_type);
+  const label = PRODUCT_TYPE_LABELS[stored.toLowerCase().replace(/[\s-]+/g, "_")];
+  if (label) return label;
+  if (stored) return stored.replace(/_/g, " ").replace(/(^|\s)(\p{Ll})/gu, (_, gap, letter) => gap + letter.toUpperCase());
+  return text(item.google_product_category).split(">").map((part) => part.trim()).filter(Boolean).pop() || "";
+};
+
+/*
  * One Meta catalogue item -> one TikTok row, or a reason it cannot be one. The reason is a
  * fixed word, never product data, so it can be logged and counted.
  */
@@ -104,6 +126,7 @@ export const tiktokCatalogRow = (item = {}) => {
     gender: ["male", "female", "unisex"].includes(text(item.gender)) ? text(item.gender) : "",
     age_group: ["newborn", "infant", "toddler", "kids", "adult"].includes(text(item.age_group)) ? text(item.age_group) : "",
     google_product_category: threeLevels(item.google_product_category),
+    product_type: tiktokProductType(item),
     custom_label_0: isLogoFallbackImage(item.image_link) ? NO_PHOTO_LABEL : "",
   };
   const missing = REQUIRED.find((column) => !row[column]);
