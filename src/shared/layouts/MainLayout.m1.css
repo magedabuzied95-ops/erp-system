@@ -48,8 +48,8 @@ html[data-density="compact"] .m1-shell-sidebar nav a{min-height:37px!important;f
    grid-cols utility are matched by the [class] tests and left untouched -
    `xl:grid-cols-3` is a different class token than `grid-cols-3`. */
 @media(max-width:639px){.m1-shell-content .grid:not([class*=" grid-cols-"]):not([class^="grid-cols-"]){grid-template-columns:minmax(0,1fr)}}
-/* Side chat (Genie): the open conversation is a third shell column; the page narrows to make room and the grid animates the move. */
+/* Side chat (Genie): the panel is a third shell column; the page narrows to make room and the grid animates the move. Folded, it is a 56px rail. */
 .m1-shell-root{--side-chat-width:420px}
-.m1-shell-root--side-chat-expanded{--side-chat-width:min(58vw,880px)}
-@media(min-width:1024px){.m1-shell-root.m1-shell-root--side-chat{grid-template-columns:260px minmax(0,1fr) var(--side-chat-width)!important}.m1-shell-root.m1-shell-root--side-chat.m1-shell-root--sidebar-autohide{grid-template-columns:64px minmax(0,1fr) var(--side-chat-width)!important}.m1-side-chat{position:sticky;top:0;height:100vh;min-width:0;box-shadow:-18px 0 48px rgba(0,0,0,.14)}[dir="rtl"] .m1-side-chat{box-shadow:18px 0 48px rgba(0,0,0,.14)}}
+.m1-shell-root--side-chat-collapsed{--side-chat-width:56px}
+@media(min-width:1024px){.m1-shell-root.m1-shell-root--side-chat{grid-template-columns:260px minmax(0,1fr) var(--side-chat-width)!important}.m1-shell-root.m1-shell-root--side-chat.m1-shell-root--sidebar-autohide{grid-template-columns:64px minmax(0,1fr) var(--side-chat-width)!important}.m1-side-chat{position:sticky;top:0;height:100vh;min-width:0;box-shadow:-18px 0 48px rgba(0,0,0,.14)}.m1-side-chat--rail{width:56px;box-shadow:none}[dir="rtl"] .m1-side-chat{box-shadow:18px 0 48px rgba(0,0,0,.14)}}
 @media(max-width:1023px){.m1-side-chat{height:100dvh}}

@@ -2212,12 +2212,19 @@
     },
     "sideChat": {
       "title": "Side chat",
-      "expand": "Expand the chat",
-      "shrink": "Shrink the chat",
-      "close": "Close the chat"
+      "open": "Open the side chat",
+      "collapse": "Fold the chat",
+      "close": "Close the chat",
+      "back": "Back to conversations",
+      "searchPlaceholder": "Search conversations…",
+      "noConversations": "No conversations"
     },
     "messageBell": {
       "title": "Customer messages",
+      "tabs": {
+        "recent": "Recent",
+        "unread": "Unread"
+      },
       "waiting": "{{count}} conversations waiting for a reply",
       "allAnswered": "Every message has been answered",
       "refresh": "Refresh",

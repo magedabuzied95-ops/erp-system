@@ -2224,12 +2224,19 @@
     },
     "sideChat": {
       "title": "الشات الجانبي",
-      "expand": "كبّر الشات",
-      "shrink": "صغّر الشات",
-      "close": "اقفل الشات"
+      "open": "افتح الشات الجانبي",
+      "collapse": "اطوي الشات",
+      "close": "اقفل الشات",
+      "back": "رجوع للمحادثات",
+      "searchPlaceholder": "دوّر في المحادثات…",
+      "noConversations": "مفيش محادثات"
     },
     "messageBell": {
       "title": "رسايل العملاء",
+      "tabs": {
+        "recent": "الأحدث",
+        "unread": "غير المقروء"
+      },
       "waiting": "{{count}} محادثة مستنية رد",
       "allAnswered": "كل الرسايل اتردّ عليها",
       "refresh": "حدّث",

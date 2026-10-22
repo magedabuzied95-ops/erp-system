@@ -581,7 +581,7 @@ function MainLayout() {
   // Genie's chat-from-a-notification: the open conversation docks as a third
   // shell column and the page narrows to make room (MainLayout.m1.css).
   const sideChat = useSideChat();
-  const sideChatOpen = Boolean(sideChat.conversation);
+  const sideChatOpen = Boolean(sideChat.open);
   // The bell belongs to whoever can open the inbox at all.
   const canSeeInbox = reviewerShell || paletteItems.some((item) => item.to === "/admin/ai-inbox");
   const posLabel = t("sidebar.quickAccess.pos");
@@ -722,7 +722,7 @@ function MainLayout() {
         sidebarAutoHide ? "m1-shell-root--sidebar-autohide" : "",
         isAiMarketingWorkspace ? "m1-ai-marketing-scope" : "",
         sideChatOpen ? "m1-shell-root--side-chat" : "",
-        sideChatOpen && sideChat.size === "expanded" ? "m1-shell-root--side-chat-expanded" : "",
+        sideChatOpen && sideChat.collapsed ? "m1-shell-root--side-chat-collapsed" : "",
         "lg:grid",
       ].join(" ")}
     >
