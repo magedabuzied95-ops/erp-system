@@ -665,15 +665,29 @@ export const dedupeMetaSizes = (items = []) => {
   whether it is in stock. Same ids as the ad feed, so a WhatsApp order maps back to the same size.
   It feeds a SEPARATE catalogue: one catalogue cannot group both ways.
 
-  Gender and age group are left out here. Meta counts them as VARIANT attributes beside colour and
-  size, and one model's colours are often listed for different audiences (Air Force 1: male and
-  unisex; Crocs: three genders, adults and kids). That made gender a third variant dimension with
-  most combinations missing, and WhatsApp showed no colour or size picker at all. The shop sections
-  ride on custom_label_0, not gender, so the collections are unaffected.
+  Gender and age group are sent as ONE value for every item. Meta counts them as VARIANT attributes
+  beside colour and size, and one model's colours are often listed for different audiences (Air
+  Force 1: male and unisex; Crocs: three genders, adults and kids), which made gender a third,
+  half-empty variant dimension and WhatsApp showed no picker. Leaving the fields out did not clear
+  them: Meta kept the old values, and 13 product groups (New Balance 530/327 among them) still
+  listed gender in their variants (read from /{catalog}/product_groups?fields=variants). A constant
+  overwrites them and never varies, so it is never a dimension. Sections ride on custom_label_0.
+
+  Footwear goes out as Athletic Shoes. Every model whose picker showed was in that category;
+  Slippers, plain Shoes (Crocs) and boots with no category showed none, with clean colour+size
+  variants and WhatsApp review APPROVED on every item. Bags keep their own category.
 */
-// Crocs sizes are stored "M4/W6", "29/30" — the only sizes in the catalogue with a slash, and the
-// only models whose WhatsApp picker never appeared once gender was gone. " - " reads the same.
+const WHATSAPP_FOOTWEAR_CATEGORY = "Apparel & Accessories > Shoes > Athletic Shoes";
+
+// Crocs sizes are stored "M4/W6", "29/30"; " - " reads the same and keeps the size a plain token.
 export const metaWhatsappSize = (value = "") => text(value).replace(/\s*\/\s*/g, " - ");
+
+export const metaWhatsappCategory = (item = {}) => {
+  const type = text(item.product_type_label).toLowerCase();
+  const category = text(item.google_product_category);
+  if (type === "bags" || /handbag|bags/i.test(category)) return category;
+  return WHATSAPP_FOOTWEAR_CATEGORY;
+};
 
 export const metaWhatsappItems = (items = []) => {
   const index = new Map();
@@ -686,8 +700,9 @@ export const metaWhatsappItems = (items = []) => {
       item_group_id: text(item.product_id) || item.item_group_id,
       title: text(item.product_name) || item.title,
       size,
-      gender: "",
-      age_group: "",
+      gender: "unisex",
+      age_group: "adult",
+      google_product_category: metaWhatsappCategory(item),
     };
     // Two stored colours that read the same ("White/Black", "White & Black") meet here: the size a
     // customer can buy wins.

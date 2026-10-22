@@ -99,17 +99,30 @@ test("colour names read cleanly on the WhatsApp chip and the ad title", async ()
 
 test("the WhatsApp feed sends colour and size as the only variant attributes", () => {
   // Meta counts gender and age group as variant attributes; one model listed for several
-  // audiences made a third, half-empty dimension and WhatsApp showed no picker at all.
+  // audiences made a third, half-empty dimension and WhatsApp showed no picker at all. Omitting
+  // the fields left Meta's old values in place, so every item carries the same constant instead.
   const items = metaWhatsappItems([
     buildMetaCatalogItem(baseRow({ variant_id: 1, variant_sku: "M-39", color: "White", variant_audience: "men" })),
     buildMetaCatalogItem(baseRow({ variant_id: 2, variant_sku: "K-39", color: "Black", variant_audience: "kids" })),
   ]);
   for (const item of items) {
     const xml = metaCatalogItemXml(item);
-    assert.equal(xml.includes("<g:gender>"), false);
-    assert.equal(xml.includes("<g:age_group>"), false);
+    assert.match(xml, /<g:gender>unisex<\/g:gender>/);
+    assert.match(xml, /<g:age_group>adult<\/g:age_group>/);
     assert.match(xml, /<g:custom_label_0>/);
   }
+});
+
+test("WhatsApp footwear goes out as Athletic Shoes; bags keep their category", () => {
+  const athletic = "Apparel &amp; Accessories &gt; Shoes &gt; Athletic Shoes";
+  for (const productType of ["slippers", "crocs", "winter_collection", "sneakers"]) {
+    const [item] = metaWhatsappItems([buildMetaCatalogItem(baseRow({ product_type: productType }))]);
+    assert.ok(metaCatalogItemXml(item).includes(`<g:google_product_category>${athletic}</g:google_product_category>`), productType);
+  }
+  const [bag] = metaWhatsappItems([buildMetaCatalogItem(baseRow({ product_type: "bags" }))]);
+  assert.match(metaCatalogItemXml(bag), /Handbags/);
+  // The ad feed keeps the true category.
+  assert.match(metaCatalogItemXml(buildMetaCatalogItem(baseRow({ product_type: "slippers" }))), /Slippers/);
 });
 
 test("two stored colours that read the same keep the size in stock", () => {
