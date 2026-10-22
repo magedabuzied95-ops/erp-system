@@ -96,3 +96,26 @@ test("colour names read cleanly on the WhatsApp chip and the ad title", async ()
   assert.equal(item.color, "White & Black & Navy");
   assert.match(item.link, /color=White%20\*%20Black%20%26%20Navy/);
 });
+
+test("the WhatsApp feed sends colour and size as the only variant attributes", () => {
+  // Meta counts gender and age group as variant attributes; one model listed for several
+  // audiences made a third, half-empty dimension and WhatsApp showed no picker at all.
+  const items = metaWhatsappItems([
+    buildMetaCatalogItem(baseRow({ variant_id: 1, variant_sku: "M-39", color: "White", variant_audience: "men" })),
+    buildMetaCatalogItem(baseRow({ variant_id: 2, variant_sku: "K-39", color: "Black", variant_audience: "kids" })),
+  ]);
+  for (const item of items) {
+    const xml = metaCatalogItemXml(item);
+    assert.equal(xml.includes("<g:gender>"), false);
+    assert.equal(xml.includes("<g:age_group>"), false);
+    assert.match(xml, /<g:custom_label_0>/);
+  }
+});
+
+test("two stored colours that read the same keep the size in stock", () => {
+  const items = metaWhatsappItems([
+    buildMetaCatalogItem(baseRow({ variant_id: 1, variant_sku: "A", color: "White/Black", variant_stock: 0 })),
+    buildMetaCatalogItem(baseRow({ variant_id: 2, variant_sku: "B", color: "White & Black", variant_stock: 4 })),
+  ]);
+  assert.deepEqual(items.map((item) => item.id), ["B"]);
+});

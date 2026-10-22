@@ -664,19 +664,34 @@ export const dedupeMetaSizes = (items = []) => {
   colour and size as variants, the way the storefront's product page does, and each size still says
   whether it is in stock. Same ids as the ad feed, so a WhatsApp order maps back to the same size.
   It feeds a SEPARATE catalogue: one catalogue cannot group both ways.
+
+  Gender and age group are left out here. Meta counts them as VARIANT attributes beside colour and
+  size, and one model's colours are often listed for different audiences (Air Force 1: male and
+  unisex; Crocs: three genders, adults and kids). That made gender a third variant dimension with
+  most combinations missing, and WhatsApp showed no colour or size picker at all. The shop sections
+  ride on custom_label_0, not gender, so the collections are unaffected.
 */
 export const metaWhatsappItems = (items = []) => {
-  const seen = new Set();
+  const index = new Map();
   const out = [];
   for (const item of items) {
     const key = `${text(item.product_id)}\u0000${text(item.color).toLowerCase()}\u0000${text(item.size).toLowerCase()}`;
-    if (seen.has(key)) continue;
-    seen.add(key);
-    out.push({
+    const row = {
       ...item,
       item_group_id: text(item.product_id) || item.item_group_id,
       title: text(item.product_name) || item.title,
-    });
+      gender: "",
+      age_group: "",
+    };
+    // Two stored colours that read the same ("White/Black", "White & Black") meet here: the size a
+    // customer can buy wins.
+    if (index.has(key)) {
+      const at = index.get(key);
+      if (row.availability === "in stock" && out[at].availability !== "in stock") out[at] = row;
+      continue;
+    }
+    index.set(key, out.length);
+    out.push(row);
   }
   return out;
 };
