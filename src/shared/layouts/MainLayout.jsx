@@ -521,6 +521,13 @@ function MainLayout() {
     }
   }, [navigate]);
 
+  // The inbox hides this topbar on every width and carries its own menu button.
+  useEffect(() => {
+    const openDrawer = () => setMobileDrawerOpen(true);
+    window.addEventListener("erp:open-nav-drawer", openDrawer);
+    return () => window.removeEventListener("erp:open-nav-drawer", openDrawer);
+  }, []);
+
   useEffect(() => {
     const refreshUser = () => setUser(getCurrentUser() || { name: "Admin", role: "Admin", permissions: ["*"] });
     window.addEventListener("erp:auth-user-updated", refreshUser);
@@ -945,9 +952,9 @@ function MainLayout() {
         className="min-h-screen w-full min-w-0 overflow-x-hidden"
       >
         <div className="flex min-h-screen w-full min-w-0 max-w-none flex-col overflow-x-hidden">
-          {/* The inbox is a full-screen workspace on desktop: no shell topbar
-              there. Phones keep it — it carries the menu button. */}
-          <div className={`m1-shell-topbar ${isAiInboxWorkspace ? "lg:hidden" : ""} sticky top-0 z-30 border-b border-[var(--border)] bg-[var(--surface)]/90 backdrop-blur-2xl lg:top-0`} style={{ "--topbar-height": "64px" }}>
+          {/* The inbox is a full-screen workspace on every width: no shell topbar
+              there. Its own top bar carries the menu button (erp:open-nav-drawer). */}
+          <div className={`m1-shell-topbar ${isAiInboxWorkspace ? "hidden" : ""} sticky top-0 z-30 border-b border-[var(--border)] bg-[var(--surface)]/90 backdrop-blur-2xl lg:top-0`} style={{ "--topbar-height": "64px" }}>
             <div className="pointer-events-none absolute inset-0" aria-hidden="true" />
             <div className="relative z-10 flex items-center justify-between gap-3 px-3 py-3 sm:px-4 lg:px-6 xl:px-8 lg:py-5">
               <div className="flex min-w-0 items-center gap-3 lg:hidden">

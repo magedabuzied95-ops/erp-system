@@ -1,7 +1,7 @@
 import { ShellCommandPaletteTrigger } from "../../../shared/components/CommandPalette";
 import { useEffect, useRef, useState } from "react";
 import { useTranslation } from "react-i18next";
-import { ChevronDown, Megaphone, MessagesSquare, Moon, Settings, Smartphone, Sun } from "lucide-react";
+import { ChevronDown, Megaphone, Menu, MessagesSquare, Moon, Settings, Smartphone, Sun } from "lucide-react";
 import { FaFacebookMessenger, FaInstagram, FaTiktok, FaWhatsapp } from "react-icons/fa";
 import LanguageSwitcher from "../../../shared/components/LanguageSwitcher";
 import { useTheme } from "../../../theme/useTheme";
@@ -254,6 +254,17 @@ export default function InboxTopBar({
 
   return (
     <nav ref={barRef} className="ai-inbox-topbar" aria-label={t("aiSupport.inbox.topbar.label")}>
+      {/* The shell topbar is hidden on this route at every width, so below lg the
+          sidebar drawer opens from here. */}
+      <button
+        type="button"
+        onClick={() => { setOpenMenu(""); window.dispatchEvent(new Event("erp:open-nav-drawer")); }}
+        className="ai-inbox-topbar__tab ai-inbox-topbar__nav shrink-0"
+        aria-label={t("common.openMenu", "فتح القائمة")}
+        title={t("common.openMenu", "فتح القائمة")}
+      >
+        <Menu className="h-4 w-4" aria-hidden="true" />
+      </button>
       {notificationSlot && rtl ? <div className="ai-inbox-topbar__bell">{notificationSlot}</div> : null}
       <button
         type="button"

@@ -2509,7 +2509,7 @@ function InboxChatHeader({
           <div className="min-w-0">
             {/* One line: on a narrow header the chips beside the name clip instead of wrapping. */}
             <div className="flex flex-nowrap items-center gap-2 overflow-hidden @[820px]:flex-wrap">
-              <div className="min-w-0 shrink-0 max-w-[14rem]">
+              <div className="min-w-0 shrink max-w-[14rem] @[480px]:shrink-0">
                 <button
                   type="button"
                   onClick={(event) => {
@@ -2531,12 +2531,15 @@ function InboxChatHeader({
                 <span key={label.id} className={`inline-flex h-6 items-center rounded-md border px-2 text-[10px] font-black ${conversationLabelClass(label.color)}`}>{label.name}</span>
               ))}
               {conversationLabels.length > 4 ? <span className="text-[9px] font-black text-slate-400">+{conversationLabels.length - 4}</span> : null}
+              {/* A phone-width header keeps the name; the channel is already in the list row. */}
+              <span className="hidden @[480px]:contents">
               <Pill tone={isSocialComment ? "blue" : isWhatsappChannel(channel) ? "emerald" : channel.includes("instagram") ? "rose" : channel.includes("messenger") ? "cyan" : "zinc"}>
                 <span className="inline-flex items-center gap-1">
                   <SourceIcon className={`h-3 w-3 ${isSocialComment ? "text-blue-100" : channel.includes("instagram") ? "text-rose-100" : channel.includes("messenger") ? "text-cyan-100" : "text-slate-100"}`} />
                   {sourceLabel}
                 </span>
               </Pill>
+              </span>
               {/* The ad / WhatsApp campaign this chat came from (GENI's megaphone line). */}
               <span className="hidden @[700px]:contents"><CampaignAttributionChip conversation={conversation} variant="desktop" /></span>
             </div>
@@ -2579,7 +2582,7 @@ function InboxChatHeader({
             type="button"
             onClick={() => onToggleFullscreen?.()}
             disabled={loading}
-            className="inline-flex h-8 items-center gap-1.5 rounded-2xl border border-white/10 bg-white/[0.06] px-2.5 text-[11px] font-black text-slate-100 transition disabled:opacity-50"
+            className="hidden h-8 items-center gap-1.5 rounded-2xl border border-white/10 bg-white/[0.06] px-2.5 text-[11px] font-black text-slate-100 transition disabled:opacity-50 md:inline-flex"
             aria-label={isFullscreenConversation ? "Restore conversation layout" : "Expand conversation layout"}
             title={isFullscreenConversation ? "Restore conversation layout" : "Expand conversation layout"}
           >
@@ -3269,7 +3272,7 @@ function ManualReplyComposer({
           ? "border-amber-400/70 bg-amber-50 focus-within:border-amber-500 focus-within:ring-2 focus-within:ring-amber-500/10 dark:border-amber-300/40 dark:bg-[#241f14]"
           : "border-slate-300 bg-slate-50 focus-within:border-amber-500 focus-within:ring-2 focus-within:ring-amber-500/10 dark:border-white/15 dark:bg-[#181b18] dark:focus-within:border-amber-300/50 dark:focus-within:ring-amber-300/10"}`}
       >
-        <div className="flex min-h-10 min-w-0 flex-1 items-end">
+        <div data-ai-inbox-composer-row="true" className="flex min-h-10 min-w-0 flex-1 items-end">
           <button
             type="button"
             onClick={() => onOpenProductPicker?.()}
@@ -9992,7 +9995,7 @@ export default function AiInbox({ reviewerMode = false }) {
   }
 
   return (
-    <div dir="ltr" className="ai-inbox-desktop overflow-hidden bg-[radial-gradient(circle_at_12%_8%,rgba(34,211,238,0.14),transparent_28%),linear-gradient(180deg,#020617,#0f172a)] text-white [padding-bottom:env(safe-area-inset-bottom)]">
+    <div dir="ltr" data-mobile-view={mobileView === "chat" && selectedConversation && !controlCenterOpen ? "chat" : "list"} className="ai-inbox-desktop overflow-hidden bg-[radial-gradient(circle_at_12%_8%,rgba(34,211,238,0.14),transparent_28%),linear-gradient(180deg,#020617,#0f172a)] text-white [padding-bottom:env(safe-area-inset-bottom)]">
       {toast.text ? (
         <div className={`fixed right-4 top-4 z-50 rounded-2xl border px-4 py-3 text-sm font-black shadow-2xl backdrop-blur ${
           toast.tone === "rose"
