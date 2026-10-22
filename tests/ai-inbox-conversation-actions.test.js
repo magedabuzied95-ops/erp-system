@@ -44,7 +44,7 @@ test("done, archive, export and templates reach the server", () => {
   assert.match(exportRoute, /sessionKeys: \[conversationId\], hiddenKeys/);
   assert.match(exportRoute, /COALESCE\(message_type, ''\) NOT IN \('internal_note', 'reaction'\)/);
   // A sent template is written into the thread.
-  assert.match(route, /messageType: "template",\s*staffUserId/);
+  assert.match(route, /messageType: "template",\s*suggestedActions: transcript\.actions,\s*visualAttachments: transcript\.attachments,\s*staffUserId/);
 });
 
 test("the mini chat reads and sends through the inbox's own routes", () => {

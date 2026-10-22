@@ -32,7 +32,7 @@ test("each Genie step is wired to its stage", () => {
   const ads = read("server/modules/metaAds/integrations/adClicks.js");
   assert.match(ads, /advanceConversationLeadStageLater\(\{ tenantId, sessionId: key, stage: "new", source: "ad_click"/);
   const log = read("server/services/aiSupportLogService.js");
-  assert.match(log, /const persistOutboundTranscriptRow = async \(args = \{\}\) => \{\s*const row = await persistOutboundTranscriptRowUnstaged\(args\);/);
+  assert.match(log, /const persistOutboundTranscriptRow = async \(callerArgs = \{\}\) => \{\s*const args = withSentMessageButtons\(callerArgs\);\s*const row = await persistOutboundTranscriptRowUnstaged\(args\);/);
   assert.match(log, /stage: "interested", source: "product_card"/);
   const orders = read("server/services/aiAgentOrderService.js");
   assert.equal(orders.split(`stage: "negotiation", source: "order_draft"`).length - 1, 2, "both draft writers");

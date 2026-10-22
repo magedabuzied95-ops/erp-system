@@ -44,6 +44,7 @@ import {
 } from "./metaGraphRateLimiter.js";
 import { commentPollKey, createCommentCountMemo, graphCommentCount, planCommentPoll } from "./socialCommentPollMemo.js";
 import { inboundAttachmentLabel, materializeInboundAttachments } from "./inboundMediaService.js";
+import { partsFromMetaEchoAttachments } from "../utils/sentMessageButtons.js";
 import { createNotification, ensureNotificationsSchema } from "./notificationsService.js";
 import {
   AI_AGENT_CHANNELS,
@@ -27961,9 +27962,12 @@ export const processMetaWebhook = async ({ req } = {}) => {
       // elements back into cards so the row says "product card" rather than
       // storing the first colour's photo and calling it an image message.
       const echoProductCards = echoTemplateCards.length ? echoTemplateCards : metaTemplateProductCards(message.attachments || []);
+      // A button template (or a lone generic card) echoes as an attachment with no text of its
+      // own: its words and buttons are inside the template, so the row reads them from there.
+      const echoButtons = echoProductCards.length ? { message: "", actions: [] } : partsFromMetaEchoAttachments(message.attachments || []);
       const echoText = echoProductCards.length
         ? text(message.message_text)
-        : text(message.message_text) || inboundAttachmentLabel(message.attachments) || "[attachment]";
+        : text(message.message_text) || echoButtons.message || inboundAttachmentLabel(message.attachments) || "[attachment]";
       // preserveExistingOnProviderMatch: a reply sent FROM the inbox is already
       // stored under this mid, and Meta echoes it back to us anyway.
       const outboundRow = await appendChannelOutboundSupportReply({
@@ -27981,6 +27985,7 @@ export const processMetaWebhook = async ({ req } = {}) => {
         externalMessageId: echoMessageId,
         providerMessageId: echoMessageId,
         productCards: echoProductCards,
+        suggestedActions: echoButtons.actions,
         messageType: echoProductCards.length ? "product_card" : undefined,
         // A template has no picture of its own to show; only real media rides on the row.
         visualAttachments: echoProductCards.length

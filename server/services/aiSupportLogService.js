@@ -6,6 +6,13 @@ import { normalizeWhatsappPhone, normalizeWhatsappSessionId as normalizeCanonica
 import { pruneWeakConversationChannels, writableConversationChannel } from "../utils/inboxChannelIdentity.js";
 import { canonicalPhoneSql } from "../utils/phoneSearch.js";
 import { emitToRooms } from "../utils/socket.js";
+import {
+  hasTranscriptButtons,
+  mergeSentButtons,
+  noteRowAwaitingSentButtons,
+  recallSentMessageButtons,
+  setSentButtonsRowPatcher,
+} from "../utils/sentMessageButtons.js";
 
 let schemaReadyPromise = null;
 
@@ -349,13 +356,53 @@ const buildOutboundTranscriptIdentityKey = ({
 const buildOutboundTranscriptDedupeKey = (args = {}) => buildOutboundTranscriptIdentityKey(args);
 
 /*
+ * The buttons a message went out with are read off the send itself (utils/sentMessageButtons.js),
+ * so a writer that stored only the body still gets them: from the registry when the send's answer
+ * was already read, or patched in when it lands a moment after the row.
+ */
+const outboundProviderId = (args = {}) => toText(args.providerMessageId || args.externalMessageId);
+const wantsSentButtons = (args = {}) =>
+  String(args.direction || "outbound").toLowerCase() !== "inbound"
+  && Boolean(outboundProviderId(args))
+  && !(Array.isArray(args.productCards) && args.productCards.length)
+  && !["product_card", "internal_note", "reaction"].includes(String(args.messageType || "").toLowerCase())
+  && !hasTranscriptButtons(args.suggestedActions);
+
+const withSentMessageButtons = (args = {}) => {
+  if (!wantsSentButtons(args)) return args;
+  const sent = recallSentMessageButtons(outboundProviderId(args));
+  if (!sent) return args;
+  const suggestedActions = mergeSentButtons(args.suggestedActions, sent.actions, args.message || args.staffMessage || args.answer);
+  return { ...args, suggestedActions };
+};
+
+const awaitSentMessageButtons = (row, args = {}) => {
+  if (!row?.id || !wantsSentButtons(args) || hasTranscriptButtons(row.suggested_actions)) return;
+  noteRowAwaitingSentButtons(outboundProviderId(args), row);
+};
+
+setSentButtonsRowPatcher(async ({ rowId, tenantId, sessionId, text = "", actions = [] }) => {
+  const current = await db.query("SELECT suggested_actions FROM ai_support_messages WHERE id = $1::bigint LIMIT 1", [rowId]);
+  const existing = current.rows[0]?.suggested_actions;
+  if (!current.rows[0] || hasTranscriptButtons(existing)) return;
+  const merged = mergeSentButtons(Array.isArray(existing) ? existing : [], actions, text);
+  if (!hasTranscriptButtons(merged)) return;
+  await db.query("UPDATE ai_support_messages SET suggested_actions = $2::jsonb, updated_at = NOW() WHERE id = $1::bigint", [rowId, JSON.stringify(merged)]);
+  if (tenantId && sessionId) {
+    emitToRooms([`tenant:${tenantId}`], "ai_inbox:refresh", { tenant_id: tenantId, session_id: sessionId, reason: "sent_buttons", at: new Date().toISOString() });
+  }
+});
+
+/*
  * Every outbound row goes through here. A product card the customer was actually
  * sent — by staff or by the AI — makes the conversation an interested lead
  * (Genie: a customer asking about a package lands in "مهتم"). Forward-only and
  * detached; see modules/crmStages/autoStage.js.
  */
-const persistOutboundTranscriptRow = async (args = {}) => {
+const persistOutboundTranscriptRow = async (callerArgs = {}) => {
+  const args = withSentMessageButtons(callerArgs);
   const row = await persistOutboundTranscriptRowUnstaged(args);
+  awaitSentMessageButtons(row, args);
   const cards = Array.isArray(args.productCards) ? args.productCards : [];
   const outbound = String(args.direction || "outbound").toLowerCase() !== "inbound";
   const status = String(args.deliveryStatus || "").toLowerCase();
@@ -366,6 +413,21 @@ const persistOutboundTranscriptRow = async (args = {}) => {
       .catch(() => {});
   }
   return row;
+};
+
+/*
+ * A writer that defers to the row already stored (an echo) still contributes the buttons it read
+ * off the message when that row has none — the echo of a template is often the only writer that
+ * saw them.
+ */
+const adoptIncomingButtons = async (row, incomingActions = []) => {
+  if (!row?.id || !hasTranscriptButtons(incomingActions) || hasTranscriptButtons(row.suggested_actions)) return row;
+  const merged = mergeSentButtons(Array.isArray(row.suggested_actions) ? row.suggested_actions : [], incomingActions, row.message_text);
+  const updated = await db.query(
+    "UPDATE ai_support_messages SET suggested_actions = $2::jsonb, updated_at = NOW() WHERE id = $1::bigint RETURNING *",
+    [row.id, jsonValue(merged)]
+  );
+  return updated.rows[0] || row;
 };
 
 const persistOutboundTranscriptRowUnstaged = async ({
@@ -690,7 +752,14 @@ const persistOutboundTranscriptRowUnstaged = async ({
       sources_used = $11::jsonb,
       suggested_products = $12::jsonb,
       visual_attachments = $13::jsonb,
-      suggested_actions = $14::jsonb,
+      -- The buttons a message went out with are never taken off it: a later writer of the same
+      -- message that knows none (the provider's echo, a status re-stamp) keeps the ones stored.
+      suggested_actions = CASE
+        WHEN NOT EXISTS (SELECT 1 FROM jsonb_array_elements(CASE WHEN jsonb_typeof($14::jsonb) = 'array' THEN $14::jsonb ELSE '[]'::jsonb END) AS incoming(action) WHERE left(incoming.action->>'type', 9) = 'whatsapp_')
+          AND EXISTS (SELECT 1 FROM jsonb_array_elements(CASE WHEN jsonb_typeof(suggested_actions) = 'array' THEN suggested_actions ELSE '[]'::jsonb END) AS stored(action) WHERE left(stored.action->>'type', 9) = 'whatsapp_')
+        THEN suggested_actions
+        ELSE $14::jsonb
+      END,
       detected_intent = $15,
       fallback_reason = $16,
       staff_message = CASE WHEN edited_at IS NULL THEN $17 ELSE staff_message END,
@@ -739,7 +808,7 @@ const persistOutboundTranscriptRowUnstaged = async ({
     if (existingProvider.rows[0]?.id) {
       if (preserveExistingOnProviderMatch) {
         const existing = await db.query("SELECT * FROM ai_support_messages WHERE id = $1::bigint LIMIT 1", [existingProvider.rows[0].id]);
-        return existing.rows[0] || null;
+        return adoptIncomingButtons(existing.rows[0] || null, safeSuggestedActions);
       }
       const updated = await db.query(updateSql, [existingProvider.rows[0].id, ...values]);
       return updated.rows[0] || null;
@@ -827,7 +896,7 @@ const persistOutboundTranscriptRowUnstaged = async ({
       // fromMe arrives within milliseconds). The writer that knows the message must still win, or
       // a product-card send is stored as the echo's bare text and the inbox shows no card at all
       // (2026-10-19). A writer that defers to an existing row keeps deferring.
-      if (preserveExistingOnProviderMatch) return fallbackProvider.rows[0];
+      if (preserveExistingOnProviderMatch) return adoptIncomingButtons(fallbackProvider.rows[0], safeSuggestedActions);
       const updated = await db.query(updateSql, [fallbackProvider.rows[0].id, ...values]);
       return updated.rows[0] || fallbackProvider.rows[0];
     }
@@ -2282,6 +2351,8 @@ export const appendManualAiSupportReply = async ({
   // Media the operator attached. Rendered by MessageMedia from the stored row,
   // so an image bubble survives a reload the same way a text bubble does.
   visualAttachments = [],
+  // A template's header, footer and buttons, as the bubble draws them.
+  suggestedActions = [],
   previewMessage = "",
   staffUserId = null,
   staffUserName = "",
@@ -2365,6 +2436,7 @@ export const appendManualAiSupportReply = async ({
     externalReplyId,
     productCards,
     visualAttachments,
+    suggestedActions,
     preserveExactMessage,
     upsertSession,
     // A note is not a reply, so it must not take the conversation over and must

@@ -19,6 +19,7 @@ import { fileURLToPath }
 from "url";
 import { emitToRooms, normalizeSocketRoomKey, setIo } from "./utils/socket.js";
 import { getGraphUsageByCaller, installGraphFetchMeter } from "./services/metaGraphRateLimiter.js";
+import { installSentMessageButtonsObserver } from "./utils/sentMessageButtons.js";
 import { presenceConnect, presenceDisconnect } from "./services/chatPresenceService.js";
 import { attachStaffPresenceHandlers, sweepStaleStaffPresence } from "./services/aiInboxStaffPresenceService.js";
 import { isPerfDebugEnabled, runWithPerfContext, slowestPhaseFromTimings } from "./utils/perfDebug.js";
@@ -45,6 +46,9 @@ import { ensureBrandsTable } from "./controllers/brandsController.js";
 // Count every Meta Graph call by caller before anything starts making them
 // (GET /api/debug/meta-graph-usage, and a META_GRAPH_USAGE_REPORT log line).
 installGraphFetchMeter();
+// Read the buttons off every WhatsApp / Messenger / Instagram send, so the AI Inbox draws them
+// under the bubble whichever code path sent the message (utils/sentMessageButtons.js).
+installSentMessageButtonsObserver();
 
 const require = createRequire(import.meta.url);
 const currentFilePath = fileURLToPath(import.meta.url);

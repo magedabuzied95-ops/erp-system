@@ -4956,6 +4956,8 @@ router.post("/conversations/:conversationId/send-template", protect, inboxReply(
       clientRequestId: requestClientRequestId(req),
       message: transcript.message || `[${resolved.name}]`,
       messageType: "template",
+      suggestedActions: transcript.actions,
+      visualAttachments: transcript.attachments,
       staffUserId: req.user?.id || null,
       staffUserName: userDisplayName(req.user),
       source: "ai_inbox_template",
