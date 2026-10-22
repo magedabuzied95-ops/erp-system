@@ -113,3 +113,19 @@ test("the public checkout never takes a customer id from the shopper", () => {
   assert.match(storefront, /resolveCustomer\(client, tenantId, checkout, checkoutColumns\.customers, runCheckoutQuery, \{ trustCustomerId: posOnlineOrder \}\)/);
   assert.match(storefront, /customer_email: checkout\.email \|\| \(posOnlineOrder \? customer\?\.email : ""\) \|\| "",/);
 });
+
+test("a failing floor lookup never aborts the sale's transaction", async () => {
+  const { loadOrderLineFloors } = await import("../server/utils/orderLinePriceFloor.js");
+  const sent = [];
+  const client = {
+    query: async (sql) => {
+      sent.push(String(sql).trim().split(/\s+/).slice(0, 4).join(" "));
+      if (/product_variants/.test(sql)) throw new Error("boom");
+      return { rows: [] };
+    },
+  };
+  const floors = await loadOrderLineFloors(client, { items: [{ variant_id: 7, price: 1, quantity: 1 }] });
+  assert.equal(floors.size, 0);
+  assert.equal(sent[0], "SAVEPOINT order_line_floors");
+  assert.equal(sent.at(-1), "ROLLBACK TO SAVEPOINT order_line_floors");
+});

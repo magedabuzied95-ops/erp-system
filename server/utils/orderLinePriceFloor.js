@@ -51,7 +51,22 @@ export const belowFloorDiscount = (items = [], floorFor = () => 0) =>
   ) / 100;
 
 // Floors keyed `v:<variant id>` / `p:<product id>`, read on the caller's transaction client.
-export const loadOrderLineFloors = async (client, { tenantId = null, items = [], saleModeSettings = {} } = {}) => {
+// A failed lookup must never take the sale down with it: it runs in a savepoint and, if it
+// fails, the sale goes on without floors (logged) rather than aborting the transaction.
+export const loadOrderLineFloors = async (client, options = {}) => {
+  await client.query("SAVEPOINT order_line_floors");
+  try {
+    const floors = await readOrderLineFloors(client, options);
+    await client.query("RELEASE SAVEPOINT order_line_floors");
+    return floors;
+  } catch (error) {
+    await client.query("ROLLBACK TO SAVEPOINT order_line_floors").catch(() => {});
+    console.error("[orders:line-floors-unavailable]", { message: error?.message || String(error) });
+    return new Map();
+  }
+};
+
+const readOrderLineFloors = async (client, { tenantId = null, items = [], saleModeSettings = {} } = {}) => {
   const variantIds = [...new Set(items.map((item) => Number(item.variant_id)).filter((id) => Number.isInteger(id) && id > 0))];
   const productIds = [...new Set(items.filter((item) => !(Number(item.variant_id) > 0)).map((item) => Number(item.product_id)).filter((id) => Number.isInteger(id) && id > 0))];
   const floors = new Map();
