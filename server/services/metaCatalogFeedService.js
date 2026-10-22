@@ -374,7 +374,7 @@ export const metaAudienceLabel = (audiences = []) => (audiences.length ? `|${aud
 const SECTION_TYPES = Object.freeze([
   { type: "Sneakers", ar: "كوتشيات" },
   { type: "Bags", ar: "شنط" },
-  { type: "Slippers", ar: "شباشب" },
+  { type: "Slippers", ar: "سليبر" },
   { type: "Crocs", ar: "كروكس" },
   { type: "Winter Collection", ar: "كولكشن الشتا" },
 ]);
