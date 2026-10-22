@@ -671,15 +671,21 @@ export const dedupeMetaSizes = (items = []) => {
   most combinations missing, and WhatsApp showed no colour or size picker at all. The shop sections
   ride on custom_label_0, not gender, so the collections are unaffected.
 */
+// Crocs sizes are stored "M4/W6", "29/30" — the only sizes in the catalogue with a slash, and the
+// only models whose WhatsApp picker never appeared once gender was gone. " - " reads the same.
+export const metaWhatsappSize = (value = "") => text(value).replace(/\s*\/\s*/g, " - ");
+
 export const metaWhatsappItems = (items = []) => {
   const index = new Map();
   const out = [];
   for (const item of items) {
-    const key = `${text(item.product_id)}\u0000${text(item.color).toLowerCase()}\u0000${text(item.size).toLowerCase()}`;
+    const size = metaWhatsappSize(item.size);
+    const key = `${text(item.product_id)}\u0000${text(item.color).toLowerCase()}\u0000${size.toLowerCase()}`;
     const row = {
       ...item,
       item_group_id: text(item.product_id) || item.item_group_id,
       title: text(item.product_name) || item.title,
+      size,
       gender: "",
       age_group: "",
     };

@@ -119,3 +119,11 @@ test("two stored colours that read the same keep the size in stock", () => {
   ]);
   assert.deepEqual(items.map((item) => item.id), ["B"]);
 });
+
+test("WhatsApp sizes carry no slash; the ad feed keeps the stored size", () => {
+  const ad = buildMetaCatalogItem(baseRow({ size: "M4/W6" }));
+  const [whatsapp] = metaWhatsappItems([ad]);
+  assert.equal(whatsapp.size, "M4 - W6");
+  assert.match(metaCatalogItemXml(whatsapp), /<g:size>M4 - W6<\/g:size>/);
+  assert.equal(ad.size, "M4/W6");
+});
