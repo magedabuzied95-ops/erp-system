@@ -435,15 +435,15 @@ function OrderReturnsPage() {
 
       {activePanel === "customers" ? (
         <>
-          <section className="grid gap-3 md:grid-cols-2 xl:grid-cols-4">
+          <section className="grid grid-cols-2 gap-2 md:grid-cols-2 md:gap-3 xl:grid-cols-4">
             <KpiCard label={t("orders.returns.page.kpi.total")} value={kpis.total} icon={RefreshCcw} accent="cyan" />
             <KpiCard label={t("orders.returns.page.kpi.today")} value={kpis.today} icon={CalendarDays} accent="amber" />
             <KpiCard label={t("orders.returns.page.kpi.refundValue")} value={formatCurrency(kpis.value)} icon={Wallet} accent="emerald" />
             <KpiCard label={t("orders.returns.page.kpi.restocked")} value={kpis.restocked} icon={PackageOpen} accent="violet" />
           </section>
 
-          <section className="rounded-2xl border border-[var(--border)] bg-[var(--surface)] p-3 shadow-2xl shadow-[var(--shadow)]">
-            <div className="mb-3 flex flex-col gap-3 xl:flex-row xl:items-center xl:justify-between">
+          <section className="rounded-2xl border border-[var(--border)] bg-[var(--surface)] p-3 shadow-2xl shadow-[var(--shadow)] max-md:rounded-none max-md:border-0 max-md:bg-transparent max-md:p-0 max-md:shadow-none">
+            <div className="mb-3 flex flex-col gap-3 xl:flex-row max-md:flex-row max-md:flex-wrap max-md:items-center max-md:justify-between xl:items-center xl:justify-between">
               <div>
                 <h2 className="m1-section-title text-[var(--text)]">{t("orders.returns.customerReturns")}</h2>
               </div>
@@ -505,11 +505,11 @@ function OrderReturnsPage() {
 function PageHeader({ onCreate }) {
   const { t } = useTranslation();
   return (
-    <div className="rounded-[var(--radius-card)] border border-[var(--border)] bg-[var(--surface)] p-4 shadow-2xl shadow-[var(--shadow)]">
-      <div className="flex flex-col gap-4 xl:flex-row xl:items-center xl:justify-between">
-        <div>
-          <div className="text-xs font-semibold uppercase tracking-[0.18em] text-[var(--primary)]">{t("orders.moduleEyebrow")}</div>
-          <h1 className="m1-page-title mt-2 text-[var(--text)]">{t("orders.returns.page.pageTitle")}</h1>
+    <div className="rounded-[var(--radius-card)] border border-[var(--border)] bg-[var(--surface)] p-4 shadow-2xl shadow-[var(--shadow)] max-md:rounded-none max-md:border-0 max-md:bg-transparent max-md:p-0 max-md:shadow-none">
+      <div className="flex flex-col gap-4 xl:flex-row xl:items-center xl:justify-between max-md:gap-3">
+        <div className="min-w-0">
+          <div className="text-xs font-semibold uppercase tracking-[0.18em] text-[var(--primary)] max-md:hidden">{t("orders.moduleEyebrow")}</div>
+          <h1 className="m1-page-title mt-2 text-[var(--text)] max-md:mt-0">{t("orders.returns.page.pageTitle")}</h1>
         </div>
         <div className="flex flex-wrap gap-2">
           <Link
@@ -542,13 +542,13 @@ function KpiCard({ label, value, icon: Icon, accent }) {
   };
 
   return (
-    <div className="rounded-2xl border border-[var(--border)] bg-[var(--surface)] p-4 shadow-xl shadow-[var(--shadow)]">
+    <div className="min-w-0 rounded-2xl border border-[var(--border)] bg-[var(--surface)] p-4 shadow-xl shadow-[var(--shadow)] max-md:p-3">
       <div className="flex items-start justify-between gap-3">
-        <div>
+        <div className="min-w-0">
           <div className="text-[11px] font-bold text-[var(--muted)]">{label}</div>
-          <div className="mt-2 text-2xl font-black text-[var(--text)]">{value}</div>
+          <div className="mt-2 break-words text-2xl font-black text-[var(--text)] max-md:mt-1 max-md:text-lg">{value}</div>
         </div>
-        <div className={`rounded-2xl border border-[var(--border)] bg-gradient-to-br p-3 ${accents[accent] || accents.cyan}`}>
+        <div className={`max-md:hidden rounded-2xl border border-[var(--border)] bg-gradient-to-br p-3 ${accents[accent] || accents.cyan}`}>
           <Icon className="h-5 w-5" />
         </div>
       </div>
@@ -563,14 +563,14 @@ function ReturnsPanelTabs({ activePanel, onChange, customerCount, supplierCount 
     { value: "suppliers", label: t("orders.returns.supplierReturns"), count: supplierCount, tone: "amber" },
   ];
   return (
-    <div className="grid gap-2 rounded-2xl border border-[var(--border)] bg-[var(--surface)] p-2 md:grid-cols-2">
+    <div className="grid grid-cols-2 gap-2 rounded-2xl border border-[var(--border)] bg-[var(--surface)] p-2 md:grid-cols-2 max-md:p-1">
       {tabs.map((tab) => {
         const active = activePanel === tab.value;
         const activeClass = tab.tone === "amber"
           ? "border-amber-500/40 bg-amber-500/12 text-amber-700 dark:text-amber-200"
           : "border-primary/35 bg-primary/12 text-primary";
         return (
-          <button key={tab.value} type="button" onClick={() => onChange(tab.value)} className={`flex items-center justify-between rounded-[var(--radius-control)] border px-4 py-3 text-sm font-black transition ${active ? activeClass : "border-transparent bg-[var(--card)] text-[var(--muted)] hover:border-[var(--border)] hover:bg-[var(--surface)] hover:text-[var(--text)]"}`}>
+          <button key={tab.value} type="button" onClick={() => onChange(tab.value)} className={`flex min-w-0 items-center justify-between gap-2 rounded-[var(--radius-control)] border px-4 py-3 text-sm font-black transition max-md:px-3 max-md:text-xs ${active ? activeClass : "border-transparent bg-[var(--card)] text-[var(--muted)] hover:border-[var(--border)] hover:bg-[var(--surface)] hover:text-[var(--text)]"}`}>
             <span>{tab.label}</span>
             <span className="rounded-full border border-current/20 bg-[var(--surface)] px-2 py-0.5 text-xs">{tab.count}</span>
           </button>
@@ -628,14 +628,14 @@ function SupplierReturnsPanel({
 
   return (
     <>
-      <section className={`grid gap-3 md:grid-cols-2 ${showPurchaseCost ? "xl:grid-cols-4" : "xl:grid-cols-3"}`}>
+      <section className={`grid grid-cols-2 gap-2 md:grid-cols-2 md:gap-3 ${showPurchaseCost ? "xl:grid-cols-4" : "xl:grid-cols-3"}`}>
         <KpiCard label={t("orders.returns.page.supplierKpi.items")} value={summary.quantity} icon={PackageOpen} accent="amber" />
         {showPurchaseCost ? <KpiCard label={t("orders.returns.page.supplierKpi.purchaseCost")} value={formatCurrency(summary.purchaseCost)} icon={Wallet} accent="emerald" /> : null}
         <KpiCard label={t("orders.returns.page.supplierKpi.pendingDelivery")} value={summary.pending} icon={RefreshCcw} accent="cyan" />
         <KpiCard label={t("orders.returns.page.supplierKpi.suppliers")} value={summary.suppliers} icon={FileText} accent="violet" />
       </section>
 
-      <section className="rounded-2xl border border-amber-400/30 bg-[var(--surface)] p-3 shadow-2xl shadow-[var(--shadow)]">
+      <section className="rounded-2xl border border-amber-400/30 bg-[var(--surface)] p-3 shadow-2xl shadow-[var(--shadow)] max-md:rounded-none max-md:border-0 max-md:bg-transparent max-md:p-0 max-md:shadow-none">
         <div className="mb-3 flex flex-wrap items-center justify-between gap-3">
           <div>
             <h2 className="m1-section-title text-[var(--text)]">{t("orders.returns.supplierReturns")}</h2>
@@ -644,8 +644,8 @@ function SupplierReturnsPanel({
           <button type="button" onClick={resetFilters} className="rounded-[var(--radius-control)] border border-[var(--border)] bg-[var(--card)] px-3 py-2 text-xs font-bold text-[var(--text)] hover:bg-[var(--surface)]">{t("orders.returns.page.clearFilters")}</button>
         </div>
 
-        <div className="grid gap-3 xl:grid-cols-[minmax(18rem,2fr)_repeat(4,minmax(10rem,1fr))]">
-          <label className="block">
+        <div className="grid gap-3 xl:grid-cols-[minmax(18rem,2fr)_repeat(4,minmax(10rem,1fr))] max-md:grid-cols-2 max-md:gap-2">
+          <label className="block max-md:col-span-2">
             <div className="mb-1.5 text-[11px] font-bold text-[var(--muted)]">{t("orders.returns.page.search")}</div>
             <div className="relative">
               <Search className="pointer-events-none absolute start-3.5 top-1/2 h-4 w-4 -translate-y-1/2 text-[var(--muted)]" />
@@ -708,7 +708,7 @@ function SupplierReturnStatus({ status }) {
 function SupplierReturnQueue({ groups, onMarkReturned, showPurchaseCost = true }) {
   const { t } = useTranslation();
   return (
-    <section className="rounded-2xl border border-amber-400/20 bg-amber-400/5 p-4">
+    <section className="rounded-2xl border border-amber-400/20 bg-amber-400/5 p-4 max-md:p-3">
       <div className="flex flex-wrap items-center justify-between gap-2">
         <div>
           <h2 className="m1-section-title text-[var(--text)]">{t("orders.returns.page.defectQueueTitle")}</h2>
@@ -766,8 +766,8 @@ function ReturnsFilters(props) {
 
   return (
     <>
-      <div className="grid gap-3 xl:grid-cols-[minmax(20rem,2.4fr)_repeat(3,minmax(10rem,1fr))]">
-        <label className="block">
+      <div className="grid gap-3 xl:grid-cols-[minmax(20rem,2.4fr)_repeat(3,minmax(10rem,1fr))] max-md:grid-cols-2 max-md:gap-2">
+        <label className="block max-md:col-span-2">
           <div className="mb-1.5 text-[11px] font-bold text-[var(--muted)]">{t("orders.returns.page.search")}</div>
           <div className="relative">
             <Search className="pointer-events-none absolute start-3.5 top-1/2 h-4 w-4 -translate-y-1/2 text-[var(--muted)]" />
@@ -883,7 +883,7 @@ function ReturnsTable({ dir, loading, records, onView, onEdit, onDelete }) {
 
       <div className="mt-3 grid gap-3 xl:hidden">
         {records.map((record) => (
-          <div key={record.id} className="rounded-2xl border border-[var(--border)] bg-[var(--card)] p-4 shadow-xl shadow-[var(--shadow)]">
+          <div key={record.id} className="min-w-0 rounded-2xl border border-[var(--border)] bg-[var(--card)] p-4 shadow-xl shadow-[var(--shadow)] max-md:p-3">
             <div className="flex items-start justify-between gap-3">
               <div className="min-w-0">
                 <div className="inline-flex rounded-full border border-[var(--border)] bg-[var(--surface)] px-2 py-0.5 text-[11px] font-black text-[var(--text)]">{record.returnNumber}</div>
@@ -1155,7 +1155,7 @@ function ReturnFormDrawer({ t, mode, form, setForm, orders, selectedOrder, onClo
           </div>
         </div>
 
-        <footer className="grid gap-2 border-t border-[var(--border)] p-4 sm:grid-cols-2">
+        <footer className="grid gap-2 border-t border-[var(--border)] p-4 pb-[max(1rem,env(safe-area-inset-bottom))] sm:grid-cols-2">
           <button type="button" onClick={onClose} className="rounded-[var(--radius-control)] border border-[var(--border)] bg-[var(--card)] px-4 py-3 text-sm font-bold hover:bg-[var(--surface)]">
             {t("orders.returns.page.close")}
           </button>
@@ -1281,7 +1281,7 @@ function ReturnDetailsDrawer({ record, onClose, onEdit, onDelete, navigate }) {
           </DrawerSection>
         </div>
 
-        <footer className="grid gap-2 border-t border-[var(--border)] p-4 sm:grid-cols-2">
+        <footer className="grid gap-2 border-t border-[var(--border)] p-4 pb-[max(1rem,env(safe-area-inset-bottom))] sm:grid-cols-2">
           <button type="button" onClick={() => navigate(`/orders/${record.orderId}`)} className="rounded-[var(--radius-control)] border border-[var(--border)] bg-[var(--card)] px-4 py-3 text-sm font-bold hover:bg-[var(--surface)]">
             {t("orders.returns.page.openOriginalOrder")}
           </button>

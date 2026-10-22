@@ -10042,7 +10042,7 @@ function POSPro() {
 
         {!isVariantModalOpen && !selectedProduct ? (
           <StickyMobileActionBar>
-            <div className="grid grid-cols-[minmax(140px,1fr)_minmax(0,auto)] gap-2">
+            <div className="pos-mobile-checkout-bar grid grid-cols-[minmax(0,1fr)_auto] gap-2">
               <button
                 type="button"
                 onClick={() => setMobileCartOpen(true)}
@@ -10056,11 +10056,14 @@ function POSPro() {
                   <span dir="ltr" className="block truncate text-sm font-black text-emerald-100 tabular-nums [unicode-bidi:isolate]">{formatCurrency(cartTotals.total)}</span>
                 </span>
               </button>
-              <div className="grid grid-cols-2 gap-2">
+              <div className="grid auto-cols-fr grid-flow-col gap-2">
+                {/* The cart tile beside it opens the same sheet, so on a phone
+                    this duplicate yields its slot to the cart total instead of
+                    squeezing it (it was cut to ~14px at 375). */}
                 <button
                   type="button"
                   onClick={() => setMobileCartOpen(true)}
-                  className="inline-flex min-h-14 items-center justify-center gap-1.5 rounded-2xl border border-white/10 bg-white/[0.04] px-3 text-xs font-black text-white transition active:scale-[0.99] hover:bg-white/[0.08]"
+                  className="hidden min-[480px]:inline-flex min-h-14 items-center justify-center gap-1.5 rounded-2xl border border-white/10 bg-white/[0.04] px-3 text-xs font-black text-white transition active:scale-[0.99] hover:bg-white/[0.08]"
                 >
                   <ReceiptText className="h-4 w-4" />
                   فتح الفاتورة
@@ -10069,7 +10072,7 @@ function POSPro() {
                   type="button"
                   disabled={checkoutLoading || cart.length === 0}
                   onClick={handleCheckout}
-                  className="inline-flex min-h-14 items-center justify-center gap-1.5 rounded-2xl bg-emerald-500 px-3 text-xs font-black text-black transition active:scale-[0.99] hover:bg-emerald-400 disabled:cursor-not-allowed disabled:opacity-50"
+                  className="inline-flex min-h-14 min-w-[6.5rem] items-center justify-center gap-1.5 rounded-2xl bg-emerald-500 px-3 text-xs font-black text-black transition active:scale-[0.99] hover:bg-emerald-400 disabled:cursor-not-allowed disabled:opacity-50"
                 >
                   {checkoutLoading ? <Loader2 className="h-4 w-4 animate-spin" /> : <BadgeCheck className="h-4 w-4" />}
                   الدفع

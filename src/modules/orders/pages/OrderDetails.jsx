@@ -1621,9 +1621,9 @@ function OrderDetails() {
           ) : null}
 
           <div className="rounded-2xl border border-white/10 bg-zinc-950/90 p-5 shadow-xl shadow-black/10">
-            <div className="flex items-center justify-between">
+            <div className="flex items-center justify-between max-md:flex-wrap max-md:gap-2">
               <h3 className="m1-section-title text-white">{t("orders.details.paymentSummary")}</h3>
-              <div className="flex items-center gap-2 text-sm text-zinc-400">
+              <div className="flex items-center gap-2 text-sm text-zinc-400 max-md:flex-wrap">
                 {financials.shippingPaidSeparately ? <span className="rounded-full border border-emerald-400/20 bg-emerald-400/10 px-2.5 py-1 text-xs font-black text-emerald-200">{t("orders.details.shippingPaid")}</span> : null}
                 {hasCodRemaining ? <span className="rounded-full border border-amber-400/25 bg-amber-400/10 px-2.5 py-1 text-xs font-black text-amber-200">{t("orders.details.codRemaining")}</span> : null}
                 <span>{paymentSummaryStatus}</span>
@@ -2185,7 +2185,7 @@ function FinancialRow({ label, value, badge = "", strong = false, tone = "defaul
     ? "border-amber-400/25 bg-amber-400/10 text-amber-200"
     : "border-emerald-400/20 bg-emerald-400/10 text-emerald-200";
   return (
-    <div className={`flex items-center justify-between gap-4 border-b border-white/10 px-4 py-3 last:border-b-0 ${strong ? (isEmerald ? "bg-emerald-400/10" : "bg-white/[0.045]") : ""}`}>
+    <div className={`order-financial-row flex items-center justify-between gap-4 border-b border-white/10 px-4 py-3 last:border-b-0 ${strong ? (isEmerald ? "bg-emerald-400/10" : "bg-white/[0.045]") : ""}`}>
       <div className="min-w-0">
         <div className={`text-sm ${strong ? `font-black ${isEmerald ? "text-emerald-100" : "text-white"}` : "font-semibold text-zinc-300"}`}>{label}</div>
         {badge ? <span className={`mt-1 inline-flex rounded-full border px-2 py-0.5 text-[10px] font-black ${badgeClassName}`}>{badge}</span> : null}
@@ -2197,7 +2197,7 @@ function FinancialRow({ label, value, badge = "", strong = false, tone = "defaul
 
 function MiniStat({ label, value }) {
   return (
-    <div className="rounded-2xl border border-white/10 bg-black/20 px-3 py-2 text-center">
+    <div className="order-mini-stat min-w-0 rounded-2xl border border-white/10 bg-black/20 px-3 py-2 text-center">
       <div className="text-[10px] uppercase tracking-[0.18em] text-zinc-500">{label}</div>
       <div className="mt-1 font-semibold text-white"><CurrencyText value={value} /></div>
     </div>
