@@ -99,6 +99,9 @@
     "turnedOff": "تم الإيقاف المؤقت",
     "failed": "تعذّر تغيير الحالة"
   },
+  "rejection": {
+    "requestReview": "طلب مراجعة في Meta"
+  },
   "duplicateDone": "تم إنشاء نسخة كمسودة",
   "duplicateFailed": "تعذّر التكرار",
   "deleteConfirmTitle": "حذف المسودة",

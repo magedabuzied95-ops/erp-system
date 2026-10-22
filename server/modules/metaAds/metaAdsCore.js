@@ -112,7 +112,7 @@ export const requireToken = (ctx) => {
 
 const CAMPAIGN_FIELDS = "id,name,objective,status,effective_status,daily_budget,lifetime_budget,bid_strategy,special_ad_categories,buying_type,start_time,stop_time,created_time,updated_time";
 const ADSET_FIELDS = "id,name,campaign_id,status,effective_status,daily_budget,lifetime_budget,optimization_goal,billing_event,destination_type,bid_strategy,bid_amount,promoted_object,targeting,start_time,end_time,created_time,updated_time";
-const AD_FIELDS = "id,name,adset_id,campaign_id,status,effective_status,tracking_specs,created_time,updated_time,creative{id,name,object_type,object_story_spec,asset_feed_spec,image_hash,image_url,thumbnail_url,video_id,call_to_action_type,body,title,url_tags,instagram_user_id,effective_instagram_media_id}";
+const AD_FIELDS = "id,name,adset_id,campaign_id,status,effective_status,ad_review_feedback,issues_info,tracking_specs,created_time,updated_time,creative{id,name,object_type,object_story_spec,asset_feed_spec,image_hash,image_url,thumbnail_url,video_id,call_to_action_type,body,title,url_tags,instagram_user_id,effective_instagram_media_id}";
 
 const upsertCampaign = async (tenantId, account, row) => {
   const currency = account.currency;
@@ -233,19 +233,22 @@ const upsertAd = async (tenantId, account, row, adsetIdByMeta) => {
   const creativeId = await upsertCreative(tenantId, account, row.creative);
   const { rows } = await db.query(
     `INSERT INTO meta_ads_ads (tenant_id, account_id, adset_id, adset_meta_id, campaign_meta_id, meta_id, name, status, effective_status,
-       creative_id, creative_meta_id, tracking_specs, meta_created_time, meta_updated_time, raw, is_draft, updated_at)
-     VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12::jsonb,$13,$14,$15::jsonb,FALSE,NOW())
+       creative_id, creative_meta_id, tracking_specs, meta_created_time, meta_updated_time, raw, review_feedback, issues, is_draft, updated_at)
+     VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12::jsonb,$13,$14,$15::jsonb,$16::jsonb,$17::jsonb,FALSE,NOW())
      ON CONFLICT (tenant_id, meta_id) WHERE meta_id IS NOT NULL DO UPDATE SET
        account_id = EXCLUDED.account_id, adset_id = EXCLUDED.adset_id, adset_meta_id = EXCLUDED.adset_meta_id,
        campaign_meta_id = EXCLUDED.campaign_meta_id, name = EXCLUDED.name, status = EXCLUDED.status,
        effective_status = EXCLUDED.effective_status, creative_id = EXCLUDED.creative_id, creative_meta_id = EXCLUDED.creative_meta_id,
        tracking_specs = EXCLUDED.tracking_specs, meta_created_time = EXCLUDED.meta_created_time,
-       meta_updated_time = EXCLUDED.meta_updated_time, raw = EXCLUDED.raw, is_draft = FALSE, last_error = NULL, updated_at = NOW()
+       meta_updated_time = EXCLUDED.meta_updated_time, raw = EXCLUDED.raw, review_feedback = EXCLUDED.review_feedback,
+       issues = EXCLUDED.issues, is_draft = FALSE, last_error = NULL, updated_at = NOW()
      RETURNING id`,
     [
       tenantId, account.id, adsetIdByMeta.get(text(row.adset_id)) || null, text(row.adset_id) || null, text(row.campaign_id) || null,
       text(row.id), text(row.name), text(row.status) || "PAUSED", text(row.effective_status) || null, creativeId,
       text(row.creative?.id) || null, JSON.stringify(row.tracking_specs || []), ts(row.created_time), ts(row.updated_time), JSON.stringify(row),
+      // Why Meta rejected it (metaAdsReview.js reads these): null when the ad is clean.
+      row.ad_review_feedback ? JSON.stringify(row.ad_review_feedback) : null, JSON.stringify(row.issues_info || []),
     ],
   );
   return rows[0].id;

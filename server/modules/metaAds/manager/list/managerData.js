@@ -5,6 +5,7 @@
 import db from "../../../../database/db.js";
 import { metaAdsCatalog } from "../../metaAdsCatalog.js";
 import { getAccountContext, httpError, listAccounts, syncBreakdown, text } from "../../metaAdsCore.js";
+import { adReviewUrl, rejectionSummary } from "../../metaAdsReview.js";
 
 export const LEVELS = ["campaign", "adset", "ad"];
 export const LEVEL_TABLE = { campaign: "meta_ads_campaigns", adset: "meta_ads_adsets", ad: "meta_ads_ads" };
@@ -148,7 +149,8 @@ export const loadManagerData = async (tenantId, { accountId, level, days, q, cam
     if (campaignId) extra.push(`s.campaign_id = ${add(campaignId)}`);
     sql = `${insightTotalsCte(days)}
       SELECT x.id, x.meta_id, x.name, x.is_draft, x.status, x.effective_status, x.adset_id, s.name AS adset_name,
-             s.campaign_id, x.creative_id, cr.image_url, cr.thumbnail_url, cr.creative_type, x.last_error, a.currency, ${INSIGHT_SELECT}
+             s.campaign_id, x.creative_id, cr.image_url, cr.thumbnail_url, cr.creative_type, x.last_error, a.currency,
+             x.review_feedback, x.issues, a.ad_account_id, ${INSIGHT_SELECT}
         FROM meta_ads_ads x
         JOIN meta_ads_accounts a ON a.id = x.account_id AND a.tenant_id = x.tenant_id
         LEFT JOIN meta_ads_adsets s ON s.id = x.adset_id AND s.tenant_id = x.tenant_id
@@ -160,6 +162,17 @@ export const loadManagerData = async (tenantId, { accountId, level, days, q, cam
   }
 
   const [{ rows }, counts, erp] = await Promise.all([db.query(sql, params), loadCounts(tenantId, accountId), erpOnlineOrders(tenantId, accountId, days)]);
+  if (level === "ad") {
+    // The row carries the verdict in one sentence plus the Ads Manager link that holds Meta's
+    // own "request review" button; the raw feedback never leaves the server.
+    for (const row of rows) {
+      row.rejection = rejectionSummary(row);
+      row.review_url = row.rejection ? adReviewUrl(row.ad_account_id, row.meta_id) : "";
+      delete row.review_feedback;
+      delete row.issues;
+      delete row.ad_account_id;
+    }
+  }
   return { rows, counts, erp };
 };
 

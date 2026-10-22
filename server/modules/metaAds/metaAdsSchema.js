@@ -457,6 +457,9 @@ const STATEMENTS = [
   `ALTER TABLE meta_ads_insights ADD COLUMN IF NOT EXISTS link_clicks BIGINT NOT NULL DEFAULT 0`,
   `ALTER TABLE meta_ads_insight_breakdowns ADD COLUMN IF NOT EXISTS purchases NUMERIC(14,2) NOT NULL DEFAULT 0`,
   `ALTER TABLE meta_ads_insight_breakdowns ADD COLUMN IF NOT EXISTS purchase_value NUMERIC(14,2) NOT NULL DEFAULT 0`,
+  // Meta's review verdict on an ad (ad_review_feedback) and its open issues (issues_info).
+  `ALTER TABLE meta_ads_ads ADD COLUMN IF NOT EXISTS review_feedback JSONB NULL`,
+  `ALTER TABLE meta_ads_ads ADD COLUMN IF NOT EXISTS issues JSONB NOT NULL DEFAULT '[]'::jsonb`,
 ];
 
 const run = async (db) => {

@@ -1,5 +1,5 @@
 import { useTranslation } from "react-i18next";
-import { BarChart3, Copy, Pencil, Trash2 } from "lucide-react";
+import { BarChart3, Copy, ExternalLink, Pencil, Trash2 } from "lucide-react";
 
 import { Checkbox, IconButton, LoadingState, Switch } from "../../../../shared/ui";
 import { deliveryTone, formatCompact, formatDate, formatMoney, localeFor } from "../../shared/metaAdsFormat";
@@ -60,6 +60,30 @@ export default function ManagerTable({
     }
     const status = statusOf(row);
     const tone = deliveryTone(status);
+    const rejection = row.rejection;
+    if (rejection) {
+      // Meta's verdict under the status, and the Ads Manager panel that carries Meta's own
+      // "request review" button (there is no Graph call that files an appeal).
+      const detail = [
+        ...rejection.reasons.map((reason) => (reason.reason && reason.policy_label ? `${reason.policy_label}: ${reason.reason}` : reason.reason || reason.policy_label)),
+        ...rejection.issues.map((issue) => issue.message || issue.summary),
+      ].join("\n");
+      return (
+        <div className="ma-delivery-block">
+          <span className={`ma-delivery ma-delivery--${tone}`} title={detail}>
+            <i aria-hidden="true" />
+            {status ? t(`metaAds.status.${status}`, { defaultValue: status }) : DASH}
+          </span>
+          <span className="ma-delivery__reason" title={detail}>{rejection.headline}</span>
+          {row.review_url ? (
+            <a className="ma-delivery__review" href={row.review_url} target="_blank" rel="noreferrer noopener">
+              <ExternalLink size={12} aria-hidden="true" />
+              <span>{t("metaAdsManager.rejection.requestReview")}</span>
+            </a>
+          ) : null}
+        </div>
+      );
+    }
     return (
       <span className={`ma-delivery ma-delivery--${tone}`} title={row.last_error || undefined}>
         <i aria-hidden="true" />

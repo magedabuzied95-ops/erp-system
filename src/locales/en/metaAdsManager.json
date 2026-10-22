@@ -99,6 +99,9 @@
     "turnedOff": "Paused",
     "failed": "Could not change the status"
   },
+  "rejection": {
+    "requestReview": "Request review on Meta"
+  },
   "duplicateDone": "A draft copy was created",
   "duplicateFailed": "Could not duplicate",
   "deleteConfirmTitle": "Delete draft",

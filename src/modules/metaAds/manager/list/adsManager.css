@@ -581,6 +581,34 @@
   background: var(--muted);
 }
 
+/* A rejected ad: Meta's verdict under the status, then the link to its review panel. */
+.ma-delivery-block {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  max-width: 260px;
+}
+
+.ma-delivery__reason {
+  font-size: 12px;
+  color: var(--muted);
+  white-space: normal;
+  line-height: 1.35;
+}
+
+.ma-delivery__review {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  font-size: 12px;
+  color: var(--ma-blue, #1877f2);
+  text-decoration: none;
+}
+
+.ma-delivery__review:hover {
+  text-decoration: underline;
+}
+
 .ma-delivery--neutral {
   color: var(--muted);
 }
