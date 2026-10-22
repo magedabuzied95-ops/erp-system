@@ -150,9 +150,11 @@ export const buildRecommendedAudiences = async (ctx) => {
         metaId = text(res.id);
         count = await uploadPhones(metaId, token, rows);
       } else if (item.kind === "website" || item.kind === "engagement") {
-        const res = await graphPost(`/${ctx.actId}/customaudiences`, token, {
-          name: item.name, subtype: item.kind === "website" ? "WEBSITE" : "ENGAGEMENT", rule: item.rule, prefill: true,
-        });
+        // A rule-based audience takes no `subtype` on current Graph versions: Meta derives
+        // WEBSITE / ENGAGEMENT from the rule's event sources (passing it is refused).
+        const params = { name: item.name, rule: item.rule };
+        if (item.kind === "website") params.prefill = true;
+        const res = await graphPost(`/${ctx.actId}/customaudiences`, token, params);
         metaId = text(res.id);
       } else if (item.kind === "lookalike") {
         const origin = made.get(item.origin);

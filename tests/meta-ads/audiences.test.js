@@ -50,3 +50,11 @@ test("the Ads Manager exposes the build behind the manage permission", () => {
   assert.match(builder, /schema: \["PHONE"\]/);
   assert.match(builder, /NOT IN \('cancelled', 'canceled', 'rejected', 'void', 'deleted'\)/);
 });
+
+// Graph refused `subtype` on the first production build ("not supported in the current API
+// version"): a rule-based audience carries only name + rule (+ prefill for the pixel ones).
+test("rule-based audiences are created without a subtype", () => {
+  const builder = read("../../server/modules/metaAds/metaAdsAudiences.js");
+  assert.match(builder, /const params = \{ name: item\.name, rule: item\.rule \};/);
+  assert.doesNotMatch(builder, /subtype: item\.kind === "website"/);
+});
