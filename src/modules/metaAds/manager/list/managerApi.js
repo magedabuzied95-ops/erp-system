@@ -19,17 +19,29 @@ export const managerApi = {
 };
 
 // Column model per level. `key`s are the customizable columns (in display order).
+// Money and funnel columns come from metaAdsFunnel.js on the server: purchases and their value
+// under the account's own attribution window, the same two under 7-day click only, the funnel
+// steps, and the ratios of the window's sums.
+export const MONEY_COLUMNS = ["purchases", "purchase_value", "roas", "cost_per_purchase", "purchases_7d_click", "roas_7d_click"];
+export const FUNNEL_COLUMNS = ["link_clicks", "landing_page_views", "add_to_cart", "initiate_checkout"];
+
 export const LEVEL_COLUMNS = {
-  campaign: ["delivery", "objective", "budget", "results", "reach", "impressions", "spend", "end"],
-  adset: ["delivery", "goal", "budget", "results", "reach", "impressions", "spend", "end"],
-  ad: ["delivery", "creative", "results", "reach", "impressions", "spend"],
+  campaign: ["delivery", "objective", "budget", "results", "reach", "impressions", "spend", ...MONEY_COLUMNS, ...FUNNEL_COLUMNS, "end"],
+  adset: ["delivery", "goal", "budget", "results", "reach", "impressions", "spend", ...MONEY_COLUMNS, ...FUNNEL_COLUMNS, "end"],
+  ad: ["delivery", "creative", "results", "reach", "impressions", "spend", ...MONEY_COLUMNS, ...FUNNEL_COLUMNS],
 };
 
-export const COLUMN_PRESETS = {
-  performance: (level) => LEVEL_COLUMNS[level],
-  delivery: (level) => LEVEL_COLUMNS[level].filter((key) => ["delivery", "objective", "goal", "creative", "budget", "end"].includes(key)),
-  engagement: (level) => LEVEL_COLUMNS[level].filter((key) => ["delivery", "results", "reach", "impressions"].includes(key)),
+const PRESET_KEYS = {
+  performance: ["delivery", "objective", "goal", "creative", "budget", "results", "reach", "impressions", "spend", "purchases", "roas", "end"],
+  money: ["delivery", "spend", "purchases", "purchase_value", "roas", "cost_per_purchase", "purchases_7d_click", "roas_7d_click"],
+  funnel: ["delivery", "impressions", "link_clicks", "landing_page_views", "add_to_cart", "initiate_checkout", "purchases"],
+  delivery: ["delivery", "objective", "goal", "creative", "budget", "end"],
+  engagement: ["delivery", "results", "reach", "impressions"],
 };
+
+export const COLUMN_PRESETS = Object.fromEntries(
+  Object.entries(PRESET_KEYS).map(([preset, keys]) => [preset, (level) => LEVEL_COLUMNS[level].filter((key) => keys.includes(key))]),
+);
 
 const columnsKey = (level) => `metaAds.manager.columns.${level}`;
 

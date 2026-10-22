@@ -62,13 +62,48 @@ const insightTotalsCte = (days) => `
            SUM(i.reach) AS reach,
            SUM(i.impressions) AS impressions,
            SUM(i.spend) AS spend,
-           SUM(i.clicks) AS clicks
+           SUM(i.clicks) AS clicks,
+           SUM(i.purchases) AS purchases,
+           SUM(i.purchase_value) AS purchase_value,
+           SUM(i.purchases_7d_click) AS purchases_7d_click,
+           SUM(i.purchase_value_7d_click) AS purchase_value_7d_click,
+           SUM(i.landing_page_views) AS landing_page_views,
+           SUM(i.add_to_cart) AS add_to_cart,
+           SUM(i.initiate_checkout) AS initiate_checkout,
+           SUM(i.link_clicks) AS link_clicks
       FROM meta_ads_insights i
      WHERE i.tenant_id = $1 AND i.account_id = $2 AND i.level = $3${windowClause(days, "i", 4)}
      GROUP BY i.object_meta_id
   )`;
 
-const INSIGHT_SELECT = `ins.results, ins.result_type, ins.reach, ins.impressions, ins.spend, ins.clicks`;
+// Ratios divide the window's sums (not averages of daily ratios), the way Ads Manager does.
+const INSIGHT_SELECT = `ins.results, ins.result_type, ins.reach, ins.impressions, ins.spend, ins.clicks,
+  ins.purchases, ins.purchase_value, ins.purchases_7d_click, ins.purchase_value_7d_click,
+  ins.landing_page_views, ins.add_to_cart, ins.initiate_checkout, ins.link_clicks,
+  CASE WHEN ins.spend > 0 THEN ins.purchase_value / ins.spend END AS roas,
+  CASE WHEN ins.purchases > 0 THEN ins.spend / ins.purchases END AS cost_per_purchase,
+  CASE WHEN ins.spend > 0 THEN ins.purchase_value_7d_click / ins.spend END AS roas_7d_click,
+  CASE WHEN ins.purchases_7d_click > 0 THEN ins.spend / ins.purchases_7d_click END AS cost_per_purchase_7d_click`;
+
+// The shop's own orders over the same window, so Meta's purchase count sits next to what the ERP
+// actually booked. Online = the storefront channel (canonicalOrderChannel in publicOrderNumber.js
+// folds the old spellings; the IN list guards rows written before that fold). A lifetime window
+// (days = 0) starts where the account's insights start, so the two sides cover the same days.
+const erpOnlineOrders = async (tenantId, accountId, days) => {
+  const { rows } = await db.query(
+    `SELECT COUNT(*)::int AS orders, COALESCE(SUM(o.total), 0)::float AS revenue
+       FROM orders o
+      WHERE o.tenant_id = $1
+        AND LOWER(COALESCE(o.channel, '')) IN ('storefront', 'website', 'web', 'online')
+        AND LOWER(COALESCE(o.status, '')) NOT IN ('cancelled', 'canceled', 'rejected', 'void', 'deleted')
+        AND o.created_at >= CASE
+              WHEN $3::int > 0 THEN ((NOW() AT TIME ZONE 'Africa/Cairo')::date - $3::int + 1)::timestamp AT TIME ZONE 'Africa/Cairo'
+              ELSE COALESCE((SELECT MIN(i.date_start)::timestamp AT TIME ZONE 'Africa/Cairo' FROM meta_ads_insights i WHERE i.tenant_id = $1 AND i.account_id = $2), o.created_at)
+            END`,
+    [tenantId, accountId, days || 0],
+  );
+  return { orders: Number(rows[0]?.orders) || 0, revenue: Number(rows[0]?.revenue) || 0 };
+};
 const LIVE_FILTER = (alias) => `(${alias}.is_draft OR (UPPER(${alias}.status) <> 'DELETED' AND UPPER(COALESCE(${alias}.effective_status, '')) <> 'DELETED'))`;
 const ORDER = (alias) => `ORDER BY COALESCE(${alias}.meta_created_time, ${alias}.created_at) DESC, ${alias}.id DESC`;
 
@@ -124,8 +159,8 @@ export const loadManagerData = async (tenantId, { accountId, level, days, q, cam
        ${ORDER("x")}`;
   }
 
-  const [{ rows }, counts] = await Promise.all([db.query(sql, params), loadCounts(tenantId, accountId)]);
-  return { rows, counts };
+  const [{ rows }, counts, erp] = await Promise.all([db.query(sql, params), loadCounts(tenantId, accountId), erpOnlineOrders(tenantId, accountId, days)]);
+  return { rows, counts, erp };
 };
 
 export const loadCounts = async (tenantId, accountId) => {
@@ -156,7 +191,8 @@ export const loadSeries = async (tenantId, { accountId, level, id, days }) => {
   const { rows } = await db.query(
     `SELECT to_char(i.date_start, 'YYYY-MM-DD') AS date,
             SUM(i.results)::float AS results, SUM(i.spend)::float AS spend, SUM(i.impressions)::bigint AS impressions,
-            SUM(i.reach)::bigint AS reach, SUM(i.clicks)::bigint AS clicks
+            SUM(i.reach)::bigint AS reach, SUM(i.clicks)::bigint AS clicks,
+            SUM(i.purchases)::float AS purchases, SUM(i.purchase_value)::float AS purchase_value
        FROM meta_ads_insights i
       WHERE i.tenant_id = $1 AND i.account_id = $2 AND i.level = $3 AND i.object_meta_id = $5 AND ($4::int IS NOT NULL)
         ${windowClause(days, "i", 4)}
@@ -172,6 +208,8 @@ export const loadSeries = async (tenantId, { accountId, level, id, days }) => {
       impressions: Number(point.impressions) || 0,
       reach: Number(point.reach) || 0,
       clicks: Number(point.clicks) || 0,
+      purchases: Number(point.purchases) || 0,
+      purchase_value: Number(point.purchase_value) || 0,
     })),
   };
 };
@@ -184,7 +222,8 @@ export const loadBreakdown = async (tenantId, { level, id, breakdown, days }) =>
   if (!row.meta_id) return { rows: [] };
   const read = async () => {
     const { rows } = await db.query(
-      `SELECT breakdown_value AS key, results::float AS results, spend::float AS spend, impressions, reach, clicks
+      `SELECT breakdown_value AS key, results::float AS results, spend::float AS spend, impressions, reach, clicks,
+              purchases::float AS purchases, purchase_value::float AS purchase_value
          FROM meta_ads_insight_breakdowns
         WHERE tenant_id = $1 AND level = $2 AND object_meta_id = $3 AND breakdown = $4 AND range_days = $5
         ORDER BY spend DESC, impressions DESC`,
@@ -197,6 +236,9 @@ export const loadBreakdown = async (tenantId, { level, id, breakdown, days }) =>
       impressions: Number(item.impressions) || 0,
       reach: Number(item.reach) || 0,
       clicks: Number(item.clicks) || 0,
+      purchases: Number(item.purchases) || 0,
+      purchase_value: Number(item.purchase_value) || 0,
+      roas: Number(item.spend) > 0 ? Number(item.purchase_value) / Number(item.spend) : null,
     }));
   };
   let rows = await read();

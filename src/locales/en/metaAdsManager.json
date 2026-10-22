@@ -25,8 +25,15 @@
   "columnsButton": "Columns",
   "columnPresets": {
     "performance": "Performance",
+    "money": "Money",
+    "funnel": "Funnel",
     "delivery": "Delivery",
     "engagement": "Engagement"
+  },
+  "totals": {
+    "label": "Total of {{count}}",
+    "erp": "Online orders in the ERP: {{orders}} orders worth {{revenue}}",
+    "erpHint": "Storefront orders booked in the system over the same window, cancelled ones excluded. Meta counts a purchase at checkout time and claims it whenever the customer saw or clicked the ad."
   },
   "customizeColumns": "Customize columns",
   "columns": {
@@ -45,6 +52,16 @@
     "reach": "Reach",
     "impressions": "Impressions",
     "spend": "Amount spent",
+    "purchases": "Purchases",
+    "purchase_value": "Purchase value",
+    "roas": "ROAS",
+    "cost_per_purchase": "Cost per purchase",
+    "purchases_7d_click": "Purchases (7-day click)",
+    "roas_7d_click": "ROAS (7-day click)",
+    "link_clicks": "Link clicks",
+    "landing_page_views": "Landing page views",
+    "add_to_cart": "Adds to cart",
+    "initiate_checkout": "Checkouts initiated",
     "end": "Ends",
     "actions": "Actions"
   },

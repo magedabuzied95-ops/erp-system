@@ -444,6 +444,19 @@ const STATEMENTS = [
   `ALTER TABLE meta_ads_accounts ADD COLUMN IF NOT EXISTS app_id TEXT NULL`,
   `ALTER TABLE meta_ads_accounts ADD COLUMN IF NOT EXISTS app_secret_encrypted TEXT NULL`,
   `ALTER TABLE meta_ads_accounts ADD COLUMN IF NOT EXISTS webhook_verify_token TEXT NULL`,
+  // Money + funnel per day (metaAdsFunnel.js): purchases and their value under the account's
+  // own attribution window and under 7-day click only, plus the funnel steps and link clicks.
+  `ALTER TABLE meta_ads_insights ADD COLUMN IF NOT EXISTS action_values JSONB NOT NULL DEFAULT '[]'::jsonb`,
+  `ALTER TABLE meta_ads_insights ADD COLUMN IF NOT EXISTS purchases NUMERIC(14,2) NOT NULL DEFAULT 0`,
+  `ALTER TABLE meta_ads_insights ADD COLUMN IF NOT EXISTS purchase_value NUMERIC(14,2) NOT NULL DEFAULT 0`,
+  `ALTER TABLE meta_ads_insights ADD COLUMN IF NOT EXISTS purchases_7d_click NUMERIC(14,2) NOT NULL DEFAULT 0`,
+  `ALTER TABLE meta_ads_insights ADD COLUMN IF NOT EXISTS purchase_value_7d_click NUMERIC(14,2) NOT NULL DEFAULT 0`,
+  `ALTER TABLE meta_ads_insights ADD COLUMN IF NOT EXISTS landing_page_views BIGINT NOT NULL DEFAULT 0`,
+  `ALTER TABLE meta_ads_insights ADD COLUMN IF NOT EXISTS add_to_cart BIGINT NOT NULL DEFAULT 0`,
+  `ALTER TABLE meta_ads_insights ADD COLUMN IF NOT EXISTS initiate_checkout BIGINT NOT NULL DEFAULT 0`,
+  `ALTER TABLE meta_ads_insights ADD COLUMN IF NOT EXISTS link_clicks BIGINT NOT NULL DEFAULT 0`,
+  `ALTER TABLE meta_ads_insight_breakdowns ADD COLUMN IF NOT EXISTS purchases NUMERIC(14,2) NOT NULL DEFAULT 0`,
+  `ALTER TABLE meta_ads_insight_breakdowns ADD COLUMN IF NOT EXISTS purchase_value NUMERIC(14,2) NOT NULL DEFAULT 0`,
 ];
 
 const run = async (db) => {

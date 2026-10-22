@@ -20,6 +20,7 @@ import { managerApi } from "./managerApi";
 
 const RESULTS_COLOR = "var(--success, #16a34a)";
 const SPEND_COLOR = "var(--ma-blue, #1877f2)";
+const PURCHASES_COLOR = "var(--warning, #d97706)";
 const AXIS_COLOR = "var(--muted, #6b7280)";
 const GRID_COLOR = "var(--border, #e5e7eb)";
 const BREAKDOWNS = ["age", "gender", "platform", "country"];
@@ -62,6 +63,7 @@ export default function ChartsDrawer({ target, accountId, days, currency, onClos
   }, [open, accountId, level, id, breakdown, days]);
 
   const resultsLabel = t("metaAdsManager.charts.results");
+  const purchasesLabel = t("metaAdsManager.columns.purchases");
   const spendLabel = t("metaAdsManager.charts.spend");
   const emptyText = t("metaAdsManager.charts.empty");
   const moneyTip = (value, name) => (name === spendLabel ? formatMoney(value, currency, locale) : Number(value).toLocaleString(locale));
@@ -89,6 +91,7 @@ export default function ChartsDrawer({ target, accountId, days, currency, onClos
                   <Tooltip formatter={moneyTip} />
                   <Legend wrapperStyle={{ fontSize: 12 }} />
                   <Line yAxisId="results" type="monotone" dataKey="results" name={resultsLabel} stroke={RESULTS_COLOR} strokeWidth={2} dot={{ r: 2 }} />
+                  <Line yAxisId="results" type="monotone" dataKey="purchases" name={purchasesLabel} stroke={PURCHASES_COLOR} strokeWidth={2} dot={{ r: 2 }} />
                   <Line yAxisId="spend" type="monotone" dataKey="spend" name={spendLabel} stroke={SPEND_COLOR} strokeWidth={2} dot={{ r: 2 }} />
                 </LineChart>
               </ResponsiveContainer>
@@ -126,6 +129,7 @@ export default function ChartsDrawer({ target, accountId, days, currency, onClos
                   <Legend wrapperStyle={{ fontSize: 12 }} />
                   <Bar xAxisId="results" dataKey="results" name={resultsLabel} fill={RESULTS_COLOR} radius={[0, 3, 3, 0]} />
                   <Bar xAxisId="spend" dataKey="spend" name={spendLabel} fill={SPEND_COLOR} radius={[0, 3, 3, 0]} />
+                  <Bar xAxisId="results" dataKey="purchases" name={purchasesLabel} fill={PURCHASES_COLOR} radius={[0, 3, 3, 0]} />
                 </BarChart>
               </ResponsiveContainer>
             </div>

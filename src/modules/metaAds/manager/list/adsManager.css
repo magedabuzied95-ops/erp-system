@@ -457,6 +457,23 @@
   background: var(--table-hover, var(--surface-soft));
 }
 
+/* Footer: the window's totals, with the ERP's own online orders under the label. */
+.ma-table tfoot td {
+  border-top: 1px solid var(--border);
+  border-bottom: 0;
+  background: var(--surface-soft);
+  font-weight: 600;
+}
+
+.ma-totals__label {
+  color: var(--text);
+}
+
+.ma-totals__erp {
+  font-weight: 500;
+  cursor: help;
+}
+
 .ma-table__state {
   padding: 36px 16px !important;
   text-align: center !important;

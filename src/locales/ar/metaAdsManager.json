@@ -25,8 +25,15 @@
   "columnsButton": "أعمدة",
   "columnPresets": {
     "performance": "الأداء",
+    "money": "الأموال",
+    "funnel": "قمع التحويل",
     "delivery": "العرض",
     "engagement": "التفاعل"
+  },
+  "totals": {
+    "label": "الإجمالي من {{count}}",
+    "erp": "طلبات الموقع في الـ ERP: {{orders}} طلب بقيمة {{revenue}}",
+    "erpHint": "طلبات المتجر الإلكتروني المسجلة في السيستم خلال نفس الفترة، بدون الملغي. Meta بتحسب الشراء لحظة الطلب وبتنسبه لنفسها لو العميل شاف الإعلان أو ضغط عليه."
   },
   "customizeColumns": "تخصيص الأعمدة",
   "columns": {
@@ -45,6 +52,16 @@
     "reach": "مدى الوصول",
     "impressions": "مرات الظهور",
     "spend": "الإنفاق",
+    "purchases": "عمليات الشراء",
+    "purchase_value": "قيمة الشراء",
+    "roas": "عائد الإنفاق (ROAS)",
+    "cost_per_purchase": "تكلفة الشراء",
+    "purchases_7d_click": "شراء (نقر 7 أيام)",
+    "roas_7d_click": "عائد الإنفاق (نقر 7 أيام)",
+    "link_clicks": "نقرات الرابط",
+    "landing_page_views": "مشاهدات الصفحة",
+    "add_to_cart": "إضافة للسلة",
+    "initiate_checkout": "بدء الدفع",
     "end": "الانتهاء",
     "actions": "إجراءات"
   },

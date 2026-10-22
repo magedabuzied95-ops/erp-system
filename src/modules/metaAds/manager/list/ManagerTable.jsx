@@ -29,6 +29,7 @@ export default function ManagerTable({
   onCharts,
   onDrill,
   emptyText,
+  erp,
 }) {
   const { t, i18n } = useTranslation();
   const locale = localeFor(i18n.language);
@@ -36,6 +37,8 @@ export default function ManagerTable({
   // LTR isolate (LRI…PDI) keeps "50.00 USD" in that order inside Arabic text.
   const money = (value, currency) => `⁦${formatMoney(value, currency, locale)}⁩`;
   const compact = (value) => (isBlank(value) ? DASH : formatCompact(value, t, locale));
+  const ratio = (value) => (isBlank(value) ? DASH : `${Number(value).toLocaleString(locale, { maximumFractionDigits: 2 })}×`);
+  const moneyCell = (value, currency) => (isBlank(value) ? DASH : money(value, currency));
 
   const budgetText = (row) => {
     if (hasAmount(row.daily_budget)) return t("metaAdsManager.perDay", { amount: money(row.daily_budget, row.currency) });
@@ -74,9 +77,33 @@ export default function ManagerTable({
     results: (row) => compact(row.results),
     reach: (row) => compact(row.reach),
     impressions: (row) => compact(row.impressions),
-    spend: (row) => (isBlank(row.spend) ? DASH : money(row.spend, row.currency)),
+    spend: (row) => moneyCell(row.spend, row.currency),
+    purchases: (row) => compact(row.purchases),
+    purchase_value: (row) => moneyCell(row.purchase_value, row.currency),
+    roas: (row) => ratio(row.roas),
+    cost_per_purchase: (row) => moneyCell(row.cost_per_purchase, row.currency),
+    purchases_7d_click: (row) => compact(row.purchases_7d_click),
+    roas_7d_click: (row) => ratio(row.roas_7d_click),
+    link_clicks: (row) => compact(row.link_clicks),
+    landing_page_views: (row) => compact(row.landing_page_views),
+    add_to_cart: (row) => compact(row.add_to_cart),
+    initiate_checkout: (row) => compact(row.initiate_checkout),
     end: endText,
   };
+
+  // The footer sums what is summable and divides the sums for the ratios, the way Ads Manager's
+  // "results from N" row does. Reach is people, not additive across rows, so it stays blank.
+  const SUMMED = ["results", "impressions", "spend", "purchases", "purchase_value", "purchases_7d_click", "purchase_value_7d_click", "link_clicks", "landing_page_views", "add_to_cart", "initiate_checkout"];
+  const totals = rows.reduce((acc, row) => {
+    for (const key of SUMMED) acc[key] = (acc[key] || 0) + (Number(row[key]) || 0);
+    return acc;
+  }, {});
+  totals.roas = totals.spend > 0 ? totals.purchase_value / totals.spend : null;
+  totals.cost_per_purchase = totals.purchases > 0 ? totals.spend / totals.purchases : null;
+  totals.roas_7d_click = totals.spend > 0 ? totals.purchase_value_7d_click / totals.spend : null;
+  totals.currency = rows[0]?.currency;
+  const FOOTER_CELLS = { ...CELLS, delivery: () => "", objective: () => "", goal: () => "", creative: () => "", budget: () => "", end: () => "", reach: () => "" };
+  const erpLine = erp ? t("metaAdsManager.totals.erp", { orders: Number(erp.orders || 0).toLocaleString(locale), revenue: money(erp.revenue || 0, totals.currency) }) : "";
 
   const nameLabel = t(`metaAdsManager.columns.${level}`);
   const allSelected = rows.length > 0 && rows.every((row) => selectedIds.has(String(row.id)));
@@ -176,6 +203,24 @@ export default function ManagerTable({
             );
           })}
         </tbody>
+        {rows.length ? (
+          <tfoot>
+            <tr className="ma-totals">
+              <td className="ma-col-check" />
+              <td className="ma-col-toggle" />
+              <td className="ma-col-name">
+                <div className="ma-name__text">
+                  <span className="ma-totals__label">{t("metaAdsManager.totals.label", { count: rows.length })}</span>
+                  {erpLine ? <span className="ma-name__sub ma-totals__erp" title={t("metaAdsManager.totals.erpHint")}>{erpLine}</span> : null}
+                </div>
+              </td>
+              {visible.map((col) => (
+                <td key={col} className={`ma-col-${col}`}>{FOOTER_CELLS[col](totals)}</td>
+              ))}
+              <td className="ma-col-actions" />
+            </tr>
+          </tfoot>
+        ) : null}
       </table>
     </div>
   );

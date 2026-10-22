@@ -14,6 +14,7 @@ import {
   graphGetAll,
 } from "./metaAdsGraph.js";
 import { BREAKDOWNS, RESULT_ACTION_BY_GOAL } from "./metaAdsCatalog.js";
+import { INSIGHT_ATTRIBUTION_WINDOWS, funnelFromInsightRow } from "./metaAdsFunnel.js";
 
 export const text = (value) => (value === undefined || value === null ? "" : String(value).trim());
 export const num = (value, fallback = 0) => {
@@ -318,7 +319,7 @@ const goalByObject = async (tenantId, accountId) => {
   return map;
 };
 
-const INSIGHT_FIELDS = "campaign_id,adset_id,ad_id,impressions,reach,clicks,spend,ctr,cpc,cpm,frequency,actions,date_start,date_stop";
+const INSIGHT_FIELDS = "campaign_id,adset_id,ad_id,impressions,reach,clicks,spend,ctr,cpc,cpm,frequency,actions,action_values,date_start,date_stop";
 
 export const syncInsights = async (ctx, { days = 30, levels = ["campaign", "adset", "ad"] } = {}) => {
   const token = requireToken(ctx);
@@ -335,22 +336,32 @@ export const syncInsights = async (ctx, { days = 30, levels = ["campaign", "adse
       fields: INSIGHT_FIELDS,
       time_range: timeRange,
       time_increment: 1,
+      action_attribution_windows: INSIGHT_ATTRIBUTION_WINDOWS,
     }, { limit: 20000 });
     for (const row of rows) {
       const objectId = text(row[`${level}_id`]);
       if (!objectId) continue;
       const result = resultFromActions(row.actions, goals.get(objectId));
+      const funnel = funnelFromInsightRow(row);
       await db.query(
         `INSERT INTO meta_ads_insights (tenant_id, account_id, level, object_meta_id, date_start, date_stop, impressions, reach, clicks, spend,
-           ctr, cpc, cpm, frequency, results, result_type, actions, synced_at)
-         VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,$17::jsonb,NOW())
+           ctr, cpc, cpm, frequency, results, result_type, actions, action_values,
+           purchases, purchase_value, purchases_7d_click, purchase_value_7d_click, landing_page_views, add_to_cart, initiate_checkout, link_clicks, synced_at)
+         VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,$17::jsonb,$18::jsonb,$19,$20,$21,$22,$23,$24,$25,$26,NOW())
          ON CONFLICT (tenant_id, level, object_meta_id, date_start, date_stop) DO UPDATE SET
            impressions = EXCLUDED.impressions, reach = EXCLUDED.reach, clicks = EXCLUDED.clicks, spend = EXCLUDED.spend,
            ctr = EXCLUDED.ctr, cpc = EXCLUDED.cpc, cpm = EXCLUDED.cpm, frequency = EXCLUDED.frequency, results = EXCLUDED.results,
-           result_type = EXCLUDED.result_type, actions = EXCLUDED.actions, synced_at = NOW()`,
+           result_type = EXCLUDED.result_type, actions = EXCLUDED.actions, action_values = EXCLUDED.action_values,
+           purchases = EXCLUDED.purchases, purchase_value = EXCLUDED.purchase_value,
+           purchases_7d_click = EXCLUDED.purchases_7d_click, purchase_value_7d_click = EXCLUDED.purchase_value_7d_click,
+           landing_page_views = EXCLUDED.landing_page_views, add_to_cart = EXCLUDED.add_to_cart,
+           initiate_checkout = EXCLUDED.initiate_checkout, link_clicks = EXCLUDED.link_clicks, synced_at = NOW()`,
         [
           tenantId, account.id, level, objectId, row.date_start, row.date_stop, num(row.impressions), num(row.reach), num(row.clicks),
           num(row.spend), num(row.ctr), num(row.cpc), num(row.cpm), num(row.frequency), result.value, result.type, JSON.stringify(row.actions || []),
+          JSON.stringify(row.action_values || []),
+          funnel.purchases, funnel.purchase_value, funnel.purchases_7d_click, funnel.purchase_value_7d_click,
+          funnel.landing_page_views, funnel.add_to_cart, funnel.initiate_checkout, funnel.link_clicks,
         ],
       );
       written += 1;
@@ -364,7 +375,7 @@ export const syncBreakdown = async (ctx, { level, objectMetaId, breakdown, range
   const token = requireToken(ctx);
   const apiBreakdown = BREAKDOWNS[breakdown];
   if (!apiBreakdown) throw httpError(400, "Unknown breakdown");
-  const params = { fields: "impressions,reach,clicks,spend,actions", breakdowns: apiBreakdown };
+  const params = { fields: "impressions,reach,clicks,spend,actions,action_values", breakdowns: apiBreakdown };
   if (rangeDays > 0) {
     const until = new Date();
     const since = new Date(until.getTime() - rangeDays * 86400000);
@@ -381,12 +392,14 @@ export const syncBreakdown = async (ctx, { level, objectMetaId, breakdown, range
   for (const row of rows) {
     const value = text(row[apiBreakdown]) || "unknown";
     const result = resultFromActions(row.actions);
+    const funnel = funnelFromInsightRow(row);
     await db.query(
-      `INSERT INTO meta_ads_insight_breakdowns (tenant_id, account_id, level, object_meta_id, breakdown, breakdown_value, range_days, impressions, reach, clicks, spend, results)
-       VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12)
+      `INSERT INTO meta_ads_insight_breakdowns (tenant_id, account_id, level, object_meta_id, breakdown, breakdown_value, range_days, impressions, reach, clicks, spend, results, purchases, purchase_value)
+       VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14)
        ON CONFLICT (tenant_id, level, object_meta_id, breakdown, breakdown_value, range_days) DO UPDATE SET
-         impressions = EXCLUDED.impressions, reach = EXCLUDED.reach, clicks = EXCLUDED.clicks, spend = EXCLUDED.spend, results = EXCLUDED.results, synced_at = NOW()`,
-      [tenantId, ctx.account.id, level, objectMetaId, breakdown, value, rangeDays, num(row.impressions), num(row.reach), num(row.clicks), num(row.spend), result.value],
+         impressions = EXCLUDED.impressions, reach = EXCLUDED.reach, clicks = EXCLUDED.clicks, spend = EXCLUDED.spend, results = EXCLUDED.results,
+         purchases = EXCLUDED.purchases, purchase_value = EXCLUDED.purchase_value, synced_at = NOW()`,
+      [tenantId, ctx.account.id, level, objectMetaId, breakdown, value, rangeDays, num(row.impressions), num(row.reach), num(row.clicks), num(row.spend), result.value, funnel.purchases, funnel.purchase_value],
     );
   }
   return rows.length;

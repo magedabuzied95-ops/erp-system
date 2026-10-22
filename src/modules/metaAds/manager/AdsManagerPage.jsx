@@ -122,7 +122,7 @@ export default function AdsManagerPage() {
     managerApi.data(params)
       .then((data) => {
         if (!alive) return;
-        setList({ loading: false, rows: data?.rows || [], counts: data?.counts || EMPTY_COUNTS, error: "" });
+        setList({ loading: false, rows: data?.rows || [], counts: data?.counts || EMPTY_COUNTS, erp: data?.erp || null, error: "" });
       })
       .catch((error) => {
         if (!alive) return;
@@ -399,6 +399,7 @@ export default function AdsManagerPage() {
           onDelete={(row) => setConfirmDelete(row)}
           onCharts={(row) => setCharts({ level, row })}
           onDrill={drillInto}
+          erp={list.erp}
           emptyText={emptyText}
         />
       </section>
