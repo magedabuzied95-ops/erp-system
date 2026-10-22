@@ -1,4 +1,4 @@
-import { Component, useCallback, useEffect, useMemo, useState } from "react";
+import { Component, useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useLocation, useNavigate } from "react-router-dom";
 import { Input, MetricCard, Switch } from "../../../shared/ui";
 import {
@@ -93,6 +93,7 @@ import {
 } from "../../../../shared/barcodePrintSettings.js";
 import { uploadProductImageValue } from "../../products/services/productsApi";
 import "./SettingsCenter.m1.css";
+import "../../employees/peoplePhone.css";
 
 const copy = {
   en: {
@@ -620,6 +621,18 @@ function SettingsCenterContent({ debugMode = false }) {
     return () => window.removeEventListener("beforeunload", handler);
   }, [isDirty, siteSettingsDirty]);
 
+  // Below lg the section nav is one horizontal chip row; keep the active chip
+  // in view (deep links such as /settings/shipping land on a chip far along it).
+  const categoryNavRef = useRef(null);
+  useEffect(() => {
+    const nav = categoryNavRef.current;
+    if (!nav || nav.scrollWidth <= nav.clientWidth + 1) return;
+    const activeButton = nav.querySelector('[data-active="true"]');
+    if (activeButton && typeof activeButton.scrollIntoView === "function") {
+      activeButton.scrollIntoView({ block: "nearest", inline: "center" });
+    }
+  }, [activeCategory]);
+
   const switchCategory = (category) => {
     const next = normalizeSettingsCategory(category);
     if (!next) return;
@@ -954,7 +967,7 @@ function SettingsCenterContent({ debugMode = false }) {
   }
 
   return (
-    <div dir={direction} className="m1-settings-center min-h-screen w-full max-w-[calc(100vw-1.5rem)] overflow-x-hidden bg-[#f6f8fb] text-slate-950 dark:bg-[#050816] dark:text-white lg:max-w-none">
+    <div dir={direction} className="m1-settings-center people-phone-inputs min-h-screen w-full max-w-[calc(100vw-1.5rem)] overflow-x-hidden bg-[#f6f8fb] text-slate-950 dark:bg-[#050816] dark:text-white lg:max-w-none">
       <div className="mx-auto w-full max-w-[calc(100vw-3rem)] px-0 py-4 sm:max-w-none sm:px-5 lg:px-8">
         <header className="sticky top-0 z-20 border-b border-slate-200/70 bg-[#f6f8fb]/90 px-0 py-3 backdrop-blur-xl dark:border-white/10 dark:bg-[#050816]/90 lg:-mx-8 lg:px-8">
           <div className="flex w-full min-w-0 max-w-full flex-col gap-4 rounded-[1.75rem] border border-white/70 bg-white/85 p-4 shadow-[0_18px_60px_rgba(15,23,42,0.08)] dark:border-white/10 dark:bg-slate-950/80 dark:shadow-[0_22px_70px_rgba(0,0,0,0.45)] lg:flex-row lg:items-center lg:justify-between">
@@ -992,32 +1005,32 @@ function SettingsCenterContent({ debugMode = false }) {
           </div>
         </header>
 
-        <div className={`mt-5 grid min-w-0 max-w-full gap-5 ${settingsGridColumns}`}>
+        <div className={`mt-4 grid min-w-0 max-w-full gap-4 sm:mt-5 sm:gap-5 ${settingsGridColumns}`}>
           <aside className="lg:sticky lg:top-32 lg:self-start">
-            <nav className={`grid gap-2 rounded-[1.75rem] p-2 sm:grid-cols-2 lg:grid-cols-1 ${shellCard}`}>
+            <nav ref={categoryNavRef} className={`flex gap-2 overflow-x-auto overscroll-x-contain rounded-[1.75rem] p-2 lg:grid lg:grid-cols-1 lg:overflow-visible ${shellCard}`}>
               {settingsCategories.map((category) => {
                 const Icon = iconMap[category.key] || Settings2;
                 const active = category.key === activeCategory;
                 return (
-                  <button key={category.key} type="button" onClick={() => switchCategory(category.key)} className={`group flex items-center gap-3 rounded-[var(--radius-control)] border p-3 text-start transition ${active ? "border-slate-950 bg-primary text-[var(--primary-contrast)] shadow-lg shadow-slate-950/10 dark:border-blue-400/35 dark:bg-gradient-to-br dark:from-blue-500/22 dark:to-violet-500/20 dark:text-[var(--primary-contrast)] dark:shadow-[0_18px_44px_rgba(59,130,246,0.16)]" : "border-transparent text-slate-600 hover:border-slate-200 hover:bg-slate-50 dark:text-slate-300 dark:hover:border-white/10 dark:hover:bg-white/5"}`}>
-                    <span className={`grid h-11 w-11 shrink-0 place-items-center rounded-2xl transition ${active ? "bg-white text-slate-950 dark:bg-white/12 dark:text-white" : "bg-slate-100 text-slate-500 group-hover:bg-white dark:bg-slate-900 dark:text-slate-400 dark:group-hover:bg-white/10 dark:group-hover:text-slate-200"}`}><Icon className="h-5 w-5" /></span>
+                  <button key={category.key} type="button" data-active={active ? "true" : undefined} aria-current={active ? "page" : undefined} onClick={() => switchCategory(category.key)} className={`group flex items-center gap-3 rounded-[var(--radius-control)] border p-3 text-start transition max-lg:min-h-11 max-lg:shrink-0 max-lg:gap-2 max-lg:px-3 max-lg:py-2 ${active ? "border-slate-950 bg-primary text-[var(--primary-contrast)] shadow-lg shadow-slate-950/10 dark:border-blue-400/35 dark:bg-gradient-to-br dark:from-blue-500/22 dark:to-violet-500/20 dark:text-[var(--primary-contrast)] dark:shadow-[0_18px_44px_rgba(59,130,246,0.16)]" : "border-transparent text-slate-600 hover:border-slate-200 hover:bg-slate-50 dark:text-slate-300 dark:hover:border-white/10 dark:hover:bg-white/5"}`}>
+                    <span className={`grid h-11 w-11 shrink-0 place-items-center rounded-2xl transition max-lg:h-8 max-lg:w-8 max-lg:rounded-xl ${active ? "bg-white text-slate-950 dark:bg-white/12 dark:text-white" : "bg-slate-100 text-slate-500 group-hover:bg-white dark:bg-slate-900 dark:text-slate-400 dark:group-hover:bg-white/10 dark:group-hover:text-slate-200"}`}><Icon className="h-5 w-5" /></span>
                     <span className="min-w-0 flex-1">
-                      <span className="block truncate text-sm font-black">{localized(category.label, language)}</span>
-                      <span className={`mt-0.5 block truncate text-xs ${active ? "text-white/62" : "text-slate-400 dark:text-slate-500"}`}>{navDescriptions[category.key] || localized(category.description, language)}</span>
+                      <span className="block truncate text-sm font-black max-lg:overflow-visible max-lg:whitespace-nowrap">{localized(category.label, language)}</span>
+                      <span className={`mt-0.5 block truncate text-xs max-lg:hidden ${active ? "text-white/62" : "text-slate-400 dark:text-slate-500"}`}>{navDescriptions[category.key] || localized(category.description, language)}</span>
                     </span>
-                    <span className={`rounded-full px-2 py-1 text-xs font-black ${active ? "bg-white/10 text-white" : "bg-slate-100 text-slate-500 dark:bg-white/5 dark:text-slate-400"}`}>{(settingsByCategory[category.key] || []).length}</span>
+                    <span className={`rounded-full px-2 py-1 text-xs font-black max-lg:hidden ${active ? "bg-white/10 text-white" : "bg-slate-100 text-slate-500 dark:bg-white/5 dark:text-slate-400"}`}>{(settingsByCategory[category.key] || []).length}</span>
                   </button>
                 );
               })}
             </nav>
           </aside>
 
-          <main className="min-w-0 max-w-full space-y-5 pb-28">
-            <section className={`rounded-[1.75rem] p-5 ${shellCard}`}>
+          <main className="min-w-0 max-w-full space-y-4 pb-28 sm:space-y-5">
+            <section className={`rounded-[1.75rem] p-4 sm:p-5 ${shellCard}`}>
               <div className="flex flex-col gap-4 md:flex-row md:items-center md:justify-between">
                 <div className="flex items-start gap-3">
-                  <span className="grid h-14 w-14 place-items-center rounded-3xl bg-slate-950 text-white dark:bg-gradient-to-br dark:from-blue-500 dark:to-violet-500"><ActiveIcon className="h-6 w-6" /></span>
-                  <div>
+                  <span className="grid h-11 w-11 shrink-0 place-items-center rounded-2xl bg-slate-950 text-white dark:bg-gradient-to-br dark:from-blue-500 dark:to-violet-500 sm:h-14 sm:w-14 sm:rounded-3xl"><ActiveIcon className="h-6 w-6" /></span>
+                  <div className="min-w-0">
                     <h2 className={`m1-section-title ${headingText}`}>{localized(activeCategoryMeta?.label, language)}</h2>
                     <p className={`mt-1 max-w-2xl text-sm leading-6 ${bodyText}`}>{localized(activeCategoryMeta?.description, language)}</p>
                   </div>
@@ -1062,7 +1075,7 @@ function SettingsCenterContent({ debugMode = false }) {
                 {sections.length ? (
                   <div className="grid gap-5">
                     {sections.map((section) => (
-                      <section key={section.title} className={`rounded-[1.75rem] p-5 ${shellCard}`}>
+                      <section key={section.title} className={`rounded-[1.75rem] p-4 sm:p-5 ${shellCard}`}>
                         <div className="flex flex-wrap items-center justify-between gap-3">
                           <h2 className={`m1-section-title ${headingText}`}>{section.title}</h2>
                         </div>
@@ -1097,7 +1110,7 @@ function SettingsCenterContent({ debugMode = false }) {
             ) : sections.length ? (
               <div className="grid gap-5">
                 {sections.map((section) => (
-                  <section key={section.title} className={`rounded-[1.75rem] p-5 ${shellCard}`}>
+                  <section key={section.title} className={`rounded-[1.75rem] p-4 sm:p-5 ${shellCard}`}>
                     <div className="flex flex-wrap items-center justify-between gap-3">
                       <h2 className={`m1-section-title ${headingText}`}>{section.title}</h2>
                       {activeCategory === "barcode_printing" && section.settings.some((item) => BARCODE_PRINT_SETTING_KEYS.includes(item.key)) ? (
@@ -1136,7 +1149,7 @@ function SettingsCenterContent({ debugMode = false }) {
       ) : null}
 
       {isDirty ? (
-        <div className="fixed inset-x-0 bottom-0 z-30 border-t border-slate-200 bg-white/95 px-3 py-3 shadow-[0_-18px_48px_rgba(15,23,42,0.16)] backdrop-blur-xl dark:border-white/10 dark:bg-slate-950/95 dark:shadow-[0_-18px_48px_rgba(0,0,0,0.45)]">
+        <div className="fixed inset-x-0 bottom-0 z-30 border-t border-slate-200 bg-white/95 px-3 py-3 pb-[calc(0.75rem+env(safe-area-inset-bottom))] shadow-[0_-18px_48px_rgba(15,23,42,0.16)] backdrop-blur-xl dark:border-white/10 dark:bg-slate-950/95 dark:shadow-[0_-18px_48px_rgba(0,0,0,0.45)]">
           <div className="mx-auto flex w-full flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
             <div className="flex items-center gap-2 text-sm font-black text-slate-800 dark:text-white"><AlertCircle className="h-4 w-4 text-amber-600 dark:text-amber-300" />{dirtyCount} {ui.unsaved}</div>
             <div className="grid grid-cols-2 gap-2 sm:flex">
@@ -1243,7 +1256,7 @@ function SiteSettingsCard({ ui, companyName, companyLogoUrl, faviconUrl, company
   const { t } = useTranslation();
   const displayName = String(companyName || "").trim() || companyNameFallback || "MONE";
   return (
-    <section className={`rounded-[1.75rem] p-5 ${shellCard}`}>
+    <section className={`rounded-[1.75rem] p-4 sm:p-5 ${shellCard}`}>
       <div className="flex flex-wrap items-start justify-between gap-4">
         <div>
           <h2 className={`m1-section-title ${headingText}`}>{t("settings.site.title")}</h2>
@@ -3833,7 +3846,7 @@ function TogglePill({ label, checked, onChange, compact = false }) {
 
 function VisualSection({ icon: Icon, title, description, children }) {
   return (
-    <section className={`rounded-[1.75rem] p-5 ${shellCard}`}>
+    <section className={`rounded-[1.75rem] p-4 sm:p-5 ${shellCard}`}>
       <div className="mb-5 flex items-start gap-3">
         <span className="grid h-12 w-12 shrink-0 place-items-center rounded-2xl bg-slate-100 text-slate-700 dark:bg-white/8 dark:text-slate-200"><Icon className="h-6 w-6" /></span>
         <div>
@@ -4050,7 +4063,7 @@ function SettingsDebugPage({ ui, records, values, loading, error, onRetry }) {
   return (
     <div className="min-h-screen bg-[#f6f8fb] p-4 text-slate-950 dark:bg-[#050816] dark:text-white sm:p-6">
       <main className="mx-auto max-w-6xl space-y-5">
-        <section className={`rounded-[1.75rem] p-5 ${shellCard}`}>
+        <section className={`rounded-[1.75rem] p-4 sm:p-5 ${shellCard}`}>
           <div className="flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
             <div>
               <h1 className={`m1-page-title ${headingText}`}>{ui.advanced}</h1>
@@ -4066,7 +4079,7 @@ function SettingsDebugPage({ ui, records, values, loading, error, onRetry }) {
           ) : null}
         </section>
 
-        <section className={`rounded-[1.75rem] p-5 ${shellCard}`}>
+        <section className={`rounded-[1.75rem] p-4 sm:p-5 ${shellCard}`}>
           <h2 className={`m1-section-title ${headingText}`}>{t("settings.debug.registryAudit")}</h2>
           <div className="mt-4 grid gap-3 md:grid-cols-3">
             {legacyAudit.map(([setting, location, owner]) => (
@@ -4079,7 +4092,7 @@ function SettingsDebugPage({ ui, records, values, loading, error, onRetry }) {
           </div>
         </section>
 
-        <section className={`rounded-[1.75rem] p-5 ${shellCard}`}>
+        <section className={`rounded-[1.75rem] p-4 sm:p-5 ${shellCard}`}>
           <h2 className={`m1-section-title ${headingText}`}>{t("settings.debug.runtimeMetadata")}</h2>
           <div className="mt-4 rounded-2xl border border-slate-200 bg-slate-950 p-4 text-xs text-slate-300 dark:border-white/10 dark:bg-black/30">
             <div>{t("settings.debug.loadedSettings")} {records.length}</div>

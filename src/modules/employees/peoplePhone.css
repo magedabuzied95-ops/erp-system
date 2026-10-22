@@ -1,0 +1,56 @@
+/* ============================================================================
+   PEOPLE & SETTINGS — phone layer (HR hub, attendance, users/roles/permissions,
+   settings). Phone-only (<768px); desktop is untouched.
+
+   people-phone-inputs
+     iOS Safari zooms the page when a focused field's font is under 16px. The
+     forms in these modules use text-sm/text-xs fields, so the scope lifts every
+     text-entry control to 16px on phones. Unlayered, so it outranks the
+     Tailwind text-* utilities without !important.
+
+   people-phone-sticky-first
+     Wide tables (month grids, payroll impact, permission matrix) scroll inside
+     their own overflow-x wrapper on phones; the first column (the employee /
+     permission name) stays pinned so a row is still readable after scrolling.
+     `inset-inline-start` keeps it on the start edge in both RTL and LTR.
+   ========================================================================== */
+
+@media (max-width: 767px) {
+  .people-phone-inputs input:not([type="checkbox"]):not([type="radio"]):not([type="range"]):not([type="color"]):not([type="file"]),
+  .people-phone-inputs select,
+  .people-phone-inputs textarea {
+    font-size: 16px;
+  }
+
+  .people-phone-sticky-first > thead > tr > th:first-child,
+  .people-phone-sticky-first > tbody > tr > td:first-child,
+  .people-phone-sticky-first > tfoot > tr > td:first-child {
+    position: sticky;
+    inset-inline-start: 0;
+    z-index: 1;
+    background: var(--card);
+    box-shadow: inset calc(-1px * var(--people-phone-dir, 1)) 0 0 var(--border);
+  }
+
+  [dir="rtl"] .people-phone-sticky-first {
+    --people-phone-dir: -1;
+  }
+
+  .people-phone-sticky-first > thead > tr > th:first-child {
+    z-index: 2;
+    background: var(--table-head, var(--surface));
+  }
+
+  /* Cap the pinned column so it never eats the whole 375px viewport. */
+  .people-phone-sticky-first > thead > tr > th:first-child,
+  .people-phone-sticky-first > tbody > tr > td:first-child {
+    max-width: 42vw;
+  }
+
+  /* Wrappers that scroll a wide table/grid horizontally. */
+  .people-phone-scroll-x {
+    overflow-x: auto;
+    -webkit-overflow-scrolling: touch;
+    overscroll-behavior-x: contain;
+  }
+}

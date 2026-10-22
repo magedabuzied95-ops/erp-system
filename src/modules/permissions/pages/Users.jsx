@@ -434,7 +434,7 @@ function UsersPage() {
       title={t("access.users.title")}
       actions={
         <>
-          <Link to="/settings/roles" className="inline-flex items-center gap-2 rounded-[var(--radius-card)] border border-white/10 bg-white/5 px-4 py-2 text-sm font-semibold text-white">
+          <Link to="/settings/roles" className="hidden items-center gap-2 rounded-[var(--radius-card)] md:inline-flex border border-white/10 bg-white/5 px-4 py-2 text-sm font-semibold text-white">
             <ShieldCheck className="h-4 w-4" />
             Roles
           </Link>
@@ -454,8 +454,8 @@ function UsersPage() {
       ) : null}
 
       <div className="grid gap-4 xl:grid-cols-[minmax(0,0.8fr)_minmax(0,1.2fr)]">
-        <div className="space-y-4">
-          <div className="rounded-3xl border border-white/10 bg-zinc-950/90 p-5 shadow-2xl shadow-black/10">
+        <div className="max-xl:contents xl:space-y-4">
+          <div className="rounded-3xl border border-white/10 bg-zinc-950/90 p-4 shadow-2xl shadow-black/10 max-xl:order-3 sm:p-5">
             <h3 className="m1-section-title text-white">{t("access.users.createUser")}</h3>
             <div className="mt-4 space-y-3">
               <Field label={t("access.users.name")} value={name} onChange={setName} placeholder={t("access.users.fullName")} />
@@ -477,7 +477,7 @@ function UsersPage() {
             </div>
           </div>
 
-          <div className="rounded-3xl border border-white/10 bg-zinc-950/90 p-5 shadow-2xl shadow-black/10">
+          <div className="rounded-3xl border border-white/10 bg-zinc-950/90 p-4 shadow-2xl shadow-black/10 max-xl:order-1 sm:p-5">
             <div className="relative">
               <input
                 value={search}
@@ -487,15 +487,15 @@ function UsersPage() {
               />
             </div>
 
-            <div className="mt-4 grid gap-3 md:grid-cols-2 xl:grid-cols-1">
+            <div className="mt-4 grid grid-cols-2 gap-3 xl:grid-cols-1">
               <Metric label={t("access.users.totalUsers")} value={users.length} icon={<UsersRound className="h-5 w-5" />} />
               <Metric label={t("access.users.active")} value={users.filter((user) => user.status === "Active").length} icon={<RefreshCw className="h-5 w-5" />} />
             </div>
           </div>
         </div>
 
-        <div className="rounded-3xl border border-white/10 bg-zinc-950/90 p-5 shadow-2xl shadow-black/10">
-          <div className="flex items-center justify-between gap-3">
+        <div className="rounded-3xl border border-white/10 bg-zinc-950/90 p-4 shadow-2xl shadow-black/10 max-xl:order-2 sm:p-5">
+          <div className="flex flex-wrap items-center justify-between gap-3">
             <div>
               <h3 className="m1-section-title text-white">{t("access.users.listTitle")}</h3>
             </div>
@@ -547,7 +547,7 @@ function UsersPage() {
                       <button
                         type="button"
                         onClick={() => openEditUser(user)}
-                        className="inline-flex items-center gap-2 rounded-[var(--radius-control)] border border-white/10 bg-white/5 px-3 py-2 text-xs font-semibold text-white"
+                        className="inline-flex min-h-10 items-center gap-2 rounded-[var(--radius-control)] border border-white/10 bg-white/5 px-3 py-2 text-xs font-semibold text-white"
                       >
                         <PencilLine className="h-4 w-4" />
                         Edit
@@ -555,7 +555,7 @@ function UsersPage() {
                       <button
                         type="button"
                         onClick={() => openPasswordModal(user)}
-                        className="inline-flex items-center gap-2 rounded-[var(--radius-control)] border border-white/10 bg-white/5 px-3 py-2 text-xs font-semibold text-white"
+                        className="inline-flex min-h-10 items-center gap-2 rounded-[var(--radius-control)] border border-white/10 bg-white/5 px-3 py-2 text-xs font-semibold text-white"
                       >
                         <ShieldAlert className="h-4 w-4" />
                         Change Password
@@ -564,7 +564,7 @@ function UsersPage() {
                         type="button"
                         onClick={() => resetUserMfa(user)}
                         disabled={actionBusyId === user.id}
-                        className="inline-flex items-center gap-2 rounded-[var(--radius-control)] border border-white/10 bg-white/5 px-3 py-2 text-xs font-semibold text-white disabled:opacity-50"
+                        className="inline-flex min-h-10 items-center gap-2 rounded-[var(--radius-control)] border border-white/10 bg-white/5 px-3 py-2 text-xs font-semibold text-white disabled:opacity-50"
                       >
                         <KeyRound className="h-4 w-4" />
                         {t("access.security.resetMfa")}
@@ -573,7 +573,7 @@ function UsersPage() {
                         type="button"
                         onClick={() => deleteUser(user)}
                         disabled={actionBusyId === user.id}
-                        className="inline-flex items-center gap-2 rounded-[var(--radius-control)] border border-rose-500/20 bg-rose-500/10 px-3 py-2 text-xs font-semibold text-rose-200 disabled:opacity-50"
+                        className="inline-flex min-h-10 items-center gap-2 rounded-[var(--radius-control)] border border-rose-500/20 bg-rose-500/10 px-3 py-2 text-xs font-semibold text-rose-200 disabled:opacity-50"
                       >
                         <Trash2 className="h-4 w-4" />
                         Delete
@@ -594,7 +594,7 @@ function UsersPage() {
             <Field label={t("access.users.email")} value={editEmail} onChange={setEditEmail} placeholder="user@company.com" />
             <Select label={t("access.users.role")} value={editRoleId} onChange={setEditRoleId} options={roleOptions} />
           </div>
-          <div className="mt-5 flex items-center justify-end gap-2">
+          <div className="mt-5 flex items-center justify-end gap-2 max-sm:[&>button]:min-h-10 max-sm:[&>button]:flex-1">
             <button type="button" onClick={closeEditUser} className="rounded-[var(--radius-control)] border border-white/10 bg-white/5 px-4 py-2 text-sm font-semibold text-white">
               Cancel
             </button>
@@ -617,7 +617,7 @@ function UsersPage() {
             <Field label={t("access.users.confirmPassword")} value={confirmPassword} onChange={setConfirmPassword} placeholder={t("access.users.confirmPassword")} type="password" />
             <p className="text-xs text-white/60">{t("access.security.passwordHint")}</p>
           </div>
-          <div className="mt-5 flex items-center justify-end gap-2">
+          <div className="mt-5 flex items-center justify-end gap-2 max-sm:[&>button]:min-h-10 max-sm:[&>button]:flex-1">
             <button type="button" onClick={closePasswordModal} className="rounded-[var(--radius-control)] border border-white/10 bg-white/5 px-4 py-2 text-sm font-semibold text-white">
               Cancel
             </button>
@@ -639,8 +639,8 @@ function UsersPage() {
 function Modal({ title, onClose, children }) {
   const { t } = useTranslation();
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/70 px-4 py-6" role="dialog" aria-modal="true">
-      <div className="w-full max-w-lg rounded-3xl border border-white/10 bg-zinc-950 p-5 shadow-2xl shadow-black/40">
+    <div className="fixed inset-0 z-50 flex items-end justify-center bg-black/70 sm:items-center sm:px-4 sm:py-6" role="dialog" aria-modal="true">
+      <div className="max-h-[92dvh] w-full max-w-lg overflow-y-auto overscroll-contain rounded-t-3xl border border-white/10 bg-zinc-950 p-4 pb-[calc(1rem+env(safe-area-inset-bottom))] shadow-2xl shadow-black/40 sm:max-h-[calc(100dvh-3rem)] sm:rounded-3xl sm:p-5">
         <div className="flex items-start justify-between gap-4">
           <div>
             <h3 className="m1-section-title text-white">{title}</h3>
@@ -648,7 +648,7 @@ function Modal({ title, onClose, children }) {
           <button
             type="button"
             onClick={onClose}
-            className="rounded-[var(--radius-control)] border border-white/10 bg-white/5 p-2 text-white"
+            className="grid h-10 w-10 shrink-0 place-items-center rounded-[var(--radius-control)] border border-white/10 bg-white/5 text-white"
             aria-label={t("access.users.closeModal")}
           >
             <CircleX className="h-5 w-5" />

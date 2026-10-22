@@ -16,6 +16,7 @@ import {
 } from "recharts";
 import { Building2, CalendarDays, Clock3, Crown, Loader2, ShieldCheck, Users } from "lucide-react";
 import toast from "react-hot-toast";
+import "../peoplePhone.css";
 
 import { formatCurrency } from "../../../shared/lib/currency";
 import EmployeeMetricCard from "./EmployeeMetricCard";
@@ -324,7 +325,7 @@ export default function EmployeeAnalyticsWorkspace() {
       onExportCsv={handleExportCsv}
       onPrint={handlePrint}
     >
-      <div className="rounded-[30px] border border-white/10 bg-white/[0.04] p-4 shadow-[0_16px_50px_rgba(0,0,0,0.16)]" dir={direction}>
+      <div className="people-phone-inputs rounded-[30px] border border-white/10 bg-white/[0.04] p-4 shadow-[0_16px_50px_rgba(0,0,0,0.16)]" dir={direction}>
         <div className="flex flex-col gap-4 xl:flex-row xl:items-end xl:justify-between">
           <div>
             <div className="flex items-center gap-2 text-sm font-semibold text-white">
@@ -345,7 +346,7 @@ export default function EmployeeAnalyticsWorkspace() {
                     ...(event.target.value === "custom" ? {} : getPresetRange(event.target.value)),
                   }))
                 }
-                className="rounded-[var(--radius-control)] border border-white/10 bg-zinc-950/80 px-4 py-3 text-sm font-medium text-white outline-none transition focus:border-primary/40"
+                className="w-full min-w-0 rounded-[var(--radius-control)] border border-white/10 bg-zinc-950/80 px-4 py-3 text-sm font-medium text-white outline-none transition focus:border-primary/40"
               >
                 {PRESET_OPTIONS.map((option) => (
                   <option key={option.value} value={option.value}>
@@ -368,7 +369,7 @@ export default function EmployeeAnalyticsWorkspace() {
                     startDate: event.target.value,
                   }))
                 }
-                className="rounded-[var(--radius-control)] border border-white/10 bg-zinc-950/80 px-4 py-3 text-sm font-medium text-white outline-none transition focus:border-primary/40 disabled:cursor-not-allowed disabled:opacity-60"
+                className="w-full min-w-0 rounded-[var(--radius-control)] border border-white/10 bg-zinc-950/80 px-4 py-3 text-sm font-medium text-white outline-none transition focus:border-primary/40 disabled:cursor-not-allowed disabled:opacity-60"
               />
             </label>
 
@@ -385,7 +386,7 @@ export default function EmployeeAnalyticsWorkspace() {
                     endDate: event.target.value,
                   }))
                 }
-                className="rounded-[var(--radius-control)] border border-white/10 bg-zinc-950/80 px-4 py-3 text-sm font-medium text-white outline-none transition focus:border-primary/40 disabled:cursor-not-allowed disabled:opacity-60"
+                className="w-full min-w-0 rounded-[var(--radius-control)] border border-white/10 bg-zinc-950/80 px-4 py-3 text-sm font-medium text-white outline-none transition focus:border-primary/40 disabled:cursor-not-allowed disabled:opacity-60"
               />
             </label>
           </div>
@@ -409,7 +410,7 @@ export default function EmployeeAnalyticsWorkspace() {
           </div>
 
           <div className="grid gap-6 xl:grid-cols-2">
-            <div className="rounded-[28px] border border-white/10 bg-zinc-950/80 p-5">
+            <div className="rounded-[var(--radius-card)] border border-white/10 bg-zinc-950/80 p-4 sm:rounded-[28px] sm:p-5">
               <div className="flex items-center justify-between">
                 <div>
                   <div className={isRtl ? "text-xs font-bold text-primary" : "text-xs uppercase tracking-[0.22em] text-primary"}>{t("common.employeeHub.analytics.charts.revenueByEmployee")}</div>
@@ -433,7 +434,7 @@ export default function EmployeeAnalyticsWorkspace() {
               </div>
             </div>
 
-            <div className="rounded-[28px] border border-white/10 bg-zinc-950/80 p-5">
+            <div className="rounded-[var(--radius-card)] border border-white/10 bg-zinc-950/80 p-4 sm:rounded-[28px] sm:p-5">
               <div className="flex items-center justify-between">
                 <div>
                   <div className={isRtl ? "text-xs font-bold text-primary" : "text-xs uppercase tracking-[0.22em] text-primary"}>{t("common.employeeHub.analytics.charts.shiftAnalytics")}</div>
@@ -458,13 +459,13 @@ export default function EmployeeAnalyticsWorkspace() {
           </div>
       </div>
 
-      <section id="analytics-sales" className="rounded-[28px] border border-white/10 bg-zinc-950/80 p-5">
+      <section id="analytics-sales" className="rounded-[var(--radius-card)] border border-white/10 bg-zinc-950/80 p-4 sm:rounded-[28px] sm:p-5">
           <div className="mb-4 flex items-center gap-2 text-sm font-semibold text-white">
             <Users className="h-4 w-4 text-emerald-300" />
             {t("common.employeeHub.analytics.sections.salesPerformance")}
           </div>
-          <div className="overflow-x-auto rounded-3xl border border-white/10">
-            <table className={`m1-table m1-table--compact min-w-full ${isRtl ? "text-right" : "text-left"}`}>
+          <div className="people-phone-scroll-x overflow-x-auto rounded-3xl border border-white/10">
+            <table className={`m1-table m1-table--compact people-phone-sticky-first min-w-full max-md:[&_td]:whitespace-nowrap ${isRtl ? "text-right" : "text-left"}`}>
               <thead className="bg-white/5 text-zinc-400">
                 <tr>
                   <th className="px-4 py-3">{t("common.employeeHub.analytics.table.employee")}</th>
@@ -500,7 +501,7 @@ export default function EmployeeAnalyticsWorkspace() {
             <EmployeeMetricCard label={t("common.employeeHub.analytics.metrics.totalCommission")} value={formatCurrency(summary.totalCommission)} hint={t("common.employeeHub.analytics.metrics.fromCommissionRows")} tone="emerald" isRtl={isRtl} />
           </div>
 
-          <div className="rounded-[28px] border border-white/10 bg-zinc-950/80 p-5">
+          <div className="rounded-[var(--radius-card)] border border-white/10 bg-zinc-950/80 p-4 sm:rounded-[28px] sm:p-5">
             <div className="mb-4 flex items-center justify-between gap-3">
               <div>
                 <div className={isRtl ? "text-xs font-bold text-primary" : "text-xs uppercase tracking-[0.22em] text-primary"}>{t("common.employeeHub.analytics.commissions.rules")}</div>
@@ -595,10 +596,10 @@ export default function EmployeeAnalyticsWorkspace() {
             </div>
           </div>
 
-          <div className="rounded-[28px] border border-white/10 bg-zinc-950/80 p-5">
+          <div className="rounded-[var(--radius-card)] border border-white/10 bg-zinc-950/80 p-4 sm:rounded-[28px] sm:p-5">
             <div className={isRtl ? "mb-4 text-xs font-bold text-primary" : "mb-4 text-xs uppercase tracking-[0.22em] text-primary"}>{t("common.employeeHub.analytics.commissions.transactions")}</div>
-            <div className="overflow-x-auto rounded-3xl border border-white/10">
-              <table className={`m1-table m1-table--compact min-w-full ${isRtl ? "text-right" : "text-left"}`}>
+            <div className="people-phone-scroll-x overflow-x-auto rounded-3xl border border-white/10">
+              <table className={`m1-table m1-table--compact people-phone-sticky-first min-w-full max-md:[&_td]:whitespace-nowrap ${isRtl ? "text-right" : "text-left"}`}>
                 <thead className="bg-white/5 text-zinc-400">
                   <tr>
                     <th className="px-4 py-3">{t("common.employeeHub.analytics.table.employee")}</th>
@@ -624,7 +625,7 @@ export default function EmployeeAnalyticsWorkspace() {
           </div>
       </section>
 
-      <section id="analytics-top" className="rounded-[28px] border border-white/10 bg-zinc-950/80 p-5">
+      <section id="analytics-top" className="rounded-[var(--radius-card)] border border-white/10 bg-zinc-950/80 p-4 sm:rounded-[28px] sm:p-5">
           <div className="mb-4 flex items-center gap-2 text-sm font-semibold text-white">
             <Crown className="h-4 w-4 text-amber-300" />
             {t("common.employeeHub.analytics.sections.topPerformers")}
@@ -655,7 +656,7 @@ export default function EmployeeAnalyticsWorkspace() {
           </div>
       </section>
 
-      <section id="analytics-shifts" className="rounded-[28px] border border-white/10 bg-zinc-950/80 p-5">
+      <section id="analytics-shifts" className="rounded-[var(--radius-card)] border border-white/10 bg-zinc-950/80 p-4 sm:rounded-[28px] sm:p-5">
           <div className="mb-4 flex items-center gap-2 text-sm font-semibold text-white">
             <Building2 className="h-4 w-4 text-primary" />
             {t("common.employeeHub.analytics.sections.shiftAnalytics")}
@@ -693,8 +694,8 @@ export default function EmployeeAnalyticsWorkspace() {
 
           <div className="mt-6 rounded-[var(--radius-card)] border border-white/10 bg-white/[0.04] p-4">
             <div className={isRtl ? "mb-3 text-xs font-bold text-primary" : "mb-3 text-xs uppercase tracking-[0.22em] text-primary"}>{t("common.employeeHub.analytics.sections.branchPerformance")}</div>
-            <div className="overflow-x-auto rounded-3xl border border-white/10">
-              <table className={`m1-table m1-table--compact min-w-full ${isRtl ? "text-right" : "text-left"}`}>
+            <div className="people-phone-scroll-x overflow-x-auto rounded-3xl border border-white/10">
+              <table className={`m1-table m1-table--compact people-phone-sticky-first min-w-full max-md:[&_td]:whitespace-nowrap ${isRtl ? "text-right" : "text-left"}`}>
                 <thead className="bg-white/5 text-zinc-400">
                   <tr>
                     <th className="px-4 py-3">{t("common.employeeHub.analytics.table.branch")}</th>

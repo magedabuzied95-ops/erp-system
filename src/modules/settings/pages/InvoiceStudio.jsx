@@ -44,6 +44,7 @@ import {
   mergeInvoiceTemplateConfig,
   normalizeInvoiceTemplateConfig,
 } from "../../../../shared/invoiceTemplate.js";
+import "../../employees/peoplePhone.css";
 
 // A stand-in order with one of everything the invoice can show — two lines, a discount,
 // shipping, an outstanding balance — so toggling a field always has something to hide.
@@ -336,9 +337,9 @@ export default function InvoiceStudio() {
   const disabled = !canEdit || saving;
 
   return (
-    <div className="m1-ai-scope min-h-full p-3 text-white md:p-6">
+    <div className="m1-ai-scope people-phone-inputs min-h-full text-white sm:p-3 md:p-6">
       <div className="mx-auto flex w-full flex-col gap-5">
-        <section className="rounded-[var(--radius-card)] border border-white/10 bg-white/[0.055] p-5">
+        <section className="rounded-[var(--radius-card)] border border-white/10 bg-white/[0.055] p-4 sm:p-5">
           <div className="flex flex-col gap-4 lg:flex-row lg:items-end lg:justify-between">
             <div>
               <h1 className="m1-page-title">{tr("title", "استوديو الفاتورة")}</h1>

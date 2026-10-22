@@ -208,3 +208,24 @@
 /* The scaled page is a homepage root, so the card rules from home.css apply to
    it. The photograph is the only stand-in. */
 .m1-site__page .m1-site__mock-plate { position: absolute; inset: 0; display: block; background: repeating-linear-gradient(135deg, var(--m1h-line-soft) 0 8px, transparent 8px 16px); }
+
+/* ---- phones ------------------------------------------------------------
+   Below 1100px the preview already stacks above the controls. On a phone a
+   74vh preview pushed every control below the fold, so it is capped to a
+   glance-sized window there (it still scrolls inside itself), the section tabs
+   become one swipeable row instead of wrapping into several lines, and fields
+   are 16px so iOS does not zoom on focus. */
+@media (max-width: 767px) {
+  .m1-site { gap: var(--space-3); }
+  .m1-site__stage { max-block-size: 42vh; }
+  .m1-site__tabs { flex-wrap: nowrap; overflow-x: auto; overscroll-behavior-x: contain; -webkit-overflow-scrolling: touch; }
+  .m1-site__tabs > button { flex: 0 0 auto; min-height: 40px; white-space: nowrap; }
+  .m1-site__segmented > button { min-height: 40px; }
+  .m1-site__preview-modes > button { inline-size: 40px; block-size: 34px; }
+  .m1-site__panel { padding: var(--space-3); }
+  .m1-site__colors { grid-template-columns: minmax(0, 1fr); }
+  .m1-site__icon-button { inline-size: 40px; block-size: 40px; }
+  .m1-site input:not([type="checkbox"]):not([type="radio"]):not([type="range"]):not([type="color"]),
+  .m1-site select,
+  .m1-site textarea { font-size: 16px; }
+}

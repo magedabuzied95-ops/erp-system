@@ -110,14 +110,14 @@ export default function EmployeeHub() {
 
   return (
     <div className="space-y-5" dir={direction}>
-      <section className="theme-card p-5">
+      <section className="theme-card p-4 sm:p-5">
         <div className="flex flex-col gap-2">
           <div>
             <h1 className="m1-page-title text-[var(--text)]">{t("common.employeeHub.title")}</h1>
           </div>
         </div>
 
-        <div className="mt-5 flex gap-2 overflow-x-auto pb-1">
+        <div className="-mx-1 mt-4 flex gap-2 overflow-x-auto px-1 pb-1 sm:mt-5">
           {tabs.map((tab) => {
             const Icon = tab.icon;
             return (
@@ -185,7 +185,7 @@ function HREmployeesWorkspace({ selectedEmployeeId = "", onSelectedEmployeeChang
   const employeeDirectoryVisibleTabs = useMemo(() => ["employees"], []);
   return (
     <div className="space-y-4">
-      <section className="theme-card p-4">
+      <section className="theme-card hidden p-4 md:block">
         <div className="flex flex-col gap-3 lg:flex-row lg:items-center lg:justify-between">
           <div>
             <div className="text-[11px] font-black uppercase tracking-[0.18em] text-[var(--muted)]">
@@ -264,7 +264,7 @@ function EmployeeOverview({ onSelectTab, t, isRtl }) {
             key={card.tab}
             type="button"
             onClick={() => onSelectTab(card.tab)}
-            className={`theme-card group min-h-[168px] p-5 transition hover:-translate-y-0.5 hover:border-[var(--primary)] ${isRtl ? "text-right" : "text-left"}`}
+            className={`theme-card group p-4 transition sm:min-h-[168px] sm:p-5 hover:-translate-y-0.5 hover:border-[var(--primary)] ${isRtl ? "text-right" : "text-left"}`}
           >
             <div className="flex items-start justify-between gap-4">
               <div>

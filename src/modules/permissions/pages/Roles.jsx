@@ -143,8 +143,8 @@ function RolesPage() {
       ) : null}
 
       <div className="grid gap-4 xl:grid-cols-[minmax(0,0.8fr)_minmax(0,1.2fr)]">
-        <div className="space-y-4">
-          <div className="rounded-3xl border border-white/10 bg-zinc-950/90 p-5 shadow-2xl shadow-black/10">
+        <div className="max-xl:contents xl:space-y-4">
+          <div className="rounded-3xl border border-white/10 bg-zinc-950/90 p-4 shadow-2xl shadow-black/10 max-xl:order-3 sm:p-5">
             <h3 className="m1-section-title text-white">{t("access.roles.createRole")}</h3>
             <p className="mt-1 text-sm text-zinc-400">Built-in roles are seeded; custom roles can be added locally even if the backend is offline.</p>
             <div className="mt-4 space-y-3">
@@ -159,7 +159,7 @@ function RolesPage() {
             </div>
           </div>
 
-          <div className="rounded-3xl border border-white/10 bg-zinc-950/90 p-5 shadow-2xl shadow-black/10">
+          <div className="rounded-3xl border border-white/10 bg-zinc-950/90 p-4 shadow-2xl shadow-black/10 max-xl:order-1 sm:p-5">
             <div className="relative">
               <input
                 value={search}
@@ -217,7 +217,7 @@ function RolesPage() {
           </div>
         </div>
 
-        <div className="rounded-3xl border border-white/10 bg-zinc-950/90 p-5 shadow-2xl shadow-black/10">
+        <div className="rounded-3xl border border-white/10 bg-zinc-950/90 p-4 shadow-2xl shadow-black/10 max-xl:order-2 sm:p-5">
           {selectedRole ? (
             <>
               <div className="flex flex-col gap-3 xl:flex-row xl:items-start xl:justify-between">

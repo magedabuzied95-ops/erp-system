@@ -5,6 +5,7 @@ import { useTranslation } from "react-i18next";
 import toast from "react-hot-toast";
 
 import { api } from "../../../shared/api/api";
+import "../peoplePhone.css";
 
 const dateLabel = (value) => {
   if (!value) return "-";
@@ -89,8 +90,8 @@ export default function HRRequestsWorkspace() {
   };
 
   return (
-    <div className="space-y-4">
-      <section className="theme-card p-5">
+    <div className="people-phone-inputs space-y-4">
+      <section className="theme-card p-4 sm:p-5">
         <div className="flex flex-col gap-3 lg:flex-row lg:items-center lg:justify-between">
           <div>
             <div className={isArabic ? "text-[11px] font-black text-[var(--muted)]" : "text-[11px] font-black uppercase tracking-[0.18em] text-[var(--muted)]"}>
@@ -112,7 +113,7 @@ export default function HRRequestsWorkspace() {
           </div>
         </div>
 
-        <div className="mt-4 flex flex-wrap gap-2">
+        <div className="-mx-1 mt-4 flex gap-2 overflow-x-auto px-1 pb-1 max-md:[&>button]:shrink-0 md:flex-wrap md:overflow-visible md:pb-0">
           {requestTabs.map((tab) => {
             const active = activeTab === tab.id;
             return (
@@ -186,10 +187,10 @@ export default function HRRequestsWorkspace() {
                         onChange={(event) => setPortalRequestNotes((prev) => ({ ...prev, [request.id]: event.target.value }))}
                         placeholder={isArabic ? "ملاحظة الرد" : "Response note"}
                         disabled={!canReview}
-                        className="min-h-20 rounded-[var(--radius-control)] border border-[var(--border)] bg-black/10 px-3 py-2 text-sm font-bold outline-none disabled:opacity-60"
+                        className="min-h-20 w-full min-w-0 rounded-[var(--radius-control)] border border-[var(--border)] bg-black/10 px-3 py-2 text-sm font-bold outline-none disabled:opacity-60"
                         dir="auto"
                       />
-                      <div className="grid gap-2 md:grid-cols-2">
+                      <div className="grid grid-cols-2 gap-2">
                         <button type="button" onClick={() => reviewPortalRequest(request.id, "approved")} disabled={!canReview || Boolean(portalRequestReviewing)} className="theme-button-primary h-[var(--control-height-md)] justify-center px-3 text-sm disabled:opacity-60">
                           <CheckCircle2 className="h-4 w-4" />
                           {isArabic ? "موافقة" : "Approve"}

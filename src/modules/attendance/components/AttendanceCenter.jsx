@@ -24,6 +24,8 @@ import {
 } from "lucide-react";
 import { useTranslation } from "react-i18next";
 import { formatCurrency } from "../../../shared/lib/currency";
+import "../../employees/peoplePhone.css";
+import { MobileBottomSheet } from "../../../shared/components/mobile/ResponsiveMobile";
 
 import {
   generateAttendanceOpeningSchedule,
@@ -377,12 +379,12 @@ function KpiCard({ label, value, icon: Icon, tone = "emerald", hint }) {
   }[tone] || "bg-[var(--surface)] text-[var(--muted)]";
   return (
     <div className="rounded-[var(--radius-card)] border border-[var(--border)] bg-[var(--card)] p-4">
-      <div className="flex items-start justify-between gap-3">
-        <div>
+      <div className="flex items-start justify-between gap-2 sm:gap-3">
+        <div className="min-w-0">
           <div className="text-xs font-black text-[var(--muted)]">{label}</div>
-          <div className="mt-2 text-2xl font-black text-[var(--text)]" dir="ltr">{value}</div>
+          <div className="mt-2 break-words text-xl font-black text-[var(--text)] sm:text-2xl" dir="ltr">{value}</div>
         </div>
-        <div className={`flex h-10 w-10 items-center justify-center rounded-lg ${toneClass}`}>
+        <div className={`flex h-8 w-8 shrink-0 items-center justify-center rounded-lg sm:h-10 sm:w-10 ${toneClass}`}>
           <Icon className="h-5 w-5" />
         </div>
       </div>
@@ -769,6 +771,10 @@ export default function AttendanceCenter() {
   );
 
   const updateFilter = (key, value) => setFilters((prev) => ({ ...prev, [key]: value }));
+  const [phoneFiltersOpen, setPhoneFiltersOpen] = useState(false);
+  const activeFilterCount = ["branchId", "employeeId", "status", "source", "lateOnly", "missingOnly", "payrollAffectedOnly"].filter((key) => Boolean(filters[key])).length
+    + (filters.startDate !== monthStartValue() ? 1 : 0)
+    + (filters.endDate !== todayValue() ? 1 : 0);
 
   const exportRows = (name, sourceRows) => {
     const tableRows = sourceRows.length ? sourceRows : filteredRows;
@@ -896,13 +902,13 @@ export default function AttendanceCenter() {
   };
 
   return (
-    <div className="space-y-4" dir={isArabic ? "rtl" : "ltr"}>
-      <section className="theme-card p-5">
+    <div className="people-phone-inputs space-y-4" dir={isArabic ? "rtl" : "ltr"}>
+      <section className="theme-card p-4 sm:p-5">
         <div className="flex flex-col gap-4 xl:flex-row xl:items-end xl:justify-between">
           <div>
             <h2 className="m1-section-title text-[var(--text)]">{pageTitle}</h2>
           </div>
-          <div className="flex flex-wrap gap-2">
+          <div className="-mx-1 flex gap-2 overflow-x-auto px-1 pb-1 max-md:[&>button]:shrink-0 md:flex-wrap md:overflow-visible md:pb-0">
             <button type="button" onClick={() => openManualAttendance()} className="inline-flex h-[var(--control-height-md)] items-center gap-2 rounded-[var(--radius-control)] border border-emerald-500/30 bg-emerald-500/15 px-3 text-sm font-black text-emerald-300">
               <Plus className="h-4 w-4" />
               {isArabic ? "إضافة حضور / انصراف" : "Add attendance"}
@@ -918,7 +924,31 @@ export default function AttendanceCenter() {
         </div>
       </section>
 
-      <section className="sticky top-0 z-20 rounded-[var(--radius-card)] border border-[var(--border)] bg-[var(--card)] p-3 shadow-sm">
+      <div className="flex items-center gap-2 md:hidden">
+        <div className="relative min-w-0 flex-1"><Search className="pointer-events-none absolute start-3 top-3 h-4 w-4 text-[var(--muted)]" /><NativeInput value={filters.search} onChange={(event) => updateFilter("search", event.target.value)} placeholder={text.search} aria-label={text.search} className="w-full ps-9" /></div>
+        <button type="button" onClick={() => setPhoneFiltersOpen(true)} className="relative inline-flex h-[var(--control-height-md)] min-h-10 shrink-0 items-center gap-2 rounded-[var(--radius-control)] border border-[var(--border)] bg-[var(--card)] px-3 text-sm font-black text-[var(--text)]">
+          <Filter className="h-4 w-4" />{text.filters}
+          {activeFilterCount ? <span className="grid h-5 min-w-5 place-items-center rounded-full bg-primary px-1 text-[11px] font-black text-[var(--primary-contrast)]" dir="ltr">{activeFilterCount}</span> : null}
+        </button>
+      </div>
+      <MobileBottomSheet open={phoneFiltersOpen} title={text.filters} onClose={() => setPhoneFiltersOpen(false)}>
+        <div className="people-phone-inputs grid gap-3">
+          <Field label={text.branch}><NativeSelect value={filters.branchId} onChange={(event) => updateFilter("branchId", event.target.value)}><option value="">{text.allBranches}</option>{branches.map((branch) => <option key={branch.id} value={branch.id}>{branch.name || branch.branch_name}</option>)}</NativeSelect></Field>
+          <Field label={text.employee}><NativeSelect value={filters.employeeId} onChange={(event) => updateFilter("employeeId", event.target.value)}><option value="">{text.allEmployees}</option>{employees.map((employee) => <option key={employee.id} value={employee.id}>{employee.full_name || employee.name}</option>)}</NativeSelect></Field>
+          <Field label={text.startDate}><DayFirstDateInput value={filters.startDate} max={filters.endDate} onChange={(event) => updateFilter("startDate", event.target.value)} /></Field>
+          <Field label={text.endDate}><DayFirstDateInput value={filters.endDate} min={filters.startDate} onChange={(event) => updateFilter("endDate", event.target.value)} /></Field>
+          <Field label={text.status}><NativeSelect value={filters.status} onChange={(event) => updateFilter("status", event.target.value)}><option value="">{text.allStatuses}</option>{Object.entries(text.statusLabels).filter(([key]) => key !== "still_working").map(([key, label]) => <option key={key} value={key}>{label}</option>)}</NativeSelect></Field>
+          <Field label={text.source}><NativeSelect value={filters.source} onChange={(event) => updateFilter("source", event.target.value)}><option value="">{text.allSources}</option><option value="qr">QR</option><option value="qr_branch">{t("attendance.center.qrBranch")}</option><option value="manual">{t("attendance.center.manual")}</option><option value="imported">{t("attendance.center.imported")}</option></NativeSelect></Field>
+          <div className="grid gap-2 text-sm font-black text-[var(--muted)]">
+            {[["lateOnly", text.lateOnly], ["missingOnly", text.missingOnly], ["payrollAffectedOnly", text.payrollAffectedOnly]].map(([key, label]) => (
+              <label key={key} className="inline-flex min-h-10 items-center gap-2"><input type="checkbox" checked={filters[key]} onChange={(event) => updateFilter(key, event.target.checked)} />{label}</label>
+            ))}
+            <label className="inline-flex min-h-10 items-center gap-2"><input type="checkbox" checked={dense} onChange={(event) => setDense(event.target.checked)} />{text.dense}</label>
+          </div>
+        </div>
+      </MobileBottomSheet>
+
+      <section className="z-20 hidden rounded-[var(--radius-card)] border border-[var(--border)] bg-[var(--card)] p-3 shadow-sm md:sticky md:top-0 md:block">
         <div className="mb-3 flex items-center gap-2 text-sm font-black text-[var(--text)]"><Filter className="h-4 w-4" />{text.filters}</div>
         <div className="grid gap-2 md:grid-cols-2 xl:grid-cols-7">
           <Field label={text.search}><div className="relative"><Search className="pointer-events-none absolute start-3 top-3 h-4 w-4 text-[var(--muted)]" /><NativeInput value={filters.search} onChange={(event) => updateFilter("search", event.target.value)} className="w-full ps-9" /></div></Field>
@@ -958,7 +988,7 @@ export default function AttendanceCenter() {
 
       {activeTab === "overview" ? (
         <div className="space-y-4">
-          <div className="grid gap-3 md:grid-cols-2 xl:grid-cols-4">
+          <div className="grid grid-cols-2 gap-3 xl:grid-cols-4">
             {kpis.map(([label, value, Icon, tone]) => <KpiCard key={label} label={label} value={value} icon={Icon} tone={tone} hint={rangeHint} />)}
           </div>
           {!loading && !failedSections.length && !rows.length ? (
@@ -989,8 +1019,8 @@ export default function AttendanceCenter() {
 
       {selectedRow ? <DetailsDrawer row={selectedRow} text={text} onClose={() => setSelectedRow(null)} /> : null}
       {manualOpen ? (
-        <div className="fixed inset-0 z-[100] flex items-center justify-center bg-black/70 p-4 backdrop-blur-sm" onMouseDown={() => !manualSaving && setManualOpen(false)}>
-          <form onSubmit={handleManualAttendanceSubmit} onMouseDown={(event) => event.stopPropagation()} className="w-full max-w-2xl rounded-[var(--radius-card)] border border-[var(--border)] bg-[var(--card)] p-5 shadow-2xl">
+        <div className="fixed inset-0 z-[100] flex items-end justify-center bg-black/70 backdrop-blur-sm sm:items-center sm:p-4" onMouseDown={() => !manualSaving && setManualOpen(false)}>
+          <form onSubmit={handleManualAttendanceSubmit} onMouseDown={(event) => event.stopPropagation()} className="max-h-[92dvh] w-full max-w-2xl overflow-y-auto overscroll-contain rounded-t-[var(--radius-card)] border border-[var(--border)] bg-[var(--card)] p-4 pb-[calc(1rem+env(safe-area-inset-bottom))] shadow-2xl sm:max-h-[calc(100dvh-2rem)] sm:rounded-[var(--radius-card)] sm:p-5">
             <div className="flex items-start justify-between gap-4">
               <div>
                 <div className="text-xs font-black uppercase tracking-[0.16em] text-emerald-300">{isArabic ? "تصحيح إداري" : "Admin correction"}</div>
@@ -1066,7 +1096,7 @@ export default function AttendanceCenter() {
               <div className="md:col-span-2"><Field label={isArabic ? "سبب الإضافة أو التصحيح" : "Correction reason"}><textarea value={manualForm.reason} onChange={(event) => setManualForm((prev) => ({ ...prev, reason: event.target.value }))} required rows={3} className="w-full rounded-[var(--radius-control)] border border-[var(--border)] bg-[var(--surface)] px-3 py-2 text-sm font-bold text-[var(--text)] outline-none focus:border-emerald-500" placeholder={isArabic ? "مثال: تعذر تسجيل الانصراف من بوابة الموظف" : "Example: employee portal checkout failed"} /></Field></div>
             </div>
             {manualError ? <div className="mt-3 rounded-lg border border-rose-500/30 bg-rose-500/10 p-3 text-sm font-bold text-rose-300">{manualError}</div> : null}
-            <div className="mt-5 flex justify-end gap-2">
+            <div className="mt-5 flex justify-end gap-2 max-sm:[&>button]:flex-1">
               <button type="button" disabled={manualSaving} onClick={() => setManualOpen(false)} className="h-[var(--control-height-lg)] rounded-[var(--radius-control)] border border-[var(--border)] px-5 text-sm font-black text-[var(--muted)]">{isArabic ? "إلغاء" : "Cancel"}</button>
               <button type="submit" disabled={manualSaving} className="h-[var(--control-height-lg)] rounded-[var(--radius-control)] bg-primary px-6 text-sm font-black text-[var(--primary-contrast)] disabled:opacity-60">{manualSaving ? (isArabic ? "جارٍ الحفظ..." : "Saving...") : (isArabic ? "حفظ التصحيح" : "Save correction")}</button>
             </div>
@@ -1220,8 +1250,8 @@ function AttendanceTable({ rows, text, dense, onSelect, onEdit, isArabic }) {
             <div className="inline-flex items-center gap-2 font-black text-[var(--text)]" dir="ltr"><CalendarDays className="h-4 w-4 text-[var(--primary)]" />{formatDayFirstDate(date) || date}</div>
             <span className="rounded-full bg-[var(--card)] px-3 py-1 text-xs font-black text-[var(--muted)]">{dateRows.length} {isArabic ? "موظف" : "employees"}</span>
           </div>
-          <div className="overflow-auto">
-            <table className="m1-table m1-table--compact min-w-[1380px] w-full text-sm">
+          <div className="people-phone-scroll-x overflow-auto">
+            <table className="m1-table m1-table--compact people-phone-sticky-first min-w-[1380px] w-full text-sm">
               <thead className="bg-[var(--surface)] text-xs font-black text-[var(--muted)]"><tr>{headers.map((header) => <th key={header} className="px-3 py-3 text-start">{header}</th>)}</tr></thead>
               <tbody className="divide-[var(--border)]">{renderRows(dateRows)}</tbody>
             </table>
@@ -1230,7 +1260,7 @@ function AttendanceTable({ rows, text, dense, onSelect, onEdit, isArabic }) {
       )) : <div className="rounded-[var(--radius-card)] border border-[var(--border)] bg-[var(--card)] p-8 text-center text-[var(--muted)]">{text.noRows}</div>}
       <div className="rounded-[var(--radius-card)] border border-[var(--border)] bg-[var(--card)] p-4">
         <h3 className="m1-section-title mb-3 text-[var(--text)]">{isArabic ? "إجماليات النتائج الحالية" : "Current results totals"}</h3>
-        <div className="grid gap-2 sm:grid-cols-2 lg:grid-cols-4 xl:grid-cols-7">
+        <div className="grid grid-cols-2 gap-2 lg:grid-cols-4 xl:grid-cols-7">
           {[
             [isArabic ? "الحضور" : "Present", totals.present],
             [isArabic ? "الغياب" : "Absent", totals.absent],
@@ -1338,8 +1368,8 @@ function OvertimeApprovalsPanel({ rows = [], isArabic, onUpdate }) {
 function PayrollImpact({ rows, text, onSelect }) {
   return (
     <section className="overflow-hidden rounded-[var(--radius-card)] border border-[var(--border)] bg-[var(--card)]">
-      <div className="overflow-auto">
-        <table className="m1-table m1-table--compact min-w-[1360px] w-full text-sm">
+      <div className="people-phone-scroll-x overflow-auto">
+        <table className="m1-table m1-table--compact people-phone-sticky-first min-w-[1360px] w-full text-sm">
           <thead className="bg-[var(--surface)] text-xs font-black text-[var(--muted)]">
             <tr>{[text.columns.employee, text.columns.presentDays, text.columns.absenceDays, text.columns.missingHours, text.columns.lateCount, text.columns.paidLeaves, text.columns.deductedLeaves, text.columns.leaveDeduction, text.columns.approvedOvertime, text.columns.overtimePay, text.columns.deduction, text.columns.penalties, text.columns.netImpact].map((header) => <th key={header} className="px-3 py-3 text-start">{header}</th>)}</tr>
           </thead>
@@ -1395,8 +1425,8 @@ function ReportsView({ payload, rows, text, onExport }) {
 function SimpleTable({ headers, rows, empty }) {
   return (
     <section className="overflow-hidden rounded-[var(--radius-card)] border border-[var(--border)] bg-[var(--card)]">
-      <div className="overflow-auto">
-        <table className="m1-table m1-table--compact min-w-[900px] w-full text-sm">
+      <div className="people-phone-scroll-x overflow-auto">
+        <table className="m1-table m1-table--compact people-phone-sticky-first min-w-[900px] w-full text-sm">
           <thead className="bg-[var(--surface)] text-xs font-black text-[var(--muted)]"><tr>{headers.map((header) => <th key={header} className="px-3 py-3 text-start">{header}</th>)}</tr></thead>
           <tbody className="divide-[var(--border)]">
             {rows.length ? rows.map((row, index) => <tr key={index}>{row.map((cell, cellIndex) => <td key={cellIndex} className="px-3 py-3">{cell || "-"}</td>)}</tr>) : <tr><td colSpan={headers.length} className="p-8 text-center text-[var(--muted)]">{empty}</td></tr>}
@@ -1410,10 +1440,10 @@ function SimpleTable({ headers, rows, empty }) {
 function DetailsDrawer({ row, text, onClose }) {
   return (
     <div className="fixed inset-0 z-50 bg-black/50" onClick={onClose}>
-      <aside className="ms-auto h-full w-full max-w-xl overflow-auto bg-[var(--card)] p-5 shadow-2xl" onClick={(event) => event.stopPropagation()}>
+      <aside className="ms-auto h-full w-full max-w-xl overflow-auto bg-[var(--card)] p-4 pb-[calc(1rem+env(safe-area-inset-bottom))] shadow-2xl sm:p-5" onClick={(event) => event.stopPropagation()}>
         <div className="flex items-start justify-between gap-4">
           <div><h3 className="m1-section-title text-[var(--text)]">{text.details}</h3><p className="mt-1 text-sm text-[var(--muted)]">{row.employee_name}</p></div>
-          <button type="button" onClick={onClose} className="rounded-[var(--radius-control)] border border-[var(--border)] px-3 py-2 text-sm font-black text-[var(--text)]">{text.close}</button>
+          <button type="button" onClick={onClose} className="min-h-10 shrink-0 rounded-[var(--radius-control)] border border-[var(--border)] px-3 py-2 text-sm font-black text-[var(--text)]">{text.close}</button>
         </div>
         <div className="mt-5 grid gap-3">
           {Object.entries(row).map(([key, value]) => (

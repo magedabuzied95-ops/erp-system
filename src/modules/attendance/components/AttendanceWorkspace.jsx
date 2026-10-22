@@ -41,6 +41,7 @@ import {
 import { uploadProductImage, resolveUploadedImageUrl } from "../../products/services/productsApi";
 import { resolveEmployeeProfileImageUrl } from "../../../shared/lib/imageUrls";
 import ThemedSelect from "../../../shared/ui/ThemedSelect";
+import "../../employees/peoplePhone.css";
 
 const todayValue = () => todayInAppTimezone();
 const rangeStartValue = () => shiftDateKey(todayInAppTimezone(), -6);
@@ -1352,10 +1353,60 @@ function AttendanceWorkspace({
     });
   }, [defaultTab, tabs]);
 
+  // One set of row actions, shared by the desktop grid and the phone cards.
+  const renderEmployeeRowActions = (employee) => (
+    <>
+      <button
+        type="button"
+        onClick={() => handleEditEmployee(employee)}
+        className="inline-flex items-center gap-1 rounded-[var(--radius-control)] border border-white/10 bg-white/5 px-3 py-2 text-xs font-semibold text-white transition hover:bg-white/10"
+      >
+        <Edit3 className="h-3.5 w-3.5" />
+        {tr("actions.edit")}
+      </button>
+      <button
+        type="button"
+        onClick={() => {
+          setSelectedEmployeeId(String(employee.id));
+          setSelectedTab("kiosk");
+        }}
+        className="inline-flex items-center gap-1 rounded-[var(--radius-control)] border border-white/10 bg-white/5 px-3 py-2 text-xs font-semibold text-white transition hover:bg-white/10"
+      >
+        <ScanBarcode className="h-3.5 w-3.5" />
+        {tr("tabs.kiosk")}
+      </button>
+      {canDeleteEmployee ? (
+        <button
+          type="button"
+          title={tr("actions.resetToday")}
+          aria-label={tr("actions.resetToday")}
+          onClick={() => openTodayAttendanceReset(employee)}
+          disabled={String(resettingAttendanceId) === String(employee.id)}
+          className="inline-flex items-center gap-1 rounded-[var(--radius-control)] border border-amber-400/30 bg-amber-500/10 px-3 py-2 text-xs font-semibold text-amber-100 transition hover:border-amber-300/60 hover:bg-amber-500/20 disabled:cursor-not-allowed disabled:opacity-50"
+        >
+          {String(resettingAttendanceId) === String(employee.id) ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <RotateCcw className="h-3.5 w-3.5" />}
+          {tr("actions.resetToday")}
+        </button>
+      ) : null}
+      {canDeleteEmployee ? (
+        <button
+          type="button"
+          title={tr("actions.deleteEmployee")}
+          aria-label={tr("actions.deleteEmployee")}
+          onClick={() => setDeleteTarget(employee)}
+          disabled={String(deletingEmployeeId) === String(employee.id)}
+          className="inline-flex h-[var(--control-height-md)] w-9 items-center justify-center rounded-[var(--radius-control)] border border-rose-400/30 bg-rose-500/10 text-rose-200 transition hover:border-rose-300/60 hover:bg-rose-500/20 hover:text-white disabled:cursor-not-allowed disabled:opacity-50"
+        >
+          {String(deletingEmployeeId) === String(employee.id) ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Trash2 className="h-3.5 w-3.5" />}
+        </button>
+      ) : null}
+    </>
+  );
+
   return (
-    <div className="space-y-6" dir={direction}>
+    <div className="people-phone-inputs space-y-6" dir={direction}>
       {!embedded ? (
-      <div className="flex flex-col gap-4 rounded-[34px] border border-white/10 bg-zinc-950/90 p-5 shadow-2xl shadow-black/10 xl:flex-row xl:items-center xl:justify-between">
+      <div className="flex flex-col gap-4 rounded-[var(--radius-card)] sm:rounded-[34px] border border-white/10 bg-zinc-950/90 p-4 sm:p-5 shadow-2xl shadow-black/10 xl:flex-row xl:items-center xl:justify-between">
         <div>
           <div className={isArabic ? "text-[11px] font-bold text-zinc-500" : "text-[11px] uppercase tracking-[0.24em] text-zinc-500"}>{tr("eyebrow")}</div>
           <h1 className="m1-page-title mt-2 text-white">{tr("title")}</h1>
@@ -1410,7 +1461,7 @@ function AttendanceWorkspace({
       ) : null}
 
       {!embedded && canManageAttendanceDevices ? (
-        <section className="rounded-[34px] border border-amber-400/15 bg-zinc-950/90 p-5 shadow-2xl shadow-black/10">
+        <section className="rounded-[var(--radius-card)] sm:rounded-[34px] border border-amber-400/15 bg-zinc-950/90 p-4 sm:p-5 shadow-2xl shadow-black/10">
           <div className="flex flex-col gap-4 xl:flex-row xl:items-end xl:justify-between">
             <div className="max-w-3xl">
               <div className={isArabic ? "text-[11px] font-bold text-amber-200" : "text-[11px] uppercase tracking-[0.2em] text-amber-200"}>{tr("admin.eyebrow")}</div>
@@ -1492,8 +1543,8 @@ function AttendanceWorkspace({
 
       {selectedTab === "dashboard" ? (
         <div className="grid grid-cols-[minmax(0,1fr)] gap-6 xl:grid-cols-12">
-          <section className="rounded-[34px] border border-white/10 bg-zinc-950/90 p-5 shadow-2xl shadow-black/10 xl:col-span-8">
-            <div className="flex items-center justify-between gap-3">
+          <section className="rounded-[var(--radius-card)] sm:rounded-[34px] border border-white/10 bg-zinc-950/90 p-4 sm:p-5 shadow-2xl shadow-black/10 xl:col-span-8">
+            <div className="flex flex-wrap items-center justify-between gap-3">
               <div>
                 <div className={isArabic ? "text-[11px] font-bold text-zinc-500" : "text-[11px] uppercase tracking-[0.2em] text-zinc-500"}>{tr("dashboard.todayChart")}</div>
                 <h2 className="m1-section-title text-white">{tr("dashboard.branchAttendanceMix")}</h2>
@@ -1518,7 +1569,7 @@ function AttendanceWorkspace({
             </div>
           </section>
 
-          <section className="rounded-[34px] border border-white/10 bg-zinc-950/90 p-5 shadow-2xl shadow-black/10 xl:col-span-4">
+          <section className="rounded-[var(--radius-card)] sm:rounded-[34px] border border-white/10 bg-zinc-950/90 p-4 sm:p-5 shadow-2xl shadow-black/10 xl:col-span-4">
             <div className="flex items-center justify-between">
               <div>
                 <div className={isArabic ? "text-[11px] font-bold text-zinc-500" : "text-[11px] uppercase tracking-[0.2em] text-zinc-500"}>{t("common.status")}</div>
@@ -1546,8 +1597,8 @@ function AttendanceWorkspace({
             </div>
           </section>
 
-          <section className="rounded-[34px] border border-white/10 bg-zinc-950/90 p-5 shadow-2xl shadow-black/10 xl:col-span-12">
-            <div className="flex items-center justify-between gap-3">
+          <section className="rounded-[var(--radius-card)] sm:rounded-[34px] border border-white/10 bg-zinc-950/90 p-4 sm:p-5 shadow-2xl shadow-black/10 xl:col-span-12">
+            <div className="flex flex-wrap items-center justify-between gap-3">
               <div>
                 <div className={isArabic ? "text-[11px] font-bold text-zinc-500" : "text-[11px] uppercase tracking-[0.2em] text-zinc-500"}>{tr("dashboard.recentLogs")}</div>
                 <h2 className="m1-section-title text-white">{tr("dashboard.attendanceList")}</h2>
@@ -1599,8 +1650,8 @@ function AttendanceWorkspace({
 
       {selectedTab === "employees" ? (
         <div className="grid grid-cols-[minmax(0,1fr)] gap-6 xl:grid-cols-12">
-          <section className={`rounded-[34px] border border-white/10 bg-zinc-950/90 p-5 shadow-2xl shadow-black/10 ${employeeEditorOpen ? "hidden" : "xl:col-span-12"}`}>
-            <div className="flex items-center justify-between gap-3">
+          <section className={`rounded-[var(--radius-card)] sm:rounded-[34px] border border-white/10 bg-zinc-950/90 p-4 sm:p-5 shadow-2xl shadow-black/10 ${employeeEditorOpen ? "hidden" : "xl:col-span-12"}`}>
+            <div className="flex flex-wrap items-center justify-between gap-3">
               <div>
                 <div className={isArabic ? "text-[11px] font-bold text-zinc-500" : "text-[11px] uppercase tracking-[0.2em] text-zinc-500"}>{tr("employees.employeeList")}</div>
                 <h2 className="m1-section-title text-white">{tr("employees.employeesAndShifts")}</h2>
@@ -1614,7 +1665,35 @@ function AttendanceWorkspace({
               </button>
             </div>
 
-            <div className="mt-4 overflow-x-auto rounded-[28px] border border-white/10">
+            <div className="mt-4 grid gap-2 md:hidden">
+              {employees.length === 0 ? (
+                <div className="rounded-[var(--radius-card)] border border-white/10 p-6 text-center text-zinc-400">{tr("empty.noEmployees")}</div>
+              ) : (
+                employees.map((employee) => (
+                  <article key={employee.id} className="rounded-[var(--radius-card)] border border-white/10 bg-white/5 p-3 text-sm">
+                    <div className="flex items-start justify-between gap-2">
+                      <div className="min-w-0">
+                        <div className="break-words font-semibold text-white">{employee.full_name}</div>
+                        <div className="truncate text-xs text-zinc-500">{employee.email || fallback}</div>
+                      </div>
+                      <div className="shrink-0"><StatusPill tone={employee.status === "active" ? "emerald" : "rose"} label={statusLabel(employee.status || "active")} /></div>
+                    </div>
+                    <dl className="mt-3 grid grid-cols-2 gap-x-3 gap-y-2 text-xs">
+                      <div className="min-w-0"><dt className="text-zinc-500">{tr("fields.code")}</dt><dd className="truncate text-zinc-300">{employee.employee_code || fallback}</dd></div>
+                      <div className="min-w-0"><dt className="text-zinc-500">{tr("fields.branch")}</dt><dd className="truncate text-zinc-300">{employee.branch_name || fallback}</dd></div>
+                      <div className="min-w-0"><dt className="text-zinc-500">{tr("fields.jobTitle")}</dt><dd className="truncate text-zinc-300" dir="auto">{formatEmployeeJobLabel(employee, language)}</dd></div>
+                      <div className="min-w-0"><dt className="text-zinc-500">{tr("fields.shift")}</dt><dd className="truncate text-zinc-300">{employee.current_shift?.shift_name || fallback}</dd></div>
+                      <div className="min-w-0"><dt className="text-zinc-500">{tr("fields.checkIn")}</dt><dd className="truncate text-zinc-300">{formatSafeTime(employee.today_attendance?.check_in, fallback)}</dd></div>
+                    </dl>
+                    <div className="mt-3 flex flex-wrap gap-2 [&>button]:min-h-10">
+                      {renderEmployeeRowActions(employee)}
+                    </div>
+                  </article>
+                ))
+              )}
+            </div>
+
+            <div className="mt-4 hidden overflow-x-auto rounded-[28px] border border-white/10 md:block">
               <div className="min-w-[920px]">
               <div className="grid grid-cols-12 bg-white/5 px-4 py-3 text-[11px] uppercase tracking-[0.2em] text-zinc-500">
                 <span className="col-span-3">{tr("fields.name")}</span>
@@ -1643,50 +1722,7 @@ function AttendanceWorkspace({
                       <div className="text-zinc-300">{employee.current_shift?.shift_name || fallback}</div>
                       <div className="text-zinc-300">{formatSafeTime(employee.today_attendance?.check_in, fallback)}</div>
                       <div className="col-span-2 flex flex-wrap gap-2">
-                        <button
-                          type="button"
-                          onClick={() => handleEditEmployee(employee)}
-                          className="inline-flex items-center gap-1 rounded-[var(--radius-control)] border border-white/10 bg-white/5 px-3 py-2 text-xs font-semibold text-white transition hover:bg-white/10"
-                        >
-                          <Edit3 className="h-3.5 w-3.5" />
-                          {tr("actions.edit")}
-                        </button>
-                        <button
-                          type="button"
-                          onClick={() => {
-                            setSelectedEmployeeId(String(employee.id));
-                            setSelectedTab("kiosk");
-                          }}
-                          className="inline-flex items-center gap-1 rounded-[var(--radius-control)] border border-white/10 bg-white/5 px-3 py-2 text-xs font-semibold text-white transition hover:bg-white/10"
-                        >
-                          <ScanBarcode className="h-3.5 w-3.5" />
-                          {tr("tabs.kiosk")}
-                        </button>
-                        {canDeleteEmployee ? (
-                          <button
-                            type="button"
-                            title={tr("actions.resetToday")}
-                            aria-label={tr("actions.resetToday")}
-                            onClick={() => openTodayAttendanceReset(employee)}
-                            disabled={String(resettingAttendanceId) === String(employee.id)}
-                            className="inline-flex items-center gap-1 rounded-[var(--radius-control)] border border-amber-400/30 bg-amber-500/10 px-3 py-2 text-xs font-semibold text-amber-100 transition hover:border-amber-300/60 hover:bg-amber-500/20 disabled:cursor-not-allowed disabled:opacity-50"
-                          >
-                            {String(resettingAttendanceId) === String(employee.id) ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <RotateCcw className="h-3.5 w-3.5" />}
-                            {tr("actions.resetToday")}
-                          </button>
-                        ) : null}
-                        {canDeleteEmployee ? (
-                          <button
-                            type="button"
-                            title={tr("actions.deleteEmployee")}
-                            aria-label={tr("actions.deleteEmployee")}
-                            onClick={() => setDeleteTarget(employee)}
-                            disabled={String(deletingEmployeeId) === String(employee.id)}
-                            className="inline-flex h-[var(--control-height-md)] w-9 items-center justify-center rounded-[var(--radius-control)] border border-rose-400/30 bg-rose-500/10 text-rose-200 transition hover:border-rose-300/60 hover:bg-rose-500/20 hover:text-white disabled:cursor-not-allowed disabled:opacity-50"
-                          >
-                            {String(deletingEmployeeId) === String(employee.id) ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Trash2 className="h-3.5 w-3.5" />}
-                          </button>
-                        ) : null}
+                        {renderEmployeeRowActions(employee)}
                       </div>
                     </div>
                   ))
@@ -1697,7 +1733,7 @@ function AttendanceWorkspace({
           </section>
 
           <section className={employeeEditorOpen ? "space-y-5 xl:col-span-12" : "hidden"}>
-            <div className="rounded-[34px] border border-amber-400/20 bg-gradient-to-br from-zinc-950 via-zinc-950 to-amber-950/20 p-5 shadow-2xl shadow-black/10">
+            <div className="rounded-[var(--radius-card)] sm:rounded-[34px] border border-amber-400/20 bg-gradient-to-br from-zinc-950 via-zinc-950 to-amber-950/20 p-4 sm:p-5 shadow-2xl shadow-black/10">
               <div className="flex flex-col gap-4 lg:flex-row lg:items-center lg:justify-between">
                 <div>
                   <div className={isArabic ? "text-[11px] font-bold text-amber-300" : "text-[11px] uppercase tracking-[0.2em] text-amber-300"}>{isArabic ? "ملف الموظف" : "Employee profile"}</div>
@@ -1728,7 +1764,7 @@ function AttendanceWorkspace({
             </div>
 
             {isEditable ? (
-              <div className="rounded-[34px] border border-white/10 bg-zinc-950/90 p-5 shadow-2xl shadow-black/10">
+              <div className="rounded-[var(--radius-card)] sm:rounded-[34px] border border-white/10 bg-zinc-950/90 p-4 sm:p-5 shadow-2xl shadow-black/10">
                 <div className="text-[11px] uppercase tracking-[0.2em] text-zinc-500">
                   {employeeForm.id ? tr("employees.editEmployee") : tr("employees.createEmployee")}
                 </div>
@@ -1817,11 +1853,11 @@ function AttendanceWorkspace({
                     onChange={(value) => setEmployeeForm((prev) => ({ ...prev, photo_url: value }))}
                     helper={isArabic ? "يتم حفظ هذا الرابط في employees.photo_url ويُستخدم في صورة البوابة." : "Saved to employees.photo_url and used by the portal avatar."}
                   />
-                  <div className="grid grid-cols-2 gap-3">
+                  <div className="grid gap-3 sm:grid-cols-2">
                     <InputField label={tr("fields.phone")} value={employeeForm.phone} onChange={(value) => setEmployeeForm((prev) => ({ ...prev, phone: value }))} />
                     <InputField label={tr("fields.email")} value={employeeForm.email} onChange={(value) => setEmployeeForm((prev) => ({ ...prev, email: value }))} />
                   </div>
-                  <div className="grid grid-cols-2 gap-3">
+                  <div className="grid gap-3 sm:grid-cols-2">
                     <InputField label={tr("fields.nationalId")} value={employeeForm.national_id} onChange={(value) => setEmployeeForm((prev) => ({ ...prev, national_id: value }))} />
                     <InputField label={tr("fields.salary")} type="number" value={employeeForm.salary} onChange={(value) => setEmployeeForm((prev) => ({ ...prev, salary: value }))} />
                   </div>
@@ -1888,7 +1924,7 @@ function AttendanceWorkspace({
                   </div>
                   <div className="rounded-[28px] border border-white/10 bg-black/20 p-4">
                     <div className="text-sm font-black text-white">{isArabic ? "إعدادات الراتب والحضور" : "Payroll & attendance settings"}</div>
-                    <div className="mt-3 grid grid-cols-2 gap-3">
+                    <div className="mt-3 grid gap-3 sm:grid-cols-2">
                       <InputField
                         label={isArabic ? "ساعات العمل اليومية" : "Daily work hours"}
                         type="number"
@@ -1957,7 +1993,7 @@ function AttendanceWorkspace({
                         className="h-4 w-4 accent-amber-400"
                       />
                     </label>
-                    <div className="mt-3 grid grid-cols-2 gap-3">
+                    <div className="mt-3 grid gap-3 sm:grid-cols-2">
                       <InputField
                         label={isArabic ? "اسم مختصر في POS" : "POS alias"}
                         value={employeeForm.pos_alias || ""}
@@ -1982,7 +2018,7 @@ function AttendanceWorkspace({
                       />
                     </div>
                   </div>
-                  <div className="grid grid-cols-2 gap-3">
+                  <div className="grid gap-3 sm:grid-cols-2">
                     <InputField label={tr("fields.hireDate")} type="date" value={employeeForm.hire_date} onChange={(value) => setEmployeeForm((prev) => ({ ...prev, hire_date: value }))} />
                     <div />
                   </div>
@@ -2063,20 +2099,20 @@ function AttendanceWorkspace({
             ) : null}
 
             {isEditable ? (
-              <div className="rounded-[34px] border border-white/10 bg-zinc-950/90 p-5 shadow-2xl shadow-black/10">
+              <div className="rounded-[var(--radius-card)] sm:rounded-[34px] border border-white/10 bg-zinc-950/90 p-4 sm:p-5 shadow-2xl shadow-black/10">
                 <div className={isArabic ? "text-[11px] font-bold text-zinc-500" : "text-[11px] uppercase tracking-[0.2em] text-zinc-500"}>{tr("employees.shiftAssignment")}</div>
                 <h3 className="m1-section-title mt-2 text-white">{activeEditingEmployeeName || tr("options.selectEmployee")}</h3>
                 <div className="mt-4 grid gap-3">
                   <InputField label={tr("fields.shiftName")} value={shiftForm.shift_name} onChange={(value) => setShiftForm((prev) => ({ ...prev, shift_name: value }))} />
-                  <div className="grid grid-cols-2 gap-3">
+                  <div className="grid gap-3 sm:grid-cols-2">
                     <InputField label={tr("fields.startTime")} type="time" value={shiftForm.start_time} onChange={(value) => setShiftForm((prev) => ({ ...prev, start_time: value }))} />
                     <InputField label={tr("fields.endTime")} type="time" value={shiftForm.end_time} onChange={(value) => setShiftForm((prev) => ({ ...prev, end_time: value }))} />
                   </div>
-                  <div className="grid grid-cols-2 gap-3">
+                  <div className="grid gap-3 sm:grid-cols-2">
                     <InputField label={isArabic ? "بداية نافذة الحضور" : "Check-in window start"} type="time" value={shiftForm.check_in_window_start} onChange={(value) => setShiftForm((prev) => ({ ...prev, check_in_window_start: value }))} />
                     <InputField label={isArabic ? "نهاية نافذة الحضور" : "Check-in window end"} type="time" value={shiftForm.check_in_window_end} onChange={(value) => setShiftForm((prev) => ({ ...prev, check_in_window_end: value }))} />
                   </div>
-                  <div className="grid grid-cols-2 gap-3">
+                  <div className="grid gap-3 sm:grid-cols-2">
                     <InputField label={tr("fields.allowedLateMinutes")} type="number" value={shiftForm.allowed_late_minutes} onChange={(value) => setShiftForm((prev) => ({ ...prev, allowed_late_minutes: value }))} />
                     <InputField label={tr("fields.overtimeAfterMinutes")} type="number" value={shiftForm.overtime_after_minutes} onChange={(value) => setShiftForm((prev) => ({ ...prev, overtime_after_minutes: value }))} />
                   </div>
@@ -2128,7 +2164,7 @@ function AttendanceWorkspace({
 
       {selectedTab === "devices" ? (
         <div className="grid grid-cols-[minmax(0,1fr)] gap-6 xl:grid-cols-12">
-          <section className="rounded-[34px] border border-white/10 bg-zinc-950/90 p-5 shadow-2xl shadow-black/10 xl:col-span-12">
+          <section className="rounded-[var(--radius-card)] sm:rounded-[34px] border border-white/10 bg-zinc-950/90 p-4 sm:p-5 shadow-2xl shadow-black/10 xl:col-span-12">
             <div className="flex flex-col gap-3 md:flex-row md:items-center md:justify-between">
               <div>
                 <div className={isArabic ? "text-[11px] font-bold text-zinc-500" : "text-[11px] uppercase tracking-[0.2em] text-zinc-500"}>{tr("devices.security")}</div>
@@ -2248,7 +2284,7 @@ function AttendanceWorkspace({
 
       {selectedTab === "reports" ? (
         <div className="grid grid-cols-[minmax(0,1fr)] gap-6 xl:grid-cols-12">
-          <section className="rounded-[34px] border border-white/10 bg-zinc-950/90 p-5 shadow-2xl shadow-black/10 xl:col-span-12">
+          <section className="rounded-[var(--radius-card)] sm:rounded-[34px] border border-white/10 bg-zinc-950/90 p-4 sm:p-5 shadow-2xl shadow-black/10 xl:col-span-12">
             <div className="flex flex-wrap items-end gap-3">
               <InputField label={tr("fields.dailyDate")} type="date" value={filters.date} onChange={(value) => setFilters((prev) => ({ ...prev, date: value }))} />
               <InputField label={tr("fields.startDate")} type="date" value={filters.startDate} onChange={(value) => setFilters((prev) => ({ ...prev, startDate: value }))} />
@@ -2279,7 +2315,7 @@ function AttendanceWorkspace({
             </div>
           </section>
 
-          <section className="rounded-[34px] border border-white/10 bg-zinc-950/90 p-5 shadow-2xl shadow-black/10 xl:col-span-7">
+          <section className="rounded-[var(--radius-card)] sm:rounded-[34px] border border-white/10 bg-zinc-950/90 p-4 sm:p-5 shadow-2xl shadow-black/10 xl:col-span-7">
             <div className={isArabic ? "text-[11px] font-bold text-zinc-500" : "text-[11px] uppercase tracking-[0.2em] text-zinc-500"}>{tr("reports.employeeTrend")}</div>
             <h2 className="m1-section-title text-white">{tr("reports.workedMinutesByDay")}</h2>
             <div className="mt-5 h-[320px]">
@@ -2300,7 +2336,7 @@ function AttendanceWorkspace({
             </div>
           </section>
 
-          <section className="rounded-[34px] border border-white/10 bg-zinc-950/90 p-5 shadow-2xl shadow-black/10 xl:col-span-5">
+          <section className="rounded-[var(--radius-card)] sm:rounded-[34px] border border-white/10 bg-zinc-950/90 p-4 sm:p-5 shadow-2xl shadow-black/10 xl:col-span-5">
             <div className={isArabic ? "text-[11px] font-bold text-zinc-500" : "text-[11px] uppercase tracking-[0.2em] text-zinc-500"}>{tr("reports.branchTotals")}</div>
             <h2 className="m1-section-title text-white">{tr("reports.branchReport")}</h2>
             <div className="mt-4 space-y-3">
@@ -2329,8 +2365,8 @@ function AttendanceWorkspace({
             </div>
           </section>
 
-          <section className="rounded-[34px] border border-white/10 bg-zinc-950/90 p-5 shadow-2xl shadow-black/10 xl:col-span-12">
-            <div className="flex items-center justify-between gap-3">
+          <section className="rounded-[var(--radius-card)] sm:rounded-[34px] border border-white/10 bg-zinc-950/90 p-4 sm:p-5 shadow-2xl shadow-black/10 xl:col-span-12">
+            <div className="flex flex-wrap items-center justify-between gap-3">
               <div>
                 <div className={isArabic ? "text-[11px] font-bold text-zinc-500" : "text-[11px] uppercase tracking-[0.2em] text-zinc-500"}>{tr("reports.employeeReport")}</div>
                 <h2 className="m1-section-title text-white">{employeeReport?.employee?.full_name || tr("options.selectEmployee")}</h2>
@@ -2379,7 +2415,7 @@ function AttendanceWorkspace({
 
       {selectedTab === "kiosk" ? (
         <div className="grid grid-cols-[minmax(0,1fr)] gap-6 xl:grid-cols-12">
-          <section className="rounded-[34px] border border-white/10 bg-zinc-950/90 p-5 shadow-2xl shadow-black/10 xl:col-span-5">
+          <section className="rounded-[var(--radius-card)] sm:rounded-[34px] border border-white/10 bg-zinc-950/90 p-4 sm:p-5 shadow-2xl shadow-black/10 xl:col-span-5">
             <div className={isArabic ? "text-[11px] font-bold text-zinc-500" : "text-[11px] uppercase tracking-[0.2em] text-zinc-500"}>{tr("kiosk.mode")}</div>
             <h2 className="m1-section-title text-white">{tr("kiosk.openCloseShift")}</h2>
 
@@ -2440,8 +2476,8 @@ function AttendanceWorkspace({
             </div>
           </section>
 
-          <section className="rounded-[34px] border border-white/10 bg-zinc-950/90 p-5 shadow-2xl shadow-black/10 xl:col-span-7">
-            <div className="flex items-center justify-between gap-3">
+          <section className="rounded-[var(--radius-card)] sm:rounded-[34px] border border-white/10 bg-zinc-950/90 p-4 sm:p-5 shadow-2xl shadow-black/10 xl:col-span-7">
+            <div className="flex flex-wrap items-center justify-between gap-3">
               <div>
                 <div className={isArabic ? "text-[11px] font-bold text-zinc-500" : "text-[11px] uppercase tracking-[0.2em] text-zinc-500"}>{tr("kiosk.linkedToPos")}</div>
                 <h2 className="m1-section-title text-white">{tr("kiosk.shiftSnapshot")}</h2>
@@ -2482,7 +2518,7 @@ function AttendanceWorkspace({
 
       {deleteTarget ? (
         <div className="fixed inset-0 z-[90] flex items-end justify-center bg-black/75 px-3 py-4 backdrop-blur-sm sm:items-center sm:px-4 sm:py-6">
-          <section className="w-full max-w-md rounded-[28px] border border-rose-400/20 bg-zinc-950 p-5 shadow-2xl shadow-black/40">
+          <section className="max-h-[calc(100dvh-2rem)] w-full max-w-md overflow-y-auto overscroll-contain rounded-[28px] border border-rose-400/20 bg-zinc-950 p-4 sm:p-5 shadow-2xl shadow-black/40">
             <div className="flex items-start gap-3">
               <div className="flex h-11 w-11 shrink-0 items-center justify-center rounded-2xl border border-rose-400/30 bg-rose-500/10 text-rose-200">
                 <Trash2 className="h-5 w-5" />
@@ -2528,7 +2564,7 @@ function AttendanceWorkspace({
 
       {attendanceResetTarget ? (
         <div className="fixed inset-0 z-[90] flex items-end justify-center bg-black/75 px-3 py-4 backdrop-blur-sm sm:items-center sm:px-4 sm:py-6">
-          <section className="w-full max-w-md rounded-[28px] border border-amber-400/20 bg-zinc-950 p-5 shadow-2xl shadow-black/40">
+          <section className="max-h-[calc(100dvh-2rem)] w-full max-w-md overflow-y-auto overscroll-contain rounded-[28px] border border-amber-400/20 bg-zinc-950 p-4 sm:p-5 shadow-2xl shadow-black/40">
             <div className="flex items-start gap-3">
               <div className="flex h-11 w-11 shrink-0 items-center justify-center rounded-2xl border border-amber-400/30 bg-amber-500/10 text-amber-200">
                 <RotateCcw className="h-5 w-5" />
@@ -2589,7 +2625,7 @@ function AttendanceWorkspace({
 
       {deviceBindingResetTarget ? (
         <div className="fixed inset-0 z-[90] flex items-end justify-center bg-black/75 px-3 py-4 backdrop-blur-sm sm:items-center sm:px-4 sm:py-6">
-          <section className="w-full max-w-md rounded-[28px] border border-rose-400/20 bg-zinc-950 p-5 shadow-2xl shadow-black/40">
+          <section className="max-h-[calc(100dvh-2rem)] w-full max-w-md overflow-y-auto overscroll-contain rounded-[28px] border border-rose-400/20 bg-zinc-950 p-4 sm:p-5 shadow-2xl shadow-black/40">
             <div className="flex items-start gap-3">
               <div className="flex h-11 w-11 shrink-0 items-center justify-center rounded-2xl border border-rose-400/30 bg-rose-500/10 text-rose-200">
                 <AlertTriangle className="h-5 w-5" />
@@ -2656,7 +2692,7 @@ function InputField({ label, value, onChange, type = "text", helper }) {
         type={type}
         value={value}
         onChange={(e) => onChange(e.target.value)}
-        className="mt-2 w-full rounded-[var(--radius-control)] border border-white/10 bg-white/5 px-4 py-3 text-sm text-white outline-none placeholder:text-zinc-500"
+        className="mt-2 w-full min-w-0 rounded-[var(--radius-control)] border border-white/10 bg-white/5 px-4 py-3 text-sm text-white outline-none placeholder:text-zinc-500"
       />
       {helper ? <div className="mt-1 text-xs text-zinc-500">{helper}</div> : null}
     </label>
