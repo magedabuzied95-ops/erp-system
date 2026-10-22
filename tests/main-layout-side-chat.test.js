@@ -139,3 +139,9 @@ test("the divider between the page and the panel drags to resize it (Genie)", ()
   assert.match(css, /\.m1-shell-root--side-chat-resizing \.m1-side-chat-slot\{transition:none!important\}/);
   for (const locale of [ar, en]) assert.ok(locale.inbox.sideChat.resize);
 });
+
+test("with the side chat open the page and the chat are two rounded cards on a dark gap (Genie)", () => {
+  assert.match(css, /\.m1-shell-root\.m1-shell-root--side-chat\{--side-chat-gap:6px;--side-chat-radius:20px;background:var\(--topbar\)\}/);
+  assert.match(css, /\.m1-shell-root--side-chat>main\{background:var\(--bg\);border-start-end-radius:var\(--side-chat-radius\);border-end-end-radius:var\(--side-chat-radius\)\}/);
+  assert.match(css, /\.m1-shell-root--side-chat \.m1-side-chat\{top:var\(--side-chat-gap\);bottom:var\(--side-chat-gap\);inset-inline-end:var\(--side-chat-gap\);height:auto;width:calc\(var\(--side-chat-width\) - var\(--side-chat-gap\) \* 2\);border:0!important;border-radius:var\(--side-chat-radius\)/);
+});
