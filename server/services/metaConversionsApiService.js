@@ -13,7 +13,7 @@ import {
   metaOrderReference,
   metaPurchaseEventId,
 } from "../../shared/metaPurchaseEvent.js";
-import { resolveTrustedClientIp } from "../utils/trustedClientIp.js";
+import { resolveAdMatchingClientIp } from "../utils/trustedClientIp.js";
 
 const GRAPH_API_VERSION = "v25.0";
 const GRAPH_API_BASE_URL = `https://graph.facebook.com/${GRAPH_API_VERSION}`;
@@ -50,7 +50,7 @@ export const buildHashedMetaUserData = ({ req, event = {} } = {}) => {
     external_id: text(event.external_id),
   });
   const userData = {
-    client_ip_address: resolveTrustedClientIp(req),
+    client_ip_address: resolveAdMatchingClientIp(req),
     client_user_agent: text(req?.headers?.["user-agent"]),
     fbp: validMetaCookie(event.fbp, "fb.") || validMetaCookie(cookieValue(req, "_fbp"), "fb."),
     fbc: validMetaCookie(event.fbc, "fb.") || validMetaCookie(cookieValue(req, "_fbc"), "fb."),

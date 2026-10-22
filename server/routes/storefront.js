@@ -811,8 +811,16 @@ router.post("/meta/events", metaRelayRateLimit, storefrontCustomerTransitionAuth
       event,
       tenantId,
     });
+    if (!result.sent) console.warn("[meta-relay] not sent", { event: eventName, reason: result.reason || "" });
     return res.status(202).json({ success: true, capi_sent: Boolean(result.sent), reason: result.reason || "" });
-  } catch {
+  } catch (error) {
+    // Events Manager reported InitiateCheckout reaching Meta from the browser far more often than
+    // from here, and this branch used to drop failures without a trace. Name and Graph error only.
+    console.warn("[meta-relay] delivery failed", {
+      event: eventName,
+      status: error?.status || 0,
+      meta_error: toText(error?.metaResponse?.error?.message || error?.message).slice(0, 300),
+    });
     // Browser Pixel is already sent; avoid exposing Meta details or customer data.
     return res.status(202).json({ success: true, capi_sent: false, reason: "delivery_unavailable" });
   }

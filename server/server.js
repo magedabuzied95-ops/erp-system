@@ -1735,7 +1735,7 @@ app.use((req, res, next) => {
   if (
     req.method === "POST" &&
     String(req.path || "").includes("/meta") &&
-    req.path !== "/storefront/meta/events"
+    !String(req.path || "").endsWith("/storefront/meta/events")
   ) {
     console.log("META_ANY_POST", {
       path: req.path,

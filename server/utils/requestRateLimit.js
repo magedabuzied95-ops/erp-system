@@ -1,5 +1,4 @@
-import net from "node:net";
-import { resolveTrustedClientIp } from "./trustedClientIp.js";
+import { isInternalAddress, resolveTrustedClientIp } from "./trustedClientIp.js";
 
 // In-process sliding-window counters for the public endpoints that have no login in front of
 // them. One backend instance serves the shop, so a Map is enough; a restart forgets the counts,
@@ -8,16 +7,6 @@ import { resolveTrustedClientIp } from "./trustedClientIp.js";
 const enabledFlag = (value = "") => ["1", "true", "yes", "on"].includes(String(value ?? "").trim().toLowerCase());
 const proxyTrustConfigured = () =>
   enabledFlag(process.env.TRUST_CLOUDFLARE_PROXY) || Number(process.env.TRUST_PROXY_HOPS || 0) > 0;
-
-// Loopback, private, link-local and CGNAT ranges: an address from these is a proxy or container
-// hop in front of the shop, never a shopper.
-const isInternalAddress = (ip = "") => {
-  if (!net.isIP(ip)) return true;
-  if (net.isIPv6(ip)) return ip === "::1" || /^f[cd]/i.test(ip) || /^fe80:/i.test(ip);
-  const [a, b] = ip.split(".").map(Number);
-  return a === 10 || a === 127 || (a === 172 && b >= 16 && b <= 31) || (a === 192 && b === 168)
-    || (a === 169 && b === 254) || (a === 100 && b >= 64 && b <= 127) || a === 0;
-};
 
 // The caller's address as the proxy chain vouches for it, or "" when it cannot be told apart from
 // the proxy. Behind nginx or Cloudflare without TRUST_PROXY_HOPS / TRUST_CLOUDFLARE_PROXY every

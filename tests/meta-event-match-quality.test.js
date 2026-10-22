@@ -81,6 +81,23 @@ test("CAPI hashes PII only after normalization and leaves browser/network identi
   assert.equal(JSON.stringify(userData).includes("201012345678"), false);
 });
 
+test("behind Cloudflare without the trust flag, CAPI sends the shopper's IP and never the container hop", () => {
+  // Events Manager showed every server event with no IP: the trusted address was the Docker hop.
+  const previous = process.env.TRUST_CLOUDFLARE_PROXY;
+  delete process.env.TRUST_CLOUDFLARE_PROXY;
+  try {
+    const behindCloudflare = buildHashedMetaUserData({
+      req: { ip: "172.18.0.5", headers: { "cf-connecting-ip": "41.33.20.7", "user-agent": "UA" } },
+    });
+    assert.equal(behindCloudflare.client_ip_address, "41.33.20.7");
+    const internalOnly = buildHashedMetaUserData({ req: { ip: "172.18.0.5", headers: { "user-agent": "UA" } } });
+    assert.equal("client_ip_address" in internalOnly, false);
+  } finally {
+    if (previous === undefined) delete process.env.TRUST_CLOUDFLARE_PROXY;
+    else process.env.TRUST_CLOUDFLARE_PROXY = previous;
+  }
+});
+
 test("anonymous events contain no empty or placeholder customer matching fields", () => {
   const customer = normalizeMetaCustomer({});
   assert.deepEqual(customer, {});

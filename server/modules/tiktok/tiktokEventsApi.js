@@ -12,7 +12,7 @@ import {
   tiktokOrderEventId,
   tiktokRefundEventId,
 } from "../../../shared/tiktokPixelEvent.js";
-import { resolveTrustedClientIp } from "../../utils/trustedClientIp.js";
+import { resolveAdMatchingClientIp } from "../../utils/trustedClientIp.js";
 
 /*
  * TikTok Events API 2.0 (POST /open_api/v1.3/event/track/) for storefront orders.
@@ -155,7 +155,7 @@ export const buildTikTokUser = ({ req = null, checkout = {}, customer = {}, orde
     external_id: sha256(text(order.customer_id || customer.id)),
     ttp: identity.ttp,
     ttclid: identity.ttclid,
-    ip: req ? text(resolveTrustedClientIp(req)) : "",
+    ip: req ? text(resolveAdMatchingClientIp(req)) : "",
     user_agent: text(req?.headers?.["user-agent"]).slice(0, 500),
   });
 
