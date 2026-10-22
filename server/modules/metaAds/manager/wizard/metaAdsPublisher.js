@@ -121,9 +121,19 @@ const adsetTargetsEu = (row) => {
   return (row.targeting?.geo_locations?.countries || []).some((code) => eu.has(String(code).toUpperCase()));
 };
 
-const adsetParams = (row, { campaign, account, currency, forCreate }) => {
+// An ad set on Advantage+ audience: Meta refuses any later change to its detailed targeting,
+// lookalikes or custom audiences ("لا يمكن تعطيل خيارات Advantage"), even resending the same
+// targeting, so a re-publish of the campaign stopped at the ad set and never reached its ads.
+export const usesAdvantageAudience = (row = {}) => {
+  const automation = row.targeting?.targeting_automation || row.raw?.targeting?.targeting_automation || {};
+  return Number(automation.advantage_audience) === 1;
+};
+
+export const adsetParams = (row, { campaign, account, currency, forCreate }) => {
   const cbo = Boolean(campaign.campaign_budget_optimization);
-  const params = { name: text(row.name), targeting: row.targeting || {} };
+  const params = { name: text(row.name) };
+  // Created with its targeting; updated without it once Advantage+ audience owns the audience.
+  if (forCreate || !usesAdvantageAudience(row)) params.targeting = row.targeting || {};
   if (forCreate) {
     Object.assign(params, {
       campaign_id: campaign.meta_id,
