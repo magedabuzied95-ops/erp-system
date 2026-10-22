@@ -92,11 +92,21 @@ export default defineConfig(({ mode }) => {
       port: Number(env.VITE_DEV_PORT || 5173),
       strictPort: true,
       watch: {
+        // Git worktrees live INSIDE the project root (.claude/worktrees/*, some
+        // with their own node_modules — ~100K files — and .codex-worktrees/*).
+        // chokidar's initial crawl over them keeps the libuv thread pool busy
+        // and the dependency optimizer's scan never gets a turn: `vite` printed
+        // "[optimizer] scanning dependencies..." and never served a request
+        // (reproduced 2026-10-22; it looked like the lockfile re-optimize was
+        // hanging). Ignoring them brings the first /login response back.
         ignored: [
           "**/.codex-*/**",
           ".codex-chrome-qr-headless4/**",
           ".git/**",
           "node_modules/**",
+          "**/.claude/**",
+          "**/.codex-worktrees/**",
+          "erp-i18n-baseline/**",
           "dist/**",
           "coverage/**",
         ],
