@@ -466,8 +466,131 @@ export const resolveTemplateValues = (automationType = "", { values = {}, templa
   return resolved;
 };
 
-export const templateDefinition = (automationType = "") =>
+/*
+ * The owner's own wording. The definitions above are the defaults; the template editor (inbox →
+ * WhatsApp → Templates → automation templates) saves a rewrite per automation, and every reader —
+ * the send, the submission to Meta, the transcript — goes through templateDefinition(), so the
+ * rewrite is the template everywhere at once. Only the WORDING moves: the variables, their order,
+ * the button types and the category are the code's, because the send fills them by position and
+ * the inbound webhook reads the taps by payload. validateTemplateEdit() is what guarantees that.
+ * The overrides are loaded from the database (server/modules/whatsappOfficial/templateOverrides.js).
+ */
+let TEMPLATE_OVERRIDES = new Map();
+let mergedCache = new Map();
+export const setTemplateOverrides = (entries = []) => {
+  TEMPLATE_OVERRIDES = new Map((Array.isArray(entries) ? entries : [])
+    .filter((entry) => entry && entry.edit && WHATSAPP_TEMPLATE_DEFINITIONS[text(entry.automation_type)])
+    .map((entry) => [text(entry.automation_type), entry.edit]));
+  mergedCache = new Map();
+};
+export const templateOverride = (automationType = "") => TEMPLATE_OVERRIDES.get(text(automationType)) || null;
+
+// A COPY_CODE button's label is printed by Meta itself, so it is the one label nobody can edit.
+export const editableButton = (button = {}) => button.type !== "COPY_CODE";
+
+const withButtonTexts = (buttons = [], texts = null) => (Array.isArray(texts)
+  ? buttons.map((button, index) => (editableButton(button) && text(texts[index]) ? { ...button, text: text(texts[index]) } : button))
+  : buttons);
+
+const mergeOverride = (base, edit) => {
+  const merged = { ...base, edited: true };
+  if (base.header?.format === "TEXT" && text(edit.header_text)) merged.header = { ...base.header, text: text(edit.header_text) };
+  if (text(edit.body)) merged.body = String(edit.body).trim();
+  if (edit.footer !== undefined && edit.footer !== null) {
+    if (text(edit.footer)) merged.footer = text(edit.footer);
+    else delete merged.footer;
+  }
+  merged.buttons = withButtonTexts(base.buttons || [], edit.button_texts);
+  if (base.carousel) {
+    merged.carousel = {
+      ...base.carousel,
+      card: {
+        ...base.carousel.card,
+        body: text(edit.card_body) ? String(edit.card_body).trim() : base.carousel.card.body,
+        buttons: withButtonTexts(base.carousel.card.buttons, edit.card_button_texts),
+      },
+    };
+  }
+  return merged;
+};
+
+// The code's own wording, whatever the owner saved — what "restore the original" goes back to.
+export const baseTemplateDefinition = (automationType = "") =>
   WHATSAPP_TEMPLATE_DEFINITIONS[text(automationType)] || null;
+
+export const templateDefinition = (automationType = "") => {
+  const key = text(automationType);
+  const base = WHATSAPP_TEMPLATE_DEFINITIONS[key];
+  if (!base) return null;
+  const edit = TEMPLATE_OVERRIDES.get(key);
+  if (!edit) return base;
+  if (!mergedCache.has(key)) mergedCache.set(key, mergeOverride(base, edit));
+  return mergedCache.get(key);
+};
+
+/*
+ * Meta's limits on each part, and the one rule of ours: a rewrite keeps exactly the variables the
+ * default has. {{3}} is "the amount to collect" because the send puts the amount third; a body
+ * that loses it prints nothing where the amount belongs, and one that adds {{7}} fails every send.
+ * The variables may move inside the text and appear in any order — only the set is fixed.
+ */
+export const TEMPLATE_EDIT_LIMITS = Object.freeze({ header: 60, body: 1024, footer: 60, button: 25, card_body: 160 });
+const variableSet = (value = "") => [...new Set([...String(value).matchAll(/\{\{\s*(\d+)\s*\}\}/g)].map((match) => Number(match[1])))].sort((a, b) => a - b);
+const sameVariables = (value = "", reference = "") => variableSet(value).join(",") === variableSet(reference).join(",");
+const hasVariable = (value = "") => /\{\{/.test(String(value));
+
+export const validateTemplateEdit = (automationType = "", edit = {}) => {
+  const base = baseTemplateDefinition(automationType);
+  if (!base) return { problems: [{ field: "automation_type", code: "unknown" }], edit: null };
+  const problems = [];
+  const input = edit && typeof edit === "object" ? edit : {};
+  const normalized = {};
+
+  // Meta reads a {{ 1 }} as a literal; the spaced spelling is normalised before anything checks it.
+  const body = String(input.body ?? base.body).replace(/\{\{\s*(\d+)\s*\}\}/g, "{{$1}}").trim();
+  if (!body) problems.push({ field: "body", code: "required" });
+  else if (body.length > TEMPLATE_EDIT_LIMITS.body) problems.push({ field: "body", code: "too_long", max: TEMPLATE_EDIT_LIMITS.body });
+  else if (!sameVariables(body, base.body)) problems.push({ field: "body", code: "variables", expected: variableSet(base.body) });
+  else if (validateTemplateBody(body).length) problems.push({ field: "body", code: "variable_position" });
+  normalized.body = body;
+
+  if (base.header?.format === "TEXT") {
+    const header = text(input.header_text ?? base.header.text);
+    if (!header) problems.push({ field: "header_text", code: "required" });
+    else if (header.length > TEMPLATE_EDIT_LIMITS.header) problems.push({ field: "header_text", code: "too_long", max: TEMPLATE_EDIT_LIMITS.header });
+    else if (hasVariable(header)) problems.push({ field: "header_text", code: "no_variables" });
+    normalized.header_text = header;
+  }
+
+  const footer = text(input.footer ?? base.footer ?? "");
+  if (footer.length > TEMPLATE_EDIT_LIMITS.footer) problems.push({ field: "footer", code: "too_long", max: TEMPLATE_EDIT_LIMITS.footer });
+  else if (hasVariable(footer)) problems.push({ field: "footer", code: "no_variables" });
+  normalized.footer = footer;
+
+  const buttonTexts = (buttons = [], given = [], field = "button_texts") => buttons.map((button, index) => {
+    if (!editableButton(button)) return text(button.text);
+    const value = text(Array.isArray(given) ? (given[index] ?? button.text) : button.text);
+    if (!value) problems.push({ field, index, code: "required" });
+    else if (value.length > TEMPLATE_EDIT_LIMITS.button) problems.push({ field, index, code: "too_long", max: TEMPLATE_EDIT_LIMITS.button });
+    else if (hasVariable(value)) problems.push({ field, index, code: "no_variables" });
+    return value;
+  });
+  normalized.button_texts = buttonTexts(base.buttons || [], input.button_texts);
+  const labels = normalized.button_texts.filter((value, index) => editableButton(base.buttons[index])).map((value) => value.toLowerCase());
+  if (new Set(labels).size !== labels.length) problems.push({ field: "button_texts", code: "duplicate" });
+
+  if (base.carousel) {
+    const card = base.carousel.card;
+    const cardBody = String(input.card_body ?? card.body).replace(/\{\{\s*(\d+)\s*\}\}/g, "{{$1}}").trim();
+    if (!cardBody) problems.push({ field: "card_body", code: "required" });
+    else if (cardBody.length > TEMPLATE_EDIT_LIMITS.card_body) problems.push({ field: "card_body", code: "too_long", max: TEMPLATE_EDIT_LIMITS.card_body });
+    else if (!sameVariables(cardBody, card.body)) problems.push({ field: "card_body", code: "variables", expected: variableSet(card.body) });
+    else if (validateTemplateBody(cardBody).length) problems.push({ field: "card_body", code: "variable_position" });
+    normalized.card_body = cardBody;
+    normalized.card_button_texts = buttonTexts(card.buttons, input.card_button_texts, "card_button_texts");
+  }
+  return { problems, edit: problems.length ? null : normalized };
+};
 
 export const hasTemplate = (automationType = "") => Boolean(templateDefinition(automationType));
 
@@ -676,6 +799,9 @@ export default {
   TEMPLATE_VALUE_ALIASES,
   resolveTemplateValues,
   templateDefinition,
+  baseTemplateDefinition,
+  setTemplateOverrides,
+  validateTemplateEdit,
   hasTemplate,
   buildTemplateComponents,
   buildTemplateMessage,

@@ -14,10 +14,14 @@ import { graphRequest } from "../../services/whatsappCloudProvider.js";
 import {
   WHATSAPP_TEMPLATE_DEFINITIONS,
   TEMPLATE_LANGUAGE,
+  TEMPLATE_EDIT_LIMITS,
+  baseTemplateDefinition,
+  editableButton,
   templateDefinition,
   templateNeedsImageSample,
   templateSubmissionPayload,
 } from "../../services/whatsappTemplates.js";
+import { markTemplatesSubmitted, refreshTemplateOverrides } from "./templateOverrides.js";
 import {
   ensureWhatsappTemplateSchema,
   resolveTemplateCredentials,
@@ -61,6 +65,53 @@ const PURPOSE = Object.freeze({
   price_drop_alert: "السعر نزل (صورة المنتج)",
   product_review_request: "قيّم مشترياتك",
 });
+/* What each {{n}} carries, so the editor can say "{{3}} = the amount to collect". */
+const VARIABLE_LABELS = Object.freeze({
+  customer_name: "اسم العميل",
+  order_number: "رقم الطلب",
+  cod_amount: "مبلغ التحصيل",
+  items_summary: "المنتجات",
+  address: "عنوان التوصيل",
+  invoice_url: "رابط الفاتورة",
+  advance_amount: "المبلغ المطلوب تحويله",
+  remaining_amount: "الباقي عند الاستلام",
+  wallet_number: "رقم التحويل",
+  advance_label: "نوع المبلغ (مثلاً رسوم الشحن)",
+  payment_label: "نوع المبلغ (مثلاً رسوم الشحن)",
+  shipping_line: "سطر حالة الشحن",
+  collect_line: "سطر مبلغ التحصيل",
+  provider: "شركة الشحن",
+  tracking_number: "رقم التتبع",
+  tracking_url: "رابط التتبع",
+  failure_reason: "سبب فشل التسليم",
+  review_url: "رابط التقييم",
+  cart_url: "رابط السلة",
+  product_name: "اسم المنتج",
+  old_price: "السعر القديم",
+  new_price: "السعر الجديد",
+  price: "السعر",
+  intro_text: "جملة الحملة",
+});
+const variablesOf = (names = [], samples = []) =>
+  names.map((name, index) => ({ position: index + 1, name, label: VARIABLE_LABELS[name] || name, sample: text(samples[index]) }));
+
+/*
+ * The editor's form: the wording that can change (header text, body, footer, button labels, the
+ * carousel card) and, for each {{n}}, what it carries. Buttons keep their type — only the label
+ * is the owner's — and a copy-code button's label is Meta's, so it is listed but locked.
+ */
+const buttonsForm = (buttons = []) => buttons.map((button) => ({ type: button.type, text: text(button.text), editable: editableButton(button) }));
+const formOf = (definition) => ({
+  header_text: definition.header?.format === "TEXT" ? text(definition.header.text) : null,
+  body: definition.body,
+  footer: text(definition.footer),
+  buttons: buttonsForm(definition.buttons || []),
+  variables: variablesOf(definition.variables, definition.samples),
+  card_body: definition.carousel ? definition.carousel.card.body : null,
+  card_buttons: definition.carousel ? buttonsForm(definition.carousel.card.buttons) : [],
+  card_variables: definition.carousel ? variablesOf(definition.carousel.card.variables, definition.carousel.card.samples) : [],
+});
+
 const purposeOf = (key = "") => PURPOSE[key] || (key.startsWith("product_carousel_")
   ? `كاروسيل منتجات — ${templateDefinition(key)?.carousel?.cards || ""} كروت (حملات / سلة متروكة)`
   : key);
@@ -109,6 +160,7 @@ const previewOf = (definition, photo = "") => ({
 });
 
 export const listAutomationTemplates = async ({ tenantId }) => {
+  const overrides = new Map((await refreshTemplateOverrides()).map((row) => [text(row.automation_type), row]));
   const rows = await rowsByName(tenantId);
   const photo = await samplePhotoUrl();
   const keys = Object.keys(WHATSAPP_TEMPLATE_DEFINITIONS);
@@ -116,12 +168,22 @@ export const listAutomationTemplates = async ({ tenantId }) => {
   return keys.map((key) => {
     const definition = templateDefinition(key);
     const row = rows.get(definition.name) || null;
+    const override = overrides.get(key) || null;
+    // Meta holds the old wording until the edit is sent there too.
+    const needsResubmit = Boolean(override?.needs_resubmit && text(row?.meta_template_id));
     return {
       automation_type: key,
       name: definition.name,
       purpose: purposeOf(key),
       category: text(row?.category) || definition.category,
-      status: text(row?.status) || (viaEvolution.get(key) ? "VIA_EVOLUTION" : "NOT_SUBMITTED"),
+      status: needsResubmit ? "EDITED" : text(row?.status) || (viaEvolution.get(key) ? "VIA_EVOLUTION" : "NOT_SUBMITTED"),
+      meta_status: text(row?.status),
+      on_meta: Boolean(text(row?.meta_template_id)),
+      edited: Boolean(override?.edit),
+      needs_resubmit: needsResubmit,
+      form: formOf(definition),
+      default_form: formOf(baseTemplateDefinition(key)),
+      limits: TEMPLATE_EDIT_LIMITS,
       via_evolution: viaEvolution.get(key),
       rejection_reason: text(row?.rejection_reason),
       buttons: (definition.buttons || []).map((button) => button.text || button.type),
@@ -171,7 +233,9 @@ export const submitAutomationTemplates = async ({ tenantId, keys = [] } = {}) =>
     .map(text)
     .filter((key) => templateDefinition(key));
   const statusOf = new Map(current.map((item) => [item.automation_type, item.status]));
-  const pending = wanted.filter((key) => SUBMITTABLE.has(statusOf.get(key) || "NOT_SUBMITTED"));
+  // An edited template Meta already holds is part of "what Meta does not have yet": its wording.
+  const pending = wanted.filter((key) => SUBMITTABLE.has(statusOf.get(key) || "NOT_SUBMITTED") || statusOf.get(key) === "EDITED");
+  const metaRows = await rowsByName(tenantId);
 
   let headerHandle = "";
   if (pending.some(templateNeedsImageSample)) {
@@ -182,14 +246,23 @@ export const submitAutomationTemplates = async ({ tenantId, keys = [] } = {}) =>
   const results = [];
   for (const key of pending) {
     const payload = templateSubmissionPayload(key, { headerHandle });
+    /*
+     * A template Meta already holds is EDITED in place (POST /{template-id}, components only — the
+     * name, language and category of an existing template are frozen). Meta allows an approved
+     * template one edit a day and ten in thirty days; a refusal for that comes back as the reason.
+     */
+    const existingId = text(metaRows.get(payload.name)?.meta_template_id);
+    const editInPlace = Boolean(existingId);
     try {
       const response = await graphRequest({
-        path: `/${credentials.graphVersion}/${credentials.wabaId}/message_templates`,
+        path: editInPlace
+          ? `/${credentials.graphVersion}/${existingId}`
+          : `/${credentials.graphVersion}/${credentials.wabaId}/message_templates`,
         method: "POST",
-        body: payload,
+        body: editInPlace ? { components: payload.components } : payload,
         accessToken: credentials.accessToken,
       });
-      results.push({ automation_type: key, name: payload.name, ok: true, status: text(response?.status) || "PENDING", category: text(response?.category) });
+      results.push({ automation_type: key, name: payload.name, ok: true, edited: editInPlace, status: text(response?.status) || "PENDING", category: text(response?.category) });
     } catch (error) {
       results.push({
         automation_type: key,
@@ -199,6 +272,7 @@ export const submitAutomationTemplates = async ({ tenantId, keys = [] } = {}) =>
       });
     }
   }
+  await markTemplatesSubmitted(results.filter((item) => item.ok).map((item) => item.automation_type)).catch(() => {});
   // Bring Meta's verdicts (and the new templates) back as rows the studio and the worker read.
   const sync = await syncTemplates({ tenantId }).catch((error) => ({ error: error?.message || String(error) }));
   return {

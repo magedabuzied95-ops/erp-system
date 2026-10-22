@@ -72,6 +72,47 @@ router.post("/automation/submit", protect, permit("settings", "edit"), async (re
   }
 });
 
+/*
+ * The owner's wording for one automation template (PUT) or back to the code's (DELETE). Only the
+ * wording moves — the rules are in validateTemplateEdit — and a template Meta already holds is
+ * marked to be sent again, which the submit action above does as an in-place edit.
+ */
+const automationOnMeta = async (tenantId, automationType) => {
+  const { listAutomationTemplates } = await import("../modules/whatsappOfficial/automationTemplates.js");
+  const item = (await listAutomationTemplates({ tenantId })).find((entry) => entry.automation_type === automationType);
+  if (!item) throw Object.assign(new Error("Unknown automation template"), { status: 404, code: "WHATSAPP_TEMPLATE_UNKNOWN" });
+  return item.on_meta;
+};
+
+router.put("/automation/:type", protect, permit("settings", "edit"), async (req, res) => {
+  try {
+    const { saveTemplateOverride } = await import("../modules/whatsappOfficial/templateOverrides.js");
+    const { listAutomationTemplates } = await import("../modules/whatsappOfficial/automationTemplates.js");
+    const automationType = String(req.params.type || "");
+    const onMeta = await automationOnMeta(tenantOf(req), automationType);
+    await saveTemplateOverride({ automationType, edit: req.body || {}, userId: req.user?.id || null, onMeta });
+    return res.json({ success: true, templates: await listAutomationTemplates({ tenantId: tenantOf(req) }) });
+  } catch (error) {
+    if (error?.code === "WHATSAPP_TEMPLATE_EDIT_INVALID") {
+      return res.status(400).json({ success: false, code: error.code, message: error.message, problems: error.problems || [] });
+    }
+    return fail(res, error, "Failed to save the template");
+  }
+});
+
+router.delete("/automation/:type", protect, permit("settings", "edit"), async (req, res) => {
+  try {
+    const { resetTemplateOverride } = await import("../modules/whatsappOfficial/templateOverrides.js");
+    const { listAutomationTemplates } = await import("../modules/whatsappOfficial/automationTemplates.js");
+    const automationType = String(req.params.type || "");
+    const onMeta = await automationOnMeta(tenantOf(req), automationType);
+    await resetTemplateOverride({ automationType, userId: req.user?.id || null, onMeta });
+    return res.json({ success: true, templates: await listAutomationTemplates({ tenantId: tenantOf(req) }) });
+  } catch (error) {
+    return fail(res, error, "Failed to restore the template");
+  }
+});
+
 router.post("/sync", protect, permit("settings", "edit"), async (req, res) => {
   try {
     const summary = await syncTemplates({ tenantId: tenantOf(req) });

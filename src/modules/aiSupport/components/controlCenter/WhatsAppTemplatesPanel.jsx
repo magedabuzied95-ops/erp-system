@@ -7,7 +7,7 @@
 
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useTranslation } from "react-i18next";
-import { FileText, Image as ImageIcon, Plus, RefreshCw, Save, Send, Trash2, Upload, Video } from "lucide-react";
+import { FileText, Image as ImageIcon, Pencil, Plus, RefreshCw, Save, Send, Trash2, Upload, Video } from "lucide-react";
 
 import { api } from "../../../../shared/api/api";
 import ThemedSelect from "../../../../shared/ui/ThemedSelect";
@@ -181,6 +181,252 @@ function CarouselPreview({ carousel }) {
 }
 
 /*
+ * The owner's wording for one automation template. Only the wording is editable: each {{n}} is
+ * filled by the send in a fixed position, so the body must keep exactly the variables the default
+ * has (the chips insert them at the cursor), and button types stay as they are. The server checks
+ * the same rules (validateTemplateEdit) — this side only says so before the round trip.
+ */
+const variableNumbers = (value = "") => [...new Set([...String(value).matchAll(/\{\{\s*(\d+)\s*\}\}/g)].map((match) => Number(match[1])))].sort((a, b) => a - b);
+
+const formFromItem = (form) => ({
+  header_text: form.header_text,
+  body: form.body || "",
+  footer: form.footer || "",
+  button_texts: (form.buttons || []).map((button) => button.text),
+  card_body: form.card_body,
+  card_button_texts: (form.card_buttons || []).map((button) => button.text),
+});
+
+const localProblems = (t, draft, item) => {
+  const problems = [];
+  const limits = item.limits || {};
+  const checkBody = (value, variables, label, max) => {
+    const used = variableNumbers(value);
+    const expected = variables.map((variable) => variable.position);
+    const missing = expected.filter((position) => !used.includes(position));
+    const extra = used.filter((position) => !expected.includes(position));
+    if (!String(value).trim()) problems.push(t("aiSupport.waTemplates.automation.edit.problems.required", { field: label }));
+    if (String(value).trim().length > max) problems.push(t("aiSupport.waTemplates.automation.edit.problems.tooLong", { field: label, max }));
+    if (missing.length) problems.push(t("aiSupport.waTemplates.automation.edit.problems.missing", { field: label, list: missing.map((n) => `{{${n}}}`).join(" ") }));
+    if (extra.length) problems.push(t("aiSupport.waTemplates.automation.edit.problems.extra", { field: label, list: extra.map((n) => `{{${n}}}`).join(" ") }));
+    if (/^\s*\{\{\s*\d+\s*\}\}/.test(value) || /\{\{\s*\d+\s*\}\}\s*$/.test(value) || /\{\{\s*\d+\s*\}\}[ \t]*\{\{\s*\d+\s*\}\}/.test(value)) {
+      problems.push(t("aiSupport.waTemplates.automation.edit.problems.position", { field: label }));
+    }
+  };
+  checkBody(draft.body, item.form.variables || [], t("aiSupport.waTemplates.automation.edit.body"), limits.body || 1024);
+  if (draft.header_text !== null && draft.header_text !== undefined) {
+    if (!String(draft.header_text).trim()) problems.push(t("aiSupport.waTemplates.automation.edit.problems.required", { field: t("aiSupport.waTemplates.automation.edit.header") }));
+    if (String(draft.header_text).trim().length > (limits.header || 60)) problems.push(t("aiSupport.waTemplates.automation.edit.problems.tooLong", { field: t("aiSupport.waTemplates.automation.edit.header"), max: limits.header || 60 }));
+  }
+  if (String(draft.footer).trim().length > (limits.footer || 60)) problems.push(t("aiSupport.waTemplates.automation.edit.problems.tooLong", { field: t("aiSupport.waTemplates.automation.edit.footer"), max: limits.footer || 60 }));
+  const checkButtons = (texts, buttons) => buttons.forEach((button, index) => {
+    if (!button.editable) return;
+    const value = String(texts[index] || "").trim();
+    const label = t("aiSupport.waTemplates.automation.edit.buttonN", { n: index + 1 });
+    if (!value) problems.push(t("aiSupport.waTemplates.automation.edit.problems.required", { field: label }));
+    if (value.length > (limits.button || 25)) problems.push(t("aiSupport.waTemplates.automation.edit.problems.tooLong", { field: label, max: limits.button || 25 }));
+  });
+  checkButtons(draft.button_texts, item.form.buttons || []);
+  if (draft.card_body !== null && draft.card_body !== undefined) {
+    checkBody(draft.card_body, item.form.card_variables || [], t("aiSupport.waTemplates.automation.edit.cardBody"), limits.card_body || 160);
+    checkButtons(draft.card_button_texts, item.form.card_buttons || []);
+  }
+  return problems;
+};
+
+const serverProblems = (t, problems = []) => problems.map((problem) => {
+  const field = t(`aiSupport.waTemplates.automation.edit.fields.${problem.field}`, { defaultValue: problem.field });
+  if (problem.code === "variables") return t("aiSupport.waTemplates.automation.edit.problems.variablesExact", { field, list: (problem.expected || []).map((n) => `{{${n}}}`).join(" ") });
+  if (problem.code === "too_long") return t("aiSupport.waTemplates.automation.edit.problems.tooLong", { field, max: problem.max });
+  if (problem.code === "required") return t("aiSupport.waTemplates.automation.edit.problems.required", { field });
+  if (problem.code === "variable_position") return t("aiSupport.waTemplates.automation.edit.problems.position", { field });
+  if (problem.code === "no_variables") return t("aiSupport.waTemplates.automation.edit.problems.noVariables", { field });
+  if (problem.code === "duplicate") return t("aiSupport.waTemplates.automation.edit.problems.duplicate");
+  return `${field}: ${problem.code}`;
+});
+
+function VariableChips({ variables = [], onInsert }) {
+  const { t } = useTranslation();
+  if (!variables.length) return null;
+  return (
+    <div className="mt-1.5 flex flex-wrap gap-1.5">
+      {variables.map((variable) => (
+        <button
+          key={variable.position}
+          type="button"
+          onClick={() => onInsert(`{{${variable.position}}}`)}
+          title={t("aiSupport.waTemplates.automation.edit.insertHint")}
+          className="inline-flex items-center gap-1 rounded-lg border border-cyan-300/20 bg-cyan-400/10 px-2 py-1 text-[11px] font-bold text-cyan-100 hover:bg-cyan-400/20"
+        >
+          <span dir="ltr">{`{{${variable.position}}}`}</span>
+          <span>= {variable.label}</span>
+        </button>
+      ))}
+    </div>
+  );
+}
+
+function AutomationTemplateEditor({ item, headers, onSaved, onClose, onDraftChange }) {
+  const { t } = useTranslation();
+  const [draft, setDraft] = useState(() => formFromItem(item.form));
+  const [busy, setBusy] = useState("");
+  const [problems, setProblems] = useState([]);
+  const bodyRef = useRef(null);
+  const cardRef = useRef(null);
+
+  useEffect(() => { onDraftChange?.(draft); }, [draft, onDraftChange]);
+
+  const set = (patch) => setDraft((current) => ({ ...current, ...patch }));
+  const insertAt = (ref, field) => (token) => {
+    const element = ref.current;
+    const value = String(draft[field] || "");
+    const start = element ? element.selectionStart : value.length;
+    const end = element ? element.selectionEnd : value.length;
+    set({ [field]: `${value.slice(0, start)}${token}${value.slice(end)}` });
+    requestAnimationFrame(() => {
+      if (!element) return;
+      element.focus();
+      element.setSelectionRange(start + token.length, start + token.length);
+    });
+  };
+
+  const live = localProblems(t, draft, item);
+
+  const save = async () => {
+    setBusy("save");
+    setProblems([]);
+    try {
+      const payload = await api.put(`/whatsapp/templates/automation/${item.automation_type}`, draft, { headers, ...SUPPRESSED });
+      onSaved(payload?.templates || null, "saved");
+    } catch (error) {
+      const list = error?.responseBody?.problems;
+      setProblems(Array.isArray(list) && list.length ? serverProblems(t, list) : [error?.message || t("aiSupport.waTemplates.actionFailed")]);
+    } finally {
+      setBusy("");
+    }
+  };
+
+  const restore = async () => {
+    if (!window.confirm(t("aiSupport.waTemplates.automation.edit.restoreConfirm"))) return;
+    setBusy("restore");
+    setProblems([]);
+    try {
+      const payload = await api.delete(`/whatsapp/templates/automation/${item.automation_type}`, { headers, ...SUPPRESSED });
+      onSaved(payload?.templates || null, "restored");
+    } catch (error) {
+      setProblems([error?.message || t("aiSupport.waTemplates.actionFailed")]);
+    } finally {
+      setBusy("");
+    }
+  };
+
+  const buttonInputs = (buttons, texts, field) => buttons.map((button, index) => (
+    <TextInput
+      key={`${field}-${index}`}
+      label={`${t("aiSupport.waTemplates.automation.edit.buttonN", { n: index + 1 })} · ${buttonTypeLabel(t, button.type)}`}
+      value={button.editable ? texts[index] || "" : t("aiSupport.waTemplates.buttons.copyCodeLabel")}
+      disabled={!button.editable}
+      maxLength={item.limits?.button || 25}
+      hint={button.editable ? null : t("aiSupport.waTemplates.automation.edit.copyLocked")}
+      onChange={(event) => {
+        const next = [...texts];
+        next[index] = event.target.value;
+        set({ [field]: next });
+      }}
+    />
+  ));
+
+  return (
+    <div className="space-y-3 rounded-xl border border-cyan-300/20 bg-slate-950/40 p-3">
+      <div className="flex flex-wrap items-center justify-between gap-2">
+        <div className="min-w-0">
+          <div className="text-sm font-black text-white">{t("aiSupport.waTemplates.automation.edit.title", { purpose: item.purpose })}</div>
+          <div className="text-[11px] text-slate-500" dir="ltr">{item.name}</div>
+        </div>
+        <ActionButton onClick={onClose}>{t("aiSupport.waTemplates.automation.edit.back")}</ActionButton>
+      </div>
+      <p className="rounded-xl border border-white/10 bg-white/[0.03] p-2.5 text-[11.5px] leading-5 text-slate-300">
+        {t("aiSupport.waTemplates.automation.edit.rules", { example: "{{1}}" })}
+      </p>
+      {item.on_meta ? (
+        <p className="rounded-xl border border-amber-300/20 bg-amber-400/10 p-2.5 text-[11.5px] font-bold leading-5 text-amber-100">
+          {t("aiSupport.waTemplates.automation.edit.onMetaNote")}
+        </p>
+      ) : null}
+      {draft.header_text !== null && draft.header_text !== undefined ? (
+        <TextInput
+          label={t("aiSupport.waTemplates.automation.edit.header")}
+          value={draft.header_text}
+          maxLength={item.limits?.header || 60}
+          onChange={(event) => set({ header_text: event.target.value })}
+        />
+      ) : null}
+      <Field label={t("aiSupport.waTemplates.automation.edit.body")} hint={t("aiSupport.waTemplates.automation.edit.count", { count: String(draft.body).length, max: item.limits?.body || 1024 })}>
+        <textarea ref={bodyRef} dir="auto" rows={9} className={textareaClass} value={draft.body} onChange={(event) => set({ body: event.target.value })} />
+        <VariableChips variables={item.form.variables} onInsert={insertAt(bodyRef, "body")} />
+      </Field>
+      <TextInput
+        label={t("aiSupport.waTemplates.automation.edit.footer")}
+        hint={t("aiSupport.waTemplates.automation.edit.footerHint")}
+        value={draft.footer}
+        maxLength={item.limits?.footer || 60}
+        onChange={(event) => set({ footer: event.target.value })}
+      />
+      {(item.form.buttons || []).length ? (
+        <div className="grid gap-2 sm:grid-cols-2">{buttonInputs(item.form.buttons, draft.button_texts, "button_texts")}</div>
+      ) : null}
+      {draft.card_body !== null && draft.card_body !== undefined ? (
+        <div className="space-y-2 rounded-xl border border-white/10 p-2.5">
+          <div className="text-xs font-black text-white">{t("aiSupport.waTemplates.automation.edit.cardTitle")}</div>
+          <Field label={t("aiSupport.waTemplates.automation.edit.cardBody")} hint={t("aiSupport.waTemplates.automation.edit.count", { count: String(draft.card_body).length, max: item.limits?.card_body || 160 })}>
+            <textarea ref={cardRef} dir="auto" rows={3} className={textareaClass} value={draft.card_body} onChange={(event) => set({ card_body: event.target.value })} />
+            <VariableChips variables={item.form.card_variables} onInsert={insertAt(cardRef, "card_body")} />
+          </Field>
+          <div className="grid gap-2 sm:grid-cols-2">{buttonInputs(item.form.card_buttons || [], draft.card_button_texts, "card_button_texts")}</div>
+        </div>
+      ) : null}
+      {[...live, ...problems].length ? (
+        <ul className="space-y-1 rounded-xl border border-rose-300/20 bg-rose-400/10 p-2.5 text-[11.5px] font-bold text-rose-100">
+          {[...new Set([...live, ...problems])].map((problem) => <li key={problem}>• {problem}</li>)}
+        </ul>
+      ) : null}
+      <div className="flex flex-wrap gap-2">
+        <ActionButton tone="primary" icon={Save} loading={busy === "save"} disabled={Boolean(live.length) || Boolean(busy)} onClick={save}>
+          {t("aiSupport.waTemplates.automation.edit.save")}
+        </ActionButton>
+        <ActionButton onClick={() => setDraft(formFromItem(item.default_form))} disabled={Boolean(busy)}>
+          {t("aiSupport.waTemplates.automation.edit.loadDefault")}
+        </ActionButton>
+        {item.edited ? (
+          <ActionButton tone="rose" icon={RefreshCw} loading={busy === "restore"} disabled={Boolean(busy)} onClick={restore}>
+            {t("aiSupport.waTemplates.automation.edit.restore")}
+          </ActionButton>
+        ) : null}
+      </div>
+    </div>
+  );
+}
+
+// The phone preview for an automation template, with the editor's unsaved wording when open.
+const previewWithDraft = (preview, draft) => {
+  if (!preview || !draft) return preview;
+  return {
+    ...preview,
+    header_text: draft.header_text ?? preview.header_text,
+    body_text: draft.body,
+    footer_text: draft.footer,
+    buttons: preview.buttons.map((button, index) => ({ ...button, text: draft.button_texts?.[index] ?? button.text })),
+    carousel: preview.carousel
+      ? {
+        ...preview.carousel,
+        body_text: draft.card_body ?? preview.carousel.body_text,
+        buttons: preview.carousel.buttons.map((button, index) => ({ ...button, text: draft.card_button_texts?.[index] ?? button.text })),
+      }
+      : null,
+  };
+};
+
+/*
  * The store's own automation templates (server/services/whatsappTemplates.js): what each message
  * is, Meta's verdict, and one button that submits every one Meta does not have yet. Without an
  * approved template a message cannot leave the official number outside the 24h window, and the
@@ -194,6 +440,8 @@ function AutomationTemplatesCard({ headers, onSubmitted }) {
   const [notice, setNotice] = useState(null);
   const [selected, setSelected] = useState("");
   const [budget, setBudget] = useState(null);
+  const [editing, setEditing] = useState("");
+  const [editDraft, setEditDraft] = useState(null);
 
   useEffect(() => {
     let alive = true;
@@ -234,9 +482,35 @@ function AutomationTemplatesCard({ headers, onSubmitted }) {
   // neither as approved nor as missing.
   const onMeta = items.filter((item) => !item.via_evolution);
   const approved = onMeta.filter((item) => item.status === "APPROVED").length;
-  const missing = onMeta.filter((item) => ["NOT_SUBMITTED", "DRAFT", "REJECTED"].includes(item.status)).length;
+  const missing = onMeta.filter((item) => ["NOT_SUBMITTED", "DRAFT", "REJECTED", "EDITED"].includes(item.status)).length;
   // The first template is previewed until another is picked, so the phone is never empty.
   const previewed = items.find((item) => item.automation_type === selected) || items[0] || null;
+  const editedItem = editing ? items.find((item) => item.automation_type === editing) || null : null;
+  const phone = editedItem ? previewWithDraft(editedItem.preview, editDraft) : previewed?.preview;
+
+  const openEditor = (key) => {
+    setSelected(key);
+    setEditDraft(null);
+    setEditing(key);
+    setNotice(null);
+  };
+  const closeEditor = () => {
+    setEditing("");
+    setEditDraft(null);
+  };
+  const onEditorSaved = (templates, outcome) => {
+    if (Array.isArray(templates)) setItems(templates);
+    const item = (templates || []).find((entry) => entry.automation_type === editing);
+    closeEditor();
+    setNotice({
+      ok: true,
+      text: outcome === "restored"
+        ? t("aiSupport.waTemplates.automation.edit.restored")
+        : item?.needs_resubmit
+          ? t("aiSupport.waTemplates.automation.edit.savedResubmit")
+          : t("aiSupport.waTemplates.automation.edit.saved"),
+    });
+  };
 
   return (
     <div className="rounded-2xl border border-white/10 bg-white/[0.03] p-3">
@@ -265,6 +539,18 @@ function AutomationTemplatesCard({ headers, onSubmitted }) {
       {notice ? <p className={`mt-2 whitespace-pre-line rounded-xl border p-2.5 text-xs font-bold ${notice.ok ? "border-emerald-300/20 bg-emerald-400/10 text-emerald-100" : "border-rose-300/20 bg-rose-400/10 text-rose-100"}`}>{notice.text}</p> : null}
       {open ? (
         <div className="mt-3 grid gap-3 lg:grid-cols-[minmax(0,1fr)_320px]">
+        {editedItem ? (
+          <div className="min-w-0">
+            <AutomationTemplateEditor
+              key={editedItem.automation_type}
+              item={editedItem}
+              headers={headers}
+              onSaved={onEditorSaved}
+              onClose={closeEditor}
+              onDraftChange={setEditDraft}
+            />
+          </div>
+        ) : (
         <div className="min-w-0 overflow-x-auto rounded-xl border border-white/10">
           <table className="w-full text-start text-xs">
             <thead className="bg-white/[0.04] text-[10.5px] text-slate-500">
@@ -282,7 +568,10 @@ function AutomationTemplatesCard({ headers, onSubmitted }) {
                   onClick={() => setSelected(item.automation_type)}
                   className={`cursor-pointer border-t border-white/5 align-top text-slate-200 hover:bg-white/[0.04] ${selected === item.automation_type ? "bg-cyan-400/[0.08]" : ""}`}
                 >
-                  <td className="px-3 py-2 font-bold">{item.purpose}</td>
+                  <td className="px-3 py-2 font-bold">
+                    {item.purpose}
+                    {item.edited ? <span className="ms-1.5 rounded-md border border-cyan-300/20 bg-cyan-400/10 px-1.5 py-0.5 text-[10px] text-cyan-100">{t("aiSupport.waTemplates.automation.edit.editedTag")}</span> : null}
+                  </td>
                   <td className="px-3 py-2 text-slate-400" dir="ltr">{item.name}</td>
                   <td className="px-3 py-2 text-slate-300">
                     {item.carousel_cards
@@ -292,6 +581,8 @@ function AutomationTemplatesCard({ headers, onSubmitted }) {
                   <td className="px-3 py-2">
                     {item.status === "VIA_EVOLUTION"
                       ? <span className="font-bold text-emerald-200">{t("aiSupport.waTemplates.automation.viaEvolution")}</span>
+                      : item.status === "EDITED"
+                        ? <span className="font-bold text-amber-200">{t("aiSupport.waTemplates.automation.edit.needsResubmit")}</span>
                       : item.status === "NOT_SUBMITTED"
                         ? <span className="text-slate-500">{t("aiSupport.waTemplates.automation.notSubmitted")}</span>
                         : <StatusBadge status={item.status} />}
@@ -302,12 +593,20 @@ function AutomationTemplatesCard({ headers, onSubmitted }) {
             </tbody>
           </table>
         </div>
+        )}
         {/* What the customer's phone shows, filled with sample values — before it goes to Meta. */}
         <div className="lg:sticky lg:top-2 lg:self-start">
-          {previewed?.preview ? (
+          {phone ? (
             <>
-              <div className="mb-2 text-center text-xs font-black text-white">{previewed.purpose}</div>
-              <TemplatePreview draft={previewed.preview} />
+              <div className="mb-2 text-center text-xs font-black text-white">{(editedItem || previewed).purpose}</div>
+              <TemplatePreview draft={phone} />
+              {!editedItem && previewed ? (
+                <div className="mt-2 flex justify-center">
+                  <ActionButton tone="primary" icon={Pencil} onClick={() => openEditor(previewed.automation_type)}>
+                    {t("aiSupport.waTemplates.automation.edit.open")}
+                  </ActionButton>
+                </div>
+              ) : null}
             </>
           ) : (
             <p className="rounded-xl border border-dashed border-white/10 p-4 text-center text-xs text-slate-400">{t("aiSupport.waTemplates.automation.previewHint")}</p>

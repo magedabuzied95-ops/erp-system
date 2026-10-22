@@ -3169,7 +3169,51 @@
       "carousel": "{{count}} cards",
       "previewHint": "Click any template in the table to see it on the customer's phone.",
       "viaEvolution": "Sent free from Evolution",
-      "budget": "Paid templates: today {{today}} of {{dailyCap}} — this month {{month}} of {{monthlyCap}} (nothing is sent past the cap)"
+      "budget": "Paid templates: today {{today}} of {{dailyCap}} — this month {{month}} of {{monthlyCap}} (nothing is sent past the cap)",
+      "edit": {
+        "open": "Edit this template",
+        "title": "Edit: {{purpose}}",
+        "back": "Back to the list",
+        "rules": "Change the wording as you like. Every variable like {{example}} must stay, because the system fills it with the customer's and the order's details. Move it anywhere in the text, but don't start or end the message with one, and don't put two side by side. Tap a variable under the text to insert it at the cursor.",
+        "onMetaNote": "Meta already holds this template. After saving, customers keep receiving the old version until you send the edit to Meta with \"Submit missing to Meta\" and it is approved. Meta allows an approved template one edit a day and 10 a month.",
+        "header": "Header",
+        "body": "Message text",
+        "footer": "Footer (optional)",
+        "footerHint": "Shown small under the message. Leave it empty for none.",
+        "buttonN": "Button {{n}}",
+        "copyLocked": "Meta writes this button's label itself; it can't be changed.",
+        "cardTitle": "Product card (repeated on every card)",
+        "cardBody": "Card text",
+        "count": "{{count}} of {{max}} characters",
+        "insertHint": "Insert at the cursor",
+        "save": "Save",
+        "loadDefault": "Put the original wording in the fields",
+        "restore": "Restore the original",
+        "restoreConfirm": "Restore the original wording and drop your edit?",
+        "saved": "Saved. The template goes to Meta with the new wording when it's submitted.",
+        "savedResubmit": "Saved. Meta already holds this template — press \"Submit missing to Meta\" to send the edit.",
+        "restored": "The template is back to its original wording.",
+        "editedTag": "Edited",
+        "needsResubmit": "Edited — must be sent to Meta again",
+        "fields": {
+          "body": "Message text",
+          "header_text": "Header",
+          "footer": "Footer",
+          "button_texts": "Buttons",
+          "card_body": "Card text",
+          "card_button_texts": "Card buttons"
+        },
+        "problems": {
+          "required": "{{field}}: can't be empty.",
+          "tooLong": "{{field}}: longer than {{max}} characters.",
+          "missing": "{{field}}: {{list}} is missing — put it back.",
+          "extra": "{{field}}: {{list}} is not a variable of this template — remove it.",
+          "variablesExact": "{{field}}: must contain exactly these variables: {{list}}.",
+          "position": "{{field}}: a variable can't start or end the text, or sit next to another.",
+          "noVariables": "{{field}}: can't contain variables.",
+          "duplicate": "Two buttons can't have the same label."
+        }
+      }
     }
   },
   "waUsage": {

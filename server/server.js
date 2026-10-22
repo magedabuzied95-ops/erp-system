@@ -2641,6 +2641,10 @@ const runDeferredStartupSyncs = async ({ skipStartupSyncs = false } = {}) => {
        */
       const whatsappQueueTimer = startWhatsappQueueWorker({ tenantId: 0 });
       if (whatsappQueueTimer) backgroundIntervals.add(whatsappQueueTimer);
+      // The owner's rewrites of the automation templates, so a send after a restart uses them.
+      import("./modules/whatsappOfficial/templateOverrides.js")
+        .then(({ refreshTemplateOverrides }) => refreshTemplateOverrides())
+        .catch((error) => console.error("[server] whatsapp template overrides load failed", { message: error?.message || String(error) }));
       console.log("[server] whatsapp queue worker started");
       console.log("[server] abandoned cart reminder scheduler started");
       console.log("[server] workflow automation scheduler started");
