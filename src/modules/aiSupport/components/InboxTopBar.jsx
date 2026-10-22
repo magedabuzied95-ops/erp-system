@@ -1,5 +1,6 @@
 import { ShellCommandPaletteTrigger } from "../../../shared/components/CommandPalette";
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useLayoutEffect, useRef, useState } from "react";
+import { createPortal } from "react-dom";
 import { useTranslation } from "react-i18next";
 import { ChevronDown, Megaphone, Menu, MessagesSquare, Moon, Settings, Smartphone, Sun } from "lucide-react";
 import { FaFacebookMessenger, FaInstagram, FaTiktok, FaWhatsapp } from "react-icons/fa";
@@ -225,19 +226,39 @@ export default function InboxTopBar({
   // Physical right: the start of the bar in Arabic, its end in English.
   const rtl = typeof document !== "undefined" && document.documentElement.dir === "rtl";
   const barRef = useRef(null);
+  // The open menu renders on <body>: iOS Safari clips a position:fixed child to its
+  // horizontally scrolling ancestor, so inside the bar it showed cut off "behind" the chat.
+  const dropdownRef = useRef(null);
+  const [anchorRect, setAnchorRect] = useState(null);
+
+  useLayoutEffect(() => {
+    const node = dropdownRef.current;
+    if (!openMenu || !anchorRect || !node) return;
+    const margin = 8;
+    const width = node.offsetWidth;
+    const preferred = rtl ? anchorRect.right - width : anchorRect.left;
+    node.style.left = `${Math.max(margin, Math.min(preferred, window.innerWidth - width - margin))}px`;
+    node.style.top = `${anchorRect.bottom}px`;
+    node.style.maxHeight = `${Math.max(160, window.innerHeight - anchorRect.bottom - 16)}px`;
+  }, [openMenu, anchorRect, rtl]);
 
   useEffect(() => {
     if (!openMenu) return undefined;
     const close = (event) => {
       if (event.type === "keydown" && event.key !== "Escape") return;
-      if (event.type === "mousedown" && barRef.current?.contains(event.target)) return;
+      if (event.type === "mousedown" && (barRef.current?.contains(event.target) || dropdownRef.current?.contains(event.target))) return;
       setOpenMenu("");
     };
+    // Resizing would leave the menu under the wrong tab. (Not the bar's scroll: tapping a
+    // half-hidden tab scrolls it into view, which would close the menu it just opened.)
+    const dismiss = () => setOpenMenu("");
     window.addEventListener("mousedown", close);
     window.addEventListener("keydown", close);
+    window.addEventListener("resize", dismiss);
     return () => {
       window.removeEventListener("mousedown", close);
       window.removeEventListener("keydown", close);
+      window.removeEventListener("resize", dismiss);
     };
   }, [openMenu]);
 
@@ -284,7 +305,10 @@ export default function InboxTopBar({
           <div key={menu.key} className="ai-inbox-topbar__menu">
             <button
               type="button"
-              onClick={() => setOpenMenu(open ? "" : menu.key)}
+              onClick={(event) => {
+                setAnchorRect(event.currentTarget.getBoundingClientRect());
+                setOpenMenu(open ? "" : menu.key);
+              }}
               className={`ai-inbox-topbar__tab ${open ? "is-open" : ""} ${activeMenu === menu.key ? "is-active" : ""}`}
               aria-haspopup="menu"
               aria-expanded={open}
@@ -293,14 +317,15 @@ export default function InboxTopBar({
               <span>{menuLabel(t, menu.key)}</span>
               <ChevronDown className={`h-3.5 w-3.5 opacity-60 transition ${open ? "rotate-180" : ""}`} aria-hidden="true" />
             </button>
-            {open ? (
-              <div role="menu" className="ai-inbox-topbar__dropdown">
+            {open ? createPortal(
+              <div ref={dropdownRef} role="menu" className="ai-inbox-topbar__dropdown">
                 {items.map((item) => (
                   <button key={`${menu.key}:${item.key}`} type="button" role="menuitem" onClick={() => run(item)} className={`ai-inbox-topbar__item ${item.section && item.section === activeSection ? "is-current" : ""}`}>
                     {itemLabel(t, item.key)}
                   </button>
                 ))}
-              </div>
+              </div>,
+              document.body,
             ) : null}
           </div>
         );
