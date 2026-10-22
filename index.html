@@ -269,6 +269,12 @@
           var lastAiInboxUrl = window.localStorage && window.localStorage.getItem("ai_inbox_last_url");
           var lastPortalUrl = (window.localStorage && window.localStorage.getItem("portal_last_url")) || lastManagerPortalUrl || lastEmployeePortalUrl;
           var inboxMatch = path === "/inbox" || path.indexOf("/inbox/") === 0;
+          // The ERP added to the home screen FROM the inbox opens on the inbox (its own
+          // manifest), and its login lands back there (Login.jsx reads the key).
+          var erpInboxMatch = path === "/admin/ai-inbox";
+          if (standalone && erpInboxMatch && window.localStorage) {
+            window.localStorage.setItem("erp_standalone_home", "/admin/ai-inbox");
+          }
           if (standalone && (path === "/" || path === "/login") && lastAiInboxUrl) {
             window.location.replace(lastAiInboxUrl);
             return;
@@ -313,16 +319,19 @@
             }
           } else if (posMatch) {
             manifestHref = "/pos-manifest.webmanifest?v=10";
+          } else if (erpInboxMatch) {
+            manifestHref = "/erp-inbox-manifest.webmanifest?v=1";
           }
           manifest.setAttribute("href", manifestHref);
           document.head.appendChild(manifest);
-          if (!employeeMatch && !managerMatch && !posMatch && !inboxMatch) return;
+          if (!employeeMatch && !managerMatch && !posMatch && !inboxMatch && !erpInboxMatch) return;
           var appleTitle = document.querySelector('meta[name="apple-mobile-web-app-title"]') || document.createElement("meta");
           appleTitle.setAttribute("name", "apple-mobile-web-app-title");
           appleTitle.setAttribute("content", "M1");
           if (managerMatch) appleTitle.setAttribute("content", "Manager");
           if (posMatch) appleTitle.setAttribute("content", "POS");
           if (inboxMatch) appleTitle.setAttribute("content", "AI Inbox");
+          if (erpInboxMatch) appleTitle.setAttribute("content", "M1 Inbox");
           if (!appleTitle.parentNode) document.head.appendChild(appleTitle);
           if (posMatch) {
             var posTheme = document.querySelector('meta[name="theme-color"]') || document.createElement("meta");

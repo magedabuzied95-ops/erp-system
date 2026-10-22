@@ -4650,6 +4650,21 @@ export default function AiInbox({ reviewerMode = false }) {
   );
   const [channelAccounts, setChannelAccounts] = useState([]);
   const [mobileView, setMobileView] = useState("list");
+  // "Add to Home Screen" from here installs the ERP opened on the inbox. index.html
+  // picks this manifest on a direct load; arriving by an in-app link needs the swap.
+  useEffect(() => {
+    if (reviewerMode) return undefined;
+    const link = document.querySelector('link[rel="manifest"]');
+    const title = document.querySelector('meta[name="apple-mobile-web-app-title"]');
+    if (!link) return undefined;
+    const previous = { href: link.getAttribute("href"), title: title?.getAttribute("content") };
+    link.setAttribute("href", "/erp-inbox-manifest.webmanifest?v=1");
+    title?.setAttribute("content", "M1 Inbox");
+    return () => {
+      link.setAttribute("href", previous.href);
+      if (title && previous.title) title.setAttribute("content", previous.title);
+    };
+  }, [reviewerMode]);
   const [search, setSearch] = useState("");
   const [debouncedSearch, setDebouncedSearch] = useState("");
   const [selectedSessionId, setSelectedSessionId] = useState("");

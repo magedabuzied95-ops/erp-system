@@ -39,6 +39,17 @@ const writeCachedBrand = (brand) => {
   }
 };
 
+// The ERP installed on the home screen from the inbox (index.html records it) signs in
+// back to the inbox, not the dashboard. Only inside the installed app.
+const standaloneHome = () => {
+  try {
+    const standalone = window.matchMedia?.("(display-mode: standalone)").matches || window.navigator.standalone === true;
+    return standalone ? localStorage.getItem("erp_standalone_home") || "" : "";
+  } catch {
+    return "";
+  }
+};
+
 const initialBrand = () => {
   const cached = readCachedBrand();
   if (cached) return cached;
@@ -306,7 +317,7 @@ function Login() {
       }
     }
 
-    window.location.href = isMetaReviewerUser(data?.user) ? "/admin/ai-inbox" : "/dashboard";
+    window.location.href = isMetaReviewerUser(data?.user) ? "/admin/ai-inbox" : standaloneHome() || "/dashboard";
   };
 
   const submitMfaCode = async (e) => {
