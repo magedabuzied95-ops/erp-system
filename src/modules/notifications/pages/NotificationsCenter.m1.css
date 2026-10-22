@@ -67,4 +67,7 @@
   .notification-card-grid article h3,.notification-card-grid article p{white-space:normal!important;overflow:visible!important;display:block!important}
 }
 @media(min-width:1700px){.notification-card-grid{grid-template-columns:repeat(3,minmax(0,1fr))}}
-@media(max-width:767px){.m1-notifications-center{padding:10px}.m1-notifications-center>section>div{padding:14px!important}.m1-notifications-center>div.grid article{padding:10px!important}}
+/* Phone: the shell already gives the 12px gutter, so the page adds none; the
+   filter sheet (PhoneFilters) borrows the page scope for its controls only. */
+.m1-phone-filters__sheet.m1-notifications-center{padding:0;background:transparent}
+@media(max-width:767px){.m1-notifications-center{padding:0}.m1-notifications-center>section>div{padding:14px!important}.m1-notifications-center>div.grid article{padding:10px!important}}

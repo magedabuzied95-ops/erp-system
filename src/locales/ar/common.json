@@ -750,7 +750,11 @@
       },
       "emptyState": "لا توجد نتائج",
       "loadingState": "جاري التحميل...",
-      "clearSearch": "مسح البحث"
+      "clearSearch": "مسح البحث",
+      "filters": {
+        "button": "فلاتر",
+        "apply": "عرض النتائج"
+      }
     },
     "errorBoundary": {
       "screenCrashed": "تعطلت هذه الشاشة",

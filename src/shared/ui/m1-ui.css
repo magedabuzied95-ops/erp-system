@@ -133,3 +133,46 @@
 .m1-metric--compact small{margin-top:5px;font-size:10px}
 .m1-metric__supporting{margin-top:7px;color:var(--muted);font-size:11px;line-height:1.45}
 .m1-metric--compact .m1-metric__supporting{margin-top:5px;font-size:10px}
+
+/* ===== Phone (<768px) =======================================================
+   Modal -> bottom sheet clear of the home bar; Drawer clears the notch; tab
+   strips scroll sideways instead of wrapping; page header titles may shrink;
+   metric tiles fit two-up at 375px. */
+@media(max-width:767px){
+  .m1-overlay:not(.m1-overlay--drawer){place-items:end stretch;padding:0;padding-top:env(safe-area-inset-top)}
+  .m1-modal,.m1-modal--sm,.m1-modal--md,.m1-modal--lg{width:100%;max-height:calc(100dvh - env(safe-area-inset-top) - 12px);border-bottom:0;border-radius:var(--radius-card) var(--radius-card) 0 0;padding-bottom:env(safe-area-inset-bottom)}
+  .m1-modal>header,.m1-drawer>header{padding:14px 16px}
+  .m1-modal__body,.m1-drawer__body{padding:16px;overscroll-behavior:contain}
+  .m1-modal>footer,.m1-drawer>footer,.m1-card__footer{flex-wrap:wrap;padding:12px 16px}
+  .m1-modal header button,.m1-drawer header button{width:40px;height:40px;flex:none}
+  .m1-drawer{width:100%;padding-top:env(safe-area-inset-top);padding-bottom:env(safe-area-inset-bottom)}
+
+  .m1-tabs{flex-wrap:nowrap;overflow-x:auto;overscroll-behavior-x:contain;-webkit-overflow-scrolling:touch;scrollbar-width:none}
+  .m1-tabs::-webkit-scrollbar{display:none}
+  .m1-tab{flex:none;white-space:nowrap;min-height:40px}
+
+  .m1-page-header__titles{min-width:0;flex:1 1 12rem}
+  .m1-page-header__title{font-size:18px;overflow-wrap:anywhere}
+  .m1-page-header__actions{width:100%}
+
+  .m1-filter-bar{padding:10px}
+  .m1-filter-bar__filters,.m1-filter-bar__actions{width:100%}
+  .m1-filter-bar__filters>*{flex:1 1 100%;min-width:0}
+
+  .m1-metric{min-height:0;padding:12px;min-width:0}
+  .m1-metric strong{font-size:20px;overflow-wrap:anywhere}
+
+  .m1-icon-button--sm{min-width:36px;min-height:36px}
+}
+
+/* PhoneFilters (M1UI.jsx): the phone trigger row - the always-visible part
+   (search) takes the width, the Filters button sits at its end. */
+.m1-phone-filters{display:flex;align-items:center;gap:8px;width:100%;min-width:0}
+.m1-phone-filters__leading{flex:1 1 auto;min-width:0}
+.m1-phone-filters__button{position:relative;flex:none;min-height:44px;display:inline-flex;align-items:center;gap:8px;padding-inline:14px;border:1px solid var(--border);border-radius:var(--radius-control);background:var(--surface);color:var(--text);font:700 14px/1 var(--font-ui)}
+.m1-phone-filters__button[data-active="true"]{border-color:var(--primary);color:var(--primary)}
+.m1-phone-filters__count{min-width:20px;height:20px;padding-inline:6px;display:inline-grid;place-items:center;border-radius:999px;background:var(--primary);color:var(--primary-contrast);font-size:11px;font-weight:800}
+.m1-phone-filters__sheet{display:grid;grid-template-columns:minmax(0,1fr);gap:12px}
+.m1-phone-filters__sheet>*{min-width:0;max-width:100%}
+.m1-phone-filters__footer{display:flex;gap:8px;width:100%}
+.m1-phone-filters__footer>*{flex:1 1 0;min-height:44px}

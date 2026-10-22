@@ -41,7 +41,7 @@ function AdminTenants() {
         { to: "/settings/company", label: t("access.tenants.tabs.companySettings") },
       ]}
     >
-      <div className="grid gap-3 md:grid-cols-2 xl:grid-cols-4">
+      <div className="grid grid-cols-2 gap-3 md:grid-cols-2 xl:grid-cols-4">
         <Metric label={t("access.tenants.metrics.tenants")} value={kpis.total} icon={<Building2 className="h-5 w-5" />} />
         <Metric label={t("access.tenants.metrics.active")} value={kpis.active} icon={<ShieldCheck className="h-5 w-5" />} />
         <Metric label={t("access.tenants.metrics.suspended")} value={kpis.suspended} icon={<ShieldOff className="h-5 w-5" />} />
@@ -67,9 +67,9 @@ function AdminTenants() {
                     <div className="flex h-12 w-12 items-center justify-center rounded-2xl border border-white/10 bg-black/20 text-primary">
                       <Building2 className="h-5 w-5" />
                     </div>
-                    <div>
+                    <div className="max-sm:min-w-0">
                       <div className="font-semibold text-white">{tenant.companyName}</div>
-                      <div className="mt-1 text-xs text-zinc-500">{tenant.ownerEmail}</div>
+                      <div className="mt-1 text-xs text-zinc-500 max-sm:break-all">{tenant.ownerEmail}</div>
                     </div>
                   </div>
                   <div className="text-sm text-zinc-300">
@@ -104,11 +104,11 @@ function Metric({ label, value, icon }) {
   return (
     <div className="rounded-[var(--radius-card)] border border-white/10 bg-white/5 p-4">
       <div className="flex items-start justify-between gap-3">
-        <div>
+        <div className="max-sm:min-w-0">
           <div className="text-[11px] uppercase tracking-[0.18em] text-zinc-500">{label}</div>
-          <div className="mt-2 text-2xl font-black text-white">{value}</div>
+          <div className="mt-2 text-2xl font-black text-white max-sm:text-xl max-sm:[overflow-wrap:anywhere]">{value}</div>
         </div>
-        <div className="rounded-2xl border border-white/10 bg-black/20 p-3 text-white">{icon}</div>
+        <div className="rounded-2xl border border-white/10 bg-black/20 p-3 text-white max-sm:hidden">{icon}</div>
       </div>
     </div>
   );

@@ -1,7 +1,8 @@
 import { Suspense, lazy, useEffect, useMemo, useRef, useState } from "react";
+import { createPortal } from "react-dom";
 import { NavLink, Outlet, useLocation, useNavigate } from "react-router-dom";
 
-import { Bell, Boxes, ChevronDown, CircleDollarSign, ClipboardList, LogOut, Menu, Moon, Paintbrush, PanelLeftClose, PanelLeftOpen, PanelRightClose, PanelRightOpen, Plus, Search, Settings2, ShieldCheck, ShoppingBag, Store, Sun, User, X } from "lucide-react";
+import { Bell, Boxes, ChevronDown, CircleDollarSign, ClipboardList, LogOut, Menu, Moon, MoreVertical, Paintbrush, PanelLeftClose, PanelLeftOpen, PanelRightClose, PanelRightOpen, Plus, Search, Settings2, ShieldCheck, ShoppingBag, Store, Sun, User, X } from "lucide-react";
 import { useTranslation } from "react-i18next";
 
 import { clearAuth, getCurrentTenant, getCurrentUser, getToken, isCashierUser, isMetaReviewerUser } from "../auth/authStorage";
@@ -11,13 +12,14 @@ import NotificationSoundProvider from "../../components/feedback/NotificationSou
 import AnimatedBadgeCounter from "../../components/feedback/AnimatedBadgeCounter";
 import SidebarPulseIndicator from "../../components/feedback/SidebarPulseIndicator";
 import usePageTitle from "../hooks/usePageTitle";
+import useDismissableLayer from "../hooks/useDismissableLayer";
 import LanguageSwitcher from "../components/LanguageSwitcher";
 import { NotificationBoundary, NotificationsProvider, useNotifications } from "../notifications/index.js";
 import { useRealtimeConnection } from "../realtime/socketStore";
 import { publicStorefrontUrl } from "../lib/publicStorefront";
 import { resolveErpRoutePageTitle } from "../navigation/routePageTitles";
 import { useTheme } from "../../theme/useTheme";
-import CommandPalette, { CommandPaletteTrigger, publishCommandPaletteState } from "../components/CommandPalette";
+import CommandPalette, { CommandPaletteTrigger, openCommandPalette, publishCommandPaletteState } from "../components/CommandPalette";
 import { matchSidebarPath, recordPageVisit } from "../navigation/recentPages";
 import MessageNotificationsBell from "../sideChat/MessageNotificationsBell";
 import SideChatPanel from "../sideChat/SideChatPanel";
@@ -398,6 +400,86 @@ function HeaderQuickActionButton({ item, location, onNavigate }) {
   );
 }
 
+// Phone (<768px) topbar overflow: one 56px row keeps the menu button, the
+// workspace name, POS and the message bell; everything else the wide bar shows
+// (store, products, purchases, quick search, language, theme, logout) lives in
+// this sheet. Portaled to <body>: the tools rail is an overflow-x scroller and
+// iOS clips position:fixed descendants of one.
+function PhoneTopbarMenu({ items = [], onLogout }) {
+  const { t } = useTranslation();
+  const [open, setOpen] = useState(false);
+  const buttonRef = useRef(null);
+  const panelRef = useRef(null);
+  const location = useLocation();
+  useDismissableLayer({ enabled: open, onDismiss: () => setOpen(false), refs: [buttonRef, panelRef] });
+  useEffect(() => {
+    setOpen(false);
+  }, [location.pathname]);
+  const rowClass = "flex min-h-11 w-full items-center gap-3 rounded-[var(--radius-control)] px-3 text-start text-sm font-bold text-[var(--text)] hover:bg-[var(--surface-soft)]";
+  return (
+    <div className="relative flex-none md:hidden">
+      <button
+        ref={buttonRef}
+        type="button"
+        onClick={() => setOpen((value) => !value)}
+        aria-haspopup="menu"
+        aria-expanded={open}
+        aria-label={t("common.actions")}
+        title={t("common.actions")}
+        className="m1-shell-theme-toggle inline-flex h-[var(--control-height-md)] w-10 items-center justify-center border border-[var(--border)] text-[var(--topbar-text)]"
+      >
+        <MoreVertical className="h-4 w-4" />
+      </button>
+      {open && typeof document !== "undefined" ? createPortal(
+        <div
+          ref={panelRef}
+          role="menu"
+          dir={document.documentElement.dir === "rtl" ? "rtl" : "ltr"}
+          className="m1-phone-topbar-menu fixed z-[9999] flex flex-col gap-0.5 overflow-y-auto rounded-[var(--radius-card)] border border-[var(--border)] bg-[var(--card)] p-1.5 text-[var(--text)] shadow-[0_24px_60px_rgba(0,0,0,0.35)]"
+        >
+          {items.map((item) => {
+            const Icon = item.icon;
+            const content = (
+              <>
+                {Icon ? <Icon className="h-4 w-4 shrink-0 text-[var(--primary)]" /> : null}
+                <span className="min-w-0 flex-1 truncate">{item.label}</span>
+              </>
+            );
+            if (item.href) {
+              return (
+                <a key={item.key} role="menuitem" href={item.href} target="_blank" rel="noopener noreferrer" onClick={() => setOpen(false)} className={rowClass}>
+                  {content}
+                </a>
+              );
+            }
+            if (item.to) {
+              return (
+                <NavLink key={item.key} role="menuitem" to={item.to} onClick={() => setOpen(false)} className={rowClass}>
+                  {content}
+                </NavLink>
+              );
+            }
+            return (
+              <button key={item.key} role="menuitem" type="button" onClick={() => { setOpen(false); item.onSelect?.(); }} className={rowClass}>
+                {content}
+              </button>
+            );
+          })}
+          <div className="my-1 border-t border-[var(--border)]" />
+          <div className="px-1 py-1">
+            <LanguageSwitcher className="w-full justify-between" />
+          </div>
+          <button type="button" role="menuitem" onClick={() => { setOpen(false); onLogout?.(); }} className={`${rowClass} text-[var(--danger)]`}>
+            <LogOut className="h-4 w-4 shrink-0" />
+            <span className="min-w-0 flex-1 truncate">{t("common.logout")}</span>
+          </button>
+        </div>,
+        document.body
+      ) : null}
+    </div>
+  );
+}
+
 function NotificationBellFallback() {
   const { t } = useTranslation();
   return (
@@ -681,6 +763,26 @@ function MainLayout() {
   useEffect(() => {
     setMobileDrawerOpen(false);
   }, [location.pathname]);
+
+  // While the ERP shell is on screen: (1) viewport-fit=cover, so WebKit reports
+  // env(safe-area-inset-*) and the topbar / drawer / gutter can clear the notch
+  // and home bar of an installed PWA (index.html sets it before first paint for
+  // a cold start; this covers arriving from /login in-app); (2) html.m1-erp-shell,
+  // which scopes the phone-only 16px field rule (MainLayout.m1.css) to the ERP —
+  // portaled dialogs and menus included — and keeps it off the storefront.
+  useEffect(() => {
+    if (isPosActive || typeof document === "undefined") return undefined;
+    const root = document.documentElement;
+    root.classList.add("m1-erp-shell");
+    const viewport = document.querySelector('meta[name="viewport"]');
+    const content = viewport ? String(viewport.getAttribute("content") || "") : "";
+    const added = Boolean(viewport) && content.indexOf("viewport-fit") === -1;
+    if (added) viewport.setAttribute("content", `${content}, viewport-fit=cover`);
+    return () => {
+      root.classList.remove("m1-erp-shell");
+      if (added) viewport.setAttribute("content", content);
+    };
+  }, [isPosActive]);
 
   const handleLogout = () => {
     clearAuth();
@@ -993,7 +1095,7 @@ function MainLayout() {
                   title={t("sidebar.storefront")}
                   aria-label={t("sidebar.openStore")}
                   className={[
-                    "group inline-flex h-11 items-center justify-center gap-2 rounded-full border px-3 text-sm font-black transition duration-200 sm:px-4",
+                    "m1-topbar-phone-hide group inline-flex h-11 items-center justify-center gap-2 rounded-full border px-3 text-sm font-black transition duration-200 sm:px-4",
                     "bg-zinc-950/75 text-[var(--topbar-text)] shadow-[0_10px_30px_rgba(0,0,0,0.18)] backdrop-blur",
                     isStoreActive
                       ? "border-emerald-400/55 bg-emerald-500/15 text-emerald-100 shadow-[0_0_28px_rgba(16,185,129,0.24)]"
@@ -1010,7 +1112,7 @@ function MainLayout() {
                   title={productsLabel}
                   aria-label={productsLabel}
                   className={[
-                    "group inline-flex h-11 items-center justify-center gap-2 rounded-full border px-3 text-sm font-black transition duration-200 sm:px-4",
+                    "m1-topbar-phone-hide group inline-flex h-11 items-center justify-center gap-2 rounded-full border px-3 text-sm font-black transition duration-200 sm:px-4",
                     "bg-zinc-950/75 text-[var(--topbar-text)] shadow-[0_10px_30px_rgba(0,0,0,0.18)] backdrop-blur",
                     isProductsActive
                       ? "border-primary/55 bg-primary/15 text-primary shadow-[0_0_28px_rgba(14,165,233,0.24)]"
@@ -1026,7 +1128,7 @@ function MainLayout() {
                     title={purchasesLabel}
                     aria-label={purchasesLabel}
                     className={[
-                      "group inline-flex h-11 items-center justify-center gap-2 rounded-full border px-3 text-sm font-black transition duration-200 sm:px-4",
+                      "m1-topbar-phone-hide group inline-flex h-11 items-center justify-center gap-2 rounded-full border px-3 text-sm font-black transition duration-200 sm:px-4",
                       "bg-zinc-950/75 text-[var(--topbar-text)] shadow-[0_10px_30px_rgba(0,0,0,0.18)] backdrop-blur",
                       isPurchasesActive
                         ? "border-amber-300/55 bg-amber-500/15 text-amber-100 shadow-[0_0_28px_rgba(245,158,11,0.24)]"
@@ -1055,11 +1157,11 @@ function MainLayout() {
                 </NavLink>
                 </>)}
                 {canSeeInbox ? <MessageNotificationsBell /> : null}
-                <LanguageSwitcher compact className="shrink-0" />
+                <LanguageSwitcher compact className="shrink-0 m1-topbar-phone-hide" />
                 <button
                   type="button"
                   onClick={() => setTheme(theme.mode === "dark" ? "light" : "dark")}
-                  className="m1-shell-theme-toggle inline-flex h-[var(--control-height-md)] w-10 shrink-0 items-center justify-center border border-[var(--border)] text-[var(--topbar-text)]"
+                  className="m1-topbar-phone-hide m1-shell-theme-toggle inline-flex h-[var(--control-height-md)] w-10 shrink-0 items-center justify-center border border-[var(--border)] text-[var(--topbar-text)]"
                   aria-label={theme.mode === "dark" ? t("appearance.lightMode") : t("appearance.darkMode")}
                   title={theme.mode === "dark" ? t("appearance.lightMode") : t("appearance.darkMode")}
                 >
@@ -1068,11 +1170,26 @@ function MainLayout() {
                 <button
                   type="button"
                   onClick={handleLogout}
-                  className="inline-flex h-[var(--control-height-lg)] items-center justify-center rounded-full border border-[var(--border)] bg-[var(--card)] px-3 text-sm font-semibold text-[var(--text)] lg:hidden"
+                  className="m1-topbar-phone-hide inline-flex h-[var(--control-height-lg)] items-center justify-center rounded-full border border-[var(--border)] bg-[var(--card)] px-3 text-sm font-semibold text-[var(--text)] lg:hidden"
                   aria-label={t("common.logout")}
                 >
                   <LogOut className="h-4 w-4" />
                 </button>
+                <PhoneTopbarMenu
+                  onLogout={handleLogout}
+                  items={[
+                    { key: "search", label: t("common.search"), icon: Search, onSelect: openCommandPalette },
+                    { key: "store", label: t("sidebar.storefront"), icon: ShoppingBag, href: publicStorefrontUrl("/") },
+                    ...(reviewerShell ? [] : [{ key: "products", label: productsLabel, icon: Boxes, to: "/products" }]),
+                    ...(reviewerShell || isCashierUser(user) ? [] : [{ key: "purchases", label: purchasesLabel, icon: ClipboardList, to: "/purchases" }]),
+                    {
+                      key: "theme",
+                      label: theme.mode === "dark" ? t("appearance.lightMode") : t("appearance.darkMode"),
+                      icon: theme.mode === "dark" ? Sun : Moon,
+                      onSelect: () => setTheme(theme.mode === "dark" ? "light" : "dark"),
+                    },
+                  ]}
+                />
               </div>
             </div>
           </div>

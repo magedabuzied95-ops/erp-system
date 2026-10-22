@@ -225,7 +225,7 @@ export default function CommandPalette({ items = [], userId, currentPath = "" })
   let index = -1;
   return createPortal(
     <div
-      className="fixed inset-0 z-[2147482000] flex items-start justify-center bg-black/30 px-4 pt-[10vh] backdrop-blur-[2px]"
+      className="fixed inset-0 z-[2147482000] flex items-start justify-center bg-black/30 px-4 pt-[10vh] backdrop-blur-[2px] max-sm:px-2 max-sm:pt-[calc(env(safe-area-inset-top)+12px)]"
       onMouseDown={(event) => { if (event.target === event.currentTarget) setOpen(false); }}
       data-command-palette="true"
     >
@@ -278,7 +278,8 @@ export default function CommandPalette({ items = [], userId, currentPath = "" })
             <p className="px-4 py-10 text-center text-sm text-text-muted">{t("common.commandPalette.nothing")}</p>
           )}
         </div>
-        <div className="flex items-center gap-4 border-t border-border px-4 py-2.5 text-[11px] text-text-muted">
+        {/* Keyboard hints mean nothing on a phone. */}
+        <div className="flex items-center gap-4 border-t border-border px-4 py-2.5 text-[11px] text-text-muted max-sm:hidden">
           <span className="flex items-center gap-1.5"><Kbd>↑↓</Kbd>{t("common.commandPalette.navigate")}</span>
           <span className="flex items-center gap-1.5"><Kbd>↵</Kbd>{t("common.commandPalette.goTo")}</span>
           <span className="flex items-center gap-1.5"><Kbd>Ctrl ↵</Kbd>{t("common.commandPalette.newTab")}</span>

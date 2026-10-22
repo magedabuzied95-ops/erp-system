@@ -5,6 +5,7 @@ import { useTranslation } from "react-i18next";
 
 import { NotificationCard, useNotifications } from "../../../shared/notifications/index.js";
 import ThemedSelect from "../../../shared/ui/ThemedSelect";
+import { PhoneFilters } from "../../../shared/ui/M1UI";
 import "./NotificationsCenter.m1.css";
 
 const categories = ["all", "sales", "orders", "stock", "inventory", "payments", "purchases", "staff_tasks", "security", "system"];
@@ -135,20 +136,35 @@ function NotificationsCenter() {
           </div>
 
           <div className="notification-filter-grid mt-5 grid gap-3 xl:grid-cols-[minmax(14rem,1.5fr)_repeat(5,minmax(0,1fr))]">
-            <label className="notification-search flex min-h-11 items-center gap-2 rounded-xl border px-3 py-2">
-              <Search className="notification-search__icon h-4 w-4 shrink-0" />
-              <input
-                value={query}
-                onChange={(event) => setQuery(event.target.value)}
-                placeholder={t("notifications.center.search")}
-                className="notification-search__input min-w-0 flex-1 bg-transparent text-sm outline-none"
-              />
-            </label>
-            <Select value={category} onChange={setCategory} rows={categories} />
-            <Select value={priority} onChange={setPriority} rows={priorities} />
-            <Select value={readState} onChange={setReadState} rows={readStates} />
-            <input type="date" value={dateFrom} onChange={(event) => setDateFrom(event.target.value)} className="notification-filter-control min-h-[var(--control-height-lg)] rounded-[var(--radius-control)] border px-3 py-2 text-sm outline-none" />
-            <input type="date" value={dateTo} onChange={(event) => setDateTo(event.target.value)} className="notification-filter-control min-h-[var(--control-height-lg)] rounded-[var(--radius-control)] border px-3 py-2 text-sm outline-none" />
+            {/* Phone: the search stays, the five filters move behind one Filters button. */}
+            <PhoneFilters
+              sheetClassName="m1-notifications-center"
+              activeCount={[category !== "all", priority !== "all", readState !== "all", Boolean(dateFrom), Boolean(dateTo)].filter(Boolean).length}
+              onReset={() => {
+                setCategory("all");
+                setPriority("all");
+                setReadState("all");
+                setDateFrom("");
+                setDateTo("");
+              }}
+              leading={(
+                <label className="notification-search flex min-h-11 items-center gap-2 rounded-xl border px-3 py-2">
+                  <Search className="notification-search__icon h-4 w-4 shrink-0" />
+                  <input
+                    value={query}
+                    onChange={(event) => setQuery(event.target.value)}
+                    placeholder={t("notifications.center.search")}
+                    className="notification-search__input min-w-0 flex-1 bg-transparent text-sm outline-none"
+                  />
+                </label>
+              )}
+            >
+              <Select value={category} onChange={setCategory} rows={categories} />
+              <Select value={priority} onChange={setPriority} rows={priorities} />
+              <Select value={readState} onChange={setReadState} rows={readStates} />
+              <input type="date" value={dateFrom} onChange={(event) => setDateFrom(event.target.value)} className="notification-filter-control min-h-[var(--control-height-lg)] w-full min-w-0 rounded-[var(--radius-control)] border px-3 py-2 text-sm outline-none" />
+              <input type="date" value={dateTo} onChange={(event) => setDateTo(event.target.value)} className="notification-filter-control min-h-[var(--control-height-lg)] w-full min-w-0 rounded-[var(--radius-control)] border px-3 py-2 text-sm outline-none" />
+            </PhoneFilters>
           </div>
         </div>
       </section>

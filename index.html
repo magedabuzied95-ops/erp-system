@@ -642,6 +642,20 @@
           var storefrontHost = host === "m1store-egy.com" || host === "www.m1store-egy.com"
             || host === "localhost" || host === "127.0.0.1" || host.endsWith(".vercel.app");
           var storefrontPath = /^\/$|^\/(products|product|cart|checkout|account|track|wishlist|recently-viewed|sale|offers|contact|size-guide|returns|faq|brands|search|men|women|kids|bags|crocs|slippers|shop|c)(\/|$)|^\/(success|confirm)\//.test(path);
+          // The ERP shell (MainLayout) pads its topbar, drawer and page gutter with the same
+          // insets, so an installed ERP opened straight onto an ERP page asks for them before
+          // first paint too. Portals, POS, the /inbox PWA, sign-in and the public customer
+          // links (/pay, /addr, /i, ...) keep the plain viewport; MainLayout re-applies
+          // viewport-fit=cover itself after an in-app navigation from /login.
+          var erpShellPath = !storefrontPath
+            && !/^\/(employee|employee-app|employee-portal|manager|manager-portal|pos|inbox|login|register-company|a|att|addr|c|confirm|i|invoice|pay|p|review|s|success|track|about|privacy|terms|data-deletion|contact|faq|returns|shipping|size-guide|design-system|components-preview|app-shell-preview|heroui-lab|dashboard-heroui|dashboard-prototype)(\/|$)/.test(path);
+          if (erpShellPath) {
+            var erpViewport = document.querySelector('meta[name="viewport"]');
+            var erpViewportContent = erpViewport ? String(erpViewport.getAttribute("content") || "") : "";
+            if (erpViewport && erpViewportContent.indexOf("viewport-fit") === -1) {
+              erpViewport.setAttribute("content", erpViewportContent + ", viewport-fit=cover");
+            }
+          }
           if (storefrontHost && storefrontPath) {
             document.documentElement.setAttribute("data-m1-boot-loader", "");
             // WebKit reports env(safe-area-inset-*) only under viewport-fit=cover, and the

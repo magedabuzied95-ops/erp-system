@@ -40,7 +40,7 @@ function Workspace() {
         { to: "/admin/tenants", label: t("saas.tabs.adminTenants") },
       ]}
     >
-      <div className="grid gap-3 md:grid-cols-2 xl:grid-cols-5">
+      <div className="grid grid-cols-2 gap-3 md:grid-cols-2 xl:grid-cols-5">
         <Metric label={t("saas.workspace.metrics.tenants")} value={kpis.total} />
         <Metric label={t("saas.workspace.metrics.active")} value={kpis.active} />
         <Metric label={t("saas.workspace.metrics.suspended")} value={kpis.suspended} />
@@ -122,7 +122,7 @@ function Metric({ label, value }) {
   return (
     <div className="rounded-[var(--radius-card)] border border-white/10 bg-white/5 p-4">
       <div className="text-[11px] uppercase tracking-[0.18em] text-zinc-500">{label}</div>
-      <div className="mt-2 text-2xl font-black text-white">{value}</div>
+      <div className="mt-2 text-2xl font-black text-white max-sm:text-xl max-sm:[overflow-wrap:anywhere]">{value}</div>
     </div>
   );
 }
