@@ -7,7 +7,7 @@ import { api } from "../../shared/api/api";
 import { getCurrentUser, setAuth } from "../../shared/auth/authStorage";
 import MfaEnrollmentPanel, { RecoveryCodesList, inputClass, primaryButton, secondaryButton } from "./MfaEnrollmentPanel";
 
-const card = "rounded-[var(--radius-card)] border border-[var(--border)] bg-[var(--surface)] p-5";
+const card = "rounded-[var(--radius-card)] border border-[var(--border)] bg-[var(--surface)] p-4 sm:p-5";
 
 const formatDate = (value, locale) => {
   if (!value) return "—";
@@ -97,7 +97,7 @@ export default function AccountSecurity() {
   const locale = i18n.language === "ar" ? "ar-EG" : "en-GB";
 
   return (
-    <div className="mx-auto w-full max-w-3xl space-y-4 p-4">
+    <div className="mx-auto w-full max-w-3xl space-y-4 sm:p-4">
       <div>
         <h1 className="m1-page-title text-[var(--text)]">{t("access.security.title")}</h1>
       </div>
@@ -105,7 +105,7 @@ export default function AccountSecurity() {
       {loadError ? <div className={`${card} text-[var(--danger)]`}>{loadError}</div> : null}
 
       <section className={card}>
-        <div className="flex items-center justify-between gap-3">
+        <div className="flex flex-wrap items-center justify-between gap-3">
           <h2 className="flex items-center gap-2 text-lg font-black text-[var(--text)]">
             <ShieldCheck className="h-5 w-5" />
             {t("access.security.mfaTitle")}

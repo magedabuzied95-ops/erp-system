@@ -68,7 +68,7 @@ export default function PermissionMatrix({ role, onSave, saving = false }) {
   const headerActions = [...new Set(matrix.flatMap((row) => row.actions))];
 
   return (
-    <div className="space-y-4 rounded-3xl border border-white/10 bg-zinc-950/90 p-5 shadow-2xl shadow-black/10">
+    <div className="space-y-4 rounded-[var(--radius-card)] border border-white/10 bg-zinc-950/90 p-4 shadow-2xl shadow-black/10 sm:rounded-3xl sm:p-5">
       <div className="flex flex-col gap-3 xl:flex-row xl:items-start xl:justify-between">
         <div>
           <div className="flex items-center gap-2 text-[11px] uppercase tracking-[0.2em] text-primary/70">
@@ -84,7 +84,7 @@ export default function PermissionMatrix({ role, onSave, saving = false }) {
             type="button"
             onClick={() => onSave?.(selected)}
             disabled={saving || fullAccessRole}
-            className="inline-flex items-center gap-2 rounded-[var(--radius-control)] bg-primary px-4 py-2 text-sm font-black text-black disabled:opacity-50"
+            className="inline-flex min-h-10 items-center justify-center gap-2 rounded-[var(--radius-control)] bg-primary px-4 py-2 text-sm font-black text-black disabled:opacity-50 w-full sm:w-auto"
           >
             <Save className="h-4 w-4" />
             {fullAccessRole ? "Full access locked" : saving ? "Saving..." : "Save permissions"}
@@ -92,13 +92,13 @@ export default function PermissionMatrix({ role, onSave, saving = false }) {
         </Can>
       </div>
 
-      <div className="overflow-x-auto">
-        <div className="min-w-[980px] space-y-2">
+      <div className="-mx-4 overflow-x-auto overscroll-x-contain px-4 sm:mx-0 sm:px-0">
+        <div className="min-w-[980px] space-y-2 max-md:[--pm-first:7.5rem]">
           <div
             className="grid gap-2 rounded-[var(--radius-card)] border border-white/10 bg-white/5 px-4 py-3 text-[11px] uppercase tracking-[0.18em] text-zinc-500"
-            style={{ gridTemplateColumns: `180px repeat(${headerActions.length}, minmax(110px, 1fr))` }}
+            style={{ gridTemplateColumns: `var(--pm-first, 180px) repeat(${headerActions.length}, minmax(110px, 1fr))` }}
           >
-            <div>{t("access.shell.module")}</div>
+            <div className="max-md:sticky max-md:start-0 max-md:z-[1] max-md:bg-zinc-950">{t("access.shell.module")}</div>
             {headerActions.map((action) => (
               <div key={action}>{actionLabels[action]}</div>
             ))}
@@ -108,9 +108,9 @@ export default function PermissionMatrix({ role, onSave, saving = false }) {
             <div
               key={row.module}
               className="grid gap-2"
-              style={{ gridTemplateColumns: `180px repeat(${headerActions.length}, minmax(110px, 1fr))` }}
+              style={{ gridTemplateColumns: `var(--pm-first, 180px) repeat(${headerActions.length}, minmax(110px, 1fr))` }}
             >
-              <div className="rounded-[var(--radius-card)] border border-white/10 bg-white/5 px-4 py-3 font-semibold text-white">
+              <div className="rounded-[var(--radius-card)] border border-white/10 bg-white/5 px-4 py-3 font-semibold text-white max-md:sticky max-md:start-0 max-md:z-[1] max-md:break-words max-md:bg-zinc-950 max-md:px-3">
                 {row.label}
               </div>
               {headerActions.map((action) => {

@@ -99,3 +99,25 @@
 .m1-appearance__type > div { display: grid; grid-template-columns: 96px minmax(0, 1fr); align-items: baseline; gap: var(--space-3); }
 .m1-appearance__type dt, .m1-appearance__type dd { margin: 0; }
 .m1-appearance__type dd { overflow-wrap: anywhere; }
+
+/* ---- phones ------------------------------------------------------------
+   Controls and the live preview are already one column below 1100px; on a
+   375px phone the nested paddings (section, gallery, block) still ate ~80px
+   of width, so they tighten here. */
+@media (max-width: 767px) {
+  .m1-appearance { gap: var(--space-4); }
+  .m1-appearance__hero-actions { width: 100%; }
+  .m1-appearance__hero-actions > * { flex: 1 1 auto; }
+  .m1-appearance__current { gap: var(--space-2) var(--space-4); padding: var(--space-3); }
+  .m1-appearance__source { margin-inline-start: 0; }
+  .m1-appearance__section { padding: var(--space-3); }
+  .m1-appearance__segmented { display: flex; }
+  .m1-appearance__segmented > button { flex: 1 1 auto; min-height: 40px; }
+  .m1-appearance__preview-head { padding: var(--space-3); }
+  .m1-appearance__gallery { gap: var(--space-3); padding: var(--space-3); }
+  .m1-appearance__gallery-block { padding: var(--space-3); }
+  .m1-appearance__type > div { grid-template-columns: 72px minmax(0, 1fr); }
+  .m1-appearance input:not([type="checkbox"]):not([type="radio"]):not([type="range"]):not([type="color"]),
+  .m1-appearance select,
+  .m1-appearance textarea { font-size: 16px; }
+}

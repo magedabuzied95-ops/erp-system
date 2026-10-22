@@ -7,6 +7,7 @@ import usePermission from "../../permissions/hooks/usePermission";
 import { getCurrentUser, isAdminUser } from "../../../shared/auth/authStorage";
 import { subscribeRealtime, useRealtimeConnection } from "../../../shared/realtime/socketStore";
 import { getAttendanceEmployees, getBranches } from "../../attendance/attendanceApi";
+import "../peoplePhone.css";
 
 const statusLabels = {
   pending: "قيد الانتظار",
@@ -670,7 +671,7 @@ function StaffTasks() {
   });
 
   return (
-    <div className="space-y-5 text-start" dir={isRtl ? "rtl" : "ltr"}>
+    <div className="people-phone-inputs space-y-5 text-start" dir={isRtl ? "rtl" : "ltr"}>
       <div className="flex flex-col gap-3 lg:flex-row lg:items-center lg:justify-between">
         <div>
           <h1 className="m1-page-title text-[var(--text)]">{tr("pageTitle")}</h1>
@@ -679,7 +680,7 @@ function StaffTasks() {
             {realtime.connected ? tr("realtimeLive") : realtime.connecting ? tr("realtimeReconnecting") : tr("realtimeOffline")}
           </div>
         </div>
-        <div className="flex flex-wrap gap-2">
+        <div className="-mx-1 flex gap-2 overflow-x-auto px-1 pb-1 max-md:[&>button]:shrink-0 md:flex-wrap md:overflow-visible md:pb-0">
           <button
             type="button"
             onClick={() => {
@@ -746,7 +747,7 @@ function StaffTasks() {
               <h2 className="m1-section-title text-[var(--text)]">{form.id ? tr("editOperationalTask") : tr("createOperationalTask")}</h2>
               <p className="mt-1 text-sm text-[var(--muted)]">{tr("panelDescription")}</p>
             </div>
-            <button type="button" onClick={() => setPanelOpen(false)} className="rounded-[var(--radius-control)] border border-[var(--border)] p-2 text-[var(--muted)]">
+            <button type="button" onClick={() => setPanelOpen(false)} className="grid h-10 w-10 shrink-0 place-items-center rounded-[var(--radius-control)] border border-[var(--border)] text-[var(--muted)]">
               <X className="h-4 w-4" />
             </button>
           </div>
@@ -864,16 +865,16 @@ function StaffTasks() {
         </section>
       ) : null}
 
-      <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
+      <div className="grid grid-cols-2 gap-3 xl:grid-cols-4">
         {metricItems.map((item) => {
           const Icon = item.icon;
           return (
             <div key={item.key} className="rounded-[var(--radius-card)] border border-[var(--border)] bg-[var(--card)] p-4">
-              <div className="flex items-center justify-between">
-                <span className="text-sm font-semibold text-[var(--muted)]">{tr(item.labelKey)}</span>
+              <div className="flex items-center justify-between gap-2">
+                <span className="min-w-0 text-sm font-semibold text-[var(--muted)]">{tr(item.labelKey)}</span>
                 <Icon className="h-5 w-5 text-[var(--primary)]" />
               </div>
-              <div className="mt-3 text-3xl font-black text-[var(--text)]">{Number(summary[item.key] || 0)}</div>
+              <div className="mt-3 text-2xl font-black text-[var(--text)] sm:text-3xl">{Number(summary[item.key] || 0)}</div>
             </div>
           );
         })}
@@ -907,7 +908,7 @@ function StaffTasks() {
                     <button
                       type="button"
                       onClick={() => editTask({ ...template, task_type: template.is_opening_day_task ? "opening_day" : "daily", metadata: { ...template.metadata, template_kind: "daily", is_opening_day_task: template.is_opening_day_task } })}
-                      className="text-xs font-black text-[var(--primary)]"
+                      className="min-h-10 px-1 text-xs font-black text-[var(--primary)]"
                     >
                       {tr("edit")}
                     </button>
@@ -915,7 +916,7 @@ function StaffTasks() {
                       <button
                         type="button"
                         onClick={() => removeTemplate(template)}
-                        className="text-xs font-black text-red-700"
+                        className="min-h-10 px-1 text-xs font-black text-red-700"
                       >
                         {tr("delete")}
                       </button>
@@ -952,7 +953,7 @@ function StaffTasks() {
                     <button
                       type="button"
                       onClick={() => editTask({ ...template, task_type: "weekly", metadata: { ...template.metadata, template_kind: "weekly" } })}
-                      className="text-xs font-black text-[var(--primary)]"
+                      className="min-h-10 px-1 text-xs font-black text-[var(--primary)]"
                     >
                       {tr("edit")}
                     </button>
@@ -960,7 +961,7 @@ function StaffTasks() {
                       <button
                         type="button"
                         onClick={() => removeTemplate(template)}
-                        className="text-xs font-black text-red-700"
+                        className="min-h-10 px-1 text-xs font-black text-red-700"
                       >
                         {tr("delete")}
                       </button>
@@ -975,9 +976,9 @@ function StaffTasks() {
 
       <div className="grid gap-5 xl:grid-cols-[1fr_22rem]">
         <section className="min-w-0 rounded-[var(--radius-card)] border border-[var(--border)] bg-[var(--card)]">
-          <div className="grid gap-3 border-b border-[var(--border)] p-4 md:grid-cols-3 xl:grid-cols-6">
+          <div className="grid grid-cols-2 gap-2 border-b border-[var(--border)] p-3 sm:gap-3 sm:p-4 md:grid-cols-3 xl:grid-cols-6">
             {kanbanStatuses.map((key) => (
-              <div key={key} className="min-h-24 rounded-[var(--radius-card)] border border-[var(--border)] bg-[var(--surface)] p-3">
+              <div key={key} className="min-h-24 min-w-0 rounded-[var(--radius-card)] border border-[var(--border)] bg-[var(--surface)] p-3">
                 <div className="flex items-center justify-between gap-2">
                   <h3 className="m1-section-title truncate uppercase text-[var(--muted)]">{statusLabel(key, language)}</h3>
                   <span className="rounded-full bg-[var(--primary-soft)] px-2 py-0.5 text-xs font-black text-[var(--primary)]">{kanbanGroups[key]?.length || 0}</span>
@@ -997,7 +998,7 @@ function StaffTasks() {
               <h2 className="m1-section-title text-[var(--text)]">{tr("todayTasks")}</h2>
               <p className="mt-1 text-sm text-[var(--muted)]">{loading ? tr("loadingTasks") : `${filteredTasks.length} ${tr("visibleTasks")}`}</p>
             </div>
-            <div className="grid gap-2 md:grid-cols-5">
+            <div className="grid grid-cols-2 gap-2 md:grid-cols-5">
               <select value={status} onChange={(event) => setStatus(event.target.value)} className="h-[var(--control-height-md)] rounded-[var(--radius-control)] border border-[var(--border)] bg-[var(--surface)] px-3 text-sm font-semibold text-[var(--text)] outline-none">
                 <option value="">{tr("allStatuses")}</option>
                 {Object.keys(statusLabels).map((key) => <option key={key} value={key}>{statusLabel(key, language)}</option>)}

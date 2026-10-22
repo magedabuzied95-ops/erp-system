@@ -19,7 +19,7 @@ export default function EmployeeAnalyticsShell({
   const labelClass = isRtl ? "text-xs font-bold leading-5" : "text-xs uppercase tracking-[0.32em]";
   return (
     <div className="m1-employee-analytics space-y-6" dir={isRtl ? "rtl" : "ltr"}>
-      <div className="rounded-[32px] border border-white/10 bg-gradient-to-br from-zinc-950 via-zinc-950 to-slate-900 p-6 shadow-[0_24px_90px_rgba(0,0,0,0.24)] xl:p-8">
+      <div className="rounded-[32px] border border-white/10 bg-gradient-to-br from-zinc-950 via-zinc-950 to-slate-900 p-4 shadow-[0_24px_90px_rgba(0,0,0,0.24)] sm:p-6 xl:p-8">
         <div className="flex flex-col gap-5 lg:flex-row lg:items-end lg:justify-between">
           <div className="max-w-3xl">
             <p className={labelClass}>{eyebrow}</p>
@@ -27,7 +27,7 @@ export default function EmployeeAnalyticsShell({
             {subtitle ? <p className="mt-4 text-sm leading-7 text-zinc-400 xl:text-base">{subtitle}</p> : null}
           </div>
 
-          <div className="flex flex-wrap items-center gap-3">
+          <div className="-mx-1 flex items-center gap-3 overflow-x-auto px-1 pb-1 max-md:[&>button]:shrink-0 md:flex-wrap md:overflow-visible md:pb-0">
             <button
               type="button"
               onClick={onRefresh}
@@ -64,7 +64,7 @@ export default function EmployeeAnalyticsShell({
         </div>
 
         {tabs.length > 1 ? (
-          <div className="mt-6 flex flex-wrap gap-2">
+          <div className="-mx-1 mt-6 flex gap-2 overflow-x-auto px-1 pb-1 max-md:[&>button]:shrink-0 md:flex-wrap md:overflow-visible md:pb-0">
             {tabs.map((tab) => (
               <button
                 key={tab.key}

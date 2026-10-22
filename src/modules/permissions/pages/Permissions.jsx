@@ -133,8 +133,8 @@ function PermissionsPage() {
       ) : null}
 
       <div className="grid grid-cols-1 gap-4 xl:grid-cols-[minmax(300px,0.6fr)_minmax(0,1.4fr)]">
-        <div className="rounded-3xl border border-white/10 bg-zinc-950/90 p-5 shadow-2xl shadow-black/10">
-          <div className="flex items-center justify-between gap-3">
+        <div className="rounded-3xl border border-white/10 bg-zinc-950/90 p-4 shadow-2xl shadow-black/10 sm:p-5">
+          <div className="flex flex-wrap items-center justify-between gap-3">
             <div>
               <h3 className="m1-section-title text-white">{t("access.permissions.rolesTitle")}</h3>
             </div>
@@ -181,8 +181,8 @@ function PermissionsPage() {
           <PermissionMatrix role={selectedRole} saving={saving} onSave={persist} />
 
           <Can permission="roles.export">
-            <div className="rounded-3xl border border-white/10 bg-zinc-950/90 p-5 shadow-2xl shadow-black/10">
-              <div className="flex items-center justify-between gap-3">
+            <div className="rounded-3xl border border-white/10 bg-zinc-950/90 p-4 shadow-2xl shadow-black/10 sm:p-5">
+              <div className="flex flex-wrap items-center justify-between gap-3">
                 <div>
                   <h3 className="m1-section-title text-white">{t("access.permissions.exportSnapshot")}</h3>
                   <p className="mt-1 text-sm text-zinc-400">Placeholder for CSV/PDF export once the backend exporter is available.</p>
