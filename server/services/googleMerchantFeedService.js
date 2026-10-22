@@ -8,6 +8,19 @@ import { resolveProductAudience } from "./productAudienceResolver.js";
 import { AD_FEED_PURCHASE_COLUMNS, AD_FEED_PURCHASE_CTES, AD_FEED_PURCHASE_JOINS } from "./adFeedPurchaseLinesSql.js";
 import { onCacheInvalidatePattern } from "./cacheService.js";
 import { isMirrorProduct } from "../utils/mirrorProduct.js";
+import { loadMetaFeedExclusions, metaItemGroupId } from "./metaCatalogFeedService.js";
+
+// A product model (product + colour) Meta rejected in its catalogue (counterfeit goods etc.) is
+// left out of Merchant Center too: the same items are what got this account disapproved for
+// misrepresentation. Matched on Meta's group id (product-colour) and on Meta's product-variant id.
+export const excludedFromGoogleFeed = (row = {}, { ids = new Set(), groups = new Set() } = {}) => {
+  if (!groups.size && !ids.size) return false;
+  const productId = text(row.product_id);
+  const variantId = text(row.variant_id);
+  if (groups.has(metaItemGroupId(row))) return true;
+  if (variantId && ids.has(`${productId}-${variantId}`)) return true;
+  return Boolean(text(row.variant_sku) && ids.has(text(row.variant_sku)));
+};
 
 export const GOOGLE_FEED_URL = "https://m1store-egy.com/feeds/google.xml";
 // Merchant Center compares the feed with the live product page. A 24h copy kept advertising a
@@ -395,10 +408,11 @@ export const queryGoogleMerchantRowsPage = async ({ offset = 0, limit = PAGE_SIZ
   return result.rows || [];
 };
 
-export const buildGoogleMerchantFeedFromRows = (rows = [], { saleModeSettings = {} } = {}) => {
+export const buildGoogleMerchantFeedFromRows = (rows = [], { saleModeSettings = {}, excluded = null } = {}) => {
   const items = [];
   const seen = new Set();
   for (const row of rows) {
+    if (excluded && excludedFromGoogleFeed(row, excluded)) continue;
     const item = buildGoogleMerchantItem(row, { saleModeSettings });
     if (!item || seen.has(item.id)) continue;
     seen.add(item.id);
@@ -474,7 +488,9 @@ const rebuildGoogleMerchantFeed = async (now = Date.now()) => {
   }
   // Loaded once per build: without it every row falls back to "Sale OFF".
   const saleModeSettings = await loadTenantSaleModeSettings({ tenantId: FEED_TENANT_ID });
-  const generated = buildGoogleMerchantFeedFromRows(rows, { saleModeSettings });
+  // Never fails the feed: an unreadable list excludes nothing (see loadMetaFeedExclusions).
+  const excluded = await loadMetaFeedExclusions();
+  const generated = buildGoogleMerchantFeedFromRows(rows, { saleModeSettings, excluded });
   const etag = `"${createHash("sha256").update(generated.xml).digest("hex")}"`;
   feedCache = {
     xml: generated.xml,

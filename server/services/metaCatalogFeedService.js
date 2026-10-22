@@ -1,8 +1,8 @@
 import db from "../database/db.js";
 import { storefrontBaseUrl } from "./storefrontProductUrlService.js";
 import { resolveCurrentSellingPrice } from "./currentSellingPriceResolver.js";
-import { resolveMetaProductCategories } from "./metaProductCategoryResolver.js";
-import { resolveProductAudience } from "./productAudienceResolver.js";
+import { catalogProductTypeLabel, resolveMetaProductCategories } from "./metaProductCategoryResolver.js";
+import { resolveProductAudience, resolveProductAudiences } from "./productAudienceResolver.js";
 import { metaCatalogImageUrl, warmMetaCatalogImageRenditions } from "./metaImageCompatService.js";
 import { resolveEffectiveCustomerPrice } from "../../src/shared/lib/effectiveCustomerPrice.js";
 import { loadTenantSaleModeSettings } from "../utils/customerDisplayPrice.js";
@@ -155,6 +155,12 @@ const queryMetaCatalogRows = async () => {
       FROM product_variant_images
       WHERE COALESCE(TRIM(image_url), '') <> ''
       GROUP BY product_id, LOWER(TRIM(color_name))
+    ),
+    -- The shop sections (men / women / kids) a product is listed under when its sizes carry none.
+    product_audience_lists AS (
+      SELECT product_id, STRING_AGG(audience, ',' ORDER BY audience) AS audiences
+      FROM product_audiences
+      GROUP BY product_id
     )
     SELECT
       p.id AS product_id,
@@ -210,6 +216,7 @@ const queryMetaCatalogRows = async () => {
       -- working feed instead of a 500 on every Meta crawl.
       to_jsonb(p)->>'gender' AS product_gender,
       to_jsonb(pv)->>'audience' AS variant_audience,
+      pal.audiences AS product_audiences,
       pv.id AS variant_id,
       pv.sku AS variant_sku,
       vsc.sku_count,
@@ -231,6 +238,7 @@ const queryMetaCatalogRows = async () => {
     LEFT JOIN brands b ON b.id = p.brand_id
     LEFT JOIN variant_sku_counts vsc ON vsc.sku_key = LOWER(TRIM(pv.sku))
     LEFT JOIN color_images ci ON ci.product_id = p.id AND ci.color_key = LOWER(TRIM(pv.color))
+    LEFT JOIN product_audience_lists pal ON pal.product_id = p.id
     ${AD_FEED_PURCHASE_JOINS}
     WHERE p.is_active IS DISTINCT FROM FALSE
       AND COALESCE(NULLIF(LOWER(TRIM(p.status)), ''), 'active') = 'active'
@@ -340,6 +348,45 @@ export const resolveMetaCatalogComparePrice = (row = {}, currentPrice = resolveM
   return comparePrice > currentPrice ? comparePrice : 0;
 };
 
+// "|men|women|" — the pipes let a product set match one audience with i_contains without "men"
+// also matching "women".
+export const metaAudienceLabel = (audiences = []) => (audiences.length ? `|${audiences.join("|")}|` : "");
+
+/*
+  The storefront's sections as Commerce Manager product sets. A set is a filter over the feed, so it
+  keeps itself current; on WhatsApp each one shows as a collection under its name. A product sold
+  to several audiences sits in each of their sets, as it does on the site.
+*/
+const SECTION_TYPES = Object.freeze([
+  { type: "Sneakers", ar: "كوتشيات" },
+  { type: "Bags", ar: "شنط" },
+  { type: "Slippers", ar: "شباشب" },
+  { type: "Crocs", ar: "كروكس" },
+  { type: "Winter Collection", ar: "كولكشن الشتا" },
+]);
+const SECTION_AUDIENCES = Object.freeze([
+  { key: "men", ar: "رجالي" },
+  { key: "women", ar: "حريمي" },
+  { key: "kids", ar: "أطفال" },
+]);
+
+export const META_CATALOG_SECTIONS = Object.freeze(
+  SECTION_AUDIENCES.flatMap((audience) => SECTION_TYPES.map((section) => ({
+    name: `${section.ar} ${audience.ar}`,
+    type: section.type,
+    audience: audience.key,
+    filter: {
+      and: [
+        { product_type: { eq: section.type } },
+        { custom_label_0: { i_contains: `|${audience.key}|` } },
+      ],
+    },
+  })))
+);
+
+export const metaItemInSection = (item = {}, section = {}) =>
+  text(item.product_type_label) === section.type && text(item.custom_label_0).includes(`|${section.audience}|`);
+
 export const buildMetaCatalogItem = (
   row,
   { storefrontUrl = DEFAULT_STOREFRONT_URL, backendUrl = DEFAULT_BACKEND_URL, saleModeSettings = {} } = {}
@@ -393,10 +440,17 @@ export const buildMetaCatalogItem = (
     gender: audience.gender,
     age_group: audience.age_group,
     google_product_category: categories.googleProductCategory,
-    // Not emitted in Meta's XML: the shop's own classification (sneakers, bags...), which the
-    // TikTok feed sends as product_type.
+    // The stored key (sneakers, bags...), which the TikTok feed labels itself.
     product_type: text(row.product_type),
     fb_product_category: categories.facebookProductCategory,
+    // The shop's sections, so Commerce Manager product sets — the WhatsApp catalogue's collections —
+    // can mirror the storefront: one set per type and audience (META_CATALOG_SECTIONS).
+    product_type_label: catalogProductTypeLabel({ product_type: row.product_type, google_product_category: categories.googleProductCategory }),
+    custom_label_0: metaAudienceLabel(resolveProductAudiences(row)),
+    // Not emitted: what the WhatsApp feed groups by.
+    product_id: productId,
+    product_name: text(row.product_name),
+    stock: Number(row.variant_stock || 0),
   };
   if (comparePrice > sellingPrice && sellingPrice > 0) {
     item.sale_price = formatPrice(sellingPrice);
@@ -421,7 +475,7 @@ ${item.sale_price ? `      <g:sale_price>${xml(item.sale_price)}</g:sale_price>\
 ${item.google_product_category ? `      <g:google_product_category>${xml(item.google_product_category)}</g:google_product_category>\n` : ""}${item.fb_product_category ? `      <g:fb_product_category>${xml(item.fb_product_category)}</g:fb_product_category>\n` : ""}      <g:currency>${xml(item.currency)}</g:currency>
       <g:color>${xml(item.color)}</g:color>
       <g:size>${xml(item.size)}</g:size>
-${item.gender ? `      <g:gender>${xml(item.gender)}</g:gender>\n` : ""}${item.age_group ? `      <g:age_group>${xml(item.age_group)}</g:age_group>\n` : ""}      <g:condition>new</g:condition>
+${item.gender ? `      <g:gender>${xml(item.gender)}</g:gender>\n` : ""}${item.age_group ? `      <g:age_group>${xml(item.age_group)}</g:age_group>\n` : ""}${item.product_type_label ? `      <g:product_type>${xml(item.product_type_label)}</g:product_type>\n` : ""}${item.custom_label_0 ? `      <g:custom_label_0>${xml(item.custom_label_0)}</g:custom_label_0>\n` : ""}      <g:condition>new</g:condition>
     </item>`;
 };
 
@@ -546,26 +600,69 @@ const rebuildMetaCatalogFeed = async ({ warmImages = true } = {}) => {
   // Items Meta rejected (counterfeit goods, prohibited products…) stay out: left in, they are
   // re-reviewed, re-rejected and re-emailed on every fetch. See metaAdsCatalogRejections.js.
   const excluded = await loadMetaFeedExclusions();
-  const items = rows
+  const items = dedupeMetaSizes(rows
     .map((row) => buildMetaCatalogItem(row, { storefrontUrl, backendUrl, saleModeSettings }))
     .filter((item) => item.active_price > 0)
-    .filter((item) => !excludedFromMetaFeed(item, excluded));
+    .filter((item) => !excludedFromMetaFeed(item, excluded)));
   await applyMetaReadableImages(items, { warm: warmImages });
-  const body = items.map(metaCatalogItemXml).join("\n");
 
   feedCache = {
     feedUrl: FEED_URL,
     items,
-    xml: `<?xml version="1.0" encoding="UTF-8"?>
-<rss version="2.0" xmlns:g="http://base.google.com/ns/1.0">
-  <channel>
-    <title>M1 Store Meta Catalog</title>
-    <link>${xml(storefrontUrl)}</link>
-    <description>M1 Store product catalog feed for Meta Commerce</description>
-${body}
-  </channel>
-</rss>`,
+    xml: metaFeedXml(items, { storefrontUrl, title: "M1 Store Meta Catalog" }),
+    whatsappXml: metaFeedXml(metaWhatsappItems(items), { storefrontUrl, title: "M1 Store WhatsApp Catalog" }),
     generatedAt: Date.now(),
   };
   return feedCache;
+};
+
+const metaFeedXml = (items = [], { storefrontUrl = "", title = "" } = {}) => `<?xml version="1.0" encoding="UTF-8"?>
+<rss version="2.0" xmlns:g="http://base.google.com/ns/1.0">
+  <channel>
+    <title>${xml(title)}</title>
+    <link>${xml(storefrontUrl)}</link>
+    <description>M1 Store product catalog feed for Meta Commerce</description>
+${items.map(metaCatalogItemXml).join("\n")}
+  </channel>
+</rss>`;
+
+/*
+  One colour carrying the same size twice (two size rows left over from a re-import) shows the size
+  twice in Meta's variant picker, and ten colourways do. The one a customer can buy wins: in stock
+  over out of stock, then the larger stock, then the first row. The dropped row's id is a duplicate
+  listing, not a product, so nothing that sells is lost.
+*/
+export const dedupeMetaSizes = (items = []) => {
+  const kept = new Map();
+  for (const item of items) {
+    const key = `${text(item.item_group_id)}\u0000${text(item.size).toLowerCase()}`;
+    const current = kept.get(key);
+    if (!current || Number(item.stock || 0) > Number(current.stock || 0)) kept.set(key, item);
+  }
+  const winners = new Set(kept.values());
+  return items.filter((item) => winners.has(item));
+};
+
+/*
+  The WhatsApp catalogue groups by MODEL, not by colourway. The ad feed splits each colour into its
+  own group so a carousel card advertises one colourway; on WhatsApp that made five products of a
+  five-colour shoe and the customer could not switch colour inside it. Here one product holds every
+  colour and size as variants, the way the storefront's product page does, and each size still says
+  whether it is in stock. Same ids as the ad feed, so a WhatsApp order maps back to the same size.
+  It feeds a SEPARATE catalogue: one catalogue cannot group both ways.
+*/
+export const metaWhatsappItems = (items = []) => {
+  const seen = new Set();
+  const out = [];
+  for (const item of items) {
+    const key = `${text(item.product_id)}\u0000${text(item.color).toLowerCase()}\u0000${text(item.size).toLowerCase()}`;
+    if (seen.has(key)) continue;
+    seen.add(key);
+    out.push({
+      ...item,
+      item_group_id: text(item.product_id) || item.item_group_id,
+      title: text(item.product_name) || item.title,
+    });
+  }
+  return out;
 };

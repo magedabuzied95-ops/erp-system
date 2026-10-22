@@ -18,4 +18,20 @@ router.get("/meta.xml", async (_req, res) => {
   }
 });
 
+// The WhatsApp catalogue: the same items grouped by model (metaWhatsappItems), from the same cache.
+router.get("/meta-whatsapp.xml", async (_req, res) => {
+  try {
+    const feed = await buildMetaCatalogFeed();
+    res.set("Content-Type", "application/rss+xml; charset=utf-8");
+    res.set("Cache-Control", "public, max-age=900");
+    return res.status(200).send(feed.whatsappXml);
+  } catch (error) {
+    console.error("[meta-catalog-feed] whatsapp feed failed", {
+      message: error?.message || String(error),
+      stack: error?.stack || "",
+    });
+    return res.status(500).type("text/plain").send("Meta catalog feed generation failed");
+  }
+});
+
 export default router;

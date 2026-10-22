@@ -1,5 +1,6 @@
 import express from "express";
 import { buildMetaCatalogFeed } from "../../services/metaCatalogFeedService.js";
+import { catalogProductTypeLabel } from "../../services/metaProductCategoryResolver.js";
 
 /*
  * The TikTok catalogue feed: GET /feeds/tiktok.csv, pulled by TikTok's "Data Feed Schedule".
@@ -79,26 +80,9 @@ export const isTikTokImageUrl = (url = "") => /^https:\/\/\S+\.(jpe?g|png)(\?\S*
 // "Only supports three levels" of Google's taxonomy.
 const threeLevels = (category = "") => text(category).split(">").map((part) => part.trim()).filter(Boolean).slice(0, 3).join(" > ");
 
-/*
- * TikTok's "product type" is the shop's own category, free text. The ERP stores one of five
- * canonical keys (productClassificationsService.js); anything else is title-cased as stored.
- * A row with none falls back to the last level of its Google category ("Athletic Shoes").
- */
-const PRODUCT_TYPE_LABELS = Object.freeze({
-  sneakers: "Sneakers",
-  bags: "Bags",
-  crocs: "Crocs",
-  slippers: "Slippers",
-  winter_collection: "Winter Collection",
-});
-
-export const tiktokProductType = (item = {}) => {
-  const stored = cleanText(item.product_type);
-  const label = PRODUCT_TYPE_LABELS[stored.toLowerCase().replace(/[\s-]+/g, "_")];
-  if (label) return label;
-  if (stored) return stored.replace(/_/g, " ").replace(/(^|\s)(\p{Ll})/gu, (_, gap, letter) => gap + letter.toUpperCase());
-  return text(item.google_product_category).split(">").map((part) => part.trim()).filter(Boolean).pop() || "";
-};
+// TikTok's "product type" is the shop's own category, free text — the same label the Meta feed sends.
+export const tiktokProductType = (item = {}) =>
+  catalogProductTypeLabel({ product_type: cleanText(item.product_type), google_product_category: item.google_product_category });
 
 /*
  * One Meta catalogue item -> one TikTok row, or a reason it cannot be one. The reason is a

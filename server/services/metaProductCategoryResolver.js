@@ -114,3 +114,24 @@ export function resolveMetaProductCategories(product = {}) {
     matchedBy: "",
   };
 }
+
+/*
+ * The shop's own product type as a catalogue label, shared by the Meta and TikTok feeds. The ERP
+ * stores one of five canonical keys (productClassificationsService.js); anything else is title-cased
+ * as stored. A row with none falls back to the last level of its Google category ("Athletic Shoes").
+ */
+const PRODUCT_TYPE_LABELS = Object.freeze({
+  sneakers: "Sneakers",
+  bags: "Bags",
+  crocs: "Crocs",
+  slippers: "Slippers",
+  winter_collection: "Winter Collection",
+});
+
+export const catalogProductTypeLabel = ({ product_type: productType = "", google_product_category: googleCategory = "" } = {}) => {
+  const stored = clean(productType);
+  const label = PRODUCT_TYPE_LABELS[stored.toLowerCase().replace(/[\s-]+/g, "_")];
+  if (label) return label;
+  if (stored) return stored.replace(/_/g, " ").replace(/(^|\s)(\p{Ll})/gu, (_, gap, letter) => gap + letter.toUpperCase());
+  return clean(googleCategory).split(">").map((part) => part.trim()).filter(Boolean).pop() || "";
+};
