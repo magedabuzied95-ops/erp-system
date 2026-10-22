@@ -464,7 +464,7 @@ function PurchasesDashboard() {
             visiblePurchases.map((purchase) => {
               const dateParts = formatPurchaseDateParts(purchase.created_at);
               return (
-                <div key={String(purchase.id)} className="rounded-[var(--radius-card)] border border-white/10 bg-zinc-950/88 p-3">
+                <div key={String(purchase.id)} className="rounded-[var(--radius-card)] border border-white/10 bg-zinc-950/90 p-3">
                   <div className="flex items-start gap-2">
                     <Link to={`/purchases/${purchase.id}`} className="min-w-0 flex-1">
                       <div className="truncate text-sm font-black text-emerald-50">{purchase.invoice_number || `#${purchase.id}`}</div>
