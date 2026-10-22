@@ -83,3 +83,16 @@ test("the WhatsApp feed puts every colour of a model in one product", () => {
   // The ad feed's items are not rewritten.
   assert.equal(items[0].title, "Nike V2K - White");
 });
+
+test("colour names read cleanly on the WhatsApp chip and the ad title", async () => {
+  const { metaDisplayColor } = await import("../../server/services/metaCatalogFeedService.js");
+  assert.equal(metaDisplayColor("White * Black & Navy"), "White & Black & Navy");
+  assert.equal(metaDisplayColor("navy blue/red"), "Navy Blue & Red");
+  assert.equal(metaDisplayColor("Navy & WHite Mark"), "Navy & White Mark");
+  assert.equal(metaDisplayColor("White &navy"), "White & Navy");
+  assert.equal(metaDisplayColor("أسود"), "أسود");
+  // The link and the ad group keep the stored colour the storefront matches on.
+  const item = buildMetaCatalogItem(baseRow({ color: "White * Black & Navy" }));
+  assert.equal(item.color, "White & Black & Navy");
+  assert.match(item.link, /color=White%20\*%20Black%20%26%20Navy/);
+});

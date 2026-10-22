@@ -99,6 +99,20 @@ const colorGroupKey = (value = "") => {
   return Buffer.from(color, "utf8").toString("hex").slice(0, 16);
 };
 
+/*
+  The colour as a customer reads it. WhatsApp prints it on the variant chip and Meta in the ad
+  title, and the ERP stores it as typed: "White * Black & Navy", "navy blue/red", "WHite Mark".
+  Separators become " & " and each latin word is capitalised once. Display only — the group id
+  and the ?color= link keep the stored value, which is what the storefront matches on.
+*/
+export const metaDisplayColor = (value = "") =>
+  text(value)
+    .split(/\s*(?:[*/&+،,]|\s-\s)\s*/)
+    .map((part) => part.trim().replace(/\s+/g, " "))
+    .filter(Boolean)
+    .map((part) => part.replace(/[A-Za-z]+/g, (word) => word[0].toUpperCase() + word.slice(1).toLowerCase()))
+    .join(" & ");
+
 export const metaItemGroupId = (row = {}) => {
   const productId = text(row.product_id);
   const colorKey = colorGroupKey(row.color);
@@ -397,7 +411,7 @@ export const buildMetaCatalogItem = (
   // One rule with the pixel's meta_content_id (shared/metaPurchaseEvent.js).
   const id = metaCatalogItemId({ productId, variantId, sku, skuUnique: Number(row.sku_count || 0) === 1 });
   const brand = text(row.brand_name || "M1 Store");
-  const color = text(row.color);
+  const color = metaDisplayColor(row.color);
   const size = text(row.size);
   // The size lives in <g:size>, never in the title: Meta prints the title on the ad card,
   // and "Nike V2K - White & Pink - 39" reads like a stockroom row to a customer.
