@@ -28,6 +28,7 @@ import {
 } from "../../metaAdsCore.js";
 import { metaAdsManage, metaAdsView } from "../../metaAdsGuards.js";
 import { buildRecommendedAudiences } from "../../metaAdsAudiences.js";
+import { syncCatalogRejections } from "../../metaAdsCatalogRejections.js";
 import { setObjectStatus } from "../wizard/metaAdsPublisher.js";
 import {
   loadBootstrap,
@@ -122,7 +123,7 @@ router.post("/sync", metaAdsManage, handle(async (req) => {
   requireToken(ctx);
   const result = await syncAll(ctx);
   const warnings = [];
-  for (const [label, fn] of [["audiences", syncAudiences], ["lead_forms", syncLeadForms], ["product_sets", syncProductSets]]) {
+  for (const [label, fn] of [["audiences", syncAudiences], ["lead_forms", syncLeadForms], ["product_sets", syncProductSets], ["catalog_rejections", syncCatalogRejections]]) {
     try {
       Object.assign(result, await fn(ctx));
     } catch (error) {

@@ -3,6 +3,7 @@
 
 import db from "../../../database/db.js";
 import { getAccountContext, syncInsights, syncStructure } from "../metaAdsCore.js";
+import { syncCatalogRejections } from "../metaAdsCatalogRejections.js";
 import { scanCompetitor } from "./competitors.js";
 import { enqueuePurchaseEvents, retryFailedEvents } from "./conversions.js";
 import { TOKEN_INVALID_RE, clip, log, text, warn } from "./integrationsCommon.js";
@@ -18,7 +19,7 @@ const connectedAccounts = async () => {
 
 // One pass over every connected account; `label` names the job in the log and `days` the
 // insights window (0 = the account's whole history).
-const syncAccounts = async (label, { days, structure }) => {
+const syncAccounts = async (label, { days, structure, rejections = false }) => {
   const rows = await connectedAccounts();
   let ok = 0;
   let skipped = 0;
@@ -31,6 +32,10 @@ const syncAccounts = async (label, { days, structure }) => {
       const ctx = await getAccountContext(row.tenant_id, row.id);
       if (structure) await syncStructure(ctx);
       await syncInsights(ctx, { days });
+      if (rejections) {
+        // Rejected catalogue items leave the Meta feed; a failure here never fails the insights pass.
+        await syncCatalogRejections(ctx).catch((error) => warn(`${label}-catalog-rejections`, error, { tenant_id: row.tenant_id, account_id: row.id }));
+      }
       await db.query(`UPDATE meta_ads_accounts SET last_synced_at = NOW(), last_sync_error = NULL WHERE tenant_id = $1 AND id = $2`, [row.tenant_id, row.id]);
       ok += 1;
     } catch (error) {
@@ -46,7 +51,7 @@ const syncAccounts = async (label, { days, structure }) => {
 // numbers still move. Daily: the whole history, so a day the hourly pass never saw (a deploy, a
 // token lapse, an account connected later) is filled in rather than left as a hole in the chart.
 const refreshInsights = () => syncAccounts("job-insights", { days: 3, structure: true });
-const backfillInsights = () => syncAccounts("job-insights-backfill", { days: 0, structure: false });
+const backfillInsights = () => syncAccounts("job-insights-backfill", { days: 0, structure: false, rejections: true });
 
 const scanCompetitors = async () => {
   const { rows } = await db.query(

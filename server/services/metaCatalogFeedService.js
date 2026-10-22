@@ -478,6 +478,32 @@ export const applyMetaReadableImages = async (items = [], { warm = true } = {}) 
   and a build that drifts past the query read timeout answers 500 — which is exactly what happened
   once. The TTL matches the Cache-Control the route already sends.
 */
+// The ids and product groups Meta rejected in the catalogue (meta_catalog_feed_exclusions, filled
+// by the Meta Ads sync). Never a reason to fail the feed: a database without the Meta Ads tables
+// yet, or any read error, excludes nothing and the catalogue is still served.
+export const loadMetaFeedExclusions = async () => {
+  try {
+    const { rows } = await db.query(
+      `SELECT retailer_id, group_id FROM meta_catalog_feed_exclusions
+        WHERE tenant_id = $1`,
+      [FEED_TENANT_ID],
+    );
+    return {
+      ids: new Set((rows || []).map((row) => text(row.retailer_id)).filter(Boolean)),
+      groups: new Set((rows || []).map((row) => text(row.group_id)).filter(Boolean)),
+    };
+  } catch (error) {
+    if (error?.code !== "42P01") {
+      console.warn("[meta-catalog-feed] exclusions unreadable; serving the feed without them", { error: error?.message || String(error) });
+    }
+    return { ids: new Set(), groups: new Set() };
+  }
+};
+
+// Meta rejects a product group, so every size of a rejected group leaves with it.
+export const excludedFromMetaFeed = (item = {}, { ids = new Set(), groups = new Set() } = {}) =>
+  ids.has(text(item.id)) || (text(item.item_group_id) !== "" && groups.has(text(item.item_group_id)));
+
 export const META_FEED_TTL_MS = 15 * 60 * 1000;
 let feedCache = null;
 
@@ -514,9 +540,13 @@ const rebuildMetaCatalogFeed = async ({ warmImages = true } = {}) => {
   // A size with no price anywhere — not its own, not its product's, not its colour's invoice —
   // cannot be bought online, and the only number left to print is its strikethrough price: product
   // 221 was advertised at 950 while its sizes sell at 700. Google's feed already drops these.
+  // Items Meta rejected (counterfeit goods, prohibited products…) stay out: left in, they are
+  // re-reviewed, re-rejected and re-emailed on every fetch. See metaAdsCatalogRejections.js.
+  const excluded = await loadMetaFeedExclusions();
   const items = rows
     .map((row) => buildMetaCatalogItem(row, { storefrontUrl, backendUrl, saleModeSettings }))
-    .filter((item) => item.active_price > 0);
+    .filter((item) => item.active_price > 0)
+    .filter((item) => !excludedFromMetaFeed(item, excluded));
   await applyMetaReadableImages(items, { warm: warmImages });
   const body = items.map(metaCatalogItemXml).join("\n");
 

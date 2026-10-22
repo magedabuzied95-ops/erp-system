@@ -39,7 +39,7 @@ test("insights are refreshed hourly and backfilled daily over the whole history"
   assert.match(jobs, /name: "meta-ads-insights-refresh", everyMinutes: 60/);
   assert.match(jobs, /name: "meta-ads-insights-backfill", everyMinutes: 1440/);
   assert.match(jobs, /syncAccounts\("job-insights", \{ days: 3, structure: true \}\)/);
-  assert.match(jobs, /syncAccounts\("job-insights-backfill", \{ days: 0, structure: false \}\)/);
+  assert.match(jobs, /syncAccounts\("job-insights-backfill", \{ days: 0, structure: false(, rejections: true)? \}\)/);
   const core = read("../../server/modules/metaAds/metaAdsCore.js");
   assert.match(core, /: \{ date_preset: "maximum" \}/, "days = 0 asks Meta for the whole history");
   assert.match(core, /time_increment: 1/);

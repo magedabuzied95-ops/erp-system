@@ -466,6 +466,19 @@ const STATEMENTS = [
   // Catalog ads (metaAdsCatalogAds.js): the product set a creative renders, and the product
   // sets of every catalog the business owns, for the wizard's pickers.
   `ALTER TABLE meta_ads_creatives ADD COLUMN IF NOT EXISTS product_set_id TEXT NULL`,
+  // Items Meta rejected in the catalogue; the Meta feed leaves them out (metaAdsCatalogRejections.js).
+  `CREATE TABLE IF NOT EXISTS meta_catalog_feed_exclusions (
+    id BIGSERIAL PRIMARY KEY,
+    tenant_id BIGINT NOT NULL,
+    catalog_id TEXT NOT NULL,
+    retailer_id TEXT NOT NULL,
+    group_id TEXT NULL,
+    name TEXT NOT NULL DEFAULT '',
+    reason TEXT NOT NULL DEFAULT 'rejected',
+    first_seen_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+    last_seen_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+    UNIQUE (tenant_id, catalog_id, retailer_id)
+  )`,
   `CREATE TABLE IF NOT EXISTS meta_ads_product_sets (
     id BIGSERIAL PRIMARY KEY,
     tenant_id BIGINT NOT NULL,
