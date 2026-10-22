@@ -7,6 +7,7 @@
 import {
   LIMITS,
   MIN_CAROUSEL_CARDS,
+  isCatalogAd,
   adNeedsWebsite,
   billingEventsFor,
   destinationFor,
@@ -93,7 +94,11 @@ export const validateAd = (node, { campaignSpec, adsetSpec, account = {}, catalo
   if (blank(spec.name)) add("name", "adNameRequired");
   if (!account.page_id) add("identity", "adPageRequired");
 
-  if (spec.format === "carousel") {
+  if (isCatalogAd(spec, adset)) {
+    // Meta supplies the media from the product set; the ad needs the set and the campaign the catalogue.
+    if (blank(adset.product_set_id)) add("media", "catalogProductSetRequired");
+    if (blank(campaign.product_catalog_id)) add("media", "catalogRequired");
+  } else if (spec.format === "carousel") {
     if (spec.cards.length < MIN_CAROUSEL_CARDS) add("media", "carouselMinCards");
     else if (spec.cards.some((card) => !card.media)) add("media", "carouselCardMedia");
   } else if (!spec.media) {

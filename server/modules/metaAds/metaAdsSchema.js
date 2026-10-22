@@ -460,6 +460,21 @@ const STATEMENTS = [
   // Meta's review verdict on an ad (ad_review_feedback) and its open issues (issues_info).
   `ALTER TABLE meta_ads_ads ADD COLUMN IF NOT EXISTS review_feedback JSONB NULL`,
   `ALTER TABLE meta_ads_ads ADD COLUMN IF NOT EXISTS issues JSONB NOT NULL DEFAULT '[]'::jsonb`,
+  // Catalog ads (metaAdsCatalogAds.js): the product set a creative renders, and the product
+  // sets of every catalog the business owns, for the wizard's pickers.
+  `ALTER TABLE meta_ads_creatives ADD COLUMN IF NOT EXISTS product_set_id TEXT NULL`,
+  `CREATE TABLE IF NOT EXISTS meta_ads_product_sets (
+    id BIGSERIAL PRIMARY KEY,
+    tenant_id BIGINT NOT NULL,
+    account_id BIGINT NOT NULL REFERENCES meta_ads_accounts(id) ON DELETE CASCADE,
+    catalog_id TEXT NOT NULL,
+    catalog_name TEXT NOT NULL DEFAULT '',
+    meta_id TEXT NOT NULL,
+    name TEXT NOT NULL DEFAULT '',
+    product_count INTEGER NOT NULL DEFAULT 0,
+    last_synced_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+    UNIQUE (tenant_id, account_id, meta_id)
+  )`,
 ];
 
 const run = async (db) => {

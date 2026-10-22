@@ -68,7 +68,8 @@
   "creativeTypes": {
     "single_image": "Single image",
     "video": "Video",
-    "carousel": "Carousel"
+    "carousel": "Carousel",
+    "catalog": "Catalog"
   },
   "draft": "Draft",
   "perDay": "{{amount}} / day",

@@ -32,6 +32,12 @@ export default function AdPreview({ spec, account, ctaCode }) {
   const domain = domainOf(spec.display_link, spec.link);
   const ctaLabel = ctaCode && ctaCode !== "NO_BUTTON" ? t(`metaAds.cta.${ctaCode}`) : "";
   const carousel = spec.format === "carousel";
+  // A catalog ad: Meta fills the cards from the product set, so the preview shows the shape.
+  const catalogAd = spec.format === "catalog";
+  const catalogCards = [1, 2, 3].map((n) => ({
+    headline: spec.headline && !/\{\{/.test(spec.headline) ? spec.headline : t("metaAdsWizard.preview.catalogProduct", { n }),
+    description: spec.description && !/\{\{/.test(spec.description) ? spec.description : t("metaAdsWizard.preview.catalogPrice"),
+  }));
 
   return (
     <section className="wz-side-card">
@@ -49,7 +55,19 @@ export default function AdPreview({ spec, account, ctaCode }) {
         </header>
         {spec.primary_text ? <p className="wz-fb__text">{spec.primary_text}</p> : null}
 
-        {carousel ? (
+        {catalogAd ? (
+          <div className="wz-fb__carousel">
+            {catalogCards.map((card, index) => (
+              <div key={index} className="wz-fb__card">
+                <div className="wz-fb__media wz-fb__media--empty">{t("metaAdsWizard.preview.catalogMedia")}</div>
+                <div className="wz-fb__card-foot">
+                  <span className="wz-fb__headline">{card.headline}<br /><small>{card.description}</small></span>
+                  {ctaLabel ? <span className="wz-fb__cta wz-fb__cta--sm">{ctaLabel}</span> : null}
+                </div>
+              </div>
+            ))}
+          </div>
+        ) : carousel ? (
           <div className="wz-fb__carousel">
             {spec.cards.map((card, index) => (
               <div key={index} className="wz-fb__card">

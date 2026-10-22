@@ -33,6 +33,7 @@ import {
   targetsEu,
 } from "../../../../../src/modules/metaAds/manager/wizard/wizardModel.js";
 import { validateTree } from "../../../../../src/modules/metaAds/manager/wizard/wizardValidation.js";
+import { CATALOG_CREATIVE_TYPE, catalogCreativeParams } from "../../metaAdsCatalogAds.js";
 import { catalog, loadTree, validationTree } from "./wizardDrafts.js";
 
 const TABLE = {
@@ -101,6 +102,9 @@ const campaignParams = (row, { currency, countries = [], forCreate }) => {
     });
     if (categories.length && countries.length) params.special_ad_category_country = countries;
     if (!cbo) params.is_adset_budget_sharing_enabled = false;
+    // A catalog campaign promotes the catalogue itself; its ad sets then promote product sets.
+    const catalogId = text(row.spec?.product_catalog_id);
+    if (catalogId) params.promoted_object = { product_catalog_id: catalogId };
   }
   if (cbo) {
     if (Number(row.lifetime_budget) > 0) params.lifetime_budget = toMinorUnits(row.lifetime_budget, currency);
@@ -195,6 +199,13 @@ const creativeParams = async (row, { account, destination, token }) => {
   const story = { page_id: pageId };
   if (row.instagram_user_id) story.instagram_user_id = text(row.instagram_user_id);
   const isVideo = row.creative_type === "video";
+
+  if (row.creative_type === CATALOG_CREATIVE_TYPE) {
+    // Meta renders one card per product of the ad set's product set; no media, no enhancements.
+    const params = { name: text(row.name) || `Creative ${row.id}`, ...catalogCreativeParams(row, { pageId, instagramUserId: row.instagram_user_id, callToAction }) };
+    if (row.url_tags) params.url_tags = text(row.url_tags).replace(/^\?/, "");
+    return params;
+  }
 
   if (row.creative_type === "carousel") {
     const cards = Array.isArray(row.carousel_cards) ? row.carousel_cards : [];

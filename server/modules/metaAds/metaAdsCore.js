@@ -15,6 +15,7 @@ import {
 } from "./metaAdsGraph.js";
 import { BREAKDOWNS, RESULT_ACTION_BY_GOAL, breakdownValueOf } from "./metaAdsCatalog.js";
 import { INSIGHT_ATTRIBUTION_WINDOWS, funnelFromInsightRow } from "./metaAdsFunnel.js";
+import { templateCreative } from "./metaAdsCatalogAds.js";
 
 export const text = (value) => (value === undefined || value === null ? "" : String(value).trim());
 export const num = (value, fallback = 0) => {
@@ -110,9 +111,9 @@ export const requireToken = (ctx) => {
 
 // ------------------------------------------------------------------ sync: structure
 
-const CAMPAIGN_FIELDS = "id,name,objective,status,effective_status,daily_budget,lifetime_budget,bid_strategy,special_ad_categories,buying_type,start_time,stop_time,created_time,updated_time";
+const CAMPAIGN_FIELDS = "id,name,objective,status,effective_status,daily_budget,lifetime_budget,bid_strategy,special_ad_categories,buying_type,promoted_object,start_time,stop_time,created_time,updated_time";
 const ADSET_FIELDS = "id,name,campaign_id,status,effective_status,daily_budget,lifetime_budget,optimization_goal,billing_event,destination_type,bid_strategy,bid_amount,promoted_object,targeting,start_time,end_time,created_time,updated_time";
-const AD_FIELDS = "id,name,adset_id,campaign_id,status,effective_status,ad_review_feedback,issues_info,tracking_specs,created_time,updated_time,creative{id,name,object_type,object_story_spec,asset_feed_spec,image_hash,image_url,thumbnail_url,video_id,call_to_action_type,body,title,url_tags,instagram_user_id,effective_instagram_media_id}";
+const AD_FIELDS = "id,name,adset_id,campaign_id,status,effective_status,ad_review_feedback,issues_info,tracking_specs,created_time,updated_time,creative{id,name,object_type,object_story_spec,asset_feed_spec,image_hash,image_url,thumbnail_url,video_id,call_to_action_type,body,title,url_tags,instagram_user_id,effective_instagram_media_id,product_set_id}";
 
 const upsertCampaign = async (tenantId, account, row) => {
   const currency = account.currency;
@@ -176,20 +177,24 @@ export const flattenCreative = (creative = {}) => {
   const feed = creative.asset_feed_spec || {};
   const children = Array.isArray(link.child_attachments) ? link.child_attachments : [];
   const cta = link.call_to_action || video.call_to_action || {};
+  // A catalog creative has no media of its own: its template names the product fields.
+  const template = templateCreative(creative);
   let type = "single_image";
-  if (children.length) type = "carousel";
+  if (template) type = template.creative_type;
+  else if (children.length) type = "carousel";
   else if (video.video_id || creative.video_id) type = "video";
   return {
     creative_type: type,
+    product_set_id: template?.product_set_id || null,
     page_id: text(spec.page_id) || null,
     instagram_user_id: text(spec.instagram_user_id || creative.instagram_user_id) || null,
-    primary_text: text(link.message || video.message || creative.body || feed.bodies?.[0]?.text) || null,
-    headline: text(link.name || video.title || creative.title || feed.titles?.[0]?.text) || null,
-    description: text(link.description || video.link_description || feed.descriptions?.[0]?.text) || null,
-    destination_url: text(link.link || cta.value?.link || feed.link_urls?.[0]?.website_url) || null,
+    primary_text: template?.primary_text ?? (text(link.message || video.message || creative.body || feed.bodies?.[0]?.text) || null),
+    headline: template?.headline ?? (text(link.name || video.title || creative.title || feed.titles?.[0]?.text) || null),
+    description: template?.description ?? (text(link.description || video.link_description || feed.descriptions?.[0]?.text) || null),
+    destination_url: template?.destination_url ?? (text(link.link || cta.value?.link || feed.link_urls?.[0]?.website_url) || null),
     display_url: text(link.caption || feed.link_urls?.[0]?.display_url) || null,
     url_tags: text(creative.url_tags) || null,
-    call_to_action: text(cta.type || creative.call_to_action_type) || null,
+    call_to_action: template?.call_to_action ?? (text(cta.type || creative.call_to_action_type) || null),
     image_hash: text(link.image_hash || video.image_hash || creative.image_hash) || null,
     image_url: text(link.picture || video.image_url || creative.image_url || creative.thumbnail_url) || null,
     video_id: text(video.video_id || creative.video_id) || null,
@@ -210,20 +215,21 @@ const upsertCreative = async (tenantId, account, creative) => {
   const flat = flattenCreative(creative);
   const { rows } = await db.query(
     `INSERT INTO meta_ads_creatives (tenant_id, account_id, meta_id, name, status, creative_type, page_id, instagram_user_id, primary_text, headline,
-       description, destination_url, display_url, url_tags, call_to_action, image_hash, image_url, video_id, thumbnail_url, carousel_cards, raw, is_draft, updated_at)
-     VALUES ($1,$2,$3,$4,'ACTIVE',$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,$17,$18,$19::jsonb,$20::jsonb,FALSE,NOW())
+       description, destination_url, display_url, url_tags, call_to_action, image_hash, image_url, video_id, thumbnail_url, carousel_cards, raw, product_set_id, is_draft, updated_at)
+     VALUES ($1,$2,$3,$4,'ACTIVE',$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,$17,$18,$19::jsonb,$20::jsonb,$21,FALSE,NOW())
      ON CONFLICT (tenant_id, meta_id) WHERE meta_id IS NOT NULL DO UPDATE SET
        name = EXCLUDED.name, creative_type = EXCLUDED.creative_type, page_id = EXCLUDED.page_id, instagram_user_id = EXCLUDED.instagram_user_id,
        primary_text = EXCLUDED.primary_text, headline = EXCLUDED.headline, description = EXCLUDED.description,
        destination_url = EXCLUDED.destination_url, display_url = EXCLUDED.display_url, url_tags = EXCLUDED.url_tags,
        call_to_action = EXCLUDED.call_to_action, image_hash = EXCLUDED.image_hash, image_url = EXCLUDED.image_url,
        video_id = EXCLUDED.video_id, thumbnail_url = EXCLUDED.thumbnail_url, carousel_cards = EXCLUDED.carousel_cards,
-       raw = EXCLUDED.raw, is_draft = FALSE, updated_at = NOW()
+       raw = EXCLUDED.raw, product_set_id = EXCLUDED.product_set_id, is_draft = FALSE, updated_at = NOW()
      RETURNING id`,
     [
       tenantId, account.id, text(creative.id), text(creative.name), flat.creative_type, flat.page_id, flat.instagram_user_id,
       flat.primary_text, flat.headline, flat.description, flat.destination_url, flat.display_url, flat.url_tags, flat.call_to_action,
       flat.image_hash, flat.image_url, flat.video_id, flat.thumbnail_url, JSON.stringify(flat.carousel_cards), JSON.stringify(creative),
+      flat.product_set_id,
     ],
   );
   return rows[0].id;
@@ -499,6 +505,35 @@ export const syncLeadForms = async (ctx) => {
     );
   }
   return { lead_forms: rows.length };
+};
+
+// Product sets of every catalog the business owns, for the wizard's catalog-ad pickers. An
+// account outside a Business (or a token without catalog_management) simply has none.
+export const syncProductSets = async (ctx) => {
+  const token = requireToken(ctx);
+  const businessId = text(ctx.account.business_id);
+  if (!businessId) return { product_sets: 0 };
+  const catalogs = await graphGetAll(`/${businessId}/owned_product_catalogs`, token, { fields: "id,name" });
+  const seen = [];
+  for (const catalog of catalogs) {
+    const sets = await graphGetAll(`/${catalog.id}/product_sets`, token, { fields: "id,name,product_count" });
+    for (const set of sets) {
+      await db.query(
+        `INSERT INTO meta_ads_product_sets (tenant_id, account_id, catalog_id, catalog_name, meta_id, name, product_count, last_synced_at)
+         VALUES ($1,$2,$3,$4,$5,$6,$7,NOW())
+         ON CONFLICT (tenant_id, account_id, meta_id) DO UPDATE SET catalog_id = EXCLUDED.catalog_id, catalog_name = EXCLUDED.catalog_name,
+           name = EXCLUDED.name, product_count = EXCLUDED.product_count, last_synced_at = NOW()`,
+        [ctx.account.tenant_id, ctx.account.id, text(catalog.id), text(catalog.name), text(set.id), text(set.name), num(set.product_count)],
+      );
+      seen.push(text(set.id));
+    }
+  }
+  // A set deleted on Meta leaves the picker.
+  await db.query(
+    `DELETE FROM meta_ads_product_sets WHERE tenant_id = $1 AND account_id = $2 AND NOT (meta_id = ANY($3::text[]))`,
+    [ctx.account.tenant_id, ctx.account.id, seen],
+  );
+  return { product_sets: seen.length };
 };
 
 const PAGE_METRICS = ["page_impressions", "page_impressions_unique", "page_post_engagements", "page_fans", "page_views_total", "page_fan_adds"];

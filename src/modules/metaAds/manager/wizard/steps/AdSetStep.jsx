@@ -41,6 +41,13 @@ export default function AdSetStep({ spec, update, campaignSpec, catalog, account
   const bidOptions = (catalog?.bid_strategies || []).map((code) => ({ value: code, label: t(`metaAds.bidStrategies.${code}`) }));
   const billingOptions = billingEvents.map((code) => ({ value: code, label: t(`metaAds.billingEvents.${code}`) }));
   const eventOptions = CONVERSION_EVENTS.map((code) => ({ value: code, label: t(`metaAdsWizard.events.${code}`) }));
+  // A catalog campaign: this ad set's ads render one of the catalogue's product sets.
+  const catalogId = campaignSpec.product_catalog_id;
+  const productSetOptions = catalogId
+    ? (Array.isArray(account?.product_sets) ? account.product_sets : [])
+      .filter((set) => String(set.catalog_id) === String(catalogId))
+      .map((set) => ({ value: String(set.meta_id), label: set.product_count ? `${set.name} (${set.product_count})` : set.name }))
+    : [];
 
   return (
     <>
@@ -85,6 +92,19 @@ export default function AdSetStep({ spec, update, campaignSpec, catalog, account
             disabled={!goalOptions.length}
           />
         </WzField>
+
+        {catalogId ? (
+          <WzField label={t("metaAdsWizard.adset.productSet")} error={fieldError("product_set_id")} field="product_set_id" hint={productSetOptions.length ? "" : t("metaAdsWizard.adset.noProductSets")}>
+            <WzSelect
+              value={spec.product_set_id}
+              onChange={(value) => update({ product_set_id: value })}
+              options={productSetOptions}
+              placeholder={t("metaAdsWizard.adset.productSetPlaceholder")}
+              ariaLabel={t("metaAdsWizard.adset.productSet")}
+              disabled={!productSetOptions.length}
+            />
+          </WzField>
+        ) : null}
 
         {pixelGoal || websiteEvent ? (
           <WzField label={t("metaAdsWizard.adset.conversionEvent")} error={fieldError("conversion_event")} field="conversion_event"

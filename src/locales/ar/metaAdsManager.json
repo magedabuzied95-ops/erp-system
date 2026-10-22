@@ -68,7 +68,8 @@
   "creativeTypes": {
     "single_image": "صورة واحدة",
     "video": "فيديو",
-    "carousel": "عرض دائري"
+    "carousel": "عرض دائري",
+    "catalog": "كتالوج"
   },
   "draft": "مسودة",
   "perDay": "{{amount}} / يوم",

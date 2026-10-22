@@ -573,7 +573,7 @@ function WizardShell({ onClose, bootstrap, accountId, draftCampaignId, focus, on
           </div>
         ) : null}
         {level === "campaign" ? (
-          <CampaignStep spec={current.spec} update={updateCurrent} catalog={catalog} currency={currency} fieldError={fieldError} />
+          <CampaignStep spec={current.spec} update={updateCurrent} catalog={catalog} account={account} currency={currency} fieldError={fieldError} />
         ) : level === "adset" ? (
           <AdSetStep
             spec={current.spec}

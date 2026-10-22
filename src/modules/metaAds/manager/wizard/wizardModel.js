@@ -57,6 +57,8 @@ export const defaultCampaignSpec = () => ({
   budget: "",
   bid_strategy: "LOWEST_COST_WITHOUT_CAP",
   publish_status: "ACTIVE",
+  // Sales objective only: the Meta catalogue the campaign promotes (Advantage+ catalog ads).
+  product_catalog_id: "",
 });
 
 export const defaultAdsetSpec = () => ({
@@ -67,6 +69,8 @@ export const defaultAdsetSpec = () => ({
   bid_strategy: "LOWEST_COST_WITHOUT_CAP",
   bid_amount: "",
   conversion_event: "",
+  // Catalog campaigns: the product set this ad set's ads render.
+  product_set_id: "",
   budget_type: "daily",
   budget: "",
   start_time: "",
@@ -106,6 +110,10 @@ export const defaultAdSpec = () => ({
   track_pixel: true,
   lead_form_id: "",
 });
+
+// A catalog ad: its ad set promotes a product set (or the ad was synced as one). Such an ad has
+// no media of its own; Meta renders one card per product from the template headline/description.
+export const isCatalogAd = (adSpec, adsetSpec) => adSpec?.format === "catalog" || Boolean(text(adsetSpec?.product_set_id));
 
 // Fill a stored spec with the current defaults (older drafts miss newer keys).
 export const withDefaults = (level, spec = {}) => {
@@ -168,6 +176,12 @@ export const promotedObjectFor = ({ objective, adsetSpec, account = {}, catalog 
   const meta = goalMeta(goal, catalog);
   const destination = destinationFor(objective, adsetSpec, catalog);
   const pageId = text(account.page_id);
+  // A catalog ad set promotes its product set; the pixel rides along so purchases count.
+  if (text(adsetSpec?.product_set_id)) {
+    const out = { product_set_id: text(adsetSpec.product_set_id) };
+    if (account.pixel_id) Object.assign(out, { pixel_id: text(account.pixel_id), custom_event_type: adsetSpec.conversion_event || "PURCHASE" });
+    return out;
+  }
   if (meta?.promoted === "pixel") {
     if (!account.pixel_id) return {};
     return { pixel_id: text(account.pixel_id), custom_event_type: adsetSpec.conversion_event || "PURCHASE" };

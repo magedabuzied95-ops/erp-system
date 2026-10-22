@@ -6,9 +6,20 @@ import { BudgetInput } from "./BudgetInput";
 
 const ICONS = { Megaphone, MousePointerClick, MessageCircleHeart, UserPlus, TabletSmartphone, ShoppingCart };
 
-export default function CampaignStep({ spec, update, catalog, currency, fieldError }) {
+// The catalogues the account's product sets belong to (one entry per catalogue).
+const catalogsOf = (account) => {
+  const seen = new Map();
+  for (const set of Array.isArray(account?.product_sets) ? account.product_sets : []) {
+    if (set?.catalog_id && !seen.has(set.catalog_id)) seen.set(set.catalog_id, { value: String(set.catalog_id), label: set.catalog_name || String(set.catalog_id) });
+  }
+  return [...seen.values()];
+};
+
+export default function CampaignStep({ spec, update, catalog, account, currency, fieldError }) {
   const { t } = useTranslation();
   const objectives = catalog?.objectives || [];
+  const catalogOptions = catalogsOf(account);
+  const catalogAds = Boolean(spec.product_catalog_id);
 
   const categoryOptions = [
     { value: "", label: t("metaAdsWizard.campaign.noCategory") },
@@ -55,6 +66,31 @@ export default function CampaignStep({ spec, update, catalog, currency, fieldErr
           />
         </WzField>
       </WzCard>
+
+      {spec.objective === "OUTCOME_SALES" ? (
+        <WzCard field="product_catalog_id">
+          <ToggleCard
+            title={t("metaAdsWizard.campaign.catalogTitle")}
+            description={catalogOptions.length ? t("metaAdsWizard.campaign.catalogBody") : t("metaAdsWizard.campaign.noCatalogs")}
+            checked={catalogAds}
+            onChange={(value) => update({ product_catalog_id: value ? catalogOptions[0]?.value || "" : "" })}
+          />
+          {catalogAds ? (
+            <div className="wz-stack">
+              <WzField label={t("metaAdsWizard.campaign.catalogSelect")} error={fieldError("product_catalog_id")}>
+                <WzSelect
+                  value={spec.product_catalog_id}
+                  onChange={(value) => update({ product_catalog_id: value })}
+                  options={catalogOptions}
+                  placeholder={t("metaAdsWizard.campaign.catalogPlaceholder")}
+                  ariaLabel={t("metaAdsWizard.campaign.catalogSelect")}
+                  disabled={!catalogOptions.length}
+                />
+              </WzField>
+            </div>
+          ) : null}
+        </WzCard>
+      ) : null}
 
       <WzCard title={t("metaAdsWizard.campaign.categoriesTitle")} subtitle={t("metaAdsWizard.campaign.categoriesSubtitle")} field="special_ad_category">
         <WzSelect

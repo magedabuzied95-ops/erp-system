@@ -22,6 +22,7 @@ import {
   syncAudiences,
   syncInsights,
   syncLeadForms,
+  syncProductSets,
   tenantOf,
   text,
 } from "../../metaAdsCore.js";
@@ -120,7 +121,7 @@ router.post("/sync", metaAdsManage, handle(async (req) => {
   requireToken(ctx);
   const result = await syncAll(ctx);
   const warnings = [];
-  for (const [label, fn] of [["audiences", syncAudiences], ["lead_forms", syncLeadForms]]) {
+  for (const [label, fn] of [["audiences", syncAudiences], ["lead_forms", syncLeadForms], ["product_sets", syncProductSets]]) {
     try {
       Object.assign(result, await fn(ctx));
     } catch (error) {

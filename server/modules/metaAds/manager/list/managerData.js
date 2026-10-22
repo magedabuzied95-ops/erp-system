@@ -36,10 +36,11 @@ const windowClause = (days, alias, paramIndex) =>
 
 export const loadBootstrap = async (tenantId) => {
   const accounts = await listAccounts(tenantId);
-  const [audiences, forms, saved] = await Promise.all([
+  const [audiences, forms, saved, productSets] = await Promise.all([
     db.query(`SELECT account_id, meta_id, name, subtype FROM meta_ads_audiences WHERE tenant_id = $1 ORDER BY name`, [tenantId]),
     db.query(`SELECT account_id, id, meta_id, name, status FROM meta_ads_lead_forms WHERE tenant_id = $1 ORDER BY name`, [tenantId]),
     db.query(`SELECT account_id, id, name, targeting FROM meta_ads_saved_audiences WHERE tenant_id = $1 ORDER BY name`, [tenantId]),
+    db.query(`SELECT account_id, catalog_id, catalog_name, meta_id, name, product_count FROM meta_ads_product_sets WHERE tenant_id = $1 ORDER BY catalog_name, name`, [tenantId]),
   ]);
   const group = (rows, accountId, pick) => rows.filter((row) => String(row.account_id) === String(accountId)).map(pick);
   return {
@@ -48,6 +49,7 @@ export const loadBootstrap = async (tenantId) => {
       custom_audiences: group(audiences.rows, account.id, ({ meta_id, name, subtype }) => ({ meta_id, name, subtype })),
       lead_forms: group(forms.rows, account.id, ({ id, meta_id, name, status }) => ({ id, meta_id, name, status })),
       saved_audiences: group(saved.rows, account.id, ({ id, name, targeting }) => ({ id, name, targeting })),
+      product_sets: group(productSets.rows, account.id, ({ catalog_id, catalog_name, meta_id, name, product_count }) => ({ catalog_id, catalog_name, meta_id, name, product_count })),
     })),
     catalog: metaAdsCatalog(),
   };

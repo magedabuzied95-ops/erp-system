@@ -6,6 +6,7 @@
 import db from "../../../../database/db.js";
 import { metaAdsCatalog } from "../../metaAdsCatalog.js";
 import { httpError, text } from "../../metaAdsCore.js";
+import { CATALOG_CREATIVE_TYPE, DEFAULT_CATALOG_DESCRIPTION, DEFAULT_CATALOG_HEADLINE } from "../../metaAdsCatalogAds.js";
 import {
   cairoLocalToIso,
   destinationFor,
@@ -78,17 +79,21 @@ export const creativeColumns = (raw, { campaignSpec, adsetSpec, account }) => {
   const spec = withDefaults("ad", raw);
   const campaign = withDefaults("campaign", campaignSpec);
   const destination = destinationFor(campaign.objective, withDefaults("adset", adsetSpec), catalog);
-  const carousel = spec.format === "carousel";
-  const media = carousel ? null : spec.media;
+  // A catalog ad set (promoted product set) makes every ad under it a catalog creative: no
+  // media of its own, a template headline/description, one product set.
+  const catalogAd = spec.format === "catalog" || Boolean(withDefaults("adset", adsetSpec).product_set_id);
+  const carousel = !catalogAd && spec.format === "carousel";
+  const media = carousel || catalogAd ? null : spec.media;
   const columns = {
     name: text(spec.name) ? `${text(spec.name)} — creative` : "",
-    creative_type: carousel ? "carousel" : media?.type === "video" ? "video" : "single_image",
+    creative_type: catalogAd ? CATALOG_CREATIVE_TYPE : carousel ? "carousel" : media?.type === "video" ? "video" : "single_image",
+    product_set_id: catalogAd ? text(withDefaults("adset", adsetSpec).product_set_id) || null : null,
     page_id: text(account.page_id) || null,
     instagram_user_id: spec.use_instagram && account.instagram_user_id ? text(account.instagram_user_id) : null,
     primary_text: text(spec.primary_text) || null,
     primary_text_options: (spec.primary_text_options || []).map(text).filter(Boolean),
-    headline: text(spec.headline) || null,
-    description: text(spec.description) || null,
+    headline: text(spec.headline) || (catalogAd ? DEFAULT_CATALOG_HEADLINE : null),
+    description: text(spec.description) || (catalogAd ? DEFAULT_CATALOG_DESCRIPTION : null),
     destination_url: text(spec.link) || null,
     display_url: text(spec.display_link) || null,
     url_tags: text(spec.url_tags) || null,
@@ -131,6 +136,7 @@ export const campaignSpecFromRow = (row) => {
     name: row.name || "",
     objective: row.objective || "",
     special_ad_category: specCategory(row.special_ad_categories),
+    product_catalog_id: text(row.raw?.promoted_object?.product_catalog_id),
     ab_test: Boolean(row.ab_test),
     cbo: Boolean(row.campaign_budget_optimization),
     budget_type: lifetime ? "lifetime" : "daily",
@@ -153,6 +159,7 @@ export const adsetSpecFromRow = (row, campaignSpec) => {
     bid_strategy: row.bid_strategy || "LOWEST_COST_WITHOUT_CAP",
     bid_amount: row.bid_amount ? String(Number(row.bid_amount)) : "",
     conversion_event: row.promoted_object?.custom_event_type || "",
+    product_set_id: text(row.promoted_object?.product_set_id),
     budget_type: lifetime ? "lifetime" : "daily",
     budget: lifetime ? String(Number(row.lifetime_budget)) : row.daily_budget ? String(Number(row.daily_budget)) : "",
     start_time: isoToCairoLocal(row.start_time),
@@ -181,8 +188,8 @@ export const adSpecFromRow = (row, creative) => {
   return withDefaults("ad", {
     name: row.name || "",
     use_instagram: Boolean(c.instagram_user_id),
-    format: c.creative_type === "carousel" ? "carousel" : "single",
-    media: c.creative_type === "carousel" ? null : mediaFromColumns(c),
+    format: c.creative_type === CATALOG_CREATIVE_TYPE ? "catalog" : c.creative_type === "carousel" ? "carousel" : "single",
+    media: c.creative_type === "carousel" || c.creative_type === CATALOG_CREATIVE_TYPE ? null : mediaFromColumns(c),
     cards: cards.length ? cards : undefined,
     primary_text: c.primary_text || "",
     primary_text_options: Array.isArray(c.primary_text_options) ? c.primary_text_options : [],
@@ -341,13 +348,13 @@ const insertCreativeDraft = async ({ tenantId, userId, accountId, columns, extra
   const { rows } = await db.query(
     `INSERT INTO meta_ads_creatives (tenant_id, account_id, name, creative_type, page_id, instagram_user_id, primary_text,
        primary_text_options, headline, description, destination_url, display_url, url_tags, call_to_action, image_hash, image_url,
-       video_id, thumbnail_url, carousel_cards, advantage_creative, spec, status, is_draft, created_by)
-     VALUES ($1,$2,$3,$4,$5,$6,$7,$8::jsonb,$9,$10,$11,$12,$13,$14,$15,$16,$17,$18,$19::jsonb,$20,$21::jsonb,'ACTIVE',TRUE,$22) RETURNING id`,
+       video_id, thumbnail_url, carousel_cards, advantage_creative, spec, status, is_draft, created_by, product_set_id)
+     VALUES ($1,$2,$3,$4,$5,$6,$7,$8::jsonb,$9,$10,$11,$12,$13,$14,$15,$16,$17,$18,$19::jsonb,$20,$21::jsonb,'ACTIVE',TRUE,$22,$23) RETURNING id`,
     [
       tenantId, accountId, columns.name, columns.creative_type, columns.page_id, columns.instagram_user_id, columns.primary_text,
       json(columns.primary_text_options), columns.headline, columns.description, columns.destination_url, columns.display_url,
       columns.url_tags, columns.call_to_action, columns.image_hash, columns.image_url, columns.video_id, columns.thumbnail_url,
-      json(columns.carousel_cards), columns.advantage_creative, json({ ...extra, ad_spec: spec }), userId || null,
+      json(columns.carousel_cards), columns.advantage_creative, json({ ...extra, ad_spec: spec }), userId || null, columns.product_set_id || null,
     ],
   );
   return rows[0].id;
@@ -358,13 +365,13 @@ const updateCreativeDraft = async ({ tenantId, id, columns, extra, spec }) => {
     `UPDATE meta_ads_creatives SET name = $3, creative_type = $4, page_id = $5, instagram_user_id = $6, primary_text = $7,
        primary_text_options = $8::jsonb, headline = $9, description = $10, destination_url = $11, display_url = $12, url_tags = $13,
        call_to_action = $14, image_hash = $15, image_url = $16, video_id = $17, thumbnail_url = $18, carousel_cards = $19::jsonb,
-       advantage_creative = $20, spec = $21::jsonb, last_error = NULL, updated_at = NOW()
+       advantage_creative = $20, spec = $21::jsonb, product_set_id = $22, last_error = NULL, updated_at = NOW()
      WHERE tenant_id = $1 AND id = $2`,
     [
       tenantId, id, columns.name, columns.creative_type, columns.page_id, columns.instagram_user_id, columns.primary_text,
       json(columns.primary_text_options), columns.headline, columns.description, columns.destination_url, columns.display_url,
       columns.url_tags, columns.call_to_action, columns.image_hash, columns.image_url, columns.video_id, columns.thumbnail_url,
-      json(columns.carousel_cards), columns.advantage_creative, json({ ...extra, ad_spec: spec }),
+      json(columns.carousel_cards), columns.advantage_creative, json({ ...extra, ad_spec: spec }), columns.product_set_id || null,
     ],
   );
 };

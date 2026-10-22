@@ -10,6 +10,7 @@ import {
   ctaOptionsFor,
   destinationFor,
   emptyCard,
+  isCatalogAd,
   isMessagingDestination,
   resolveCta,
   usesInstantForm,
@@ -49,6 +50,11 @@ export default function AdStep({ spec, update, campaignSpec, adsetSpec, account,
   const hasIg = Boolean(account?.instagram_user_id);
   const accountId = account?.id;
   const phone = destination === "PHONE_CALL";
+  // Under a catalog ad set the format is Meta's: one card per product, no media of our own.
+  const catalogAd = isCatalogAd(spec, adsetSpec);
+  const productSet = catalogAd
+    ? (Array.isArray(account?.product_sets) ? account.product_sets : []).find((set) => String(set.meta_id) === String(adsetSpec?.product_set_id))
+    : null;
 
   const setCard = (index, patch) => update({ cards: spec.cards.map((card, i) => (i === index ? { ...card, ...patch } : card)) });
   const setOption = (index, value) => update({ primary_text_options: spec.primary_text_options.map((row, i) => (i === index ? value : row)) });
@@ -85,11 +91,22 @@ export default function AdStep({ spec, update, campaignSpec, adsetSpec, account,
       </WzCard>
 
       <WzCard title={t("metaAdsWizard.ad.setupTitle")} field="format">
-        <WzField label={t("metaAdsWizard.ad.format")}>
-          <div className="wz-two" role="radiogroup" aria-label={t("metaAdsWizard.ad.format")}>
-            <RadioCard checked={spec.format !== "carousel"} onSelect={() => update({ format: "single" })} title={t("metaAdsWizard.ad.formatSingle")} description={t("metaAdsWizard.ad.formatSingleBody")} />
-            <RadioCard checked={spec.format === "carousel"} onSelect={() => update({ format: "carousel" })} title={t("metaAdsWizard.ad.formatCarousel")} description={t("metaAdsWizard.ad.formatCarouselBody")} />
-          </div>
+        <WzField label={t("metaAdsWizard.ad.format")} error={catalogAd ? fieldError("media") : ""}>
+          {catalogAd ? (
+            <div className="wz-two" role="radiogroup" aria-label={t("metaAdsWizard.ad.format")}>
+              <RadioCard
+                checked
+                onSelect={() => update({ format: "catalog" })}
+                title={t("metaAdsWizard.ad.formatCatalog")}
+                description={productSet ? t("metaAdsWizard.ad.formatCatalogSet", { name: productSet.name, count: productSet.product_count || 0 }) : t("metaAdsWizard.ad.formatCatalogBody")}
+              />
+            </div>
+          ) : (
+            <div className="wz-two" role="radiogroup" aria-label={t("metaAdsWizard.ad.format")}>
+              <RadioCard checked={spec.format !== "carousel"} onSelect={() => update({ format: "single" })} title={t("metaAdsWizard.ad.formatSingle")} description={t("metaAdsWizard.ad.formatSingleBody")} />
+              <RadioCard checked={spec.format === "carousel"} onSelect={() => update({ format: "carousel" })} title={t("metaAdsWizard.ad.formatCarousel")} description={t("metaAdsWizard.ad.formatCarouselBody")} />
+            </div>
+          )}
         </WzField>
         {instantForm ? (
           <WzField label={t("metaAdsWizard.ad.leadForm")} error={fieldError("lead_form_id")} field="lead_form_id" hint={leadForms.length ? "" : t("metaAdsWizard.ad.noLeadForms")}>
@@ -105,8 +122,8 @@ export default function AdStep({ spec, update, campaignSpec, adsetSpec, account,
         ) : null}
       </WzCard>
 
-      <WzCard title={t("metaAdsWizard.ad.creativeTitle")} subtitle={t("metaAdsWizard.ad.creativeSubtitle")} field="media">
-        {spec.format === "carousel" ? (
+      <WzCard title={t("metaAdsWizard.ad.creativeTitle")} subtitle={catalogAd ? t("metaAdsWizard.ad.catalogCreativeSubtitle") : t("metaAdsWizard.ad.creativeSubtitle")} field="media">
+        {catalogAd ? null : spec.format === "carousel" ? (
           <WzField label={t("metaAdsWizard.ad.carouselCards")} error={fieldError("media")}>
             <div className="wz-stack-sm">
               {spec.cards.map((card, index) => (
@@ -169,13 +186,13 @@ export default function AdStep({ spec, update, campaignSpec, adsetSpec, account,
         </div>
 
         <div className="wz-two">
-          <WzField label={t("metaAdsWizard.ad.headline")} error={fieldError("headline")} field="headline">
-            <WzInput value={spec.headline} onChange={(event) => update({ headline: event.target.value })} placeholder={t("metaAdsWizard.ad.headlinePlaceholder")} />
-            <CharCount value={spec.headline} max={LIMITS.headline} />
+          <WzField label={t("metaAdsWizard.ad.headline")} error={fieldError("headline")} field="headline" hint={catalogAd ? t("metaAdsWizard.ad.catalogHeadlineHint") : ""}>
+            <WzInput value={spec.headline} onChange={(event) => update({ headline: event.target.value })} placeholder={catalogAd ? "{{product.name}}" : t("metaAdsWizard.ad.headlinePlaceholder")} dir={catalogAd ? "ltr" : undefined} />
+            {catalogAd ? null : <CharCount value={spec.headline} max={LIMITS.headline} />}
           </WzField>
-          <WzField label={t("metaAdsWizard.ad.description")}>
-            <WzInput value={spec.description} onChange={(event) => update({ description: event.target.value })} placeholder={t("metaAdsWizard.ad.descriptionPlaceholder")} />
-            <CharCount value={spec.description} max={LIMITS.description} />
+          <WzField label={t("metaAdsWizard.ad.description")} hint={catalogAd ? t("metaAdsWizard.ad.catalogDescriptionHint") : ""}>
+            <WzInput value={spec.description} onChange={(event) => update({ description: event.target.value })} placeholder={catalogAd ? "{{product.current_price}}" : t("metaAdsWizard.ad.descriptionPlaceholder")} dir={catalogAd ? "ltr" : undefined} />
+            {catalogAd ? null : <CharCount value={spec.description} max={LIMITS.description} />}
           </WzField>
         </div>
 
