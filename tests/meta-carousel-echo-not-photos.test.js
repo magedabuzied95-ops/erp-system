@@ -4,7 +4,10 @@
 // every echo handler downstream saw "a photo": the inbox drew loose colour pictures under a
 // carousel the customer had received exactly once, and never as pictures.
 import assert from "node:assert/strict";
+import fs from "node:fs";
 import test from "node:test";
+
+import { noteMetaEchoToStore } from "../server/utils/metaEchoesToStore.js";
 
 import {
   extractMetaWebhookMessages,
@@ -108,6 +111,32 @@ test("a captioned message is never treated as the carousel's pictures", async ()
   });
   const verdict = await classifyMetaCarouselEcho({ tenantId: 1, message });
   assert.equal(verdict.duplicate, false);
+});
+
+test("a comment DM's carousel is stored even right after an inbox carousel to the same customer", async () => {
+  const customerId = "cust-comment-dm-1";
+  // The inbox's own product send, a couple of minutes earlier: it noted itself and wrote its row.
+  noteMetaTemplateSend({ recipientId: customerId, elements: [element(1), element(2)] });
+  // The comment automation sends its own carousel and writes no row — only the echo records it.
+  noteMetaEchoToStore("mid.comment-dm-carousel");
+  const message = await echoOf(customerId, {
+    mid: "mid.comment-dm-carousel",
+    attachments: [{ type: "template", payload: { template_type: "generic", elements: [element(3), element(4)] } }],
+  });
+  const verdict = await classifyMetaCarouselEcho({ tenantId: 1, message });
+  assert.equal(verdict.isCardSet, true);
+  assert.equal(verdict.duplicate, false);
+  assert.equal(verdict.cards.length, 2);
+});
+
+test("wiring: every comment-automation template send names its echo; the DB fallback is pinned to the echo's moment", () => {
+  const sender = fs.readFileSync(new URL("../server/services/marketingCommentAutomationService.js", import.meta.url), "utf8");
+  assert.match(sender, /if \(carouselResponse\.ok\) \{[\s\S]{0,200}noteMetaEchoToStore\(carouselResponsePayload\?\.message_id\)/);
+  assert.match(sender, /if \(productCardResponse\.ok\) \{\s*noteMetaEchoToStore\(productCardPayload\?\.message_id\)/);
+  assert.match(sender, /if \(visualResponse\.ok\) \{\s*noteMetaEchoToStore\(visualPayload\?\.message_id\)/);
+  const meta = fs.readFileSync(new URL("../server/services/metaIntegrationService.js", import.meta.url), "utf8");
+  assert.doesNotMatch(meta, /created_at >= NOW\(\) - INTERVAL '3 minutes'/);
+  assert.match(meta, /if \(isMetaEchoToStore\(message\?\.external_message_id\)\) return \{ isCardSet: true, duplicate: false, cards \};\s*if \(ourSend\)/);
 });
 
 test("the note is per customer", () => {

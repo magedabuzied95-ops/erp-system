@@ -17,6 +17,7 @@ import {
 } from "./socialCommentPrivateReplyService.js";
 import { resolveSocialProductDisplayPrice } from "../utils/customerDisplayPrice.js";
 import { tidyGreetingText } from "../utils/greetingText.js";
+import { noteMetaEchoToStore } from "../utils/metaEchoesToStore.js";
 import { renderOfficialSocialPublicReply } from "./socialAutomationSettingsService.js";
 import { savePostProductLinksV2 } from "./socialPostProductLinksV2Service.js";
 
@@ -1647,6 +1648,8 @@ export const sendPrivateReply = async (platform, commentId, message, businessId,
           });
           const carouselResponsePayload = await parseMetaResponse(carouselResponse);
           if (carouselResponse.ok) {
+            // No transcript row is written here: the echo of this carousel is the thread's record.
+            noteMetaEchoToStore(carouselResponsePayload?.message_id);
             productVisualDelivered = true;
             upsertInitialProductSendState(initialSendKey, {
               card_sent: true,
@@ -1697,6 +1700,7 @@ export const sendPrivateReply = async (platform, commentId, message, businessId,
         });
         const productCardPayload = await parseMetaResponse(productCardResponse);
         if (productCardResponse.ok) {
+          noteMetaEchoToStore(productCardPayload?.message_id);
           productVisualDelivered = true;
           upsertInitialProductSendState(initialSendKey, {
             card_sent: true,
@@ -2081,6 +2085,7 @@ export const sendPrivateReply = async (platform, commentId, message, businessId,
           deliveredWithColorButtons = false;
         }
         if (visualResponse.ok) {
+          noteMetaEchoToStore(visualPayload?.message_id);
           instagramVisualDelivered = true;
           console.log("SOCIAL_COMMENT_INSTAGRAM_VISUAL_REPLY_SENT", {
             comment_id: graphCommentId,
