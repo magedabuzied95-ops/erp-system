@@ -2210,6 +2210,22 @@
       "sendFailed": "The template was not sent",
       "whatsappOnly": "Templates go to WhatsApp conversations only"
     },
+    "sideChat": {
+      "title": "Side chat",
+      "expand": "Expand the chat",
+      "shrink": "Shrink the chat",
+      "close": "Close the chat"
+    },
+    "messageBell": {
+      "title": "Customer messages",
+      "waiting": "{{count}} conversations waiting for a reply",
+      "allAnswered": "Every message has been answered",
+      "refresh": "Refresh",
+      "loading": "Loading messages…",
+      "empty": "No messages waiting for a reply",
+      "noPreview": "New message",
+      "openInbox": "Open the full inbox"
+    },
     "miniChat": {
       "openFull": "Open in the inbox",
       "minimize": "Minimize",

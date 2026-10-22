@@ -2222,6 +2222,22 @@
       "sendFailed": "القالب متبعتش",
       "whatsappOnly": "القوالب لمحادثات واتساب بس"
     },
+    "sideChat": {
+      "title": "الشات الجانبي",
+      "expand": "كبّر الشات",
+      "shrink": "صغّر الشات",
+      "close": "اقفل الشات"
+    },
+    "messageBell": {
+      "title": "رسايل العملاء",
+      "waiting": "{{count}} محادثة مستنية رد",
+      "allAnswered": "كل الرسايل اتردّ عليها",
+      "refresh": "حدّث",
+      "loading": "بنحمّل الرسايل…",
+      "empty": "مفيش رسايل مستنية رد",
+      "noPreview": "رسالة جديدة",
+      "openInbox": "افتح الإنبوكس كله"
+    },
     "miniChat": {
       "openFull": "افتحها في الصندوق",
       "minimize": "صغّر",

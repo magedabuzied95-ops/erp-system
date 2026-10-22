@@ -19,6 +19,9 @@ import { resolveErpRoutePageTitle } from "../navigation/routePageTitles";
 import { useTheme } from "../../theme/useTheme";
 import CommandPalette, { CommandPaletteTrigger, publishCommandPaletteState } from "../components/CommandPalette";
 import { matchSidebarPath, recordPageVisit } from "../navigation/recentPages";
+import MessageNotificationsBell from "../sideChat/MessageNotificationsBell";
+import SideChatPanel from "../sideChat/SideChatPanel";
+import { useSideChat } from "../sideChat/sideChatStore";
 import "./MainLayout.m1.css";
 import "./AiMarketing.m1.css";
 
@@ -575,6 +578,12 @@ function MainLayout() {
   const isAiMarketingWorkspace = location.pathname.startsWith("/marketing") || location.pathname.startsWith("/admin/ai-");
   const isAiInboxWorkspace = location.pathname === "/admin/ai-inbox";
   const isStoreActive = location.pathname === "/shop" || location.pathname.startsWith("/shop/");
+  // Genie's chat-from-a-notification: the open conversation docks as a third
+  // shell column and the page narrows to make room (MainLayout.m1.css).
+  const sideChat = useSideChat();
+  const sideChatOpen = Boolean(sideChat.conversation);
+  // The bell belongs to whoever can open the inbox at all.
+  const canSeeInbox = reviewerShell || paletteItems.some((item) => item.to === "/admin/ai-inbox");
   const posLabel = t("sidebar.quickAccess.pos");
   const productsLabel = t("sidebar.quickAccess.products");
   const purchasesLabel = t("sidebar.quickAccess.purchases");
@@ -712,6 +721,8 @@ function MainLayout() {
         "m1-shell-root min-h-screen w-full max-w-none overflow-x-hidden bg-[var(--bg)] text-[var(--text)] transition-all duration-300",
         sidebarAutoHide ? "m1-shell-root--sidebar-autohide" : "",
         isAiMarketingWorkspace ? "m1-ai-marketing-scope" : "",
+        sideChatOpen ? "m1-shell-root--side-chat" : "",
+        sideChatOpen && sideChat.size === "expanded" ? "m1-shell-root--side-chat-expanded" : "",
         "lg:grid",
       ].join(" ")}
     >
@@ -1033,6 +1044,7 @@ function MainLayout() {
                   <span className="sm:hidden">POS</span>
                 </NavLink>
                 </>)}
+                {canSeeInbox ? <MessageNotificationsBell /> : null}
                 <LanguageSwitcher compact className="shrink-0" />
                 <button
                   type="button"
@@ -1075,6 +1087,7 @@ function MainLayout() {
           </div>
         </div>
       </main>
+      <SideChatPanel />
       <CommandPalette items={paletteItems} userId={paletteUserId} currentPath={currentSidebarPath} />
     </div>
     </NotificationsProvider>

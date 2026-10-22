@@ -14,7 +14,7 @@
 .m1-shell-topbar>div:last-child{min-height:64px;padding-block:10px!important;padding-inline:18px!important}
 .m1-shell-topbar h2,.m1-shell-topbar p{color:var(--topbar-text)!important}.m1-shell-topbar p{font-size:11px!important;color:var(--topbar-text)}
 .m1-shell-topbar :where(button,a){border-radius:var(--radius-sm)!important;box-shadow:none!important;transform:none!important}.m1-shell-topbar :where(button,a):hover{transform:none!important}
-.m1-shell-topbar .m1-shell-theme-toggle{background:#292927!important;border-color:#41413e!important}
+.m1-shell-topbar .m1-shell-theme-toggle,.m1-shell-topbar [data-message-bell]{background:#292927!important;border-color:#41413e!important}
 .m1-shell-topbar .m1-topbar-tools>button:not([aria-label="تسجيل الخروج"]),.m1-shell-topbar .m1-topbar-tools>[class*="shrink-0"]{display:inline-flex!important;flex:none!important}
 .m1-topbar-create{border-color:var(--primary-active);border-radius:var(--radius-sm)!important;background:var(--primary)!important;color:var(--primary-contrast)!important}.m1-topbar-create:hover{background:var(--primary-hover)!important}
 .m1-topbar-create-menu{border-color:var(--border);border-radius:var(--radius-md);background:var(--card);box-shadow:0 16px 40px rgba(31,29,25,.18)}.m1-topbar-create-menu button{display:flex!important;width:100%;min-height:42px;align-items:center;gap:10px;padding:9px 11px;border:0;background:transparent!important;color:var(--text);font-family:var(--app-font);font-size:13px;font-weight:700;text-align:start;white-space:nowrap}.m1-topbar-create-menu button:hover{background:var(--surface-soft)}.m1-topbar-create-menu svg{width:16px;height:16px;flex:none;color:var(--primary)}
@@ -48,3 +48,8 @@ html[data-density="compact"] .m1-shell-sidebar nav a{min-height:37px!important;f
    grid-cols utility are matched by the [class] tests and left untouched -
    `xl:grid-cols-3` is a different class token than `grid-cols-3`. */
 @media(max-width:639px){.m1-shell-content .grid:not([class*=" grid-cols-"]):not([class^="grid-cols-"]){grid-template-columns:minmax(0,1fr)}}
+/* Side chat (Genie): the open conversation is a third shell column; the page narrows to make room and the grid animates the move. */
+.m1-shell-root{--side-chat-width:420px}
+.m1-shell-root--side-chat-expanded{--side-chat-width:min(58vw,880px)}
+@media(min-width:1024px){.m1-shell-root.m1-shell-root--side-chat{grid-template-columns:260px minmax(0,1fr) var(--side-chat-width)!important}.m1-shell-root.m1-shell-root--side-chat.m1-shell-root--sidebar-autohide{grid-template-columns:64px minmax(0,1fr) var(--side-chat-width)!important}.m1-side-chat{position:sticky;top:0;height:100vh;min-width:0;box-shadow:-18px 0 48px rgba(0,0,0,.14)}[dir="rtl"] .m1-side-chat{box-shadow:18px 0 48px rgba(0,0,0,.14)}}
+@media(max-width:1023px){.m1-side-chat{height:100dvh}}

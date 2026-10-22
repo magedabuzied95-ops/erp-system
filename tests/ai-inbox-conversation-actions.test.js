@@ -48,10 +48,13 @@ test("done, archive, export and templates reach the server", () => {
 });
 
 test("the mini chat reads and sends through the inbox's own routes", () => {
+  // The thread itself lives in QuickConversationThread, shared with the side chat.
   const mini = read("src/modules/aiSupport/components/MiniChatDock.jsx");
-  assert.match(mini, /aiInboxConversationEndpoint\(sessionId, "\/messages"\)/);
-  assert.match(mini, /aiInboxConversationEndpoint\(sessionId, "\/send"\)/);
-  assert.match(mini, /aiInboxConversationEndpoint\(sessionId, "\/ai-enabled"\)/);
+  const thread = read("src/modules/aiSupport/components/QuickConversationThread.jsx");
+  assert.match(mini, /<QuickConversationThread/);
+  assert.match(thread, /aiInboxConversationEndpoint\(sessionId, "\/messages"\)/);
+  assert.match(thread, /aiInboxConversationEndpoint\(sessionId, "\/send"\)/);
+  assert.match(thread, /aiInboxConversationEndpoint\(sessionId, "\/ai-enabled"\)/);
   assert.match(page, /\[\.\.\.rest, \{ key, item, minimized: false \}\]\.slice\(-3\)/);
   assert.match(page, /<MiniChatDock/);
 });
