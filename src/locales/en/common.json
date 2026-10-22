@@ -750,7 +750,11 @@
       },
       "emptyState": "No results",
       "loadingState": "Loading...",
-      "clearSearch": "Clear search"
+      "clearSearch": "Clear search",
+      "filters": {
+        "button": "Filters",
+        "apply": "Show results"
+      }
     },
     "errorBoundary": {
       "screenCrashed": "This screen crashed",

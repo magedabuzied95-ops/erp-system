@@ -53,6 +53,9 @@
   width: 100%;
   max-width: 100%;
   overflow-x: auto;
+  /* A sideways swipe scrolls the table, not the page behind it. */
+  overscroll-behavior-x: contain;
+  -webkit-overflow-scrolling: touch;
   border: 1px solid var(--border);
   border-radius: var(--radius-card);
   background: var(--card);

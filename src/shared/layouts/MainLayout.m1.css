@@ -59,3 +59,49 @@ html[data-density="compact"] .m1-shell-sidebar nav a{min-height:37px!important;f
 @media(min-width:1024px){.m1-side-chat-resize{position:absolute;top:0;bottom:0;inset-inline-start:0;width:8px;cursor:col-resize;z-index:2;touch-action:none}.m1-side-chat-resize::after{content:"";position:absolute;top:0;bottom:0;inset-inline-start:0;width:3px;border-radius:3px;background:transparent;transition:background .15s ease}.m1-side-chat-resize:hover::after,.m1-side-chat-resize[data-dragging="true"]::after{background:var(--primary)}.m1-shell-root--side-chat-resizing,.m1-shell-root--side-chat-resizing .m1-side-chat,.m1-shell-root--side-chat-resizing .m1-side-chat-slot{transition:none!important}.m1-shell-root--side-chat-resizing{cursor:col-resize;user-select:none}.m1-shell-root--side-chat-resizing iframe{pointer-events:none}}
 /* Genie's cards: with the side chat open the page and the chat are two rounded cards on the dark topbar colour, a thin gap between them. The page's own corners clip because <main> is overflow-x:hidden (any non-visible overflow clips to the radius); the panel is the fixed card inside its reserved column, inset by the gap. */
 @media(min-width:1024px){.m1-shell-root.m1-shell-root--side-chat{--side-chat-gap:6px;--side-chat-radius:20px;background:var(--topbar)}.m1-shell-root--side-chat>main{background:var(--bg);border-start-end-radius:var(--side-chat-radius);border-end-end-radius:var(--side-chat-radius)}.m1-shell-root--side-chat .m1-side-chat{top:var(--side-chat-gap);bottom:var(--side-chat-gap);inset-inline-end:var(--side-chat-gap);height:auto;width:calc(var(--side-chat-width) - var(--side-chat-gap) * 2);border:0!important;border-radius:var(--side-chat-radius);box-shadow:0 18px 48px rgba(0,0,0,.22)}.m1-shell-root--side-chat .m1-side-chat--rail{box-shadow:none}.m1-shell-root--side-chat .m1-side-chat-resize{inset-inline-start:calc(var(--side-chat-gap) * -1 - 2px);width:calc(var(--side-chat-gap) + 6px)}.m1-shell-root--side-chat .m1-side-chat-resize::after{inset-inline-start:calc(var(--side-chat-gap) + 1px)}}
+/* ===== Phone / installed-PWA shell (2026-10 phone pass) =====================
+   Everything below is max-width scoped, so the >=1024px shell is untouched.
+   Safe areas: viewport-fit=cover is set for the ERP (index.html + MainLayout),
+   so env(safe-area-inset-*) is real here; in a browser tab it is 0 and these
+   rules reduce to the previous paddings. */
+@media(max-width:1023px){
+  .m1-shell-topbar{padding-top:env(safe-area-inset-top)}
+  .m1-shell-topbar>div:last-child{padding-inline:max(12px,env(safe-area-inset-left)) max(12px,env(safe-area-inset-right))!important}
+  .m1-shell-sidebar{padding-top:max(12px,env(safe-area-inset-top))!important;padding-bottom:max(12px,env(safe-area-inset-bottom))!important}
+  /* The drawer's own header already names the workspace; the brand card under
+     it repeated the name (its pin button is desktop-only anyway). */
+  .m1-shell-sidebar .m1-sidebar-brand{display:none}
+  .m1-shell-content:not(.m1-shell-content--flush){padding-inline:max(12px,env(safe-area-inset-left)) max(12px,env(safe-area-inset-right))!important;padding-bottom:calc(36px + env(safe-area-inset-bottom))!important}
+  .m1-side-chat{padding-top:env(safe-area-inset-top);padding-bottom:env(safe-area-inset-bottom)}
+}
+/* Phone: ONE app-like row, <=56px - menu, workspace name (truncates), POS, the
+   message bell and a kebab menu holding store / products / purchases / search /
+   language / theme / logout (PhoneTopbarMenu in MainLayout.jsx). The wrap rule
+   above made this two rows (109px) with the quick links squeezed to 27px empty
+   squares. The 0,4,0 selector outranks the 0,3,1 !important display rule. */
+@media(max-width:767px){
+  .m1-shell-topbar{min-height:0}
+  .m1-shell-topbar>div:last-child{flex-wrap:nowrap;gap:8px;min-height:56px;padding-block:6px!important}
+  .m1-shell-topbar>div:last-child>div:first-child{flex:1 1 auto;min-width:0;gap:10px}
+  .m1-shell-topbar .m1-topbar-tools{flex:none;max-width:none;gap:6px;overflow:visible}
+  .m1-shell-root .m1-shell-topbar .m1-topbar-tools>.m1-topbar-phone-hide{display:none!important}
+  .m1-shell-content:not(.m1-shell-content--flush){padding-top:12px!important;padding-bottom:calc(28px + env(safe-area-inset-bottom))!important}
+  .m1-phone-topbar-menu{top:calc(env(safe-area-inset-top) + 60px);inset-inline-end:max(8px,env(safe-area-inset-right));width:min(280px,calc(100vw - 16px));max-height:calc(100dvh - env(safe-area-inset-top) - env(safe-area-inset-bottom) - 72px)}
+  /* iOS zooms the page into any field under 16px on focus. Scoped by the class
+     MainLayout puts on <html> (portaled dialogs included, storefront excluded);
+     the selector outranks AiMarketing.m1.css (0,2,0), Reports.m1.css and the
+     sidebar search (0,1,1), all !important and unlayered like this one. */
+  html.m1-erp-shell body :is(input:not([type="checkbox"]):not([type="radio"]):not([type="range"]):not([type="color"]):not([type="file"]):not([type="button"]):not([type="submit"]),select,textarea){font-size:16px!important}
+  /* A rounded wrapper that clips its table (overflow-hidden for the corners)
+     made the extra columns unreachable; let it scroll sideways instead. */
+  .m1-shell-content .overflow-hidden:has(>table){overflow-x:auto;overscroll-behavior-x:contain;-webkit-overflow-scrolling:touch}
+}
+/* Phone: card-in-card. A page card's p-6/p-8 plus an inner panel's own p-5/p-6
+   cost ~60px of a 375px screen; inside the shell the big paddings settle at
+   16px / 12px. Unlayered, so it outranks the Tailwind utilities; sm: and wider
+   variants are separate class tokens and stay as authored. */
+@media(max-width:639px){
+  .m1-shell-content:not(.m1-shell-content--flush) :is(.p-6,.p-7,.p-8,.p-10){padding:16px}
+  .m1-shell-content:not(.m1-shell-content--flush) :is(.p-5,.p-6,.p-7,.p-8,.p-10) :is(.p-4,.p-5,.p-6,.p-7,.p-8){padding:12px}
+  .m1-shell-content:not(.m1-shell-content--flush) :is(.px-6,.px-8){padding-inline:16px}
+}

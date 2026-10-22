@@ -1,8 +1,9 @@
 // Union of both sides: `useEffect`/`useId`/`Search` come from the Phase 2A
 // primitives, `ChevronRight` from the recovered Pagination (RTL "previous").
-import { forwardRef, useEffect, useId } from "react";
+import { forwardRef, useCallback, useEffect, useId, useState } from "react";
+import { createPortal } from "react-dom";
 import { useTranslation } from "react-i18next";
-import { ChevronLeft, ChevronRight, Inbox, LoaderCircle, Search, X } from "lucide-react";
+import { ChevronLeft, ChevronRight, Inbox, LoaderCircle, Search, SlidersHorizontal, X } from "lucide-react";
 import "./m1-ui.css";
 import "./m1-table.css";
 
@@ -299,12 +300,90 @@ export const Toolbar = ({ children, className = "" }) => <div className={cx("m1-
 export const ToolbarGroup = ({ children, className = "" }) => <div className={cx("m1-toolbar__group", className)}>{children}</div>;
 export const ToolbarSpacer = () => <span className="m1-toolbar__spacer" aria-hidden="true" />;
 
-export const FilterBar = ({ children, actions, className = "" }) => (
+export const FilterBar = ({ children, actions, className = "", collapsible = false, leading = null, activeCount = 0, onReset }) => (
   <div className={cx("m1-filter-bar", className)}>
-    <div className="m1-filter-bar__filters">{children}</div>
+    <div className="m1-filter-bar__filters">
+      {collapsible ? (
+        <PhoneFilters leading={leading} activeCount={activeCount} onReset={onReset}>{children}</PhoneFilters>
+      ) : (
+        <>{leading}{children}</>
+      )}
+    </div>
     {actions ? <div className="m1-filter-bar__actions">{actions}</div> : null}
   </div>
 );
+
+/* ------------------------------------------------------------ PhoneFilters */
+
+const PHONE_QUERY = "(max-width: 767px)";
+
+export function usePhoneLayout() {
+  const [phone, setPhone] = useState(() => (
+    typeof window !== "undefined" && typeof window.matchMedia === "function" ? window.matchMedia(PHONE_QUERY).matches : false
+  ));
+  useEffect(() => {
+    if (typeof window === "undefined" || typeof window.matchMedia !== "function") return undefined;
+    const query = window.matchMedia(PHONE_QUERY);
+    const onChange = (event) => setPhone(event.matches);
+    setPhone(query.matches);
+    query.addEventListener?.("change", onChange);
+    return () => query.removeEventListener?.("change", onChange);
+  }, []);
+  return phone;
+}
+
+// A list page's filters on a phone: `leading` (the search box) stays on screen,
+// everything in `children` moves behind one "Filters" button (with the number
+// of active filters) that opens a bottom sheet. At >=768px it renders exactly
+// `{leading}{children}` with no wrapper, so wrapping an existing filter row in
+// it leaves the desktop DOM and layout unchanged. The sheet is portaled to
+// <body>, so page-scoped CSS (`.my-page input {…}`) does not reach inside it.
+// `sheetClassName` re-applies a page scope class inside the sheet when the
+// page styles its controls through one.
+export function PhoneFilters({ children, leading = null, activeCount = 0, onReset, title, className = "", sheetClassName = "" }) {
+  const { t } = useTranslation();
+  const phone = usePhoneLayout();
+  const [open, setOpen] = useState(false);
+  const close = useCallback(() => setOpen(false), []);
+  if (!phone) return <>{leading}{children}</>;
+  const count = Number(activeCount) || 0;
+  const label = t("common.m1.filters.button");
+  return (
+    <>
+      <div className={cx("m1-phone-filters", className)}>
+        {leading ? <div className="m1-phone-filters__leading">{leading}</div> : null}
+        <button
+          type="button"
+          className="m1-phone-filters__button"
+          data-active={count > 0 ? "true" : undefined}
+          aria-haspopup="dialog"
+          aria-expanded={open}
+          onClick={() => setOpen(true)}
+        >
+          <SlidersHorizontal size={17} aria-hidden="true" />
+          <span>{label}</span>
+          {count > 0 ? <span className="m1-phone-filters__count">{count}</span> : null}
+        </button>
+      </div>
+      {open && typeof document !== "undefined" ? createPortal(
+        <Modal
+          open
+          title={title || label}
+          onClose={close}
+          footer={(
+            <div className="m1-phone-filters__footer">
+              {onReset ? <Button onClick={() => onReset()}>{t("common.reset")}</Button> : null}
+              <Button variant="primary" onClick={close}>{t("common.m1.filters.apply")}</Button>
+            </div>
+          )}
+        >
+          <div className={cx("m1-phone-filters__sheet", sheetClassName)}>{children}</div>
+        </Modal>,
+        document.body
+      ) : null}
+    </>
+  );
+}
 
 /* -------------------------------------------------------------------- Tabs */
 

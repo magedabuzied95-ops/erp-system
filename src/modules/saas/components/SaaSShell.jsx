@@ -4,9 +4,9 @@ import { useTranslation } from "react-i18next";
 export default function SaaSShell({ title, subtitle, actions, tabs = [], children }) {
   const { t } = useTranslation();
   return (
-    <div className="space-y-6">
+    <div className="space-y-6 max-sm:space-y-4">
       <div className="flex flex-col gap-4 xl:flex-row xl:items-end xl:justify-between">
-        <div>
+        <div className="max-sm:min-w-0">
           <div className="text-[11px] uppercase tracking-[0.24em] text-[var(--primary)]/70">{t("saas.shell.eyebrow")}</div>
           <h1 className="m1-display mt-2 text-[var(--text)]">{title}</h1>
           {subtitle ? <p className="mt-2 max-w-3xl text-sm leading-6 text-[var(--muted)]">{subtitle}</p> : null}
@@ -14,7 +14,8 @@ export default function SaaSShell({ title, subtitle, actions, tabs = [], childre
         {actions ? <div className="flex flex-wrap gap-2">{actions}</div> : null}
       </div>
 
-      <div className="flex flex-wrap gap-2 rounded-[var(--radius-card)] border border-[var(--border)] bg-[var(--surface)] p-2 shadow-2xl shadow-[var(--shadow)]">
+      {/* Phone: one swipeable row of tabs instead of a wrapped block. */}
+      <div className="flex flex-wrap gap-2 rounded-[var(--radius-card)] border border-[var(--border)] bg-[var(--surface)] p-2 shadow-2xl shadow-[var(--shadow)] max-sm:flex-nowrap max-sm:overflow-x-auto max-sm:[scrollbar-width:none] max-sm:[&>*]:shrink-0 max-sm:[&>*]:whitespace-nowrap">
         {tabs.map((tab) => (
           <NavLink
             key={tab.to}

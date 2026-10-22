@@ -552,8 +552,10 @@ function Dashboard() {
   const activeSecondary = secondarySections.find((section) => section.id === activeSection) || secondarySections[0];
 
   return (
-    <div dir={isArabic ? "rtl" : "ltr"} className="dashboard-premium relative isolate min-h-screen w-full overflow-x-hidden rounded-[var(--radius-card)] px-3 pb-8 pt-3 text-text sm:px-5">
-      <div className="dashboard-commandbar sticky top-0 z-20 -mx-3 border-b border-border bg-surface px-3 py-3 backdrop-blur-xl sm:-mx-5 sm:px-5">
+    <div dir={isArabic ? "rtl" : "ltr"} className="dashboard-premium relative isolate min-h-screen w-full overflow-x-hidden rounded-[var(--radius-card)] px-0 pb-8 pt-0 text-text sm:px-5 sm:pt-3">
+      {/* Phone: the shell already gives the 12px gutter, so no second one here, and the command
+          bar scrolls away instead of pinning a third of the screen under the shell topbar. */}
+      <div className="dashboard-commandbar sticky top-0 z-20 mx-0 border-b border-border bg-surface px-3 py-3 backdrop-blur-xl max-md:static max-sm:rounded-[var(--radius-card)] max-sm:border sm:-mx-5 sm:px-5">
         <div className="grid gap-3 xl:grid-cols-[minmax(240px,0.72fr)_minmax(0,1.8fr)] xl:items-center">
           <div>
             <div className="m1-page-eyebrow">{copy.executiveControlCenter}</div>
@@ -563,7 +565,7 @@ function Dashboard() {
             <div className="m1-page-meta">{tenant?.name || tenant?.companyName || copy.workspace}{lastUpdated ? ` · ${copy.updated} ${shortTime(lastUpdated)}` : ""}</div>
           </div>
           <div className="dashboard-toolbar flex flex-wrap items-center gap-2 text-xs font-bold text-text-muted xl:justify-end">
-            <div className="flex max-w-full flex-wrap items-center gap-1.5 rounded-[var(--radius-card)] border border-border bg-surface p-1">
+            <div className="flex max-w-full flex-wrap items-center gap-1.5 rounded-[var(--radius-card)] border border-border bg-surface p-1 max-sm:w-full max-sm:flex-nowrap max-sm:justify-start max-sm:overflow-x-auto max-sm:[scrollbar-width:none] max-sm:[&>*]:shrink-0">
               {quickActions.map((action) => (
                 <QuickAction key={action.to} {...action} />
               ))}
@@ -573,7 +575,7 @@ function Dashboard() {
                 {copy.today}
               </span>
             ) : (
-              <select value={filters.range} onChange={(event) => setFilters((current) => ({ ...current, range: event.target.value }))} className="h-[var(--control-height-md)] rounded-[var(--radius-control)] border border-border bg-surface px-3 text-xs font-bold text-text outline-none transition hover:border-border-strong">
+              <select value={filters.range} onChange={(event) => setFilters((current) => ({ ...current, range: event.target.value }))} className="h-[var(--control-height-md)] rounded-[var(--radius-control)] border border-border bg-surface px-3 text-xs font-bold text-text outline-none transition hover:border-border-strong max-sm:min-w-0 max-sm:flex-1">
                 <option value="today">{copy.today}</option>
                 <option value="yesterday">{copy.yesterday}</option>
                 <option value="7d">{copy.last7Days}</option>
@@ -583,12 +585,12 @@ function Dashboard() {
             )}
             {!isCashier && filters.range === "custom" ? (
               <>
-                <input type="date" value={filters.date_from} onChange={(event) => setFilters((current) => ({ ...current, date_from: event.target.value }))} className="h-[var(--control-height-md)] rounded-[var(--radius-control)] border border-border bg-surface px-3 text-xs text-text outline-none" />
-                <input type="date" value={filters.date_to} onChange={(event) => setFilters((current) => ({ ...current, date_to: event.target.value }))} className="h-[var(--control-height-md)] rounded-[var(--radius-control)] border border-border bg-surface px-3 text-xs text-text outline-none" />
+                <input type="date" value={filters.date_from} onChange={(event) => setFilters((current) => ({ ...current, date_from: event.target.value }))} className="h-[var(--control-height-md)] rounded-[var(--radius-control)] border border-border bg-surface px-3 text-xs text-text outline-none max-sm:w-full max-sm:min-w-0 max-sm:basis-full" />
+                <input type="date" value={filters.date_to} onChange={(event) => setFilters((current) => ({ ...current, date_to: event.target.value }))} className="h-[var(--control-height-md)] rounded-[var(--radius-control)] border border-border bg-surface px-3 text-xs text-text outline-none max-sm:w-full max-sm:min-w-0 max-sm:basis-full" />
               </>
             ) : null}
             {branches.length > 1 ? (
-              <select value={filters.branch_id} onChange={(event) => setFilters((current) => ({ ...current, branch_id: event.target.value }))} className="h-[var(--control-height-md)] rounded-[var(--radius-control)] border border-border bg-surface px-3 text-xs font-bold text-text outline-none">
+              <select value={filters.branch_id} onChange={(event) => setFilters((current) => ({ ...current, branch_id: event.target.value }))} className="h-[var(--control-height-md)] rounded-[var(--radius-control)] border border-border bg-surface px-3 text-xs font-bold text-text outline-none max-sm:min-w-0 max-sm:flex-1">
                 <option value="all">{copy.allBranches}</option>
                 {branches.map((branch) => <option key={branch.id} value={branch.id}>{branch.name}</option>)}
               </select>
@@ -666,7 +668,7 @@ function ExecutiveCard({ label, value, detail, icon: Icon, tone = "slate", loadi
   };
   const deltaColors = { emerald: "text-emerald-300", rose: "text-red-300", slate: "text-text-muted" };
   const body = (
-    <article className={`flex h-full min-h-[172px] flex-col rounded-[var(--radius-card)] border p-4 shadow-lg shadow-black/20 transition ${tones[tone] || tones.slate} ${to ? "hover:border-border-strong" : ""}`}>
+    <article className={`flex h-full min-h-[172px] flex-col max-sm:min-w-0 rounded-[var(--radius-card)] border p-4 shadow-lg max-sm:min-h-[132px] max-sm:p-3 shadow-black/20 transition ${tones[tone] || tones.slate} ${to ? "hover:border-border-strong" : ""}`}>
       <div className="flex items-start justify-between gap-2 sm:gap-3">
         <div className="line-clamp-3 min-h-8 min-w-0 text-[11px] font-black uppercase tracking-[0.04em] sm:line-clamp-2 sm:tracking-[0.14em] text-text-muted">{label}</div>
         <div className={`grid h-8 w-8 shrink-0 sm:h-10 sm:w-10 place-items-center rounded-[var(--radius-control)] ${iconTones[tone] || iconTones.slate}`}>

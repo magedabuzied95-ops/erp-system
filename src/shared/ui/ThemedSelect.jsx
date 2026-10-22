@@ -93,7 +93,9 @@ export default function ThemedSelect({
     const trigger = triggerRef.current;
     const rect = trigger?.getBoundingClientRect();
     if (!rect) return;
-    const width = rect.width;
+    // Never wider than the viewport: a trigger inside a horizontal scroller can be wider
+    // than a 375px phone, and the list must stay fully on screen.
+    const width = Math.min(rect.width, window.innerWidth - VIEWPORT_MARGIN * 2);
     const below = window.innerHeight - rect.bottom - MENU_GAP - VIEWPORT_MARGIN;
     const above = rect.top - MENU_GAP - VIEWPORT_MARGIN;
     // Flip above the trigger when the space under it cannot hold a usable list.
