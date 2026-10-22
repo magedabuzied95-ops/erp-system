@@ -85,3 +85,20 @@ test("cash with no open shift, or a split that does not add up, is refused and r
   await assert.rejects(createLocalCourierSettlement({ tenantId: 1, orderIds: [2214], shiftId: 31, payments: { cash: 100, instapay: 0, card: 0 }, createdBy: 4 }), (error) => error.code === "PAYMENTS_MISMATCH");
   assert.equal(calls.drawer.length, 0);
 });
+
+test("New Damietta: his fee is the customer's shipping passed through, so it never becomes an expense", async () => {
+  reset();
+  orders.push(
+    { id: 2301, public_order_number: "INV-2301", shipping_provider: "local_courier", city_area: "دمياط الجديده", courier_collected_at: "2026-10-23T10:00:00Z", courier_collected_amount: 1145, courier_settlement_id: null },
+    { id: 2302, public_order_number: "INV-2302", shipping_provider: "local_courier", shipping_address: "New Damietta, 3rd district", courier_collected_at: "2026-10-23T10:05:00Z", courier_collected_amount: 845, courier_settlement_id: null },
+    { id: 2303, public_order_number: "INV-2303", shipping_provider: "local_courier", city_area: "دمياط", shipping_address: "شارع الجلاء", courier_collected_at: "2026-10-23T10:10:00Z", courier_collected_amount: 545, courier_settlement_id: null },
+  );
+  const onlyNew = await createLocalCourierSettlement({ tenantId: 1, orderIds: [2301, 2302], shiftId: 31, feesAmount: 90, createdBy: 4 });
+  assert.equal(onlyNew.net_amount, 1900, "the drawer still gets the cash net of his fee");
+  assert.equal(onlyNew.fees_expensed, 0);
+  assert.equal(calls.expenses.length, 0, "no shipping expense for New Damietta");
+  reset();
+  const mixed = await createLocalCourierSettlement({ tenantId: 1, orderIds: [2301, 2303], shiftId: 31, feesAmount: 90, createdBy: 4 });
+  assert.equal(mixed.fees_expensed, 45, "only the old-Damietta order's share is an expense");
+  assert.equal(calls.expenses[0].amount, 45);
+});

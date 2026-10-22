@@ -42,6 +42,16 @@ const providerOf = (order = {}) => lower(order.shipping_provider || order.shippi
 const trackingOf = (order = {}) => text(order.shipping_tracking_number || order.tracking_number || order.shipping_provider_delivery_id);
 const shippingStatusOf = (order = {}) => lower(order.shipment_status || order.shipping_status);
 
+// New Damietta, read from the address the order carries (Arabic in any spelling, or Bosta's
+// English zone name). Shipping there is a pass-through to the courier (owner, 2026-10-23).
+const normalizeArabicPlace = (value = "") => text(value).toLowerCase()
+  .replace(/[أإآ]/g, "ا").replace(/ة/g, "ه").replace(/ى/g, "ي").replace(/\s+/g, " ");
+export const isNewDamiettaOrder = (order = {}) => {
+  const haystack = ["city_area", "shipping_address", "customer_address", "address", "shipping_city", "city", "shipping_zone_name", "zone_name"]
+    .map((key) => normalizeArabicPlace(order[key])).join(" | ");
+  return haystack.includes("دمياط الجديد") || haystack.includes("new damietta") || haystack.includes("new dumyat");
+};
+
 // Why this order cannot go with the shop's courier, or "" when it can.
 export const localCourierBlockReason = (order = {}) => {
   if (!order?.id) return "order_not_found";
@@ -426,9 +436,13 @@ export const createLocalCourierSettlement = async ({ tenantId = null, orderIds =
       [Number(tenantId), LOCAL_COURIER_PROVIDER, shift ? `shift:${shift.id}` : null, when.toISOString(), gross, fees, net, ids.length, text(notes) || null, Number(createdBy), round2(settings.fee_per_order * ids.length), JSON.stringify(split)]
     )).rows[0];
     let allocated = 0;
+    // His fee on a New Damietta order is the shipping the customer paid, handed straight to him:
+    // not the shop's revenue (sales count the products only) and so not the shop's expense.
+    let expensedFees = 0;
     for (const [index, row] of rows.entries()) {
       const share = index === rows.length - 1 ? round2(fees - allocated) : round2(fees / rows.length);
       allocated = round2(allocated + share);
+      if (!isNewDamiettaOrder(row)) expensedFees = round2(expensedFees + share);
       await client.query(
         `INSERT INTO courier_settlement_items (settlement_id, order_id, collected_amount, fee_amount) VALUES ($1, $2, $3, $4)`,
         [settlement.id, row.id, round2(row.courier_collected_amount), share]
@@ -469,12 +483,13 @@ export const createLocalCourierSettlement = async ({ tenantId = null, orderIds =
         idempotent: false,
       });
     }
-    // His fee is a cost of the shop; the profit report reads only the expenses table.
+    // Outside New Damietta his fee is a cost of the shop; the profit report reads only the
+    // expenses table.
     let feeExpenseId = null;
-    if (fees > 0) {
+    if (expensedFees > 0) {
       feeExpenseId = await upsertCourierExpense(client, {
         tenantId: Number(tenantId),
-        amount: fees,
+        amount: expensedFees,
         title: `أجرة ${courierLabel(settings)} — ${ids.length} أوردر — تسوية #${settlement.id}`,
         day: new Intl.DateTimeFormat("en-CA", { timeZone: getAppTimeZone(), year: "numeric", month: "2-digit", day: "2-digit" }).format(when),
         notes: "قيد تلقائي: المندوب خصم أجرته من فلوس الأوردرات قبل ما يسلّمها للدرج.",
@@ -484,7 +499,7 @@ export const createLocalCourierSettlement = async ({ tenantId = null, orderIds =
       if (feeExpenseId) await client.query(`UPDATE courier_settlements SET fee_expense_id = $2 WHERE id = $1`, [settlement.id, feeExpenseId]);
     }
     await client.query("COMMIT");
-    return { ...settlement, fee_expense_id: feeExpenseId, order_ids: ids, shift_id: shift?.id || null, payments: split };
+    return { ...settlement, fee_expense_id: feeExpenseId, fees_expensed: expensedFees, order_ids: ids, shift_id: shift?.id || null, payments: split };
   } catch (error) {
     await client.query("ROLLBACK").catch(() => {});
     throw error;

@@ -313,7 +313,7 @@
       }
     },
     "local": {
-      "intro": "Damietta orders that go out with the shop's courier: delivered closes them as paid; when he hands the cash in it goes into a drawer shift and his fee becomes an expense.",
+      "intro": "Damietta orders that go out with the shop's courier: delivered closes them as paid; his hand-in goes into a drawer shift. Shipping in New Damietta stays out of the accounts.",
       "settings": {
         "name": "Courier name",
         "phone": "Courier phone",
@@ -329,10 +329,10 @@
       },
       "settle": {
         "title": "The courier handed the cash in",
-        "hint": "Pick the orders he paid in and type what customers paid by InstaPay or Visa. The rest is cash into the drawer shift; his fee is posted as a shipping expense.",
+        "hint": "Pick the orders he paid in and type what customers paid by InstaPay or Visa. The rest is cash into the drawer shift. His fee on New Damietta orders is not an expense: it is the shipping the customer paid, passed straight to him. Outside New Damietta it is posted as a shipping expense.",
         "gross": "Collected from {{count}} orders",
         "fees": "Courier fee",
-        "feesHint": "Automatic: {{fee}} × orders — type another amount if different",
+        "feesHint": "Automatic: {{fee}} × orders — type another amount if different. New Damietta orders keep his fee out of expenses.",
         "net": "Net after his fee",
         "shift": "Shift",
         "shiftPlaceholder": "Pick the open shift",
