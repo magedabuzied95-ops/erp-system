@@ -34,7 +34,38 @@ const writeCollapsed = (collapsed) => {
   }
 };
 
-const state = { open: false, collapsed: readCollapsed(), conversation: null, openedAt: 0 };
+// The divider between the page and the panel drags, like Genie's: the width
+// is the operator's and is remembered. Bounds keep both halves usable.
+const WIDTH_STORAGE_KEY = "erp.sideChat.width";
+export const SIDE_CHAT_DEFAULT_WIDTH = 420;
+export const SIDE_CHAT_MIN_WIDTH = 320;
+export const sideChatMaxWidth = () => (typeof window === "undefined" ? 1100 : Math.max(SIDE_CHAT_MIN_WIDTH, Math.round(window.innerWidth * 0.72)));
+export const clampSideChatWidth = (value) => {
+  const number = Math.round(Number(value));
+  if (!Number.isFinite(number)) return SIDE_CHAT_DEFAULT_WIDTH;
+  return Math.min(sideChatMaxWidth(), Math.max(SIDE_CHAT_MIN_WIDTH, number));
+};
+
+const readWidth = () => {
+  if (typeof window === "undefined") return SIDE_CHAT_DEFAULT_WIDTH;
+  try {
+    const stored = Number(window.localStorage.getItem(WIDTH_STORAGE_KEY));
+    return stored >= SIDE_CHAT_MIN_WIDTH ? clampSideChatWidth(stored) : SIDE_CHAT_DEFAULT_WIDTH;
+  } catch {
+    return SIDE_CHAT_DEFAULT_WIDTH;
+  }
+};
+
+const writeWidth = (width) => {
+  if (typeof window === "undefined") return;
+  try {
+    window.localStorage.setItem(WIDTH_STORAGE_KEY, String(width));
+  } catch {
+    /* preference only */
+  }
+};
+
+const state = { open: false, collapsed: readCollapsed(), conversation: null, openedAt: 0, width: readWidth(), resizing: false };
 let snapshot = { ...state };
 const subscribers = new Set();
 
@@ -77,6 +108,16 @@ export const setSideChatCollapsed = (collapsed) => {
 };
 
 export const toggleSideChatCollapsed = () => setSideChatCollapsed(!state.collapsed);
+
+// Live during a drag (no persistence per move), committed when the drag ends.
+export const setSideChatWidth = (width, { commit = true } = {}) => {
+  const next = clampSideChatWidth(width);
+  if (commit) writeWidth(next);
+  if (next === state.width && state.resizing === !commit) return;
+  setState({ width: next, resizing: !commit });
+};
+
+export const resetSideChatWidth = () => setSideChatWidth(SIDE_CHAT_DEFAULT_WIDTH);
 
 export const getSideChatState = () => snapshot;
 

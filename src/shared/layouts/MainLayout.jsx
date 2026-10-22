@@ -723,8 +723,11 @@ function MainLayout() {
         isAiMarketingWorkspace ? "m1-ai-marketing-scope" : "",
         sideChatOpen ? "m1-shell-root--side-chat" : "",
         sideChatOpen && sideChat.collapsed ? "m1-shell-root--side-chat-collapsed" : "",
+        sideChatOpen && sideChat.resizing ? "m1-shell-root--side-chat-resizing" : "",
         "lg:grid",
       ].join(" ")}
+      // The dragged width; the folded rail keeps its own width from the class.
+      style={sideChatOpen && !sideChat.collapsed ? { "--side-chat-width": `${sideChat.width}px` } : undefined}
     >
       {mobileDrawerOpen ? (
         <button

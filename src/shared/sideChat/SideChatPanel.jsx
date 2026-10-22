@@ -8,7 +8,7 @@ import QuickConversationThread from "../../modules/aiSupport/components/QuickCon
 import { clean } from "../../modules/aiSupport/components/quickThreadHelpers.js";
 import ConversationSummaryList from "./ConversationSummaryList.jsx";
 import useInboxConversations from "./useInboxConversations";
-import { backToSideChatList, closeSideChat, inboxTenantId, openSideChat, sideChatConversationKey, toggleSideChatCollapsed, useSideChat } from "./sideChatStore";
+import { backToSideChatList, closeSideChat, inboxTenantId, openSideChat, resetSideChatWidth, setSideChatWidth, sideChatConversationKey, toggleSideChatCollapsed, useSideChat } from "./sideChatStore";
 import { channelDisplayName, conversationDisplayName } from "./conversationSummary";
 
 /*
@@ -29,6 +29,46 @@ function HeaderButton({ onClick, label, children, className = "" }) {
     <button type="button" onClick={onClick} title={label} aria-label={label} className={`grid h-8 w-8 place-items-center rounded-lg text-text-muted hover:bg-surface-hover ${className}`}>
       {children}
     </button>
+  );
+}
+
+// The divider between the page and the panel: drag it to resize (Genie),
+// double-click to go back to the default width. Pointer maths is in viewport
+// pixels from the panel's page-side edge, which is the left edge in LTR and
+// the right edge in RTL.
+function ResizeHandle() {
+  const { t } = useTranslation();
+  const [dragging, setDragging] = useState(false);
+  const onPointerDown = (event) => {
+    if (event.button !== 0) return;
+    event.preventDefault();
+    const rtl = document.documentElement.dir === "rtl";
+    const widthAt = (clientX) => (rtl ? clientX : window.innerWidth - clientX);
+    const move = (moveEvent) => setSideChatWidth(widthAt(moveEvent.clientX), { commit: false });
+    const up = (upEvent) => {
+      window.removeEventListener("pointermove", move);
+      window.removeEventListener("pointerup", up);
+      window.removeEventListener("pointercancel", up);
+      setDragging(false);
+      setSideChatWidth(widthAt(upEvent.clientX));
+    };
+    window.addEventListener("pointermove", move);
+    window.addEventListener("pointerup", up);
+    window.addEventListener("pointercancel", up);
+    setDragging(true);
+  };
+  return (
+    <div
+      role="separator"
+      aria-orientation="vertical"
+      aria-label={t("aiSupport.inbox.sideChat.resize")}
+      title={t("aiSupport.inbox.sideChat.resize")}
+      data-side-chat-resize="true"
+      data-dragging={dragging ? "true" : "false"}
+      onPointerDown={onPointerDown}
+      onDoubleClick={resetSideChatWidth}
+      className="m1-side-chat-resize hidden lg:block"
+    />
   );
 }
 
@@ -141,6 +181,7 @@ export default function SideChatPanel() {
       aria-label={t("aiSupport.inbox.sideChat.title")}
       className={`m1-side-chat flex flex-col bg-surface text-text lg:border-s lg:border-border ${collapsed ? "m1-side-chat--rail" : ""}`}
     >
+      {collapsed ? null : <ResizeHandle />}
       {collapsed ? rail : conversation ? (
         <QuickConversationThread
           key={key}

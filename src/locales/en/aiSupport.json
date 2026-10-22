@@ -2216,6 +2216,7 @@
       "collapse": "Fold the chat",
       "close": "Close the chat",
       "back": "Back to conversations",
+      "resize": "Drag to resize the chat",
       "searchPlaceholder": "Search conversations…",
       "noConversations": "No conversations"
     },

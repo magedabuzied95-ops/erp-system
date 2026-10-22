@@ -124,3 +124,18 @@ test("conversation summary readers agree with a list row of /ai-inbox/conversati
   assert.equal(conversationChannel({ session_id: "instagram:123" }), "instagram");
   assert.equal(conversationDisplayName({ session_id: "messenger:987654" }), "987654");
 });
+
+test("the divider between the page and the panel drags to resize it (Genie)", () => {
+  assert.match(store, /export const setSideChatWidth = \(width, \{ commit = true \} = \{\}\)/);
+  assert.match(store, /SIDE_CHAT_MIN_WIDTH = 320/);
+  assert.match(store, /localStorage\.setItem\(WIDTH_STORAGE_KEY/);
+  assert.match(panel, /data-side-chat-resize="true"/);
+  assert.match(panel, /onDoubleClick=\{resetSideChatWidth\}/);
+  // RTL: the page-side edge is the right one, so the width is the pointer's x.
+  assert.match(panel, /rtl \? clientX : window\.innerWidth - clientX/);
+  assert.match(layout, /"--side-chat-width": `\$\{sideChat\.width\}px`/);
+  assert.match(layout, /sideChat\.resizing \? "m1-shell-root--side-chat-resizing"/);
+  assert.match(css, /\.m1-side-chat-resize\{position:absolute;top:0;bottom:0;inset-inline-start:0;width:8px;cursor:col-resize/);
+  assert.match(css, /\.m1-shell-root--side-chat-resizing \.m1-side-chat-slot\{transition:none!important\}/);
+  for (const locale of [ar, en]) assert.ok(locale.inbox.sideChat.resize);
+});
