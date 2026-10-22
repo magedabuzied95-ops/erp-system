@@ -195,7 +195,20 @@ const formFromItem = (form) => ({
   button_texts: (form.buttons || []).map((button) => button.text),
   card_body: form.card_body,
   card_button_texts: (form.card_buttons || []).map((button) => button.text),
+  extra_buttons: (form.extra_buttons || []).map((button) => ({ ...button })),
 });
+
+// Meta's ceilings (10 buttons, 2 links, 1 call) counted with the template's own buttons.
+const buttonRoom = (item, extras = []) => {
+  const base = item.default_form?.button_counts || { total: 0, url: 0, phone: 0 };
+  const limits = item.button_limits || { total: 10, url: 2, phone: 1 };
+  const used = {
+    total: base.total + extras.length,
+    url: base.url + extras.filter((button) => button.type === "URL").length,
+    phone: base.phone + extras.filter((button) => button.type === "PHONE_NUMBER").length,
+  };
+  return { used, limits, any: used.total < limits.total, url: used.url < limits.url, phone: used.phone < limits.phone };
+};
 
 const localProblems = (t, draft, item) => {
   const problems = [];
@@ -227,6 +240,23 @@ const localProblems = (t, draft, item) => {
     if (value.length > (limits.button || 25)) problems.push(t("aiSupport.waTemplates.automation.edit.problems.tooLong", { field: label, max: limits.button || 25 }));
   });
   checkButtons(draft.button_texts, item.form.buttons || []);
+  (draft.extra_buttons || []).forEach((button, index) => {
+    const label = t("aiSupport.waTemplates.automation.edit.extraN", { n: index + 1 });
+    const value = String(button.text || "").trim();
+    if (!value) problems.push(t("aiSupport.waTemplates.automation.edit.problems.required", { field: label }));
+    if (value.length > (limits.button || 25)) problems.push(t("aiSupport.waTemplates.automation.edit.problems.tooLong", { field: label, max: limits.button || 25 }));
+    if (button.type === "URL" && !/^https:\/\/[^\s/$.?#].[^\s]*$/i.test(String(button.url || "").trim())) problems.push(t("aiSupport.waTemplates.automation.edit.problems.url", { field: label }));
+    if (button.type === "PHONE_NUMBER" && !/^\+\d{8,15}$/.test(String(button.phone_number || "").trim())) problems.push(t("aiSupport.waTemplates.automation.edit.problems.phone", { field: label }));
+  });
+  const room = buttonRoom(item, draft.extra_buttons || []);
+  if (room.used.total > room.limits.total) problems.push(t("aiSupport.waTemplates.automation.edit.problems.tooMany", { max: room.limits.total }));
+  if (room.used.url > room.limits.url) problems.push(t("aiSupport.waTemplates.automation.edit.problems.tooManyUrls", { max: room.limits.url }));
+  if (room.used.phone > room.limits.phone) problems.push(t("aiSupport.waTemplates.automation.edit.problems.tooManyPhones", { max: room.limits.phone }));
+  const labels = [
+    ...(item.form.buttons || []).filter((button) => button.editable).map((button, index) => draft.button_texts[index]),
+    ...(draft.extra_buttons || []).map((button) => button.text),
+  ].map((value) => String(value || "").trim().toLowerCase()).filter(Boolean);
+  if (new Set(labels).size !== labels.length) problems.push(t("aiSupport.waTemplates.automation.edit.problems.duplicate"));
   if (draft.card_body !== null && draft.card_body !== undefined) {
     checkBody(draft.card_body, item.form.card_variables || [], t("aiSupport.waTemplates.automation.edit.cardBody"), limits.card_body || 160);
     checkButtons(draft.card_button_texts, item.form.card_buttons || []);
@@ -242,6 +272,11 @@ const serverProblems = (t, problems = []) => problems.map((problem) => {
   if (problem.code === "variable_position") return t("aiSupport.waTemplates.automation.edit.problems.position", { field });
   if (problem.code === "no_variables") return t("aiSupport.waTemplates.automation.edit.problems.noVariables", { field });
   if (problem.code === "duplicate") return t("aiSupport.waTemplates.automation.edit.problems.duplicate");
+  if (problem.code === "url") return t("aiSupport.waTemplates.automation.edit.problems.url", { field });
+  if (problem.code === "phone") return t("aiSupport.waTemplates.automation.edit.problems.phone", { field });
+  if (problem.code === "too_many") return t("aiSupport.waTemplates.automation.edit.problems.tooMany", { max: problem.max });
+  if (problem.code === "too_many_urls") return t("aiSupport.waTemplates.automation.edit.problems.tooManyUrls", { max: problem.max });
+  if (problem.code === "too_many_phones") return t("aiSupport.waTemplates.automation.edit.problems.tooManyPhones", { max: problem.max });
   return `${field}: ${problem.code}`;
 });
 
@@ -291,6 +326,10 @@ function AutomationTemplateEditor({ item, headers, onSaved, onClose, onDraftChan
   };
 
   const live = localProblems(t, draft, item);
+  const room = buttonRoom(item, draft.extra_buttons || []);
+  const setExtra = (index, patch) => set({
+    extra_buttons: (draft.extra_buttons || []).map((button, at) => (at === index ? { ...button, ...patch } : button)),
+  });
 
   const save = async () => {
     setBusy("save");
@@ -375,6 +414,68 @@ function AutomationTemplateEditor({ item, headers, onSaved, onClose, onDraftChan
       {(item.form.buttons || []).length ? (
         <div className="grid gap-2 sm:grid-cols-2">{buttonInputs(item.form.buttons, draft.button_texts, "button_texts")}</div>
       ) : null}
+      {item.form.can_add_buttons ? (
+        <div className="space-y-2 rounded-xl border border-white/10 p-2.5">
+          <div className="flex flex-wrap items-center justify-between gap-2">
+            <div className="text-xs font-black text-white">{t("aiSupport.waTemplates.automation.edit.extraTitle")}</div>
+            <div className="text-[11px] text-slate-500">
+              {t("aiSupport.waTemplates.automation.edit.extraCount", { used: room.used.total, max: room.limits.total })}
+            </div>
+          </div>
+          <p className="text-[11px] leading-5 text-slate-400">{t("aiSupport.waTemplates.automation.edit.extraHint")}</p>
+          {(draft.extra_buttons || []).map((button, index) => (
+            <div key={index} className="grid gap-2 rounded-xl border border-white/5 bg-white/[0.02] p-2 sm:grid-cols-[150px_minmax(0,1fr)_minmax(0,1fr)_auto] sm:items-end">
+              <Field label={t("aiSupport.waTemplates.automation.edit.extraN", { n: index + 1 })}>
+                <ThemedSelect
+                  value={button.type}
+                  onChange={(value) => setExtra(index, { type: value })}
+                  options={[
+                    { value: "QUICK_REPLY", label: buttonTypeLabel(t, "QUICK_REPLY") },
+                    { value: "URL", label: buttonTypeLabel(t, "URL") },
+                    { value: "PHONE_NUMBER", label: buttonTypeLabel(t, "PHONE_NUMBER") },
+                  ]}
+                  triggerClassName={selectTrigger}
+                />
+              </Field>
+              <TextInput
+                label={t("aiSupport.waTemplates.automation.edit.extraLabel")}
+                value={button.text || ""}
+                maxLength={item.limits?.button || 25}
+                onChange={(event) => setExtra(index, { text: event.target.value })}
+              />
+              {button.type === "URL" ? (
+                <TextInput
+                  label={t("aiSupport.waTemplates.automation.edit.extraUrl")}
+                  dir="ltr"
+                  placeholder="https://m1store-egy.com/shop"
+                  value={button.url || ""}
+                  onChange={(event) => setExtra(index, { url: event.target.value })}
+                />
+              ) : button.type === "PHONE_NUMBER" ? (
+                <TextInput
+                  label={t("aiSupport.waTemplates.automation.edit.extraPhone")}
+                  dir="ltr"
+                  placeholder="+201000000000"
+                  value={button.phone_number || ""}
+                  onChange={(event) => setExtra(index, { phone_number: event.target.value })}
+                />
+              ) : (
+                <p className="self-center text-[11px] leading-5 text-slate-500">{t("aiSupport.waTemplates.automation.edit.extraReplyHint")}</p>
+              )}
+              <ActionButton tone="rose" icon={Trash2} onClick={() => set({ extra_buttons: draft.extra_buttons.filter((_, at) => at !== index) })}>
+                {t("aiSupport.waTemplates.automation.edit.extraRemove")}
+              </ActionButton>
+            </div>
+          ))}
+          <ActionButton
+            icon={Plus}
+            disabled={!room.any}
+            onClick={() => set({ extra_buttons: [...(draft.extra_buttons || []), { type: "QUICK_REPLY", text: "", url: "", phone_number: "" }] })}
+          >
+            {t("aiSupport.waTemplates.automation.edit.extraAdd")}
+          </ActionButton>
+        </div>
+      ) : null}
       {draft.card_body !== null && draft.card_body !== undefined ? (
         <div className="space-y-2 rounded-xl border border-white/10 p-2.5">
           <div className="text-xs font-black text-white">{t("aiSupport.waTemplates.automation.edit.cardTitle")}</div>
@@ -408,14 +509,22 @@ function AutomationTemplateEditor({ item, headers, onSaved, onClose, onDraftChan
 }
 
 // The phone preview for an automation template, with the editor's unsaved wording when open.
-const previewWithDraft = (preview, draft) => {
+// The buttons are rebuilt from the draft the way the server merges them: the template's own (with
+// the new labels), then the added ones, quick replies grouped first once any were added.
+const previewWithDraft = (item, draft) => {
+  const preview = item?.preview;
   if (!preview || !draft) return preview;
+  const own = (item.default_form?.buttons || []).map((button, index) => ({ type: button.type, text: draft.button_texts?.[index] ?? button.text }));
+  const extras = (draft.extra_buttons || []).map((button) => ({ type: button.type, text: button.text }));
+  const buttons = extras.length
+    ? [...own, ...extras].filter((button) => button.type === "QUICK_REPLY").concat([...own, ...extras].filter((button) => button.type !== "QUICK_REPLY"))
+    : own;
   return {
     ...preview,
     header_text: draft.header_text ?? preview.header_text,
     body_text: draft.body,
     footer_text: draft.footer,
-    buttons: preview.buttons.map((button, index) => ({ ...button, text: draft.button_texts?.[index] ?? button.text })),
+    buttons,
     carousel: preview.carousel
       ? {
         ...preview.carousel,
@@ -486,7 +595,7 @@ function AutomationTemplatesCard({ headers, onSubmitted }) {
   // The first template is previewed until another is picked, so the phone is never empty.
   const previewed = items.find((item) => item.automation_type === selected) || items[0] || null;
   const editedItem = editing ? items.find((item) => item.automation_type === editing) || null : null;
-  const phone = editedItem ? previewWithDraft(editedItem.preview, editDraft) : previewed?.preview;
+  const phone = editedItem ? previewWithDraft(editedItem, editDraft) : previewed?.preview;
 
   const openEditor = (key) => {
     setSelected(key);

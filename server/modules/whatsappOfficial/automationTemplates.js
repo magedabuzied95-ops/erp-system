@@ -15,6 +15,7 @@ import {
   WHATSAPP_TEMPLATE_DEFINITIONS,
   TEMPLATE_LANGUAGE,
   TEMPLATE_EDIT_LIMITS,
+  TEMPLATE_BUTTON_LIMITS,
   baseTemplateDefinition,
   editableButton,
   templateDefinition,
@@ -105,7 +106,21 @@ const formOf = (definition) => ({
   header_text: definition.header?.format === "TEXT" ? text(definition.header.text) : null,
   body: definition.body,
   footer: text(definition.footer),
-  buttons: buttonsForm(definition.buttons || []),
+  buttons: buttonsForm((definition.buttons || []).filter((button) => !button.extra)),
+  // The buttons the owner added, as the editor edits them (type, label, link / phone).
+  extra_buttons: (definition.buttons || []).filter((button) => button.extra).map((button) => ({
+    type: button.type,
+    text: text(button.text),
+    url: text(button.url),
+    phone_number: text(button.phone_number),
+  })),
+  // Meta's ceilings, counted with the default buttons: whether another link / call fits.
+  can_add_buttons: !definition.carousel,
+  button_counts: {
+    total: (definition.buttons || []).length,
+    url: (definition.buttons || []).filter((button) => button.type === "URL").length,
+    phone: (definition.buttons || []).filter((button) => button.type === "PHONE_NUMBER").length,
+  },
   variables: variablesOf(definition.variables, definition.samples),
   card_body: definition.carousel ? definition.carousel.card.body : null,
   card_buttons: definition.carousel ? buttonsForm(definition.carousel.card.buttons) : [],
@@ -184,6 +199,7 @@ export const listAutomationTemplates = async ({ tenantId }) => {
       form: formOf(definition),
       default_form: formOf(baseTemplateDefinition(key)),
       limits: TEMPLATE_EDIT_LIMITS,
+      button_limits: TEMPLATE_BUTTON_LIMITS,
       via_evolution: viaEvolution.get(key),
       rejection_reason: text(row?.rejection_reason),
       buttons: (definition.buttons || []).map((button) => button.text || button.type),

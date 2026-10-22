@@ -6,6 +6,7 @@ import {
   hasTemplate,
   productCarouselTemplateKey,
   resolveTemplateValues,
+  templateAwaitingResubmit,
   templateDefinition,
 } from "../whatsappTemplates.js";
 import { absolutePublicUploadUrl } from "../../utils/publicUrl.js";
@@ -145,7 +146,10 @@ export const approvedTemplateNames = async () => {
   }
   return approvedTemplatesCache.names;
 };
+// An approved template the owner has since rewritten is not sent until Meta approves the rewrite:
+// Meta would still render the old copy, and an added button moves the index a link is filled at.
 const templateApproved = async (automationType = "") => {
+  if (templateAwaitingResubmit(automationType)) return false;
   const name = text(templateDefinition(automationType)?.name);
   return Boolean(name) && (await approvedTemplateNames()).has(name);
 };
@@ -235,6 +239,14 @@ export const performSend = async (row, gateway, { lastInboundAt } = {}) => {
         throw Object.assign(
           new Error(`No approved template for ${row.automation_type}, and the 24-hour window has closed`),
           { code: "WHATSAPP_TEMPLATE_MISSING" }
+        );
+      }
+      if (templateAwaitingResubmit(row.automation_type)) {
+        // Rewritten after Meta approved it: the send would carry the new button layout against
+        // Meta's old copy. Fail with the reason until the rewrite is submitted and approved.
+        throw Object.assign(
+          new Error(`The template for ${row.automation_type} was edited and must be sent to Meta again before it can be used`),
+          { code: "WHATSAPP_TEMPLATE_AWAITING_REAPPROVAL" }
         );
       }
       logLifecycle("cloud-template-send", { id: row.id, automation_type: row.automation_type, reason: "outside_service_window" });

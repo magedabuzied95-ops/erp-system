@@ -3201,7 +3201,8 @@
           "footer": "Footer",
           "button_texts": "Buttons",
           "card_body": "Card text",
-          "card_button_texts": "Card buttons"
+          "card_button_texts": "Card buttons",
+          "extra_buttons": "Extra buttons"
         },
         "problems": {
           "required": "{{field}}: can't be empty.",
@@ -3211,8 +3212,23 @@
           "variablesExact": "{{field}}: must contain exactly these variables: {{list}}.",
           "position": "{{field}}: a variable can't start or end the text, or sit next to another.",
           "noVariables": "{{field}}: can't contain variables.",
-          "duplicate": "Two buttons can't have the same label."
-        }
+          "duplicate": "Two buttons can't have the same label.",
+          "url": "{{field}}: the link must start with https:// and have no spaces.",
+          "phone": "{{field}}: write the number with its country code, e.g. +201024960585.",
+          "tooMany": "Meta allows only {{max}} buttons per message.",
+          "tooManyUrls": "Meta allows only 2 links per message (the original buttons count).",
+          "tooManyPhones": "Meta allows only one call button."
+        },
+        "extraTitle": "Extra buttons",
+        "extraCount": "{{used}} of {{max}} buttons",
+        "extraHint": "Add new buttons under the message. The original buttons stay where they are. Meta allows 10 buttons per message: at most 2 links and 1 call button.",
+        "extraN": "Extra button {{n}}",
+        "extraLabel": "Button label",
+        "extraUrl": "Link (must start with https://)",
+        "extraPhone": "Phone number (with country code, e.g. +2010…)",
+        "extraReplyHint": "When the customer taps it, the label arrives as their message and the chatbot or the AI answers it.",
+        "extraRemove": "Remove",
+        "extraAdd": "New button"
       }
     }
   },

@@ -63,3 +63,31 @@ test("restoring the original drops the rewrite everywhere", () => {
   setTemplateOverrides([{ automation_type: "delivered", edit: null }]);
   assert.equal(templateDefinition("delivered"), baseTemplateDefinition("delivered"));
 });
+
+test("added buttons: quick replies group first, a dynamic link keeps the index Meta approved it at", () => {
+  const { edit } = validateTemplateEdit("price_drop_alert", { extra_buttons: [{ type: "QUICK_REPLY", text: "مش مهتم" }] });
+  setTemplateOverrides([{ automation_type: "price_drop_alert", edit }]);
+  const submitted = templateSubmissionPayload("price_drop_alert", { headerHandle: "h" }).components.find((component) => component.type === "BUTTONS").buttons;
+  assert.deepEqual(submitted.map((button) => button.type), ["QUICK_REPLY", "URL"]);
+  const message = buildTemplateMessage({
+    automationType: "price_drop_alert",
+    phone: "201000000000",
+    values: { customer_name: "مي", product_name: "x", old_price: "1", new_price: "2", product_image_url: "https://m1store-egy.com/a.jpg", product_url: "https://m1store-egy.com/shop/product/a" },
+  });
+  assert.equal(message.template.components.find((component) => component.sub_type === "url").index, "1");
+});
+
+test("added buttons obey Meta's ceilings and need nothing at send time", () => {
+  assert.ok(validateTemplateEdit("delivered", { extra_buttons: [{ type: "URL", text: "a", url: "https://a.com" }, { type: "URL", text: "b", url: "https://b.com" }] }).problems.some((p) => p.code === "too_many_urls"));
+  assert.ok(validateTemplateEdit("delivered", { extra_buttons: [{ type: "URL", text: "a", url: "http://a.com" }] }).problems.some((p) => p.code === "url"));
+  assert.ok(validateTemplateEdit("delivered", { extra_buttons: [{ type: "PHONE_NUMBER", text: "a", phone_number: "01024960585" }] }).problems.some((p) => p.code === "phone"));
+  assert.ok(validateTemplateEdit("product_carousel_2", { extra_buttons: [{ type: "QUICK_REPLY", text: "a" }] }).problems.some((p) => p.code === "carousel"));
+
+  const { problems, edit } = validateTemplateEdit("delivered", { extra_buttons: [{ type: "PHONE_NUMBER", text: "اتصل بينا", phone_number: "+201024960585" }] });
+  assert.deepEqual(problems, []);
+  setTemplateOverrides([{ automation_type: "delivered", edit }]);
+  const call = templateSubmissionPayload("delivered").components.find((component) => component.type === "BUTTONS").buttons.at(-1);
+  assert.deepEqual(call, { type: "PHONE_NUMBER", text: "اتصل بينا", phone_number: "+201024960585" });
+  const message = buildTemplateMessage({ automationType: "delivered", phone: "201000000000", values: { order_number: "INV-1", customer_name: "مي" } });
+  assert.equal(message.template.components.length, 1);
+});

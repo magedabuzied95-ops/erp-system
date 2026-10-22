@@ -476,13 +476,18 @@ export const resolveTemplateValues = (automationType = "", { values = {}, templa
  * The overrides are loaded from the database (server/modules/whatsappOfficial/templateOverrides.js).
  */
 let TEMPLATE_OVERRIDES = new Map();
+let AWAITING_RESUBMIT = new Set();
 let mergedCache = new Map();
 export const setTemplateOverrides = (entries = []) => {
-  TEMPLATE_OVERRIDES = new Map((Array.isArray(entries) ? entries : [])
+  const list = Array.isArray(entries) ? entries : [];
+  TEMPLATE_OVERRIDES = new Map(list
     .filter((entry) => entry && entry.edit && WHATSAPP_TEMPLATE_DEFINITIONS[text(entry.automation_type)])
     .map((entry) => [text(entry.automation_type), entry.edit]));
+  AWAITING_RESUBMIT = new Set(list.filter((entry) => entry?.needs_resubmit).map((entry) => text(entry.automation_type)));
   mergedCache = new Map();
 };
+// Rewritten after Meta already had it, and not sent to Meta again yet.
+export const templateAwaitingResubmit = (automationType = "") => AWAITING_RESUBMIT.has(text(automationType));
 export const templateOverride = (automationType = "") => TEMPLATE_OVERRIDES.get(text(automationType)) || null;
 
 // A COPY_CODE button's label is printed by Meta itself, so it is the one label nobody can edit.
@@ -491,6 +496,26 @@ export const editableButton = (button = {}) => button.type !== "COPY_CODE";
 const withButtonTexts = (buttons = [], texts = null) => (Array.isArray(texts)
   ? buttons.map((button, index) => (editableButton(button) && text(texts[index]) ? { ...button, text: text(texts[index]) } : button))
   : buttons);
+
+/*
+ * Buttons the owner ADDS. Only kinds that need nothing at send time: a quick reply (a tap comes
+ * back as its label, which the bot and the AI read like any message), a fixed link, a call
+ * button. The defaults keep their place and meaning; the extras follow them. Meta wants quick
+ * replies grouped together, so once extras exist the quick replies go first — every reader
+ * (send, submission, transcript) indexes the same merged list, so a link's position stays honest.
+ */
+export const EXTRA_BUTTON_TYPES = Object.freeze(["QUICK_REPLY", "URL", "PHONE_NUMBER"]);
+export const TEMPLATE_BUTTON_LIMITS = Object.freeze({ total: 10, url: 2, phone: 1 });
+const extraButton = (button = {}) => {
+  const type = text(button.type).toUpperCase();
+  if (type === "URL") return { type, text: text(button.text), url: text(button.url), extra: true };
+  if (type === "PHONE_NUMBER") return { type, text: text(button.text), phone_number: text(button.phone_number), extra: true };
+  return { type: "QUICK_REPLY", text: text(button.text), extra: true };
+};
+const groupQuickReplies = (buttons = []) => [
+  ...buttons.filter((button) => button.type === "QUICK_REPLY"),
+  ...buttons.filter((button) => button.type !== "QUICK_REPLY"),
+];
 
 const mergeOverride = (base, edit) => {
   const merged = { ...base, edited: true };
@@ -501,6 +526,8 @@ const mergeOverride = (base, edit) => {
     else delete merged.footer;
   }
   merged.buttons = withButtonTexts(base.buttons || [], edit.button_texts);
+  const extras = Array.isArray(edit.extra_buttons) ? edit.extra_buttons.map(extraButton) : [];
+  if (extras.length && !base.carousel) merged.buttons = groupQuickReplies([...merged.buttons, ...extras]);
   if (base.carousel) {
     merged.carousel = {
       ...base.carousel,
@@ -576,7 +603,30 @@ export const validateTemplateEdit = (automationType = "", edit = {}) => {
     return value;
   });
   normalized.button_texts = buttonTexts(base.buttons || [], input.button_texts);
-  const labels = normalized.button_texts.filter((value, index) => editableButton(base.buttons[index])).map((value) => value.toLowerCase());
+  const given = Array.isArray(input.extra_buttons) ? input.extra_buttons : [];
+  if (given.length && base.carousel) problems.push({ field: "extra_buttons", code: "carousel" });
+  normalized.extra_buttons = base.carousel ? [] : given.map((raw, index) => {
+    const button = extraButton(raw || {});
+    if (!EXTRA_BUTTON_TYPES.includes(text(raw?.type).toUpperCase() || "QUICK_REPLY")) problems.push({ field: "extra_buttons", index, code: "type" });
+    if (!button.text) problems.push({ field: "extra_buttons", index, code: "required" });
+    else if (button.text.length > TEMPLATE_EDIT_LIMITS.button) problems.push({ field: "extra_buttons", index, code: "too_long", max: TEMPLATE_EDIT_LIMITS.button });
+    else if (hasVariable(button.text)) problems.push({ field: "extra_buttons", index, code: "no_variables" });
+    if (button.type === "URL" && (!/^https:\/\/[^\s/$.?#].[^\s]*$/i.test(button.url) || button.url.length > 2000 || hasVariable(button.url))) {
+      problems.push({ field: "extra_buttons", index, code: "url" });
+    }
+    if (button.type === "PHONE_NUMBER" && !/^\+\d{8,15}$/.test(button.phone_number)) problems.push({ field: "extra_buttons", index, code: "phone" });
+    // Stored without the `extra` marker: mergeOverride sets it again on the way back in.
+    return Object.fromEntries(Object.entries(button).filter(([key]) => key !== "extra"));
+  });
+  const all = [...(base.buttons || []), ...normalized.extra_buttons];
+  if (all.length > TEMPLATE_BUTTON_LIMITS.total) problems.push({ field: "extra_buttons", code: "too_many", max: TEMPLATE_BUTTON_LIMITS.total });
+  if (all.filter((button) => button.type === "URL").length > TEMPLATE_BUTTON_LIMITS.url) problems.push({ field: "extra_buttons", code: "too_many_urls", max: TEMPLATE_BUTTON_LIMITS.url });
+  if (all.filter((button) => button.type === "PHONE_NUMBER").length > TEMPLATE_BUTTON_LIMITS.phone) problems.push({ field: "extra_buttons", code: "too_many_phones", max: TEMPLATE_BUTTON_LIMITS.phone });
+
+  const labels = [
+    ...normalized.button_texts.filter((value, index) => editableButton(base.buttons[index])),
+    ...normalized.extra_buttons.map((button) => button.text),
+  ].map((value) => value.toLowerCase());
   if (new Set(labels).size !== labels.length) problems.push({ field: "button_texts", code: "duplicate" });
 
   if (base.carousel) {
@@ -727,6 +777,7 @@ const submissionButton = (button) => {
     return { type: "URL", text: button.text, url: text(typeof button.url === "function" ? button.url() : button.url) };
   }
   if (button.type === "COPY_CODE") return { type: "COPY_CODE", example: text(button.example) };
+  if (button.type === "PHONE_NUMBER") return { type: "PHONE_NUMBER", text: button.text, phone_number: text(button.phone_number) };
   return { type: "QUICK_REPLY", text: button.text };
 };
 
