@@ -77,6 +77,8 @@ import {
   writeProductsListFilters,
 } from "../lib/productListFilters";
 import { keyboardLayoutIncludes } from "../../../../shared/keyboardLayoutSearch";
+import PhoneFilters from "../../inventory/components/PhoneFilters";
+import useIsPhone from "../../inventory/components/useIsPhone";
 
 import PostEditorModal from "../../marketing/components/PostEditorModal";
 import {
@@ -2016,6 +2018,7 @@ function EnhancedPriceEditorModal({ product, onClose, onSave, canEditPurchasePri
 const PORTAL_ROW_ACTIONS = new Set(["edit", "advanced-pricing", "duplicate", "toggle-pos-favorite", "toggle-status", "toggle-offer-story"]);
 
 function ProductsList({ portal = null } = {}) {
+  const isPhone = useIsPhone();
   const editPathFor = (id, query = "") => (portal ? portal.editPath(id, query) : `/products/${id}/edit${query}`);
   const addPath = portal?.addPath || "/products/add";
   const { t, i18n } = useTranslation();
@@ -2377,6 +2380,22 @@ function ProductsList({ portal = null } = {}) {
     storefrontVisibilityFilter !== "all" ||
     brandFilter !== "all" ||
     activeFilterCount > 0;
+
+  // Phone filter sheet: the four selects plus the classification chips.
+  const phoneFilterCount =
+    (statusFilter !== "all" ? 1 : 0) +
+    (brandFilter !== "all" ? 1 : 0) +
+    (storefrontVisibilityFilter !== "all" ? 1 : 0) +
+    (colorImageFilter !== "all" ? 1 : 0) +
+    activeFilterCount;
+
+  const clearPhoneFilters = () => {
+    setStatusFilter("all");
+    setBrandFilter("all");
+    setStorefrontVisibilityFilter("all");
+    setColorImageFilter("all");
+    clearClassificationFilters();
+  };
 
   const clearAllProductFilters = () => {
     setCatalogTab(DEFAULT_PRODUCTS_LIST_FILTERS.catalogTab);
@@ -3278,8 +3297,11 @@ function ProductsList({ portal = null } = {}) {
             {t("products.tabs.offers", "العروض")}
           </button>
         </div>
-        <div className="grid min-w-0 grid-cols-1 gap-3 sm:gap-4 xl:grid-cols-[minmax(0,1.8fr)_repeat(5,minmax(0,1fr))]">
-          <div className="relative">
+        {/* Phone: search and one Filters button share a row; the selects and the
+            classification chips live in a bottom sheet (PhoneFilters). md and up
+            render exactly as before. */}
+        <div className="grid min-w-0 grid-cols-1 gap-3 max-md:grid-cols-[minmax(0,1fr)_auto] sm:gap-4 xl:grid-cols-[minmax(0,1.8fr)_repeat(5,minmax(0,1fr))]">
+          <div className="relative min-w-0">
             <Search className="pointer-events-none absolute left-4 top-1/2 -translate-y-1/2 text-text-muted" size={18} />
             <input
               value={search}
@@ -3292,6 +3314,10 @@ function ProductsList({ portal = null } = {}) {
             />
           </div>
 
+          <PhoneFilters
+            activeCount={phoneFilterCount}
+            onClear={clearPhoneFilters}
+          >
           <select
             value={statusFilter}
             onChange={(e) => {
@@ -3344,6 +3370,29 @@ function ProductsList({ portal = null } = {}) {
             <option value="none">{t("products.images.filter.none")}</option>
           </select>
 
+          {isPhone ? (
+            filterGroups.length ? (
+              <div className="space-y-3 border-t border-border pt-3">
+                {filterGroups.map((group) => (
+                  <div key={group.key} className="grid min-w-0 gap-2">
+                    <div className="text-[11px] font-black uppercase tracking-[0.14em] text-text-muted">{group.label}</div>
+                    <div className="flex min-w-0 flex-wrap gap-1.5">
+                      {[{ value: "all", label: t("products.filters.allClassifications", "All") }, ...group.options].map((option) => (
+                        <button
+                          key={`${group.key}-${option.value}`}
+                          type="button"
+                          onClick={() => group.onSelect(option.value)}
+                          className={`min-h-10 rounded-[var(--radius-control)] border px-3 text-sm font-bold transition ${ group.value === option.value ? "border-primary bg-primary text-[var(--primary-contrast)]" : "border-border bg-surface-soft text-text-muted" }`}
+                        >
+                          {option.label}
+                        </button>
+                      ))}
+                    </div>
+                  </div>
+                ))}
+              </div>
+            ) : null
+          ) : (
           <div className="relative" data-products-filter-popover>
             <div className="flex items-stretch gap-2">
               <button
@@ -3437,10 +3486,12 @@ function ProductsList({ portal = null } = {}) {
               </div>
             ) : null}
           </div>
+          )}
+          </PhoneFilters>
         </div>
 
         {selectedCount > 0 && (
-          <div className="mt-4 flex flex-wrap items-center gap-3 rounded-[var(--radius-card)] border border-emerald-500/15 bg-emerald-500/8 px-4 py-3">
+          <div className="m1-catalog-hscroll mt-4 flex flex-wrap items-center gap-3 rounded-[var(--radius-card)] border border-emerald-500/15 bg-emerald-500/8 px-4 py-3">
             <span className="text-sm font-semibold text-emerald-300">
               {selectedCount} {t("products.bulk.selected")}
             </span>

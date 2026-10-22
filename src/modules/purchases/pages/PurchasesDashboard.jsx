@@ -37,6 +37,7 @@ import {
 } from "../lib/flowStore";
 import { getPrintDirection, normalizePrintLanguage, openPrintHtml, tPrint, wrapPrintableHtml } from "../../../shared/utils/printLocalization";
 import ThemedSelect from "../../../shared/ui/ThemedSelect";
+import PhoneFilters from "../../inventory/components/PhoneFilters";
 
 const PAGE_SIZE_OPTIONS = [10, 25, 50, 100, 200, 500, 1000, "all"];
 const purchaseTableColumns = "grid-cols-[3.5rem_8.5rem_minmax(9rem,1fr)_minmax(12rem,1.3fr)_minmax(9rem,0.9fr)_7.5rem_4.5rem_9rem]";
@@ -121,6 +122,20 @@ function PurchasesDashboard() {
     setMenuPosition(null);
     menuAnchorRef.current = null;
   }, []);
+
+  const phoneFilterCount = [supplierFilter, statusFilter, warehouseFilter, paymentFilter, branchFilter].filter((value) => value !== "all").length
+    + (dateFromFilter || dateFilter ? 1 : 0)
+    + (dateToFilter ? 1 : 0);
+  const clearPhoneFilters = () => {
+    setSupplierFilter("all");
+    setStatusFilter("all");
+    setWarehouseFilter("all");
+    setPaymentFilter("all");
+    setBranchFilter("all");
+    setDateFilter("");
+    setDateFromFilter("");
+    setDateToFilter("");
+  };
 
   const openActionsMenu = (purchaseId, button) => {
     if (openMenuId === purchaseId) {
@@ -407,10 +422,13 @@ function PurchasesDashboard() {
         </div>
       ) : null}
 
-      <div className="rounded-3xl border border-white/10 bg-zinc-950/90 p-3 shadow-2xl shadow-black/10 sm:p-4">
-        <div className="rounded-2xl border border-white/10 bg-black/20 p-2.5">
-          <div className="grid items-end gap-2 md:grid-cols-2 xl:grid-cols-12">
-            <label className="block md:col-span-2 xl:col-span-4">
+      {/* Phone: both frames drop (.m1-catalog-flat), search shares a row with one
+          Filters button whose sheet holds the selects and dates, and the 1080px
+          table becomes one card per purchase. md and up are unchanged. */}
+      <div className="m1-catalog-flat rounded-3xl border border-white/10 bg-zinc-950/90 p-3 shadow-2xl shadow-black/10 sm:p-4">
+        <div className="m1-catalog-flat rounded-2xl border border-white/10 bg-black/20 p-2.5">
+          <div className="grid items-end gap-2 max-md:grid-cols-[minmax(0,1fr)_auto] md:grid-cols-2 xl:grid-cols-12">
+            <label className="block min-w-0 md:col-span-2 xl:col-span-4">
               <div className="relative">
                 <Search className="pointer-events-none absolute start-3 top-1/2 h-4 w-4 -translate-y-1/2 text-zinc-500" />
                 <input
@@ -421,6 +439,7 @@ function PurchasesDashboard() {
                 />
               </div>
             </label>
+            <PhoneFilters activeCount={phoneFilterCount} onClear={clearPhoneFilters}>
             <Select value={supplierFilter} onChange={setSupplierFilter} options={supplierOptions} label={t("purchases.filters.supplier")} allLabel={t("purchases.filters.all")} className="xl:col-span-2" />
             <Select value={statusFilter} onChange={setStatusFilter} options={statusOptions} label={t("purchases.filters.status")} allLabel={t("purchases.filters.all")} className="xl:col-span-1" />
             <Select value={warehouseFilter} onChange={setWarehouseFilter} options={warehouseOptions} label={t("purchases.filters.warehouse")} allLabel={t("purchases.filters.all")} className="xl:col-span-2" />
@@ -428,10 +447,55 @@ function PurchasesDashboard() {
             <DateField label={t("purchases.filters.dateFrom")} value={dateFromFilter || dateFilter} onChange={(value) => { setDateFromFilter(value); setDateFilter(""); }} className="xl:col-span-1" />
             <DateField label={t("purchases.filters.dateTo")} value={dateToFilter} onChange={setDateToFilter} className="xl:col-span-1" />
             {branches.length > 1 ? <Select value={branchFilter} onChange={setBranchFilter} options={branchOptions} label={t("purchases.filters.branch")} allLabel={t("purchases.filters.all")} className="md:col-span-2 xl:col-span-2" /> : null}
+            </PhoneFilters>
           </div>
         </div>
 
-        <div className="mt-3 overflow-x-auto">
+        <div className="mt-3 space-y-2 md:hidden">
+          {loading ? (
+            <TableSkeleton />
+          ) : visiblePurchases.length === 0 ? (
+            <div className="rounded-[var(--radius-card)] border border-dashed border-white/10 bg-white/5 p-8 text-center">
+              <PackageSearch className="mx-auto h-10 w-10 text-zinc-500" />
+              <h3 className="m1-section-title mt-3 text-white">{t("purchases.empty.title")}</h3>
+              <p className="mt-2 text-sm text-zinc-400">{t("purchases.empty.description")}</p>
+            </div>
+          ) : (
+            visiblePurchases.map((purchase) => {
+              const dateParts = formatPurchaseDateParts(purchase.created_at);
+              return (
+                <div key={String(purchase.id)} className="rounded-[var(--radius-card)] border border-white/10 bg-zinc-950/88 p-3">
+                  <div className="flex items-start gap-2">
+                    <Link to={`/purchases/${purchase.id}`} className="min-w-0 flex-1">
+                      <div className="truncate text-sm font-black text-emerald-50">{purchase.invoice_number || `#${purchase.id}`}</div>
+                      <div className="mt-0.5 truncate text-sm font-semibold text-white">{purchase.supplier_name}</div>
+                      <div className="mt-0.5 truncate text-xs text-zinc-500">{dateParts.date} · {dateParts.time}</div>
+                    </Link>
+                    <button
+                      type="button"
+                      onClick={(event) => openActionsMenu(purchase.id, event.currentTarget)}
+                      className="inline-flex h-10 w-10 shrink-0 items-center justify-center rounded-[var(--radius-control)] border border-white/10 bg-white/[0.035] text-zinc-400"
+                      aria-label={t("purchases.actionsMenu.viewInvoice")}
+                      aria-expanded={openMenuId === purchase.id}
+                      aria-haspopup="menu"
+                      data-purchase-actions-trigger="true"
+                    >
+                      <MoreHorizontal className="h-4 w-4" />
+                    </button>
+                  </div>
+                  <div className="mt-2 flex flex-wrap items-center gap-x-3 gap-y-1.5">
+                    <PaymentStatusPill value={purchase.payment_status} />
+                    <span className="min-w-0 truncate text-xs text-zinc-400">{purchase.warehouse_name}</span>
+                    <span className="text-xs text-zinc-400">{t("purchases.table.items")}: {purchase.items?.length || purchase.item_count || 0}</span>
+                    <span dir="ltr" className="ms-auto font-mono text-sm font-bold tabular-nums text-white">{formatCurrency(purchase.total)}</span>
+                  </div>
+                </div>
+              );
+            })
+          )}
+        </div>
+
+        <div className="mt-3 overflow-x-auto max-md:hidden">
           <div className="min-w-[1080px]">
             <div className={`sticky top-0 z-10 grid ${purchaseTableColumns} items-center gap-2 rounded-2xl border border-white/10 bg-zinc-950/90 px-3 py-2.5 text-[10px] font-black uppercase tracking-[0.16em] text-zinc-400 shadow-[0_12px_30px_rgba(0,0,0,0.22)] backdrop-blur-xl`}>
               <div></div>
@@ -521,14 +585,14 @@ function PurchasesDashboard() {
           onChange={setPage}
           onPageSizeChange={(value) => { setPageSize(value); setPage(1); }}
         />
-          <div className="mt-3 grid gap-2 sm:grid-cols-2 lg:grid-cols-5">
+          <div className="mt-3 grid grid-cols-2 gap-2 lg:grid-cols-5">
             {bottomKpiCards.map((card) => (
               <div
                 key={card.label}
                 className="rounded-2xl border border-white/10 bg-[linear-gradient(145deg,rgba(9,9,11,0.96),rgba(24,24,27,0.88))] p-3 shadow-[0_16px_40px_rgba(0,0,0,0.18)]"
               >
                 <div className="truncate text-[10px] font-black uppercase tracking-[0.16em] text-zinc-500">{card.label}</div>
-                <div className={`mt-2 truncate font-mono text-xl font-black tabular-nums ${card.accent}`}>{card.value}</div>
+                <div className={`mt-2 truncate font-mono text-xl font-black tabular-nums max-sm:text-base ${card.accent}`}>{card.value}</div>
               </div>
             ))}
           </div>

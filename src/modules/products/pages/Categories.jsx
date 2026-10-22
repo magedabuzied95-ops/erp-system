@@ -121,7 +121,7 @@ function Categories() {
       title={t("products.categories.title")}
     >
       <div className="grid grid-cols-1 gap-6 xl:grid-cols-12">
-        <section className="rounded-[34px] border border-white/8 bg-zinc-950/80 p-6 xl:col-span-4">
+        <section className="rounded-[34px] border border-white/8 bg-zinc-950/80 p-6 max-sm:p-3 xl:col-span-4">
           <div className="flex items-center gap-3">
             <Layers3 className="text-emerald-400" />
             <h2 className="m1-section-title text-white">{t("products.categories.editor")}</h2>
@@ -186,7 +186,7 @@ function Categories() {
           </div>
         </section>
 
-        <section className="rounded-[34px] border border-white/8 bg-zinc-950/80 p-6 xl:col-span-8">
+        <section className="rounded-[34px] border border-white/8 bg-zinc-950/80 p-6 max-sm:p-3 xl:col-span-8">
           <div className="flex items-center justify-between gap-4">
             <div>
               <h2 className="m1-section-title text-white">{t("products.categories.nestedCatalog")}</h2>

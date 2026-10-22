@@ -2448,9 +2448,11 @@ function PurchaseOrder() {
         onClose={() => setFiltersOpen(false)}
       />
 
-      <div className="sticky top-0 z-20 rounded-2xl border border-border bg-surface p-3 shadow-2xl shadow-black/20 backdrop-blur">
-        <div className="grid items-end gap-3 md:grid-cols-2 xl:grid-cols-[minmax(18rem,1.15fr)_minmax(15rem,0.9fr)_minmax(12rem,0.75fr)_minmax(25rem,2fr)]">
-          <div className="grid min-w-0 grid-cols-[minmax(0,1fr)_auto] items-end gap-2">
+      {/* Phone: not sticky (four stacked controls pinned to the top ate a third of
+          the screen), warehouse + branch share a row. */}
+      <div className="sticky top-0 z-20 rounded-2xl border border-border bg-surface p-3 shadow-2xl shadow-black/20 backdrop-blur max-md:static max-md:p-2.5">
+        <div className="grid items-end gap-3 max-md:grid-cols-2 max-md:gap-2 md:grid-cols-2 xl:grid-cols-[minmax(18rem,1.15fr)_minmax(15rem,0.9fr)_minmax(12rem,0.75fr)_minmax(25rem,2fr)]">
+          <div className="grid min-w-0 grid-cols-[minmax(0,1fr)_auto] items-end gap-2 max-md:col-span-2">
             <Select label={t("purchases.filters.supplier")} value={supplierId} onChange={setSupplierId} options={suppliers.map((supplier) => ({ value: supplier.id, label: `${supplier.supplier_code ? `${supplier.supplier_code} - ` : ""}${supplier.name}` }))} emptyLabel={t("purchases.create.createSupplierFirst")} />
             <button
               type="button"
@@ -2471,7 +2473,7 @@ function PurchaseOrder() {
             emptyLabel={isArabic ? "لا توجد فروع نشطة" : "No active branches"}
             placeholder={isArabic ? "اختر الفرع" : "Select branch"}
           />
-          <div ref={searchPanelWrapRef} className="relative min-w-0">
+          <div ref={searchPanelWrapRef} className="relative min-w-0 max-md:col-span-2">
             <div className="mb-1.5 flex items-center gap-2 text-[11px] font-bold text-text-muted">
               <Barcode className="h-3.5 w-3.5" />
               {t("purchases.create.searchBarcode")}
@@ -3143,7 +3145,7 @@ const CartLine = memo(function CartLine({ item, variants, showCostError = false,
   const saleBelowCost = salePrice > 0 && salePrice < purchasePrice;
   const saleAboveSelling = salePrice > sellingPrice;
   const lineTotal = money(item.quantity) * purchasePrice;
-  const numberInputClass = "h-6 w-full bg-transparent text-right text-sm font-semibold text-text outline-none [appearance:textfield] [&::-webkit-inner-spin-button]:appearance-none [&::-webkit-outer-spin-button]:appearance-none";
+  const numberInputClass = "h-6 max-sm:h-9 w-full bg-transparent text-right text-sm font-semibold text-text outline-none [appearance:textfield] [&::-webkit-inner-spin-button]:appearance-none [&::-webkit-outer-spin-button]:appearance-none";
   const labels = {
     quantity: "الكمية",
     purchasePrice: "سعر الشراء",
@@ -3160,11 +3162,11 @@ const CartLine = memo(function CartLine({ item, variants, showCostError = false,
 
   return (
     <div className="relative rounded-[var(--radius-card)] border border-border bg-surface-soft p-3 shadow-lg shadow-black/10 transition hover:border-border-strong hover:bg-surface-hover">
-      <button type="button" onClick={() => onRemove(item.line_id)} className="absolute end-2 top-2 flex h-[var(--control-height-sm)] w-7 items-center justify-center rounded-[var(--radius-control)] border border-border bg-surface-soft text-text-muted transition hover:border-rose-300/35 hover:bg-rose-500/10 hover:text-rose-100">
+      <button type="button" onClick={() => onRemove(item.line_id)} className="absolute end-2 top-2 flex h-[var(--control-height-sm)] w-7 max-sm:h-9 max-sm:w-9 items-center justify-center rounded-[var(--radius-control)] border border-border bg-surface-soft text-text-muted transition hover:border-rose-300/35 hover:bg-rose-500/10 hover:text-rose-100">
         <Trash2 className="h-3.5 w-3.5" />
       </button>
 
-      <div className="flex min-w-0 items-center gap-3 pe-8">
+      <div className="flex min-w-0 items-center gap-3 pe-8 max-sm:pe-10">
         <ProductImage src={item.image_url} name={item.product_name} className="h-12 w-12 shrink-0 rounded-xl object-cover" />
         <div className="min-w-0">
           <div className="truncate text-sm font-black leading-6 text-text">{item.product_name}</div>
@@ -3194,10 +3196,10 @@ const CartLine = memo(function CartLine({ item, variants, showCostError = false,
 
         <label className="rounded-[var(--radius-card)] border border-border bg-surface-soft px-2.5 py-1.5">
           <div className="text-[8px] font-black uppercase tracking-[0.1em] text-text-muted">{labels.quantity}</div>
-          <div className="flex h-5 items-center">
-            <button type="button" onClick={() => onQty(item.line_id, -1)} className="flex h-5 w-7 items-center justify-center rounded-[var(--radius-control)] text-text-muted hover:bg-surface-hover hover:text-text"><Minus className="h-3 w-3" /></button>
-            <input type="number" min="1" value={item.quantity} onChange={(event) => onUpdate(item.line_id, { quantity: Math.max(1, money(event.target.value)) })} className="h-5 min-w-0 flex-1 bg-transparent text-center text-sm font-black text-text outline-none [appearance:textfield] [&::-webkit-inner-spin-button]:appearance-none [&::-webkit-outer-spin-button]:appearance-none" dir="ltr" />
-            <button type="button" onClick={() => onQty(item.line_id, 1)} className="flex h-5 w-7 items-center justify-center rounded-[var(--radius-control)] text-text-muted hover:bg-surface-hover hover:text-text"><Plus className="h-3 w-3" /></button>
+          <div className="flex h-5 items-center max-sm:h-9">
+            <button type="button" onClick={() => onQty(item.line_id, -1)} className="flex h-5 w-7 max-sm:h-9 max-sm:w-9 items-center justify-center rounded-[var(--radius-control)] text-text-muted hover:bg-surface-hover hover:text-text"><Minus className="h-3 w-3" /></button>
+            <input type="number" min="1" value={item.quantity} onChange={(event) => onUpdate(item.line_id, { quantity: Math.max(1, money(event.target.value)) })} className="h-5 min-w-0 flex-1 bg-transparent text-center text-sm font-black max-sm:h-9 text-text outline-none [appearance:textfield] [&::-webkit-inner-spin-button]:appearance-none [&::-webkit-outer-spin-button]:appearance-none" dir="ltr" />
+            <button type="button" onClick={() => onQty(item.line_id, 1)} className="flex h-5 w-7 max-sm:h-9 max-sm:w-9 items-center justify-center rounded-[var(--radius-control)] text-text-muted hover:bg-surface-hover hover:text-text"><Plus className="h-3 w-3" /></button>
           </div>
         </label>
 
@@ -4171,7 +4173,7 @@ function Modal({ eyebrow, title, children, onClose }) {
   return (
     <div className="fixed inset-0 z-50 flex items-end justify-center bg-black/70 backdrop-blur-sm sm:items-center">
       <button type="button" className="absolute inset-0 cursor-default" onClick={onClose} aria-label={t("purchases.suppliersDashboard.close")} />
-      <div className="relative w-full max-w-4xl rounded-t-3xl border border-border bg-surface p-5 shadow-2xl shadow-black sm:rounded-3xl">
+      <div className="relative max-h-[calc(100dvh-0.5rem)] w-full max-w-4xl overflow-y-auto rounded-t-3xl border border-border bg-surface p-5 pb-[max(1.25rem,env(safe-area-inset-bottom))] shadow-2xl shadow-black max-sm:px-3 sm:max-h-[calc(100dvh-2rem)] sm:rounded-3xl sm:pb-5">
         <div className="mb-4 flex items-center justify-between gap-3">
           <div>
             <div className="text-xs font-semibold uppercase tracking-[0.18em] text-emerald-300">{eyebrow}</div>

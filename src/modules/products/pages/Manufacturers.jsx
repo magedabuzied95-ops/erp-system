@@ -175,7 +175,7 @@ function Manufacturers() {
       description={t("products.manufacturers.description")}
     >
       <div className="grid grid-cols-1 gap-6 xl:grid-cols-12">
-        <section className="rounded-[34px] border border-white/8 bg-zinc-950/80 p-6 shadow-[0_24px_80px_rgba(0,0,0,0.22)] xl:col-span-4">
+        <section className="rounded-[34px] border border-white/8 bg-zinc-950/80 p-6 max-sm:p-3 shadow-[0_24px_80px_rgba(0,0,0,0.22)] xl:col-span-4">
           <div className="flex items-center gap-3">
             <Factory className="text-emerald-400" />
             <div>
@@ -235,7 +235,7 @@ function Manufacturers() {
           </form>
         </section>
 
-        <section className="rounded-[34px] border border-white/8 bg-zinc-950/80 p-6 shadow-[0_24px_80px_rgba(0,0,0,0.22)] xl:col-span-8">
+        <section className="rounded-[34px] border border-white/8 bg-zinc-950/80 p-6 max-sm:p-3 shadow-[0_24px_80px_rgba(0,0,0,0.22)] xl:col-span-8">
           <div className="flex flex-col gap-4 lg:flex-row lg:items-center lg:justify-between">
             <div>
               <h2 className="m1-section-title text-white">{t("products.manufacturers.liveManufacturers")}</h2>

@@ -2,6 +2,7 @@ import { NavLink } from "react-router-dom";
 import { useTranslation } from "react-i18next";
 
 import { PackageSearch } from "lucide-react";
+import "../../inventory/components/catalogPhone.css";
 
 function FlowShell({ title, subtitle, actions, tabs = [], children, compact = false, shellRef = null, hideHeader = false, floatingActions = null }) {
   const { t } = useTranslation();
@@ -12,25 +13,29 @@ function FlowShell({ title, subtitle, actions, tabs = [], children, compact = fa
   // active. Both variants now share one semantic surface ladder and differ
   // only in spacing, radius and type scale.
   return (
-    <div ref={shellRef} className="min-h-screen bg-[var(--bg)] text-[var(--text)]">
-      <div className={`mx-auto flex w-full flex-col px-3 sm:px-4 lg:px-5 ${compact ? "gap-2 py-2" : "gap-4 py-4"}`}>
+    <div ref={shellRef} className="m1-catalog-page min-h-screen bg-[var(--bg)] text-[var(--text)]">
+      {/* Phone: the shell content already gives a 12px gutter, so this one goes,
+          the header card drops its frame (.m1-catalog-flat), the eyebrow goes
+          (the title says it), title + actions share one row and the tabs are one
+          scrolling chip row. md and up are unchanged. */}
+      <div className={`mx-auto flex w-full flex-col px-3 sm:px-4 lg:px-5 max-md:px-0 ${compact ? "gap-2 py-2" : "gap-4 py-4 max-md:gap-3 max-md:pt-0"}`}>
         {hideHeader ? (
           floatingActions ? <div className="fixed end-3 top-3 z-40 flex items-center gap-2">{floatingActions}</div> : null
         ) : (
-        <div className={`rounded-[var(--radius-card)] border border-[var(--border)] bg-[var(--card)] shadow-[var(--shadow-card)] ${compact ? "p-2.5" : "p-4"}`}>
-          <div className={`flex flex-col xl:flex-row xl:items-center xl:justify-between ${compact ? "gap-2" : "gap-4"}`}>
-            <div>
-              <div className="flex items-center gap-2 text-[var(--primary)]">
+        <div className={`m1-catalog-flat rounded-[var(--radius-card)] border border-[var(--border)] bg-[var(--card)] shadow-[var(--shadow-card)] ${compact ? "p-2.5" : "p-4"}`}>
+          <div className={`flex flex-col max-md:flex-row max-md:flex-wrap max-md:items-center max-md:justify-between xl:flex-row xl:items-center xl:justify-between ${compact ? "gap-2" : "gap-4 max-md:gap-3"}`}>
+            <div className="min-w-0">
+              <div className="flex items-center gap-2 text-[var(--primary)] max-md:hidden">
                 <PackageSearch className={compact ? "h-4 w-4" : "h-5 w-5"} />
                 <span className={`font-semibold uppercase tracking-[0.18em] ${compact ? "text-[10px]" : "text-xs"}`}>{t("purchases.moduleEyebrow")}</span>
               </div>
-              <h1 className={`m1-page-title text-[var(--text)] ${compact ? "mt-1" : "mt-2"}`}>{title}</h1>
+              <h1 className={`m1-page-title text-[var(--text)] max-md:mt-0 ${compact ? "mt-1" : "mt-2"}`}>{title}</h1>
               {subtitle ? <p className={`max-w-3xl text-[var(--muted)] ${compact ? "mt-0.5 text-xs" : "mt-1 text-sm"}`}>{subtitle}</p> : null}
             </div>
             <div className="flex flex-wrap gap-2">{actions}</div>
           </div>
           {tabs.length ? (
-            <div className={`flex flex-wrap gap-2 ${compact ? "mt-2" : "mt-4"}`}>
+            <div className={`m1-catalog-tabs flex flex-wrap gap-2 ${compact ? "mt-2" : "mt-4 max-md:mt-3"}`}>
               {tabs.map((tab) => (
                 <NavLink
                   key={tab.to}

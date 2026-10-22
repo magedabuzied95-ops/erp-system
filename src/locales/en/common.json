@@ -786,6 +786,7 @@
     "zoomOut": "Zoom out",
     "selectAll": "Select all",
     "clear": "Clear",
+    "filters": "Filters",
     "commandPalette": {
       "open": "Quick search",
       "placeholderShort": "Start typing to go anywhere…",

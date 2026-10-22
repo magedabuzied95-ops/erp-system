@@ -189,14 +189,14 @@ function WarehousesDashboard() {
         </div>
       ) : null}
 
-      <div className="grid gap-3 md:grid-cols-2 xl:grid-cols-4">
+      <div className="grid grid-cols-2 gap-3 xl:grid-cols-4">
         <Kpi label={t("warehouses.kpis.warehouses")} value={stats.warehouses} />
         <Kpi label={t("warehouses.kpis.active")} value={stats.active} tone="emerald" />
         <Kpi label={t("warehouses.kpis.branches")} value={stats.branch} tone="blue" />
         <Kpi label={t("warehouses.kpis.valuation")} value={formatCurrency(stats.value)} tone="violet" />
       </div>
 
-      <div className="rounded-3xl border border-white/10 bg-zinc-950/90 p-4 shadow-2xl shadow-black/10">
+      <div className="m1-catalog-flat rounded-3xl border border-white/10 bg-zinc-950/90 p-4 shadow-2xl shadow-black/10">
         <div className="relative">
           <Search className="pointer-events-none absolute left-4 top-1/2 h-4 w-4 -translate-y-1/2 text-zinc-500" />
           <input
@@ -207,7 +207,7 @@ function WarehousesDashboard() {
           />
         </div>
 
-        <div className="mt-4 grid gap-4 md:grid-cols-2 xl:grid-cols-3">
+        <div className="mt-4 grid gap-4 max-md:mt-3 max-md:gap-3 md:grid-cols-2 xl:grid-cols-3">
           {loading ? (
             Array.from({ length: 6 }).map((_, index) => <div key={index} className="h-40 animate-pulse rounded-[var(--radius-card)] border border-white/10 bg-white/5" />)
           ) : filtered.length === 0 ? (
@@ -218,7 +218,7 @@ function WarehousesDashboard() {
             </div>
           ) : (
             filtered.map((warehouse) => (
-              <div key={String(warehouse.id)} className="rounded-[var(--radius-card)] border border-white/10 bg-white/5 p-5 shadow-xl shadow-black/10">
+              <div key={String(warehouse.id)} className="rounded-[var(--radius-card)] border border-white/10 bg-white/5 p-5 shadow-xl shadow-black/10 max-sm:p-4">
                 <div className="flex items-start justify-between gap-3">
                   <div>
                     <div className="font-semibold text-white">{warehouse.name}</div>
@@ -289,9 +289,9 @@ function Kpi({ label, value, tone = "zinc" }) {
     zinc: "border-white/10 bg-white/5 text-white",
   };
   return (
-    <div className={`rounded-3xl border p-4 shadow-xl ${classes[tone]}`}>
-      <div className="text-[11px] uppercase tracking-[0.18em] text-zinc-500">{label}</div>
-      <div className="mt-2 text-2xl font-black text-white">{value}</div>
+    <div className={`min-w-0 rounded-3xl border p-4 shadow-xl max-sm:p-3 ${classes[tone]}`}>
+      <div className="truncate text-[11px] uppercase tracking-[0.18em] text-zinc-500">{label}</div>
+      <div className="mt-2 truncate text-2xl font-black text-white max-sm:text-lg">{value}</div>
     </div>
   );
 }
@@ -314,7 +314,7 @@ function EditWarehouseModal({ warehouse, form, labels, error, saving, onChange, 
   return (
     <div className="fixed inset-0 z-50 flex items-end justify-center bg-black/70 p-0 backdrop-blur-sm sm:items-center sm:p-4">
       <button type="button" className="absolute inset-0 cursor-default" onClick={onClose} aria-label={t("common.close")} />
-      <div className="relative w-full max-w-xl rounded-t-3xl border border-white/10 bg-zinc-950 p-5 shadow-2xl shadow-black sm:rounded-3xl">
+      <div className="relative max-h-[calc(100dvh-0.5rem)] w-full max-w-xl overflow-y-auto rounded-t-3xl border border-white/10 bg-zinc-950 p-5 pb-[max(1.25rem,env(safe-area-inset-bottom))] shadow-2xl shadow-black sm:max-h-[calc(100dvh-2rem)] sm:rounded-3xl sm:pb-5">
         <div className="flex items-start justify-between gap-3">
           <div>
             <div className="text-xs font-semibold uppercase tracking-[0.18em] text-emerald-300">{labels.edit}</div>
@@ -399,7 +399,7 @@ function DeleteWarehouseModal({ warehouse, error, deleting, onClose, onConfirm }
   return (
     <div className="fixed inset-0 z-50 flex items-end justify-center bg-black/70 p-0 backdrop-blur-sm sm:items-center sm:p-4">
       <button type="button" className="absolute inset-0 cursor-default" onClick={onClose} aria-label={t("common.close")} />
-      <div className="relative w-full max-w-xl rounded-t-3xl border border-white/10 bg-zinc-950 p-5 shadow-2xl shadow-black sm:rounded-3xl">
+      <div className="relative max-h-[calc(100dvh-0.5rem)] w-full max-w-xl overflow-y-auto rounded-t-3xl border border-white/10 bg-zinc-950 p-5 pb-[max(1.25rem,env(safe-area-inset-bottom))] shadow-2xl shadow-black sm:max-h-[calc(100dvh-2rem)] sm:rounded-3xl sm:pb-5">
         <div className="flex items-start justify-between gap-3">
           <div>
             <div className="text-xs font-semibold uppercase tracking-[0.18em] text-rose-300">{t("warehouses.deleteWarehouse")}</div>

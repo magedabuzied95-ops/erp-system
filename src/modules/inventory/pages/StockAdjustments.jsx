@@ -667,7 +667,7 @@ function StockAdjustments() {
 
       <div className="grid gap-4 xl:grid-cols-[minmax(0,1.2fr)_minmax(380px,0.8fr)]">
         <div className="space-y-4">
-          <div className="rounded-[var(--radius-card)] border border-border bg-surface p-5 shadow-2xl shadow-black/10">
+          <div className="rounded-[var(--radius-card)] border border-border bg-surface p-5 shadow-2xl shadow-black/10 max-sm:p-3">
             <div className="flex flex-col gap-4 lg:flex-row lg:items-end">
               <label className="relative block flex-1">
                 <Search className="pointer-events-none absolute left-4 top-1/2 h-4 w-4 -translate-y-1/2 text-text-muted" />
@@ -781,7 +781,7 @@ function StockAdjustments() {
         </div>
 
         <div className="space-y-4">
-          <div className="rounded-[var(--radius-card)] border border-border bg-surface p-5 shadow-2xl shadow-black/10">
+          <div className="rounded-[var(--radius-card)] border border-border bg-surface p-5 shadow-2xl shadow-black/10 max-sm:p-3">
             <div className="mb-4 flex items-center justify-between">
               <div>
                 <h3 className="m1-section-title text-text">{tt("inventory.adjustments.selectedProduct")}</h3>
@@ -834,7 +834,7 @@ function StockAdjustments() {
             )}
           </div>
 
-          <div className="rounded-[var(--radius-card)] border border-border bg-surface p-5 shadow-2xl shadow-black/10">
+          <div className="rounded-[var(--radius-card)] border border-border bg-surface p-5 shadow-2xl shadow-black/10 max-sm:p-3">
             <div className="mb-4">
                 <h3 className="m1-section-title text-text">{tt("inventory.adjustments.form")}</h3>
             </div>
@@ -1181,8 +1181,8 @@ function ConfirmationModal({
   return (
     <div className="fixed inset-0 z-50">
       <button type="button" onClick={onClose} className="absolute inset-0 bg-black/80" aria-label={tt("inventory.adjustments.closeConfirm")} />
-      <div className="absolute inset-x-0 bottom-0 top-0 mx-auto flex w-full max-w-3xl items-center justify-center p-4">
-        <div className="w-full rounded-[var(--radius-card)] border border-border bg-surface shadow-[0_30px_100px_rgba(0,0,0,0.55)]">
+      <div className="absolute inset-x-0 bottom-0 top-0 mx-auto flex w-full max-w-3xl items-center justify-center p-4 max-sm:p-2">
+        <div className="max-h-[calc(100dvh-1rem)] w-full overflow-y-auto rounded-[var(--radius-card)] border border-border bg-surface shadow-[0_30px_100px_rgba(0,0,0,0.55)]">
           <div className="flex items-center justify-between border-b border-border px-5 py-4">
             <div>
               <div className="text-xs uppercase tracking-[0.24em] text-text-muted">{tt("inventory.adjustments.confirm")}</div>
@@ -1298,7 +1298,7 @@ function ProductHistoryDrawer({ productName, variantLabel, movements, loading, e
   return (
     <div className="fixed inset-0 z-50">
       <button type="button" onClick={onClose} className="absolute inset-0 bg-black/70" aria-label={tt("inventory.adjustments.closeHistory")} />
-      <div className="absolute right-0 top-0 h-full w-full max-w-[720px] border-l border-border bg-surface shadow-[0_30px_100px_rgba(0,0,0,0.5)]">
+      <div className="absolute right-0 top-0 flex h-full w-full max-w-[720px] flex-col border-l border-border bg-surface shadow-[0_30px_100px_rgba(0,0,0,0.5)]">
         <div className="flex items-center justify-between border-b border-border px-5 py-4">
           <div>
             <p className="text-xs uppercase tracking-[0.24em] text-text-muted">{tt("inventory.adjustments.productHistory")}</p>
@@ -1310,7 +1310,7 @@ function ProductHistoryDrawer({ productName, variantLabel, movements, loading, e
           </button>
         </div>
 
-        <div className="space-y-4 overflow-y-auto p-5">
+        <div className="min-h-0 flex-1 space-y-4 overflow-y-auto p-5 pb-[max(1.25rem,env(safe-area-inset-bottom))] max-sm:px-3 max-sm:pt-3">
           {loading ? (
             <div className="flex items-center justify-center rounded-[var(--radius-card)] border border-border bg-surface-soft py-16 text-text-muted">
               <Loader2 className="mr-2 h-5 w-5 animate-spin text-emerald-400" />

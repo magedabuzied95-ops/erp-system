@@ -30,6 +30,8 @@ import FlowShell from "../components/FlowShell";
 import StatusBadge from "../components/StatusBadge";
 import { formatCurrency, formatDateTime, formatPurchaseCode, getLocalPurchases, normalizeSupplier, seedSuppliers } from "../lib/flowStore";
 import ThemedSelect from "../../../shared/ui/ThemedSelect";
+import PhoneFilters from "../../inventory/components/PhoneFilters";
+import useIsPhone from "../../inventory/components/useIsPhone";
 
 const PAGE_SIZE_OPTIONS = [10, 25, 50, 100, 200, 500, 1000, "all"];
 const SUPPLIER_ACTIONS_MENU_WIDTH = 256;
@@ -66,6 +68,7 @@ const backendSupplier = (supplier) => ({
 });
 
 function SuppliersDashboard() {
+  const isPhone = useIsPhone();
   const { t } = useTranslation();
   const navigate = useNavigate();
   const [suppliers, setSuppliers] = useState([]);
@@ -385,7 +388,7 @@ function SuppliersDashboard() {
         { to: "/warehouses", label: t("suppliers.tabs.warehouses") },
       ]}
     >
-      <div className="grid gap-3 md:grid-cols-2 xl:grid-cols-4">
+      <div className="grid grid-cols-2 gap-3 xl:grid-cols-4">
         <Kpi label={t("suppliers.kpis.suppliers")} value={totals.suppliers} />
         <Kpi label={t("suppliers.kpis.active")} value={totals.active} tone="emerald" />
         <Kpi label={t("purchases.suppliersDashboard.currentBalance")} value={formatCurrency(totals.balance)} tone="amber" />
@@ -399,9 +402,12 @@ function SuppliersDashboard() {
         </div>
       ) : null}
 
-      <div className="rounded-3xl border border-white/10 bg-zinc-950/90 p-4 shadow-2xl shadow-black/10">
-        <div className="grid gap-3 lg:grid-cols-[minmax(0,1fr)_180px_220px]">
-          <div className="relative">
+      {/* Phone: the frame drops, search shares a row with one Filters button
+          (status + sort in a sheet) and the 1280px table becomes one card per
+          supplier. md and up are unchanged. */}
+      <div className="m1-catalog-flat rounded-3xl border border-white/10 bg-zinc-950/90 p-4 shadow-2xl shadow-black/10">
+        <div className="grid gap-3 max-md:grid-cols-[minmax(0,1fr)_auto] lg:grid-cols-[minmax(0,1fr)_180px_220px]">
+          <div className="relative min-w-0">
             <Search className="pointer-events-none absolute start-4 top-1/2 h-4 w-4 -translate-y-1/2 text-zinc-500" />
             <input
               value={search}
@@ -410,10 +416,49 @@ function SuppliersDashboard() {
               className="w-full rounded-[var(--radius-control)] border border-white/10 bg-white/5 py-3 pe-4 ps-11 text-sm text-white outline-none placeholder:text-zinc-500 focus:border-emerald-400/50"
             />
           </div>
+          <PhoneFilters activeCount={(statusFilter !== "all" ? 1 : 0) + (sort !== "newest" ? 1 : 0)} onClear={() => { setStatusFilter("all"); setSort("newest"); }}>
           <Select value={statusFilter} onChange={setStatusFilter} options={[["all", t("purchases.suppliersDashboard.allStatus")], ["active", t("purchases.statusLabels.active")], ["inactive", t("purchases.statusLabels.inactive")]]} />
           <Select value={sort} onChange={setSort} options={[["newest", t("purchases.suppliersDashboard.newest")], ["highest_balance", t("purchases.suppliersDashboard.highestBalance")], ["name", t("purchases.suppliersDashboard.nameAz")]]} />
+          </PhoneFilters>
         </div>
 
+        {isPhone ? (
+          <div className="mt-3 space-y-2">
+            {loading ? (
+              Array.from({ length: 4 }).map((_, index) => <div key={index} className="h-20 animate-pulse rounded-[var(--radius-card)] border border-white/10 bg-white/5" />)
+            ) : visible.length === 0 ? (
+              <EmptyState onCreate={openCreateModal} />
+            ) : (
+              visible.map((supplier) => (
+                <div key={String(supplier.id)} className="flex items-start gap-2 rounded-[var(--radius-card)] border border-white/10 bg-zinc-950/90 p-3">
+                  <button type="button" onClick={() => openProfile(supplier)} className="min-w-0 flex-1 text-start">
+                    <div className="flex min-w-0 items-center gap-2">
+                      <span className="truncate font-semibold text-white">{supplier.name}</span>
+                      <StatusBadge value={supplierStatusLabel(supplier.status)} />
+                    </div>
+                    <div className="mt-0.5 truncate text-xs text-zinc-500"><span className="font-mono text-emerald-200">{supplier.supplier_code}</span> · {supplier.contact_person || supplier.phone || t("purchases.supplierDetails.notAvailable")}</div>
+                    <div className="mt-1.5 flex flex-wrap gap-x-3 gap-y-1 text-xs text-zinc-400">
+                      <span>{t("purchases.suppliersDashboard.balance")}: <span dir="ltr" className="font-bold text-white">{formatCurrency(supplier.current_balance || 0)}</span></span>
+                      <span>{t("purchases.suppliersDashboard.totalPurchases")}: <span dir="ltr" className="font-bold text-white">{formatCurrency(supplier.totalPurchases || 0)}</span></span>
+                    </div>
+                  </button>
+                  <button
+                    ref={(node) => {
+                      if (openMenuId === supplier.id) menuButtonRef.current = node;
+                    }}
+                    type="button"
+                    onClick={(event) => openActionsMenu(supplier.id, event)}
+                    aria-expanded={openMenuId === supplier.id}
+                    aria-haspopup="menu"
+                    className="inline-flex h-10 w-10 shrink-0 items-center justify-center rounded-[var(--radius-control)] border border-white/10 bg-white/5 text-white"
+                  >
+                    <MoreHorizontal className="h-4 w-4" />
+                  </button>
+                </div>
+              ))
+            )}
+          </div>
+        ) : (
         <div className="mt-4 overflow-x-auto">
           <div className="min-w-[1280px]">
             <div className="grid grid-cols-[12%_18%_12%_12%_12%_10%_10%_8%_6%] rounded-[var(--radius-card)] border border-white/10 bg-white/5 px-4 py-3 text-xs uppercase tracking-[0.16em] text-zinc-500">
@@ -473,6 +518,7 @@ function SuppliersDashboard() {
             </div>
           </div>
         </div>
+        )}
         <SupplierActionsMenu
           supplier={visible.find((supplier) => String(supplier.id) === String(openMenuId)) || null}
           position={menuPosition}
@@ -532,9 +578,9 @@ function Kpi({ label, value, tone = "zinc" }) {
     zinc: "border-white/10 bg-white/5 text-white",
   };
   return (
-    <div className={`rounded-3xl border p-4 shadow-xl ${classes[tone]}`}>
-      <div className="text-[11px] uppercase tracking-[0.18em] text-zinc-500">{label}</div>
-      <div className="mt-2 text-2xl font-black text-white">{value}</div>
+    <div className={`min-w-0 rounded-3xl border p-4 shadow-xl max-sm:p-3 ${classes[tone]}`}>
+      <div className="truncate text-[11px] uppercase tracking-[0.18em] text-zinc-500">{label}</div>
+      <div className="mt-2 truncate text-2xl font-black text-white max-sm:text-lg">{value}</div>
     </div>
   );
 }

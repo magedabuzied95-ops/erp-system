@@ -79,7 +79,7 @@ function ImageThumbnailActions({
       <button
         type="button"
         onClick={preview}
-        className="absolute left-1/2 top-1/2 inline-flex h-[var(--control-height-sm)] w-8 -translate-x-1/2 -translate-y-1/2 items-center justify-center rounded-full border border-white/20 bg-black/65 text-white opacity-0 shadow-lg backdrop-blur-md transition duration-200 hover:bg-black/80 group-hover:opacity-100 focus-visible:opacity-100 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-white/50"
+        className="absolute left-1/2 top-1/2 inline-flex h-[var(--control-height-sm)] w-8 -translate-x-1/2 -translate-y-1/2 items-center justify-center rounded-full border border-white/20 bg-black/65 text-white opacity-0 shadow-lg backdrop-blur-md transition duration-200 hover:bg-black/80 group-hover:opacity-100 pointer-coarse:opacity-100 focus-visible:opacity-100 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-white/50"
         aria-label={t("products.images.previewImage", "Preview image")}
         title={t("products.images.preview", "Preview")}
       >
@@ -90,7 +90,7 @@ function ImageThumbnailActions({
         <button
           type="button"
           onClick={() => onPrimary(image)}
-          className="absolute bottom-1.5 left-1.5 inline-flex h-6 w-6 items-center justify-center rounded-full border border-emerald-200/25 bg-black/65 text-emerald-100 opacity-0 shadow-lg backdrop-blur-md transition duration-200 hover:bg-emerald-500/25 group-hover:opacity-100 focus-visible:opacity-100 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-emerald-200/60"
+          className="absolute bottom-1.5 left-1.5 inline-flex h-6 w-6 items-center justify-center rounded-full border border-emerald-200/25 bg-black/65 text-emerald-100 opacity-0 shadow-lg backdrop-blur-md transition duration-200 hover:bg-emerald-500/25 group-hover:opacity-100 pointer-coarse:opacity-100 focus-visible:opacity-100 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-emerald-200/60"
           aria-label={t("products.images.setPrimaryImage", "Set as primary image")}
           title={t("products.images.setPrimary", "Set main")}
         >
@@ -98,7 +98,7 @@ function ImageThumbnailActions({
         </button>
       ) : null}
 
-      {actions ? <div className="absolute bottom-1.5 right-1.5 flex items-center gap-1 opacity-0 transition duration-200 group-hover:opacity-100 group-focus-within:opacity-100">{actions}</div> : null}
+      {actions ? <div className="absolute bottom-1.5 right-1.5 flex items-center gap-1 opacity-0 transition duration-200 group-hover:opacity-100 group-focus-within:opacity-100 pointer-coarse:opacity-100">{actions}</div> : null}
 
       {confirming ? (
         <div className="absolute inset-0 z-50 flex flex-col items-center justify-center gap-2 rounded-[var(--radius-control)] bg-black/86 p-2 text-center backdrop-blur-sm">

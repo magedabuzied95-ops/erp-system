@@ -200,7 +200,7 @@ function Variants() {
       title={t("products.variantPage.title")}
     >
       <div className="grid min-w-0 grid-cols-1 gap-6 xl:grid-cols-12">
-        <section className="min-w-0 rounded-[34px] border border-white/8 bg-zinc-950/80 p-6 xl:col-span-4">
+        <section className="min-w-0 rounded-[34px] border border-white/8 bg-zinc-950/80 p-6 max-sm:p-3 xl:col-span-4">
           <div className="flex items-center gap-3">
             <Layers3 className="text-emerald-400" />
             <h2 className="m1-section-title text-white">{t("products.variantPage.matrixBuilder")}</h2>
@@ -283,7 +283,7 @@ function Variants() {
           </div>
         </section>
 
-        <section className="min-w-0 rounded-[34px] border border-white/8 bg-zinc-950/80 p-6 xl:col-span-8">
+        <section className="min-w-0 rounded-[34px] border border-white/8 bg-zinc-950/80 p-6 max-sm:p-3 xl:col-span-8">
           <div className="flex items-center justify-between gap-4">
             <div>
               <h2 className="m1-section-title text-white">{t("products.variantPage.variantGrid")}</h2>

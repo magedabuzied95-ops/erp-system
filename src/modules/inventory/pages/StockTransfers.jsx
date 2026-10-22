@@ -130,7 +130,7 @@ function StockTransfers() {
       ) : null}
 
       <div className="grid grid-cols-1 gap-4 xl:grid-cols-[minmax(0,1.1fr)_minmax(360px,0.9fr)]">
-        <div className="rounded-[var(--radius-card)] border border-border bg-surface p-5 shadow-2xl shadow-black/10">
+        <div className="rounded-[var(--radius-card)] border border-border bg-surface p-5 shadow-2xl shadow-black/10 max-sm:p-3">
           <div className="grid gap-3 md:grid-cols-2 xl:grid-cols-4">
             <Field label={tt("inventory.movements.variantId")} value={variantId} onChange={setVariantId} placeholder={tt("inventory.transfers.enterVariantId")} />
             <Select label={tt("inventory.transfers.fromWarehouse")} value={fromWarehouse} onChange={setFromWarehouse} options={warehouses} />
@@ -158,7 +158,7 @@ function StockTransfers() {
         </div>
 
         <div className="space-y-4">
-          <div className="rounded-[var(--radius-card)] border border-border bg-surface p-5 shadow-2xl shadow-black/10">
+          <div className="rounded-[var(--radius-card)] border border-border bg-surface p-5 shadow-2xl shadow-black/10 max-sm:p-3">
             <h3 className="m1-section-title text-text">{tt("inventory.transfers.log")}</h3>
             <div className="mt-4 space-y-3">
               {loading ? (

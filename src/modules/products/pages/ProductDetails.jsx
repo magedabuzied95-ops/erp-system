@@ -804,7 +804,7 @@ function ProductDetails() {
         </div>
       ) : product ? (
         <div className="space-y-6">
-          <section className="rounded-[34px] border border-white/8 bg-zinc-950/80 p-6 shadow-[0_24px_80px_rgba(0,0,0,0.22)]">
+          <section className="rounded-[34px] border border-white/8 bg-zinc-950/80 p-6 max-sm:p-3 shadow-[0_24px_80px_rgba(0,0,0,0.22)]">
             <div className="grid gap-6 xl:grid-cols-[320px_minmax(0,1fr)]">
               <div className="space-y-3">
                 <div className="overflow-hidden rounded-[28px] border border-white/10 bg-white/5">
@@ -868,7 +868,7 @@ function ProductDetails() {
             </div>
           </section>
 
-          <section className="rounded-[34px] border border-white/8 bg-zinc-950/80 p-6 shadow-[0_24px_80px_rgba(0,0,0,0.22)]">
+          <section className="rounded-[34px] border border-white/8 bg-zinc-950/80 p-6 max-sm:p-3 shadow-[0_24px_80px_rgba(0,0,0,0.22)]">
             <div className="flex items-center gap-3">
               <Package2 className="text-emerald-400" />
               <div>
@@ -978,7 +978,7 @@ function ProductDetails() {
             )}
           </section>
 
-          <section className="rounded-[34px] border border-white/8 bg-zinc-950/80 p-6 shadow-[0_24px_80px_rgba(0,0,0,0.22)]">
+          <section className="rounded-[34px] border border-white/8 bg-zinc-950/80 p-6 max-sm:p-3 shadow-[0_24px_80px_rgba(0,0,0,0.22)]">
             <div className="flex flex-wrap items-center justify-between gap-3">
               <div className="flex items-center gap-3">
                 <Clock3 className="text-primary" />
@@ -1099,7 +1099,7 @@ function ProductDetails() {
             </div>
           </section>
 
-          <section className="rounded-[34px] border border-white/8 bg-zinc-950/80 p-6 shadow-[0_24px_80px_rgba(0,0,0,0.22)]">
+          <section className="rounded-[34px] border border-white/8 bg-zinc-950/80 p-6 max-sm:p-3 shadow-[0_24px_80px_rgba(0,0,0,0.22)]">
             <div className="flex items-center gap-3">
               <ImageIcon className="text-primary" />
               <div>
