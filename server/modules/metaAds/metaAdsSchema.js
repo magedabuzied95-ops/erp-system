@@ -455,6 +455,9 @@ const STATEMENTS = [
   `ALTER TABLE meta_ads_insights ADD COLUMN IF NOT EXISTS add_to_cart BIGINT NOT NULL DEFAULT 0`,
   `ALTER TABLE meta_ads_insights ADD COLUMN IF NOT EXISTS initiate_checkout BIGINT NOT NULL DEFAULT 0`,
   `ALTER TABLE meta_ads_insights ADD COLUMN IF NOT EXISTS link_clicks BIGINT NOT NULL DEFAULT 0`,
+  `ALTER TABLE meta_ads_insights ADD COLUMN IF NOT EXISTS quality_ranking TEXT NULL`,
+  `ALTER TABLE meta_ads_insights ADD COLUMN IF NOT EXISTS engagement_rate_ranking TEXT NULL`,
+  `ALTER TABLE meta_ads_insights ADD COLUMN IF NOT EXISTS conversion_rate_ranking TEXT NULL`,
   `ALTER TABLE meta_ads_insight_breakdowns ADD COLUMN IF NOT EXISTS purchases NUMERIC(14,2) NOT NULL DEFAULT 0`,
   `ALTER TABLE meta_ads_insight_breakdowns ADD COLUMN IF NOT EXISTS purchase_value NUMERIC(14,2) NOT NULL DEFAULT 0`,
   // Meta's review verdict on an ad (ad_review_feedback) and its open issues (issues_info).

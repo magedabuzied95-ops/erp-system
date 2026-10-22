@@ -328,7 +328,9 @@ const goalByObject = async (tenantId, accountId) => {
   return map;
 };
 
-const INSIGHT_FIELDS = "campaign_id,adset_id,ad_id,impressions,reach,clicks,spend,ctr,cpc,cpm,frequency,actions,action_values,date_start,date_stop";
+// The three rankings are Meta's verdict on an ad against its competitors for the same audience;
+// Graph fills them at the ad level only (campaign / ad set rows carry none).
+const INSIGHT_FIELDS = "campaign_id,adset_id,ad_id,impressions,reach,clicks,spend,ctr,cpc,cpm,frequency,actions,action_values,quality_ranking,engagement_rate_ranking,conversion_rate_ranking,date_start,date_stop";
 
 export const syncInsights = async (ctx, { days = 30, levels = ["campaign", "adset", "ad"] } = {}) => {
   const token = requireToken(ctx);
@@ -361,8 +363,9 @@ export const syncInsights = async (ctx, { days = 30, levels = ["campaign", "adse
       await db.query(
         `INSERT INTO meta_ads_insights (tenant_id, account_id, level, object_meta_id, date_start, date_stop, impressions, reach, clicks, spend,
            ctr, cpc, cpm, frequency, results, result_type, actions, action_values,
-           purchases, purchase_value, purchases_7d_click, purchase_value_7d_click, landing_page_views, add_to_cart, initiate_checkout, link_clicks, synced_at)
-         VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,$17::jsonb,$18::jsonb,$19,$20,$21,$22,$23,$24,$25,$26,NOW())
+           purchases, purchase_value, purchases_7d_click, purchase_value_7d_click, landing_page_views, add_to_cart, initiate_checkout, link_clicks,
+           quality_ranking, engagement_rate_ranking, conversion_rate_ranking, synced_at)
+         VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,$17::jsonb,$18::jsonb,$19,$20,$21,$22,$23,$24,$25,$26,$27,$28,$29,NOW())
          ON CONFLICT (tenant_id, level, object_meta_id, date_start, date_stop) DO UPDATE SET
            impressions = EXCLUDED.impressions, reach = EXCLUDED.reach, clicks = EXCLUDED.clicks, spend = EXCLUDED.spend,
            ctr = EXCLUDED.ctr, cpc = EXCLUDED.cpc, cpm = EXCLUDED.cpm, frequency = EXCLUDED.frequency, results = EXCLUDED.results,
@@ -370,13 +373,16 @@ export const syncInsights = async (ctx, { days = 30, levels = ["campaign", "adse
            purchases = EXCLUDED.purchases, purchase_value = EXCLUDED.purchase_value,
            purchases_7d_click = EXCLUDED.purchases_7d_click, purchase_value_7d_click = EXCLUDED.purchase_value_7d_click,
            landing_page_views = EXCLUDED.landing_page_views, add_to_cart = EXCLUDED.add_to_cart,
-           initiate_checkout = EXCLUDED.initiate_checkout, link_clicks = EXCLUDED.link_clicks, synced_at = NOW()`,
+           initiate_checkout = EXCLUDED.initiate_checkout, link_clicks = EXCLUDED.link_clicks,
+           quality_ranking = EXCLUDED.quality_ranking, engagement_rate_ranking = EXCLUDED.engagement_rate_ranking,
+           conversion_rate_ranking = EXCLUDED.conversion_rate_ranking, synced_at = NOW()`,
         [
           tenantId, account.id, level, objectId, row.date_start, row.date_stop, num(row.impressions), num(row.reach), num(row.clicks),
           num(row.spend), num(row.ctr), num(row.cpc), num(row.cpm), num(row.frequency), result.value, result.type, JSON.stringify(row.actions || []),
           JSON.stringify(row.action_values || []),
           funnel.purchases, funnel.purchase_value, funnel.purchases_7d_click, funnel.purchase_value_7d_click,
           funnel.landing_page_views, funnel.add_to_cart, funnel.initiate_checkout, funnel.link_clicks,
+          text(row.quality_ranking) || null, text(row.engagement_rate_ranking) || null, text(row.conversion_rate_ranking) || null,
         ],
       );
       written += 1;

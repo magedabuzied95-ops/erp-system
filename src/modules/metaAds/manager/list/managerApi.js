@@ -24,17 +24,20 @@ export const managerApi = {
 // steps, and the ratios of the window's sums.
 export const MONEY_COLUMNS = ["purchases", "purchase_value", "roas", "cost_per_purchase", "purchases_7d_click", "roas_7d_click"];
 export const FUNNEL_COLUMNS = ["link_clicks", "landing_page_views", "add_to_cart", "initiate_checkout"];
+// Meta's three rankings exist at the ad level only; frequency is impressions over reach.
+export const RANKING_COLUMNS = ["quality_ranking", "engagement_rate_ranking", "conversion_rate_ranking"];
 
 export const LEVEL_COLUMNS = {
-  campaign: ["delivery", "objective", "budget", "results", "reach", "impressions", "spend", ...MONEY_COLUMNS, ...FUNNEL_COLUMNS, "end"],
-  adset: ["delivery", "goal", "budget", "results", "reach", "impressions", "spend", ...MONEY_COLUMNS, ...FUNNEL_COLUMNS, "end"],
-  ad: ["delivery", "creative", "results", "reach", "impressions", "spend", ...MONEY_COLUMNS, ...FUNNEL_COLUMNS],
+  campaign: ["delivery", "objective", "budget", "results", "reach", "impressions", "frequency", "spend", ...MONEY_COLUMNS, ...FUNNEL_COLUMNS, "end"],
+  adset: ["delivery", "goal", "budget", "results", "reach", "impressions", "frequency", "spend", ...MONEY_COLUMNS, ...FUNNEL_COLUMNS, "end"],
+  ad: ["delivery", "creative", "results", "reach", "impressions", "frequency", "spend", ...MONEY_COLUMNS, ...FUNNEL_COLUMNS, ...RANKING_COLUMNS],
 };
 
 const PRESET_KEYS = {
   performance: ["delivery", "objective", "goal", "creative", "budget", "results", "reach", "impressions", "spend", "purchases", "roas", "end"],
   money: ["delivery", "spend", "purchases", "purchase_value", "roas", "cost_per_purchase", "purchases_7d_click", "roas_7d_click"],
   funnel: ["delivery", "impressions", "link_clicks", "landing_page_views", "add_to_cart", "initiate_checkout", "purchases"],
+  quality: ["delivery", "reach", "impressions", "frequency", ...RANKING_COLUMNS],
   delivery: ["delivery", "objective", "goal", "creative", "budget", "end"],
   engagement: ["delivery", "results", "reach", "impressions"],
 };

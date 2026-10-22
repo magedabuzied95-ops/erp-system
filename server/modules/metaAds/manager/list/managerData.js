@@ -73,7 +73,14 @@ const insightTotalsCte = (days) => `
            SUM(i.landing_page_views) AS landing_page_views,
            SUM(i.add_to_cart) AS add_to_cart,
            SUM(i.initiate_checkout) AS initiate_checkout,
-           SUM(i.link_clicks) AS link_clicks
+           SUM(i.link_clicks) AS link_clicks,
+           -- Meta's rankings are a verdict, not a sum: the newest day that has one speaks.
+           (ARRAY_AGG(i.quality_ranking ORDER BY i.date_start DESC) FILTER (WHERE i.quality_ranking IS NOT NULL))[1] AS quality_ranking,
+           (ARRAY_AGG(i.engagement_rate_ranking ORDER BY i.date_start DESC) FILTER (WHERE i.engagement_rate_ranking IS NOT NULL))[1] AS engagement_rate_ranking,
+           (ARRAY_AGG(i.conversion_rate_ranking ORDER BY i.date_start DESC) FILTER (WHERE i.conversion_rate_ranking IS NOT NULL))[1] AS conversion_rate_ranking,
+           -- Daily reach rows add the same person twice, so this frequency is a floor; a
+           -- single day (days = 1) is exact.
+           CASE WHEN SUM(i.reach) > 0 THEN SUM(i.impressions)::float / SUM(i.reach) END AS frequency
       FROM meta_ads_insights i
      WHERE i.tenant_id = $1 AND i.account_id = $2 AND i.level = $3${windowClause(days, "i", 4)}
      GROUP BY i.object_meta_id
@@ -83,6 +90,7 @@ const insightTotalsCte = (days) => `
 const INSIGHT_SELECT = `ins.results, ins.result_type, ins.reach, ins.impressions, ins.spend, ins.clicks,
   ins.purchases, ins.purchase_value, ins.purchases_7d_click, ins.purchase_value_7d_click,
   ins.landing_page_views, ins.add_to_cart, ins.initiate_checkout, ins.link_clicks,
+  ins.quality_ranking, ins.engagement_rate_ranking, ins.conversion_rate_ranking, ins.frequency,
   CASE WHEN ins.spend > 0 THEN ins.purchase_value / ins.spend END AS roas,
   CASE WHEN ins.purchases > 0 THEN ins.spend / ins.purchases END AS cost_per_purchase,
   CASE WHEN ins.spend > 0 THEN ins.purchase_value_7d_click / ins.spend END AS roas_7d_click,

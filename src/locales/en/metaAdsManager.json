@@ -27,6 +27,7 @@
     "performance": "Performance",
     "money": "Money",
     "funnel": "Funnel",
+    "quality": "Quality",
     "delivery": "Delivery",
     "engagement": "Engagement"
   },
@@ -62,8 +63,19 @@
     "landing_page_views": "Landing page views",
     "add_to_cart": "Adds to cart",
     "initiate_checkout": "Checkouts initiated",
+    "frequency": "Frequency",
+    "quality_ranking": "Quality ranking",
+    "engagement_rate_ranking": "Engagement ranking",
+    "conversion_rate_ranking": "Conversion ranking",
     "end": "Ends",
     "actions": "Actions"
+  },
+  "rankings": {
+    "ABOVE_AVERAGE": "Above average",
+    "AVERAGE": "Average",
+    "BELOW_AVERAGE_35": "Below average (bottom 35%)",
+    "BELOW_AVERAGE_20": "Below average (bottom 20%)",
+    "BELOW_AVERAGE_10": "Below average (bottom 10%)"
   },
   "creativeTypes": {
     "single_image": "Single image",

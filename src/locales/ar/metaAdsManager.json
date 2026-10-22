@@ -27,6 +27,7 @@
     "performance": "الأداء",
     "money": "الأموال",
     "funnel": "قمع التحويل",
+    "quality": "الجودة",
     "delivery": "العرض",
     "engagement": "التفاعل"
   },
@@ -62,8 +63,19 @@
     "landing_page_views": "مشاهدات الصفحة",
     "add_to_cart": "إضافة للسلة",
     "initiate_checkout": "بدء الدفع",
+    "frequency": "التكرار",
+    "quality_ranking": "تصنيف الجودة",
+    "engagement_rate_ranking": "تصنيف التفاعل",
+    "conversion_rate_ranking": "تصنيف التحويل",
     "end": "الانتهاء",
     "actions": "إجراءات"
+  },
+  "rankings": {
+    "ABOVE_AVERAGE": "فوق المتوسط",
+    "AVERAGE": "متوسط",
+    "BELOW_AVERAGE_35": "تحت المتوسط (أدنى 35%)",
+    "BELOW_AVERAGE_20": "تحت المتوسط (أدنى 20%)",
+    "BELOW_AVERAGE_10": "تحت المتوسط (أدنى 10%)"
   },
   "creativeTypes": {
     "single_image": "صورة واحدة",

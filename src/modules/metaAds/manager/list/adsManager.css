@@ -581,6 +581,27 @@
   background: var(--muted);
 }
 
+/* Meta's quality / engagement / conversion rankings. */
+.ma-rank {
+  display: inline-block;
+  padding: 2px 8px;
+  border-radius: 999px;
+  font-size: 12px;
+  font-weight: 500;
+  background: var(--surface-soft);
+  color: var(--muted);
+}
+
+.ma-rank--success {
+  color: var(--success);
+  background: color-mix(in srgb, var(--success) 12%, transparent);
+}
+
+.ma-rank--danger {
+  color: var(--danger, #dc2626);
+  background: color-mix(in srgb, var(--danger, #dc2626) 12%, transparent);
+}
+
 /* A rejected ad: Meta's verdict under the status, then the link to its review panel. */
 .ma-delivery-block {
   display: flex;

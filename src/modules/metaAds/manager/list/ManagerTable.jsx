@@ -39,6 +39,13 @@ export default function ManagerTable({
   const compact = (value) => (isBlank(value) ? DASH : formatCompact(value, t, locale));
   const ratio = (value) => (isBlank(value) ? DASH : `${Number(value).toLocaleString(locale, { maximumFractionDigits: 2 })}×`);
   const moneyCell = (value, currency) => (isBlank(value) ? DASH : money(value, currency));
+  // Meta's ranking verdicts: above / average / the bottom 35%, 20% or 10% for the same audience.
+  const ranking = (value) => {
+    const code = String(value || "").toUpperCase();
+    if (!code || code === "UNKNOWN") return DASH;
+    const tone = code === "ABOVE_AVERAGE" ? "success" : code === "AVERAGE" ? "neutral" : "danger";
+    return <span className={`ma-rank ma-rank--${tone}`}>{t(`metaAdsManager.rankings.${code}`, { defaultValue: code })}</span>;
+  };
 
   const budgetText = (row) => {
     if (hasAmount(row.daily_budget)) return t("metaAdsManager.perDay", { amount: money(row.daily_budget, row.currency) });
@@ -112,6 +119,10 @@ export default function ManagerTable({
     landing_page_views: (row) => compact(row.landing_page_views),
     add_to_cart: (row) => compact(row.add_to_cart),
     initiate_checkout: (row) => compact(row.initiate_checkout),
+    frequency: (row) => (isBlank(row.frequency) ? DASH : Number(row.frequency).toLocaleString(locale, { maximumFractionDigits: 2 })),
+    quality_ranking: (row) => ranking(row.quality_ranking),
+    engagement_rate_ranking: (row) => ranking(row.engagement_rate_ranking),
+    conversion_rate_ranking: (row) => ranking(row.conversion_rate_ranking),
     end: endText,
   };
 
@@ -126,7 +137,11 @@ export default function ManagerTable({
   totals.cost_per_purchase = totals.purchases > 0 ? totals.spend / totals.purchases : null;
   totals.roas_7d_click = totals.spend > 0 ? totals.purchase_value_7d_click / totals.spend : null;
   totals.currency = rows[0]?.currency;
-  const FOOTER_CELLS = { ...CELLS, delivery: () => "", objective: () => "", goal: () => "", creative: () => "", budget: () => "", end: () => "", reach: () => "" };
+  const FOOTER_CELLS = {
+    ...CELLS,
+    delivery: () => "", objective: () => "", goal: () => "", creative: () => "", budget: () => "", end: () => "", reach: () => "",
+    frequency: () => "", quality_ranking: () => "", engagement_rate_ranking: () => "", conversion_rate_ranking: () => "",
+  };
   const erpLine = erp ? t("metaAdsManager.totals.erp", { orders: Number(erp.orders || 0).toLocaleString(locale), revenue: money(erp.revenue || 0, totals.currency) }) : "";
 
   const nameLabel = t(`metaAdsManager.columns.${level}`);
