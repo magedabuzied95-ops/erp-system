@@ -4,6 +4,7 @@ import { Link } from "react-router-dom";
 import { ArrowRight, Ban, CheckCircle2, Copy, KeyRound, Link2, Loader2, RefreshCw, Smartphone } from "lucide-react";
 import toast from "react-hot-toast";
 import { api } from "../../../shared/api/api";
+import "../ordersPhone.css";
 
 // Vodafone Cash SMS the owner's phone forwarded. Most approve their order on their own;
 // this page is where the rest are settled by hand, and where the phone's key lives.
@@ -163,7 +164,7 @@ function TransferCard({ transfer, onChanged }) {
             if (invoice.trim()) link({ invoice_number: invoice.trim() });
           }}
         >
-          <input className={`${inputClass} flex-1`} value={invoice} onChange={(event) => setInvoice(event.target.value)} placeholder={t("orders.walletTransfers.invoicePlaceholder")} dir="ltr" />
+          <input className={`${inputClass} min-w-0 flex-1 basis-40`} value={invoice} onChange={(event) => setInvoice(event.target.value)} placeholder={t("orders.walletTransfers.invoicePlaceholder")} dir="ltr" />
           <button type="submit" className={ghostButton} disabled={Boolean(busy) || !invoice.trim()}><Link2 className="h-4 w-4" /> {t("orders.walletTransfers.linkByInvoice")}</button>
           {!settled ? (
             <button type="button" className={ghostButton} disabled={Boolean(busy)} onClick={() => run("ignore", () => api.post(`/wallet-transfers/${transfer.id}/ignore`, {}), t("orders.walletTransfers.ignored"))}>
@@ -215,7 +216,7 @@ export default function WalletTransfers() {
   };
 
   return (
-    <div className="mx-auto grid w-full max-w-5xl gap-4 p-3 sm:p-5">
+    <div className="m1-orders-phone mx-auto grid w-full max-w-5xl gap-4 p-3 sm:p-5 max-md:gap-3 max-md:p-0">
       <header className="flex flex-wrap items-center justify-between gap-3">
         <div className="min-w-0">
           <Link to="/orders" className="inline-flex items-center gap-1 text-xs font-bold text-[var(--muted)] hover:underline"><ArrowRight className="h-3 w-3 ltr:rotate-180" /> {t("orders.title")}</Link>
@@ -229,7 +230,7 @@ export default function WalletTransfers() {
 
       <SetupCard />
 
-      <div className="flex flex-wrap gap-2" role="tablist">
+      <div className="flex flex-wrap gap-2 max-md:flex-nowrap max-md:overflow-x-auto max-md:pb-1 max-md:[-webkit-overflow-scrolling:touch] max-md:[&>*]:shrink-0 max-md:[&>*]:whitespace-nowrap" role="tablist">
         {TABS.map((key) => (
           <button
             key={key}

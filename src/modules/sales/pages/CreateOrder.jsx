@@ -10,6 +10,7 @@ from "react-hot-toast";
 import { api }
 from "../../../shared/api/api";
 import { formatCurrency } from "../../../shared/lib/currency";
+import { StickyMobileActionBar } from "../../../shared/components/mobile/ResponsiveMobile";
 
 function CreateOrder() {
   const { t } = useTranslation();
@@ -302,7 +303,7 @@ function CreateOrder() {
 
   return (
 
-    <div className="space-y-8">
+    <div className="space-y-8 max-md:space-y-4 max-md:pb-28 max-md:[&_input]:text-base max-md:[&_select]:text-base">
 
       {/* HEADER */}
 
@@ -314,7 +315,7 @@ function CreateOrder() {
 
         </h1>
 
-        <p className="text-[var(--muted)] mt-3 text-lg">
+        <p className="text-[var(--muted)] mt-3 text-lg max-md:mt-1 max-md:text-sm">
 
           Enterprise order management
 
@@ -324,7 +325,7 @@ function CreateOrder() {
 
       {/* FORM */}
 
-      <div className="bg-[var(--card)] p-8 rounded-[var(--radius-card)] shadow-xl space-y-6">
+      <div className="bg-[var(--card)] p-8 rounded-[var(--radius-card)] shadow-xl space-y-6 max-md:space-y-3 max-md:p-4">
 
         <input
           type="text"
@@ -339,7 +340,7 @@ function CreateOrder() {
             )
           }
 
-          className="w-full border p-5 rounded-[var(--radius-control)]"
+          className="w-full border p-5 rounded-[var(--radius-control)] max-md:p-3"
         />
 
         <select
@@ -351,7 +352,7 @@ function CreateOrder() {
             )
           }
 
-          className="w-full border p-5 rounded-[var(--radius-control)]"
+          className="w-full border p-5 rounded-[var(--radius-control)] max-md:p-3"
         >
 
           <option value="">
@@ -392,13 +393,13 @@ function CreateOrder() {
             )
           }
 
-          className="w-full border p-5 rounded-[var(--radius-control)]"
+          className="w-full border p-5 rounded-[var(--radius-control)] max-md:p-3"
         />
 
         <button
           onClick={addToCart}
 
-          className="bg-[var(--primary)] text-[var(--primary-contrast)] px-8 py-5 rounded-[var(--radius-control)] font-black w-full"
+          className="bg-[var(--primary)] text-[var(--primary-contrast)] px-8 py-5 rounded-[var(--radius-control)] font-black w-full max-md:py-3"
         >
 
           Add To Cart
@@ -409,7 +410,7 @@ function CreateOrder() {
 
       {/* CART */}
 
-      <div className="bg-[var(--card)] p-8 rounded-[var(--radius-card)] shadow-xl">
+      <div className="bg-[var(--card)] p-8 rounded-[var(--radius-card)] shadow-xl max-md:p-4">
 
         <h2 className="m1-section-title">
 
@@ -417,7 +418,7 @@ function CreateOrder() {
 
         </h2>
 
-        <div className="space-y-5 mt-6">
+        <div className="space-y-5 mt-6 max-md:mt-3 max-md:space-y-2">
 
           {cart.length > 0
 
@@ -425,10 +426,10 @@ function CreateOrder() {
 
                 <div
                   key={item.variant_id}
-                  className="flex justify-between bg-gray-50 dark:bg-gray-700 p-5 rounded-2xl"
+                  className="flex justify-between bg-gray-50 dark:bg-gray-700 p-5 rounded-2xl max-md:flex-wrap max-md:gap-2 max-md:p-3"
                 >
 
-                  <div>
+                  <div className="min-w-0">
 
                     <h3 className="m1-section-title">
 
@@ -446,7 +447,7 @@ function CreateOrder() {
 
                   </div>
 
-                  <div className="flex gap-5 items-center">
+                  <div className="flex gap-5 items-center max-md:ms-auto max-md:gap-3">
 
                     <div className="font-black text-green-500">
 
@@ -467,7 +468,7 @@ function CreateOrder() {
                         )
                       }
 
-                      className="bg-red-500 text-white px-4 py-2 rounded-[var(--radius-control)]"
+                      className="bg-red-500 text-white px-4 py-2 rounded-[var(--radius-control)] max-md:min-h-10"
                     >
 
                       Remove
@@ -492,7 +493,7 @@ function CreateOrder() {
 
         {/* TOTAL */}
 
-        <div className="flex justify-between mt-10">
+        <div className="flex justify-between mt-10 max-md:mt-4">
 
           <h2 className="m1-section-title">
 
@@ -513,7 +514,7 @@ function CreateOrder() {
         <button
           onClick={createOrder}
           disabled={loading}
-          className="mt-10 w-full bg-primary text-[var(--primary-contrast)] py-5 rounded-[var(--radius-control)] font-black text-xl"
+          className="mt-10 w-full bg-primary text-[var(--primary-contrast)] py-5 rounded-[var(--radius-control)] font-black text-xl max-md:hidden"
         >
 
           {loading
@@ -523,6 +524,24 @@ function CreateOrder() {
         </button>
 
       </div>
+
+      {/* Phones: total + submit stay reachable above the home indicator. */}
+      <StickyMobileActionBar className="md:hidden">
+        <div className="flex items-center gap-3">
+          <div className="min-w-0 flex-1 truncate text-lg font-black text-green-500">
+            {formatCurrency(totalPrice)}
+          </div>
+          <button
+            onClick={createOrder}
+            disabled={loading}
+            className="min-h-12 shrink-0 rounded-[var(--radius-control)] bg-primary px-5 font-black text-[var(--primary-contrast)]"
+          >
+            {loading
+              ? "Creating..."
+              : "Create Order 🚀"}
+          </button>
+        </div>
+      </StickyMobileActionBar>
 
     </div>
   );

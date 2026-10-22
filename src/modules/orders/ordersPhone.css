@@ -1,0 +1,137 @@
+/* Phone layout for the orders screens (list, details, returns, wallet
+   transfers). Unlayered on purpose: it must win over the layered
+   reference/utility rules, and only below 768px so desktop is untouched. */
+.m1-orders-header-phone,
+.m1-orders-filter-toggle {
+  display: none;
+}
+
+@media (max-width: 767px) {
+  /* iOS Safari zooms the page on focus of any field under 16px. */
+  .m1-orders-page :where(input:not([type="checkbox"]):not([type="radio"]):not([type="range"]), select, textarea),
+  .order-details-theme :where(input:not([type="checkbox"]):not([type="radio"]):not([type="range"]), select, textarea),
+  .m1-orders-phone :where(input:not([type="checkbox"]):not([type="radio"]):not([type="range"]), select, textarea) {
+    font-size: 16px;
+  }
+
+  .m1-orders-page {
+    gap: 10px;
+  }
+
+  /* --- Header: title + one primary action + a menu ------------------- */
+  .m1-orders-page .m1-orders-header {
+    flex-direction: row;
+    align-items: flex-start;
+    justify-content: space-between;
+    gap: 8px;
+    padding-block-end: 0;
+  }
+  .m1-orders-page .m1-orders-header > :first-child {
+    flex: 1 1 auto;
+    min-width: 0;
+  }
+  .m1-orders-page .m1-orders-header .m1-page-meta {
+    font-size: 12px;
+    line-height: 1.4;
+  }
+  .m1-orders-page .m1-orders-header .m1-orders-header-actions {
+    display: none;
+  }
+  .m1-orders-page .m1-orders-header-phone {
+    display: flex;
+    flex: none;
+    align-items: center;
+    gap: 6px;
+  }
+  .m1-orders-page .m1-orders-header-phone > a {
+    padding-inline: 12px;
+    white-space: nowrap;
+  }
+  .m1-orders-page .m1-orders-icon-button {
+    width: var(--control-height-md);
+    padding: 0;
+  }
+  .m1-orders-page .m1-orders-header-phone [role="menu"] > * {
+    justify-content: flex-start;
+    width: 100%;
+  }
+
+  /* --- Filters: flat, search + one "Filters" button ------------------ */
+  .m1-orders-page .m1-orders-filters {
+    border: 0;
+    border-radius: 0;
+    background: transparent;
+  }
+  .m1-orders-page .m1-orders-filters-band {
+    padding: 0;
+  }
+  .m1-orders-page .m1-orders-filters-band + .m1-orders-filters-band {
+    border-block-start: 0;
+    margin-block-start: 8px;
+  }
+  .m1-orders-page .m1-orders-filters-band:first-child {
+    flex-wrap: nowrap;
+    gap: 8px;
+  }
+  .m1-orders-page .m1-orders-search-caption {
+    display: none;
+  }
+  .m1-orders-page .m1-orders-filter-toggle {
+    display: inline-flex;
+    flex: none;
+    gap: 6px;
+    padding-inline: 12px;
+    white-space: nowrap;
+  }
+  .m1-orders-page .m1-orders-filter-count {
+    display: inline-grid;
+    place-items: center;
+    min-width: 20px;
+    height: 20px;
+    padding-inline: 5px;
+    border-radius: 9999px;
+    background: var(--primary);
+    color: var(--primary-contrast);
+    font-size: 11px;
+    font-weight: 800;
+    line-height: 1;
+  }
+
+  /* Bulk actions only appear once a row is picked; then they scroll. */
+  .m1-orders-page .m1-orders-filters-band--dates:not(:has(.m1-orders-selection[data-active="true"])) {
+    display: none;
+  }
+  .m1-orders-page .m1-orders-selection {
+    flex-wrap: nowrap;
+    overflow-x: auto;
+    -webkit-overflow-scrolling: touch;
+    scrollbar-width: none;
+    flex: 1 1 100%;
+    min-width: 0;
+    max-width: 100%;
+  }
+  .m1-orders-page .m1-orders-selection > * {
+    flex: none;
+    white-space: nowrap;
+  }
+
+  /* Applied-filter tokens only when something is applied. */
+  .m1-orders-page .m1-orders-filters[data-has-active="false"] .m1-orders-filters-band--chips {
+    display: none;
+  }
+
+  /* --- The filter bottom sheet -------------------------------------- */
+  .m1-orders-page .m1-orders-sheet .m1-orders-daterange {
+    gap: 8px;
+  }
+  .m1-orders-page .m1-orders-sheet .m1-orders-daterange > span:first-child {
+    flex-basis: 100%;
+  }
+  .m1-orders-page .m1-orders-sheet .m1-orders-daterange input[type="date"] {
+    flex: 1 1 8rem;
+    width: auto;
+    min-width: 0;
+    min-height: var(--control-height-md);
+    font-size: 16px;
+  }
+}

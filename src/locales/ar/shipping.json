@@ -32,7 +32,8 @@
       "allShippingStatuses": "كل حالات الشحن",
       "allPaymentStatuses": "كل حالات الدفع",
       "codOrPrepaid": "الدفع عند الاستلام / مدفوع مسبقًا",
-      "prepaid": "مدفوع مسبقًا"
+      "prepaid": "مدفوع مسبقًا",
+      "button": "فلاتر"
     },
     "bulk": {
       "createShipments": "إنشاء شحنات",

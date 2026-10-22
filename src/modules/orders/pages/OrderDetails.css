@@ -75,3 +75,24 @@ html[data-theme="dark"] .m1-shell-root .m1-shell-content .order-details-theme .o
   border-color: color-mix(in srgb, var(--primary) 58%, var(--border)) !important;
   box-shadow: 0 0 0 3px var(--focus-ring);
 }
+
+/* Phone pass (375px): tighter panel padding so content gets the width,
+   16px fields (no iOS focus zoom), and money values that wrap instead of
+   spilling out of the three-up line stats. */
+@media (max-width: 767px) {
+  .order-details-theme [class~="p-5"] { padding: 14px; }
+  .order-details-theme [class~="p-4"] { padding: 12px; }
+  .order-details-theme :where(input:not([type="checkbox"]):not([type="radio"]):not([type="range"]), select, textarea) {
+    font-size: 16px;
+  }
+  .order-details-theme .order-mini-stat { padding-inline: 6px; }
+  .order-details-theme .order-mini-stat > div:first-child { letter-spacing: 0.04em; }
+  .order-details-theme .order-mini-stat > div:last-child { font-size: 12px; }
+  .order-details-theme .order-mini-stat [title] {
+    flex-wrap: wrap;
+    justify-content: center;
+    white-space: normal;
+    max-width: 100%;
+  }
+  .order-details-theme .order-financial-row { gap: 10px; padding-inline: 12px; }
+}

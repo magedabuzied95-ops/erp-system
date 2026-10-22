@@ -526,3 +526,13 @@ body.pos-route {
 .pos-manager-chat-fab--flash {
   animation: pos-manager-chat-flash 0.8s ease-out 3;
 }
+
+/* Phone pass: every field the cashier types into on a phone (catalog search,
+   cart sheet amounts, discount, coupon, customer search) is 16px so iOS Safari
+   does not zoom the till on focus. body.pos-route covers the sheets and
+   modals POS portals onto <body>. Layout only — no money logic here. */
+@media (max-width: 767px) {
+  body.pos-route :where(input:not([type="checkbox"]):not([type="radio"]):not([type="range"]), select, textarea) {
+    font-size: 16px !important;
+  }
+}

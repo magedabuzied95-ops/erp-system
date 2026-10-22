@@ -45,7 +45,7 @@ function SettlementDetails({ id, onClose }) {
   }, [id]);
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 p-4" onClick={onClose}>
-      <div className="max-h-[85vh] w-full max-w-3xl overflow-auto rounded-[var(--radius-card)] border border-[var(--border)] bg-[var(--surface)] p-5" onClick={(event) => event.stopPropagation()}>
+      <div className="max-h-[85vh] w-full max-w-3xl overflow-auto rounded-[var(--radius-card)] border border-[var(--border)] bg-[var(--surface)] p-5 max-md:max-h-[calc(100dvh-2rem)] max-md:p-4" onClick={(event) => event.stopPropagation()}>
         <div className="flex items-center justify-between gap-3">
           <h2 className="text-lg font-black">{t("shipping.settlements.history.title")} #{id}</h2>
           <button type="button" onClick={onClose} className={ghostButton} aria-label={t("shipping.settlements.history.close")}><X className="h-4 w-4" /></button>
@@ -200,14 +200,14 @@ export default function CourierSettlements() {
   );
 
   return (
-    <main className="min-h-screen bg-[var(--bg)] p-4 text-[var(--text)] md:p-6">
-      <div className="mx-auto w-full space-y-5">
-        <header className="flex flex-col gap-4 rounded-[var(--radius-card)] border border-[var(--border)] bg-[var(--surface)] p-5 shadow-2xl shadow-[var(--shadow)] lg:flex-row lg:items-center lg:justify-between">
-          <div>
-            <div className="text-xs font-black uppercase tracking-[0.24em] text-emerald-300">{t("shipping.settlements.eyebrow")}</div>
-            <h1 className="m1-page-title mt-2">{t("shipping.settlements.title")}</h1>
+    <main className="min-h-screen bg-[var(--bg)] p-4 text-[var(--text)] md:p-6 max-md:p-0 max-md:[&_input:not([type=checkbox])]:text-base max-md:[&_select]:text-base max-md:[&_textarea]:text-base">
+      <div className="mx-auto w-full space-y-5 max-md:space-y-3">
+        <header className="flex flex-col gap-4 rounded-[var(--radius-card)] border border-[var(--border)] bg-[var(--surface)] p-5 shadow-2xl shadow-[var(--shadow)] lg:flex-row lg:items-center lg:justify-between max-md:gap-3 max-md:rounded-none max-md:border-0 max-md:bg-transparent max-md:p-0 max-md:shadow-none">
+          <div className="min-w-0">
+            <div className="text-xs font-black uppercase tracking-[0.24em] text-emerald-300 max-md:hidden">{t("shipping.settlements.eyebrow")}</div>
+            <h1 className="m1-page-title mt-2 max-md:mt-0">{t("shipping.settlements.title")}</h1>
           </div>
-          <div className="flex flex-wrap gap-2">
+          <div className="flex flex-wrap gap-2 max-md:flex-nowrap max-md:overflow-x-auto max-md:pb-1 max-md:[-webkit-overflow-scrolling:touch] max-md:[&>*]:shrink-0 max-md:[&>*]:whitespace-nowrap">
             <Link to="/operations/shipping" className={ghostButton}><ArrowRight className="h-4 w-4 rtl:rotate-180" /> {t("shipping.settlements.back")}</Link>
             <button type="button" onClick={runBackfill} disabled={backfilling} className={ghostButton}>{backfilling ? <Loader2 className="h-4 w-4 animate-spin" /> : <CheckCheck className="h-4 w-4" />} {t("shipping.settlements.backfill")}</button>
             <button type="button" onClick={load} className={ghostButton}><RefreshCw className="h-4 w-4" /> {t("shipping.settlements.refresh")}</button>
@@ -238,7 +238,7 @@ export default function CourierSettlements() {
         ) : null}
         </>) : null}
 
-        <div className="flex flex-wrap gap-2">
+        <div className="flex flex-wrap gap-2 max-md:flex-nowrap max-md:overflow-x-auto max-md:pb-1 max-md:[-webkit-overflow-scrolling:touch] max-md:[&>*]:shrink-0 max-md:[&>*]:whitespace-nowrap">
           {tabButton("pending", t("shipping.settlements.tabs.pending"))}
           {tabButton("settled", t("shipping.settlements.tabs.settled"))}
           {tabButton("history", t("shipping.settlements.tabs.history"))}
@@ -249,9 +249,9 @@ export default function CourierSettlements() {
 
         {tab === "local" ? <LocalCourierPanel /> : tab === "packages" ? <CourierPackagesPanel provider={PROVIDER} accounts={accounts} /> : tab === "costs" ? <CourierCostsPanel provider={PROVIDER} /> : tab !== "history" ? (
           <div className={`grid gap-5 ${tab === "pending" ? "xl:grid-cols-[1fr_22rem]" : ""}`}>
-            <section className="rounded-[var(--radius-card)] border border-[var(--border)] bg-[var(--surface)] p-4 shadow-2xl shadow-[var(--shadow)]">
-              <div className="mb-4 grid gap-2 md:grid-cols-4">
-                <div className="relative md:col-span-2">
+            <section className="rounded-[var(--radius-card)] border border-[var(--border)] bg-[var(--surface)] p-4 shadow-2xl shadow-[var(--shadow)] max-md:p-3">
+              <div className="mb-4 grid gap-2 md:grid-cols-4 max-md:mb-3 max-md:grid-cols-2">
+                <div className="relative md:col-span-2 max-md:col-span-2">
                   <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-[var(--text-tertiary)]" />
                   <input value={filters.search} onChange={(event) => setFilters((prev) => ({ ...prev, search: event.target.value }))} placeholder={t("shipping.settlements.filters.search")} className={`${inputClass} pl-9`} />
                 </div>

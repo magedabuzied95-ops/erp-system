@@ -486,9 +486,9 @@ export default function CouponsManager() {
   };
 
   return (
-    <div className="min-h-screen bg-[radial-gradient(circle_at_top_left,rgba(139,92,246,0.14),transparent_32%),linear-gradient(180deg,#050816,#09090b)] p-4 text-white md:p-6">
-      <div className="flex flex-col gap-4 lg:flex-row lg:items-center lg:justify-between">
-        <div>
+    <div className="min-h-screen bg-[radial-gradient(circle_at_top_left,rgba(139,92,246,0.14),transparent_32%),linear-gradient(180deg,#050816,#09090b)] p-4 text-white md:p-6 max-md:p-0 max-md:[&_input:not([type=checkbox])]:text-base max-md:[&_select]:text-base max-md:[&_textarea]:text-base">
+      <div className="flex flex-col gap-4 lg:flex-row lg:items-center lg:justify-between max-md:flex-row max-md:items-center max-md:justify-between max-md:gap-3">
+        <div className="min-w-0">
           <h1 className="m1-display">{cText("title", "حملات الكوبونات")}</h1>
         </div>
         <button type="button" onClick={openCreate} className="inline-flex h-[var(--control-height-lg)] items-center justify-center gap-2 rounded-[var(--radius-control)] bg-violet-400 px-4 text-sm font-black text-black shadow-lg shadow-violet-950/30">
@@ -497,17 +497,17 @@ export default function CouponsManager() {
         </button>
       </div>
 
-      <section className="mt-5 grid gap-3 md:grid-cols-2 xl:grid-cols-7">
+      <section className="mt-5 grid grid-cols-2 gap-3 md:grid-cols-2 xl:grid-cols-7 max-md:mt-3 max-md:gap-2">
         {statCards.map(([label, value]) => (
-          <div key={label} className="rounded-[var(--radius-card)] border border-white/10 bg-white/[0.045] p-4 shadow-2xl shadow-black/10 backdrop-blur-xl">
+          <div key={label} className="min-w-0 rounded-[var(--radius-card)] border border-white/10 bg-white/[0.045] p-4 shadow-2xl shadow-black/10 backdrop-blur-xl max-md:p-3">
             <div className="text-[10px] font-black uppercase tracking-[0.18em] text-zinc-500">{label}</div>
             <div className="mt-2 truncate text-2xl font-black text-white">{loading || couponsLoading ? "..." : value ?? 0}</div>
           </div>
         ))}
       </section>
 
-      <div className="mt-5 grid gap-4 xl:grid-cols-[330px_minmax(0,1fr)]">
-        <aside className="rounded-3xl border border-white/10 bg-zinc-950/70 p-3 shadow-2xl shadow-black/20 backdrop-blur-xl">
+      <div className="mt-5 grid gap-4 xl:grid-cols-[330px_minmax(0,1fr)] max-md:mt-3 max-md:gap-3">
+        <aside className="min-w-0 rounded-3xl border border-white/10 bg-zinc-950/70 p-3 shadow-2xl shadow-black/20 backdrop-blur-xl">
           <div className="mb-3 flex items-center justify-between px-1">
             <h2 className="m1-section-title text-white">{cText("campaignLabel", "الحملات")}</h2>
             {loading ? <Loader2 className="h-4 w-4 animate-spin text-violet-200" /> : null}
@@ -539,7 +539,7 @@ export default function CouponsManager() {
           </div>
         </aside>
 
-        <main className="min-w-0 rounded-3xl border border-white/10 bg-zinc-950/65 p-4 shadow-2xl shadow-black/20 backdrop-blur-xl">
+        <main className="min-w-0 rounded-3xl border border-white/10 bg-zinc-950/65 p-4 shadow-2xl shadow-black/20 backdrop-blur-xl max-md:p-3">
           {selectedCampaign ? (
             <>
               <div className="flex flex-col gap-3 lg:flex-row lg:items-center lg:justify-between">
@@ -567,14 +567,14 @@ export default function CouponsManager() {
                   </button>
                   <button type="button" onClick={() => openEdit(selectedCampaign)} className="h-[var(--control-height-md)] rounded-[var(--radius-control)] border border-white/10 bg-white/[0.04] px-3 text-sm font-bold text-white">{cText("actions.edit", "تعديل")}</button>
                   <button type="button" onClick={() => deleteCampaign(selectedCampaign)} className="h-[var(--control-height-md)] rounded-[var(--radius-control)] border border-rose-300/20 bg-rose-500/10 px-3 text-sm font-bold text-rose-100">{cText("actions.delete", "حذف")}</button>
-                  <div className="relative">
+                  <div className="relative max-md:w-full">
                     <button type="button" onClick={() => setPrintMenuOpen((current) => !current)} className="inline-flex h-[var(--control-height-md)] items-center gap-2 rounded-[var(--radius-control)] border border-amber-300/25 bg-amber-400/10 px-3 text-sm font-bold text-amber-100">
                       {exportBusy ? <Loader2 className="h-4 w-4 animate-spin" /> : <Printer className="h-4 w-4" />}
                       {cText("export.menu", "Print and share")}
                       <ChevronDown className="h-4 w-4" />
                     </button>
                     {printMenuOpen ? (
-                      <div className="absolute right-0 top-12 z-30 w-64 overflow-hidden rounded-2xl border border-white/10 bg-zinc-950 p-2 shadow-2xl shadow-black/60">
+                      <div className="absolute right-0 top-12 z-30 w-64 overflow-hidden rounded-2xl border border-white/10 bg-zinc-950 p-2 shadow-2xl shadow-black/60 max-md:static max-md:mt-2 max-md:w-full">
                         <ExportMenuButton icon={Printer} label={cText("export.printA4", "Print A4 — 6 coupons")} onClick={() => printPdf("a4")} />
                         <ExportMenuButton icon={Printer} label={cText("export.printA5", "Print A5 — 2 coupons")} onClick={() => printPdf("a5")} />
                         <ExportMenuButton icon={Tag} label={cText("export.printSingle", "Print one coupon")} onClick={() => coupons[0] && printPdf("single", coupons[0].id)} disabled={!coupons.length} />
@@ -842,7 +842,7 @@ function CampaignModal({ form, setForm, editing, onClose, onSave }) {
   const update = (key, value) => setForm((current) => ({ ...current, [key]: value }));
   return (
     <div className="fixed inset-0 z-50 flex items-start justify-center overflow-y-auto bg-black/70 p-4 sm:items-center">
-      <div className="flex max-h-[calc(100vh-2rem)] w-full max-w-3xl flex-col rounded-3xl border border-white/10 bg-zinc-950 text-white shadow-2xl shadow-black/50">
+      <div className="flex max-h-[calc(100vh-2rem)] w-full max-w-3xl flex-col max-md:max-h-[calc(100dvh-2rem)] rounded-3xl border border-white/10 bg-zinc-950 text-white shadow-2xl shadow-black/50">
         <div className="flex shrink-0 items-start justify-between gap-3 border-b border-white/10 px-5 py-4">
           <div>
             <div className="text-xs font-black uppercase tracking-[0.2em] text-violet-300">{editing ? cText("modal.edit", "تعديل الحملة") : cText("modal.create", "حملة جديدة")}</div>

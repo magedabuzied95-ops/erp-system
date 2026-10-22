@@ -107,14 +107,14 @@ function LoyaltyRules() {
   };
 
   return (
-    <div className="space-y-6 text-[var(--text)]">
-      <div className="rounded-[var(--radius-card)] border border-[var(--border)] bg-[var(--card)] p-6">
-        <p className="text-xs uppercase tracking-[0.3em] text-primary/80">{t("loyalty.rules.eyebrow")}</p>
-        <h1 className="m1-page-title mt-2">{t("loyalty.rules.title")}</h1>
+    <div className="space-y-6 text-[var(--text)] max-md:space-y-3 max-md:[&_input:not([type=checkbox])]:text-base max-md:[&_select]:text-base">
+      <div className="rounded-[var(--radius-card)] border border-[var(--border)] bg-[var(--card)] p-6 max-md:rounded-none max-md:border-0 max-md:bg-transparent max-md:p-0">
+        <p className="text-xs uppercase tracking-[0.3em] text-primary/80 max-md:hidden">{t("loyalty.rules.eyebrow")}</p>
+        <h1 className="m1-page-title mt-2 max-md:mt-0">{t("loyalty.rules.title")}</h1>
       </div>
 
       <div className="grid gap-6 xl:grid-cols-[320px_1fr]">
-        <div className="rounded-[var(--radius-card)] border border-[var(--border)] bg-[var(--card)] p-5">
+        <div className="min-w-0 rounded-[var(--radius-card)] border border-[var(--border)] bg-[var(--card)] p-5 max-md:p-3">
           <div className="flex items-center gap-2">
             <ShieldCheck className="h-5 w-5 text-primary" />
             <h2 className="m1-section-title">{t("loyalty.rules.existing")}</h2>
@@ -140,7 +140,7 @@ function LoyaltyRules() {
           </div>
         </div>
 
-        <div className="rounded-[var(--radius-card)] border border-[var(--border)] bg-[var(--card)] p-5">
+        <div className="min-w-0 rounded-[var(--radius-card)] border border-[var(--border)] bg-[var(--card)] p-5 max-md:p-3">
           <div className="flex items-center gap-2">
             <Settings2 className="h-5 w-5 text-primary" />
             <h2 className="m1-section-title">{t("loyalty.rules.editor")}</h2>

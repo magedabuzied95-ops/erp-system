@@ -108,7 +108,8 @@
       "from": "From date",
       "to": "To date",
       "custom": "Custom"
-    }
+    },
+    "button": "Filters"
   },
   "bulk": {
     "markConfirmed": "Mark confirmed",

@@ -53,6 +53,9 @@ import ConfirmationBadge from "../components/ConfirmationBadge";
 import { IdentityAlertBadge } from "../components/IdentityAlert.jsx";
 import { OrderIdentityLevelsContext, useOrderIdentityLevels } from "../lib/identityAlertLevels.js";
 import { CurrencyText } from "../../../shared/components/CurrencyAmount";
+import { MobileBottomSheet } from "../../../shared/components/mobile/ResponsiveMobile";
+import usePhoneViewport from "../lib/usePhoneViewport";
+import "../ordersPhone.css";
 import {
   buildSearchText,
   formatCurrency,
@@ -1389,10 +1392,19 @@ function OrdersDashboard() {
             {t("orders.header.newOrder")}
           </Link>
         </div>
+        {/* Phones: one primary action, the rest behind a menu, so the first
+            order card is on the first screen. */}
+        <PhoneHeaderActions
+          t={t}
+          busy={loading || loadingMore}
+          canExport={filteredOrders.length > 0}
+          onRefresh={() => { void loadOrders(); }}
+          onExport={exportSelected}
+        />
       </header>
 
       <div className={`grid min-w-0 gap-3 ${selectedOrder && workspace === "table" ? "xl:grid-cols-[minmax(0,1fr)_22rem]" : ""}`}>
-        <main className="min-w-0 rounded-[var(--radius-card)] border border-border bg-surface p-3 shadow-2xl shadow-black/10">
+        <main className="min-w-0 rounded-[var(--radius-card)] border border-border bg-surface p-3 shadow-2xl shadow-black/10 max-md:rounded-none max-md:border-0 max-md:bg-transparent max-md:p-0 max-md:shadow-none">
           <Filters
             t={t}
             search={search}
@@ -1558,6 +1570,49 @@ function BulkActions({ t, selectedCount, onConfirm, onShip, onCreateShipment, cr
   );
 }
 
+function PhoneHeaderActions({ t, busy, canExport, onRefresh, onExport }) {
+  const [open, setOpen] = useState(false);
+  const buttonRef = useRef(null);
+  const menuRef = useRef(null);
+  useDismissableLayer({ enabled: open, refs: [menuRef, buttonRef], onDismiss: () => setOpen(false) });
+  const run = (handler) => { setOpen(false); handler(); };
+  return (
+    <div className="m1-orders-header-phone">
+      <Link
+        to="/create-order"
+        className="inline-flex items-center gap-1.5 rounded-[var(--radius-control)] border border-transparent bg-primary px-3 text-sm font-bold text-primary-foreground"
+      >
+        <Plus className="h-4 w-4" />
+        {t("orders.header.newOrder")}
+      </Link>
+      <div className="relative">
+        <button
+          ref={buttonRef}
+          type="button"
+          aria-haspopup="menu"
+          aria-expanded={open}
+          aria-label={t("orders.details.moreActions")}
+          title={t("orders.details.moreActions")}
+          onClick={() => setOpen((value) => !value)}
+          className="m1-orders-icon-button rounded-[var(--radius-control)] border border-border bg-surface text-text"
+        >
+          <MoreVertical className="h-4 w-4" />
+        </button>
+        {open ? (
+          <div ref={menuRef} role="menu" className="absolute end-0 top-full z-50 mt-2 w-60 rounded-[var(--radius-card)] border border-border bg-surface p-2 text-text shadow-2xl shadow-black/40">
+            <MenuButton icon={<RefreshCw className={`h-4 w-4 ${busy ? "animate-spin" : ""}`} />} label={t("orders.header.refresh")} disabled={busy} onClick={() => run(onRefresh)} />
+            <MenuButton icon={<Download className="h-4 w-4" />} label={t("orders.header.export")} title={t("orders.header.exportHint")} disabled={!canExport} onClick={() => run(onExport)} />
+            <Link to="/orders/wallet-transfers" onClick={() => setOpen(false)} className="flex w-full items-center gap-2 rounded-[var(--radius-control)] px-3 py-2 text-start text-sm text-text hover:bg-surface-hover">
+              <Wallet className="h-4 w-4" />
+              {t("orders.walletTransfers.title")}
+            </Link>
+          </div>
+        ) : null}
+      </div>
+    </div>
+  );
+}
+
 function HeaderButton({ onClick, disabled = false, icon, label, title = "" }) {
   return (
     <button
@@ -1641,13 +1696,80 @@ function Filters(props) {
     return () => window.removeEventListener("keydown", onKeyDown);
   }, []);
 
+  const isPhone = usePhoneViewport();
+  const [sheetOpen, setSheetOpen] = useState(false);
+  const sheetCount = activeFilters.filter((chip) => chip.key !== "search").length;
+  const selectsNode = (
+    <>
+      <Select className="flex-[1_1_8rem]" value={statusFilter} onChange={setStatusFilter} options={STATUS_FILTER_OPTIONS} label={t("orders.filters.orderStatus")} allLabel={t("orders.filters.all")} labels={STATUS_FILTER_LABELS} counts={statusCounts} />
+      <Select className="flex-[1_1_8rem]" value={paymentFilter} onChange={setPaymentFilter} options={PAYMENT_FILTER_OPTIONS} label={t("orders.filters.paymentStatus")} allLabel={t("orders.filters.all")} labels={PAYMENT_FILTER_LABELS} counts={paymentCounts} />
+      <Select className="flex-[1_1_8rem]" value={channelFilter} onChange={setChannelFilter} options={SOURCE_FILTERS} label={t("orders.filters.source")} allLabel={t("orders.filters.all")} labels={SOURCE_LABELS} counts={sourceCounts} t={t} />
+      {branchOptions.length > 2 ? (
+        <Select className="flex-[1_1_8rem]" value={branchFilter} onChange={setBranchFilter} options={branchOptions} label={t("orders.filters.branch")} allLabel={t("orders.filters.all")} />
+      ) : null}
+    </>
+  );
+  const dateRangeNode = (
+    <div className="m1-orders-daterange flex min-w-0 flex-wrap items-center gap-1.5">
+      <span className="inline-flex items-center gap-1.5 pe-1 text-[11px] font-bold uppercase tracking-[0.04em] text-text-muted">
+        <CalendarRange className="h-3.5 w-3.5" />
+        {t("orders.filters.date")}
+      </span>
+      <QuickFilterButton active={activePreset === "all"} onClick={() => setDateRange("", "")} label={t("orders.filters.dateRange.all")} />
+      <QuickFilterButton active={activePreset === "today"} onClick={() => applyPreset(DATE_PRESETS[0])} label={t("orders.filters.today")} />
+      {DATE_PRESETS.slice(1).map((preset) => (
+        <QuickFilterButton key={preset.key} active={activePreset === preset.key} onClick={() => applyPreset(preset)} label={t(preset.labelKey)} />
+      ))}
+      {/* Two raw date inputs sat here permanently and out-weighed the presets
+          that answer the question 95% of the time. They open on request.
+          This one is a disclosure, not a sixth preset, so it never takes the
+          filled state — otherwise two chips look selected at once. */}
+      <button
+        type="button"
+        aria-expanded={customRangeOpen}
+        onClick={() => setShowCustomRange((open) => !open)}
+        className={`min-h-[var(--control-height-sm)] rounded-[var(--radius-control)] border px-2.5 text-xs font-bold transition ${
+          activePreset === "custom"
+            ? "border-primary/30 bg-primary/15 text-primary"
+            : customRangeOpen
+              ? "border-border-strong bg-surface text-text"
+              : "border-border bg-surface-soft text-text-muted hover:bg-surface-hover"
+        }`}
+      >
+        {t("orders.filters.dateRange.custom")}
+      </button>
+      {customRangeOpen ? (
+        <>
+          <span className="mx-1 hidden h-5 w-px bg-border sm:block" aria-hidden="true" />
+          <input
+            type="date"
+            value={dateFrom}
+            max={dateTo || undefined}
+            aria-label={t("orders.filters.dateRange.from")}
+            onChange={(e) => setDateRange(e.target.value, dateTo)}
+            className="rounded-[var(--radius-control)] border border-border bg-surface text-xs text-text outline-none"
+          />
+          <span className="text-xs font-bold text-text-muted" aria-hidden="true">–</span>
+          <input
+            type="date"
+            value={dateTo}
+            min={dateFrom || undefined}
+            aria-label={t("orders.filters.dateRange.to")}
+            onChange={(e) => setDateRange(dateFrom, e.target.value)}
+            className="rounded-[var(--radius-control)] border border-border bg-surface text-xs text-text outline-none"
+          />
+        </>
+      ) : null}
+    </div>
+  );
+
   return (
-    <div className="m1-orders-filters flex flex-col">
+    <div className="m1-orders-filters flex flex-col" data-has-active={activeFilters.length ? "true" : "false"}>
       {/* Flex rather than a fixed column count: the branch control only exists on
           multi-branch tenants, and a five-column grid left a hole on the rest. */}
       <div className="m1-orders-filters-band flex flex-wrap items-end gap-3">
-        <label className="block min-w-[15rem] flex-[3_1_18rem]">
-          <div className="mb-1.5 text-[11px] font-bold text-text-muted">{t("orders.filters.search")}</div>
+        <label className="block min-w-[15rem] flex-[3_1_18rem] max-md:min-w-0 max-md:flex-1">
+          <div className="m1-orders-search-caption mb-1.5 text-[11px] font-bold text-text-muted">{t("orders.filters.search")}</div>
           <div className="relative">
             <Search className="pointer-events-none absolute start-3.5 top-1/2 h-4 w-4 -translate-y-1/2 text-text-muted" />
             <input
@@ -1671,70 +1793,30 @@ function Filters(props) {
             ) : null}
           </div>
         </label>
-        <Select className="flex-[1_1_8rem]" value={statusFilter} onChange={setStatusFilter} options={STATUS_FILTER_OPTIONS} label={t("orders.filters.orderStatus")} allLabel={t("orders.filters.all")} labels={STATUS_FILTER_LABELS} counts={statusCounts} />
-        <Select className="flex-[1_1_8rem]" value={paymentFilter} onChange={setPaymentFilter} options={PAYMENT_FILTER_OPTIONS} label={t("orders.filters.paymentStatus")} allLabel={t("orders.filters.all")} labels={PAYMENT_FILTER_LABELS} counts={paymentCounts} />
-        <Select className="flex-[1_1_8rem]" value={channelFilter} onChange={setChannelFilter} options={SOURCE_FILTERS} label={t("orders.filters.source")} allLabel={t("orders.filters.all")} labels={SOURCE_LABELS} counts={sourceCounts} t={t} />
-        {branchOptions.length > 2 ? (
-          <Select className="flex-[1_1_8rem]" value={branchFilter} onChange={setBranchFilter} options={branchOptions} label={t("orders.filters.branch")} allLabel={t("orders.filters.all")} />
-        ) : null}
-      </div>
-
-      <div className="m1-orders-filters-band mt-2.5 flex flex-wrap items-center gap-2 justify-between">
-        <div className="m1-orders-daterange flex min-w-0 flex-wrap items-center gap-1.5">
-          <span className="inline-flex items-center gap-1.5 pe-1 text-[11px] font-bold uppercase tracking-[0.04em] text-text-muted">
-            <CalendarRange className="h-3.5 w-3.5" />
-            {t("orders.filters.date")}
-          </span>
-          <QuickFilterButton active={activePreset === "all"} onClick={() => setDateRange("", "")} label={t("orders.filters.dateRange.all")} />
-          <QuickFilterButton active={activePreset === "today"} onClick={() => applyPreset(DATE_PRESETS[0])} label={t("orders.filters.today")} />
-          {DATE_PRESETS.slice(1).map((preset) => (
-            <QuickFilterButton key={preset.key} active={activePreset === preset.key} onClick={() => applyPreset(preset)} label={t(preset.labelKey)} />
-          ))}
-          {/* Two raw date inputs sat here permanently and out-weighed the presets
-              that answer the question 95% of the time. They open on request.
-              This one is a disclosure, not a sixth preset, so it never takes the
-              filled state — otherwise two chips look selected at once. */}
+        {/* Phones: status, payment, source and dates live in a bottom sheet
+            behind one button, so the first order is on the first screen. */}
+        {isPhone ? (
           <button
             type="button"
-            aria-expanded={customRangeOpen}
-            onClick={() => setShowCustomRange((open) => !open)}
-            className={`min-h-[var(--control-height-sm)] rounded-[var(--radius-control)] border px-2.5 text-xs font-bold transition ${
-              activePreset === "custom"
-                ? "border-primary/30 bg-primary/15 text-primary"
-                : customRangeOpen
-                  ? "border-border-strong bg-surface text-text"
-                  : "border-border bg-surface-soft text-text-muted hover:bg-surface-hover"
-            }`}
+            className="m1-orders-filter-toggle rounded-[var(--radius-control)] border border-border bg-surface text-text"
+            aria-haspopup="dialog"
+            aria-expanded={sheetOpen}
+            onClick={() => setSheetOpen(true)}
           >
-            {t("orders.filters.dateRange.custom")}
+            <SlidersHorizontal className="h-4 w-4" />
+            {t("orders.filters.button")}
+            {sheetCount ? <span className="m1-orders-filter-count">{formatCount(sheetCount)}</span> : null}
           </button>
-          {customRangeOpen ? (
-            <>
-              <span className="mx-1 hidden h-5 w-px bg-border sm:block" aria-hidden="true" />
-              <input
-                type="date"
-                value={dateFrom}
-                max={dateTo || undefined}
-                aria-label={t("orders.filters.dateRange.from")}
-                onChange={(e) => setDateRange(e.target.value, dateTo)}
-                className="rounded-[var(--radius-control)] border border-border bg-surface text-xs text-text outline-none"
-              />
-              <span className="text-xs font-bold text-text-muted" aria-hidden="true">–</span>
-              <input
-                type="date"
-                value={dateTo}
-                min={dateFrom || undefined}
-                aria-label={t("orders.filters.dateRange.to")}
-                onChange={(e) => setDateRange(dateFrom, e.target.value)}
-                className="rounded-[var(--radius-control)] border border-border bg-surface text-xs text-text outline-none"
-              />
-            </>
-          ) : null}
-        </div>
+        ) : null}
+        {isPhone ? null : selectsNode}
+      </div>
+
+      <div className="m1-orders-filters-band m1-orders-filters-band--dates mt-2.5 flex flex-wrap items-center gap-2 justify-between">
+        {isPhone ? null : dateRangeNode}
         {actions}
       </div>
 
-      <div className="m1-orders-filters-band flex flex-wrap items-center gap-2">
+      <div className="m1-orders-filters-band m1-orders-filters-band--chips flex flex-wrap items-center gap-2">
         <span className="inline-flex items-center gap-1.5 text-[11px] font-bold uppercase tracking-[0.04em] text-text-muted">
           <SlidersHorizontal className="h-3.5 w-3.5" />
           {activeFilters.length ? t("orders.filters.activeLabel") : t("orders.filters.noneActive")}
@@ -1761,6 +1843,26 @@ function Filters(props) {
           {t("orders.filters.matching", { shown: formatCount(resultCount), total: formatCount(totalCount) })}
         </span>
       </div>
+      <MobileBottomSheet
+        open={isPhone && sheetOpen}
+        title={t("orders.filters.button")}
+        onClose={() => setSheetOpen(false)}
+        footer={(
+          <div className="grid grid-cols-2 gap-2">
+            <button type="button" disabled={!sheetCount} onClick={onResetFilters} className="rounded-[var(--radius-control)] border border-border bg-surface-soft text-text disabled:opacity-45">
+              {t("orders.filters.clearAll")}
+            </button>
+            <button type="button" onClick={() => setSheetOpen(false)} className="rounded-[var(--radius-control)] border border-transparent bg-primary font-bold text-primary-foreground">
+              {t("orders.filters.matching", { shown: formatCount(resultCount), total: formatCount(totalCount) })}
+            </button>
+          </div>
+        )}
+      >
+        <div className="m1-orders-sheet grid gap-3">
+          {selectsNode}
+          <div className="m1-orders-sheet-dates">{dateRangeNode}</div>
+        </div>
+      </MobileBottomSheet>
     </div>
   );
 }
@@ -1779,7 +1881,25 @@ function TableView({ t, language, orders, selectedIds, toggleSelected, openOrder
 
   if (!orders.length) return empty;
   return (
-    <div className="mt-3 w-full min-w-0 overflow-x-auto overflow-y-visible pb-2">
+    <>
+    {/* Phones get one stacked card per order: the 13-column grid below is
+        1520px wide and on a 375px screen showed one column at a time. */}
+    <div className="m1-orders-cards mt-3 space-y-2 md:hidden">
+      {orders.map((order) => (
+        <OrderPhoneCard
+          key={String(order.id)}
+          t={t}
+          language={language}
+          order={order}
+          selected={selectedIds.includes(order.id)}
+          active={String(activeOrderId) === String(order.id)}
+          toggleSelected={toggleSelected}
+          openOrder={openOrder}
+          menu={<RowMenu t={t} order={order} openOrder={openOrder} editOrder={editOrder} cancelOrder={cancelOrder} archiveOrder={archiveOrder} permanentDeleteOrder={permanentDeleteOrder} navigate={navigate} openMenuId={openMenuId} setOpenMenuId={setOpenMenuId} />}
+        />
+      ))}
+    </div>
+    <div className="mt-3 hidden w-full min-w-0 overflow-x-auto overflow-y-visible pb-2 md:block">
       <div className="min-w-[1520px] overflow-visible">
         <div
           className="sticky top-0 z-20 grid grid-cols-[4rem_8rem_7.5rem_minmax(9rem,1.4fr)_10.5rem_4.5rem_9rem_6.5rem_6.5rem_6.5rem_minmax(7.5rem,1.2fr)_minmax(5.5rem,1fr)_minmax(7rem,1.2fr)] rounded-[var(--radius-control)] border border-border bg-surface px-3 py-2 text-[10px] uppercase tracking-[0.16em] text-text-muted shadow-lg shadow-black/20 backdrop-blur-xl"
@@ -1834,6 +1954,61 @@ function TableView({ t, language, orders, selectedIds, toggleSelected, openOrder
               </div>
             );
           })}
+        </div>
+      </div>
+    </div>
+    </>
+  );
+}
+
+function OrderPhoneCard({ t, language, order, selected, active, toggleSelected, openOrder, menu }) {
+  const attribution = getAttributionLabel(order);
+  const customerName = getCustomerDisplayName(order, t("orders.fallback.customer"));
+  return (
+    <div
+      role="button"
+      tabIndex={0}
+      onClick={() => openOrder(order)}
+      onKeyDown={(event) => {
+        if (event.key === "Enter" || event.key === " ") openOrder(order);
+      }}
+      className={`relative min-w-0 cursor-pointer rounded-[var(--radius-card)] border p-3 shadow-xl ${priorityFor(order).className} ${selected || active ? "ring-1 ring-primary/35" : ""}`}
+    >
+      <div className="flex min-w-0 items-start gap-2">
+        <label className="-m-1.5 grid h-10 w-10 shrink-0 place-items-center" onClick={(event) => event.stopPropagation()}>
+          <input className="h-5 w-5 accent-primary" type="checkbox" checked={selected} onChange={() => toggleSelected(order.id)} aria-label={orderCode(order)} />
+        </label>
+        <div className="min-w-0 flex-1">
+          <div className="flex min-w-0 flex-wrap items-center gap-x-2 gap-y-1">
+            <span className="inline-flex max-w-full truncate rounded-full border border-border bg-surface-soft px-2 py-0.5 text-[11px] font-black tracking-wide text-text">{orderCode(order)}</span>
+            <span className="text-[11px] font-semibold text-text-muted">#{order.id}</span>
+            {order.created_at ? <span className="text-[11px] font-semibold text-text-muted" dir="auto">{formatDateTime(order.created_at)}</span> : null}
+          </div>
+          <div className="mt-1.5 truncate text-sm font-bold text-text" title={customerName}>{customerName}</div>
+          <div className="mt-1 flex min-w-0 flex-wrap items-center gap-1">
+            <ConfirmationBadge order={order} />
+            <IdentityAlertBadge order={order} />
+            {attribution ? <span className="inline-flex max-w-[9rem] truncate rounded-full border border-primary/20 bg-primary/10 px-2 py-0.5 text-[10px] font-bold text-primary">{attribution}</span> : null}
+          </div>
+        </div>
+        <div className="-mt-1 shrink-0">{menu}</div>
+      </div>
+      <div className="mt-2 flex min-w-0 flex-wrap items-center justify-between gap-2">
+        <PaymentStatusCell order={order} language={language} />
+        <PhoneCell t={t} order={order} />
+      </div>
+      <div className="mt-2 grid grid-cols-3 gap-1 rounded-[var(--radius-control)] border border-border bg-surface-soft py-1.5">
+        <div className="min-w-0">
+          <div className="truncate px-1 text-center text-[10px] font-bold text-text-muted">{t("orders.table.total")}</div>
+          <TotalCell t={t} order={order} />
+        </div>
+        <div className="min-w-0">
+          <div className="truncate px-1 text-center text-[10px] font-bold text-text-muted">{t("orders.table.paidAmount")}</div>
+          <PaidAmountCell order={order} />
+        </div>
+        <div className="min-w-0">
+          <div className="truncate px-1 text-center text-[10px] font-bold text-text-muted">{t("orders.table.due")}</div>
+          <DueAmountCell order={order} />
         </div>
       </div>
     </div>
@@ -2116,7 +2291,7 @@ function OrderDrawer({ t, order, onClose, updateShippingPayment, navigate, editO
             <div className="rounded-[var(--radius-card)] border border-border bg-surface-soft p-3 text-sm leading-6 text-text-muted">{order.order_notes || order.delivery_notes || order.notes || t("orders.fallback.noNotes")}</div>
           </Section>
         </div>
-        <footer className="grid gap-2 border-t border-border p-4 sm:grid-cols-3">
+        <footer className="grid grid-cols-2 gap-2 border-t border-border p-4 pb-[max(1rem,env(safe-area-inset-bottom))] sm:grid-cols-3">
           <button type="button" onClick={() => navigate(`/orders/${order.id}`)} className="rounded-[var(--radius-control)] border border-border bg-surface-soft px-3 py-2 text-sm font-bold hover:bg-surface-hover">{t("orders.actionsMenu.openDetailsPage")}</button>
           <button type="button" onClick={() => editOrder?.(order)} className="rounded-[var(--radius-control)] border border-border bg-surface-soft px-3 py-2 text-sm font-bold hover:bg-surface-hover">{t("orders.actionsMenu.editOrder")}</button>
           <button type="button" onClick={() => {
@@ -2612,7 +2787,7 @@ function OrderEditModal({ t, order, saving, onClose, onSave }) {
   return (
     <div className="fixed inset-0 z-[60]">
       <button type="button" aria-label={t("orders.edit.closeModal")} className="absolute inset-0 bg-black/65 backdrop-blur-sm" onClick={onClose} />
-      <form onSubmit={submit} className="absolute left-1/2 top-1/2 flex max-h-[88vh] w-[min(58rem,calc(100vw-1.5rem))] -translate-x-1/2 -translate-y-1/2 flex-col overflow-hidden rounded-[var(--radius-card)] border border-border bg-surface text-text shadow-2xl">
+      <form onSubmit={submit} className="absolute left-1/2 top-1/2 flex max-h-[88vh] max-md:max-h-[calc(100dvh-1.5rem)] w-[min(58rem,calc(100vw-1.5rem))] -translate-x-1/2 -translate-y-1/2 flex-col overflow-hidden rounded-[var(--radius-card)] border border-border bg-surface text-text shadow-2xl">
         <header className="flex items-start justify-between gap-3 border-b border-border p-4">
           <div>
             <div className="text-[10px] uppercase tracking-[0.18em] text-text-muted">{t("orders.edit.title")}</div>

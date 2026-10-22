@@ -30,10 +30,13 @@ import {
   Search,
   Send,
   Settings,
+  SlidersHorizontal,
   Truck,
   X,
 } from "lucide-react";
 import toast from "react-hot-toast";
+import { MobileBottomSheet } from "../../../shared/components/mobile/ResponsiveMobile";
+import usePhoneViewport from "../../orders/lib/usePhoneViewport";
 
 import { api } from "../../../shared/api/api";
 /*
@@ -138,12 +141,12 @@ function StatusBadge({ status }) {
 
 function KpiCard({ label, value, active, onClick }) {
   return (
-    <button type="button" onClick={onClick} className={`rounded-[var(--radius-control)] border p-4 text-start transition ${active ? "border-emerald-300/50 bg-emerald-400/12" : "border-[var(--border)] bg-[var(--surface)] hover:border-[var(--border-strong)] hover:bg-[var(--table-hover)]"}`}>
+    <button type="button" onClick={onClick} className={`min-w-0 rounded-[var(--radius-control)] border p-4 text-start transition max-md:p-3 ${active ? "border-emerald-300/50 bg-emerald-400/12" : "border-[var(--border)] bg-[var(--surface)] hover:border-[var(--border-strong)] hover:bg-[var(--table-hover)]"}`}>
       <div className="flex items-center justify-between gap-3">
         <span className="text-xs font-black uppercase tracking-[0.16em] text-[var(--muted)]">{label}</span>
         <Truck className="h-4 w-4 text-emerald-300" />
       </div>
-      <div className="mt-3 text-3xl font-black text-[var(--text)]">{Number(value || 0).toLocaleString()}</div>
+      <div className="mt-3 text-3xl font-black text-[var(--text)] max-md:mt-1 max-md:text-2xl">{Number(value || 0).toLocaleString()}</div>
     </button>
   );
 }
@@ -574,6 +577,8 @@ export default function ShippingCenter() {
   const { t } = useTranslation();
   const [filters, setFilters] = useState({ provider: "", branchId: "", shippingStatus: "", paymentStatus: "", paymentType: "", dateFrom: "", dateTo: "", search: "", needsAction: "" });
   const [pickupsOpen, setPickupsOpen] = useState(false);
+  const isPhone = usePhoneViewport();
+  const [filtersSheetOpen, setFiltersSheetOpen] = useState(false);
   const [view, setView] = useState("table");
   const [settingsOpen, setSettingsOpen] = useState(false);
   const [data, setData] = useState({ orders: [], total: 0, summary: { statuses: {}, analytics: {} }, meta: { providers: [], branches: [], statuses: [] } });
@@ -707,15 +712,29 @@ export default function ShippingCenter() {
 
   const boardGroups = useMemo(() => Object.fromEntries(STATUSES.map((status) => [status, orders.filter((order) => order.shipment_status === status)])), [orders]);
 
+  // Phones: the eight filter controls live in a bottom sheet behind one button.
+  const sheetFilterCount = [filters.provider, filters.branchId, filters.shippingStatus, filters.paymentStatus, filters.paymentType, filters.dateFrom, filters.dateTo].filter(Boolean).length;
+  const filterFields = (
+    <>
+      <Select value={filters.provider} onChange={(value) => setFilter("provider", value)}><option value="">{t("shipping.center.filters.allProviders")}</option>{(data.meta?.providers || ["bosta"]).map((provider) => <option key={provider} value={provider}>{PROVIDER_LABELS[provider] || provider}</option>)}</Select>
+      <Select value={filters.branchId} onChange={(value) => setFilter("branchId", value)}><option value="">{t("shipping.center.filters.allBranches")}</option>{(data.meta?.branches || []).map((branch) => <option key={branch.id} value={branch.id}>{branch.name}</option>)}</Select>
+      <Select value={filters.shippingStatus} onChange={(value) => setFilter("shippingStatus", value)}><option value="">{t("shipping.center.filters.allShippingStatuses")}</option>{STATUSES.map((key) => <option key={key} value={key}>{statusLabel(key)}</option>)}</Select>
+      <Select value={filters.paymentStatus} onChange={(value) => setFilter("paymentStatus", value)}><option value="">{t("shipping.center.filters.allPaymentStatuses")}</option>{["paid", "unpaid", "partially_paid", "refunded"].map((status) => <option key={status} value={status}>{status}</option>)}</Select>
+      <Select value={filters.paymentType} onChange={(value) => setFilter("paymentType", value)}><option value="">{t("shipping.center.filters.codOrPrepaid")}</option><option value="cod">COD</option><option value="prepaid">{t("shipping.center.filters.prepaid")}</option></Select>
+      <input type="date" value={filters.dateFrom} onChange={(event) => setFilter("dateFrom", event.target.value)} className="h-[var(--control-height-md)] min-w-0 rounded-[var(--radius-control)] border border-[var(--border)] bg-[var(--card)] px-3 text-sm font-bold text-[var(--text)] outline-none max-md:w-full max-md:text-base" />
+      <input type="date" value={filters.dateTo} onChange={(event) => setFilter("dateTo", event.target.value)} className="h-[var(--control-height-md)] min-w-0 rounded-[var(--radius-control)] border border-[var(--border)] bg-[var(--card)] px-3 text-sm font-bold text-[var(--text)] outline-none max-md:w-full max-md:text-base" />
+    </>
+  );
+
   return (
-    <main className="min-h-screen bg-[var(--bg)] p-4 text-[var(--text)] md:p-6">
-      <div className="mx-auto w-full space-y-5">
-        <header className="flex flex-col gap-4 rounded-[var(--radius-card)] border border-[var(--border)] bg-[var(--surface)] p-5 shadow-2xl shadow-[var(--shadow)] lg:flex-row lg:items-center lg:justify-between">
-          <div>
-            <div className="text-xs font-black uppercase tracking-[0.24em] text-emerald-300">{t("shipping.center.eyebrow")}</div>
-            <h1 className="m1-page-title mt-2">{t("shipping.center.title")}</h1>
+    <main className="min-h-screen bg-[var(--bg)] p-4 text-[var(--text)] md:p-6 max-md:p-0 max-md:[&_input:not([type=checkbox])]:text-base">
+      <div className="mx-auto w-full space-y-5 max-md:space-y-3">
+        <header className="flex flex-col gap-4 rounded-[var(--radius-card)] border border-[var(--border)] bg-[var(--surface)] p-5 shadow-2xl shadow-[var(--shadow)] lg:flex-row lg:items-center lg:justify-between max-md:gap-3 max-md:rounded-none max-md:border-0 max-md:bg-transparent max-md:p-0 max-md:shadow-none">
+          <div className="min-w-0">
+            <div className="text-xs font-black uppercase tracking-[0.24em] text-emerald-300 max-md:hidden">{t("shipping.center.eyebrow")}</div>
+            <h1 className="m1-page-title mt-2 max-md:mt-0">{t("shipping.center.title")}</h1>
           </div>
-          <div className="flex flex-wrap gap-2">
+          <div className="flex flex-wrap gap-2 max-md:flex-nowrap max-md:overflow-x-auto max-md:pb-1 max-md:[-webkit-overflow-scrolling:touch] max-md:[&>*]:shrink-0 max-md:[&>*]:whitespace-nowrap">
             <button onClick={() => setView("table")} className={`rounded-[var(--radius-control)] px-4 py-2 text-sm font-black ${view === "table" ? "bg-primary text-[var(--primary-contrast)]" : "border border-[var(--border)] bg-[var(--card)] text-[var(--text)]"}`}>{t("shipping.center.tableView")}</button>
             <button onClick={() => setView("board")} className={`rounded-[var(--radius-control)] px-4 py-2 text-sm font-black ${view === "board" ? "bg-primary text-[var(--primary-contrast)]" : "border border-[var(--border)] bg-[var(--card)] text-[var(--text)]"}`}>{t("shipping.center.boardView")}</button>
             <button onClick={load} className="inline-flex items-center gap-2 rounded-[var(--radius-control)] border border-[var(--border)] bg-[var(--card)] px-4 py-2 text-sm font-black text-[var(--text)]"><RefreshCw className="h-4 w-4" /> {t("shipping.center.refresh")}</button>
@@ -733,7 +752,7 @@ export default function ShippingCenter() {
           </div>
         </header>
 
-        <section className="grid gap-3 sm:grid-cols-2 xl:grid-cols-8">
+        <section className="grid gap-3 sm:grid-cols-2 xl:grid-cols-8 max-md:auto-cols-[minmax(8.5rem,1fr)] max-md:grid-flow-col max-md:gap-2 max-md:overflow-x-auto max-md:pb-1 max-md:[-webkit-overflow-scrolling:touch]">
           {STATUSES.map((status) => <KpiCard key={status} label={statusLabel(status)} value={data.summary?.statuses?.[status] || 0} active={filters.shippingStatus === status} onClick={() => setFilter("shippingStatus", filters.shippingStatus === status ? "" : status)} />)}
         </section>
 
@@ -756,7 +775,7 @@ export default function ShippingCenter() {
           </div>
         </section>
 
-        <section className="grid gap-3 lg:grid-cols-5">
+        <section className="grid gap-3 lg:grid-cols-5 max-md:grid-cols-2 max-md:gap-2 max-md:[&>*:nth-child(n+4)]:col-span-2">
           <div className="rounded-[var(--radius-card)] border border-[var(--border)] bg-[var(--surface)] p-4"><div className="text-xs font-black uppercase text-[var(--text-tertiary)]">{t("shipping.center.kpi.successRate")}</div><div className="mt-2 text-2xl font-black text-emerald-200">{analytics.delivery_success_rate || 0}%</div></div>
           <div className="rounded-[var(--radius-card)] border border-[var(--border)] bg-[var(--surface)] p-4"><div className="text-xs font-black uppercase text-[var(--text-tertiary)]">{t("shipping.center.kpi.returnRate")}</div><div className="mt-2 text-2xl font-black text-orange-200">{analytics.return_rate || 0}%</div></div>
           <div className="rounded-[var(--radius-card)] border border-[var(--border)] bg-[var(--surface)] p-4"><div className="text-xs font-black uppercase text-[var(--text-tertiary)]">{t("shipping.center.kpi.avgDeliveryTime")}</div><div className="mt-2 text-2xl font-black text-primary">{Number(analytics.average_delivery_hours || 0).toFixed(1)}h</div></div>
@@ -764,22 +783,28 @@ export default function ShippingCenter() {
           <div className="rounded-[var(--radius-card)] border border-[var(--border)] bg-[var(--surface)] p-4"><div className="text-xs font-black uppercase text-[var(--text-tertiary)]">{t("shipping.center.kpi.perCity")}</div><div className="mt-2 text-sm font-bold text-[var(--text-secondary)]">{(analytics.orders_per_city || []).slice(0, 3).map((row) => `${row.city}: ${row.orders}`).join(" · ") || "-"}</div></div>
         </section>
 
-        <section className="rounded-[var(--radius-card)] border border-[var(--border)] bg-[var(--surface)] p-4 shadow-2xl shadow-[var(--shadow)]">
-          <div className="mb-4 flex flex-col gap-3 xl:flex-row xl:items-center xl:justify-between">
-            <div className="grid gap-2 md:grid-cols-2 xl:grid-cols-4">
+        <section className="rounded-[var(--radius-card)] border border-[var(--border)] bg-[var(--surface)] p-4 shadow-2xl shadow-[var(--shadow)] max-md:rounded-none max-md:border-0 max-md:bg-transparent max-md:p-0 max-md:shadow-none">
+          <div className="mb-4 flex flex-col gap-3 xl:flex-row xl:items-center xl:justify-between max-md:mb-3 max-md:gap-2">
+            <div className="grid gap-2 md:grid-cols-2 xl:grid-cols-4 max-md:grid-cols-[minmax(0,1fr)_auto]">
               <div className="relative md:col-span-2">
                 <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-[var(--text-tertiary)]" />
                 <input value={filters.search} onChange={(event) => setFilter("search", event.target.value)} placeholder={t("shipping.center.filters.search")} className="h-[var(--control-height-md)] w-full rounded-[var(--radius-control)] border border-[var(--border)] bg-[var(--card)] pl-9 pr-3 text-sm font-bold text-[var(--text)] outline-none focus:border-emerald-300/50" />
               </div>
-              <Select value={filters.provider} onChange={(value) => setFilter("provider", value)}><option value="">{t("shipping.center.filters.allProviders")}</option>{(data.meta?.providers || ["bosta"]).map((provider) => <option key={provider} value={provider}>{PROVIDER_LABELS[provider] || provider}</option>)}</Select>
-              <Select value={filters.branchId} onChange={(value) => setFilter("branchId", value)}><option value="">{t("shipping.center.filters.allBranches")}</option>{(data.meta?.branches || []).map((branch) => <option key={branch.id} value={branch.id}>{branch.name}</option>)}</Select>
-              <Select value={filters.shippingStatus} onChange={(value) => setFilter("shippingStatus", value)}><option value="">{t("shipping.center.filters.allShippingStatuses")}</option>{STATUSES.map((key) => <option key={key} value={key}>{statusLabel(key)}</option>)}</Select>
-              <Select value={filters.paymentStatus} onChange={(value) => setFilter("paymentStatus", value)}><option value="">{t("shipping.center.filters.allPaymentStatuses")}</option>{["paid", "unpaid", "partially_paid", "refunded"].map((status) => <option key={status} value={status}>{status}</option>)}</Select>
-              <Select value={filters.paymentType} onChange={(value) => setFilter("paymentType", value)}><option value="">{t("shipping.center.filters.codOrPrepaid")}</option><option value="cod">COD</option><option value="prepaid">{t("shipping.center.filters.prepaid")}</option></Select>
-              <input type="date" value={filters.dateFrom} onChange={(event) => setFilter("dateFrom", event.target.value)} className="h-[var(--control-height-md)] rounded-[var(--radius-control)] border border-[var(--border)] bg-[var(--card)] px-3 text-sm font-bold text-[var(--text)] outline-none" />
-              <input type="date" value={filters.dateTo} onChange={(event) => setFilter("dateTo", event.target.value)} className="h-[var(--control-height-md)] rounded-[var(--radius-control)] border border-[var(--border)] bg-[var(--card)] px-3 text-sm font-bold text-[var(--text)] outline-none" />
+              {isPhone ? (
+                <button
+                  type="button"
+                  onClick={() => setFiltersSheetOpen(true)}
+                  aria-haspopup="dialog"
+                  aria-expanded={filtersSheetOpen}
+                  className="inline-flex h-[var(--control-height-md)] items-center justify-center gap-2 rounded-[var(--radius-control)] border border-[var(--border)] bg-[var(--card)] px-3 text-sm font-black text-[var(--text)]"
+                >
+                  <SlidersHorizontal className="h-4 w-4" />
+                  {t("shipping.center.filters.button")}
+                  {sheetFilterCount ? <span className="inline-grid h-5 min-w-5 place-items-center rounded-full bg-primary px-1 text-[11px] font-black text-[var(--primary-contrast)]">{sheetFilterCount}</span> : null}
+                </button>
+              ) : filterFields}
             </div>
-            <div className="flex flex-wrap gap-2">
+            <div className="flex flex-wrap gap-2 max-md:flex-nowrap max-md:overflow-x-auto max-md:pb-1 max-md:[-webkit-overflow-scrolling:touch] max-md:[&>*]:shrink-0 max-md:[&>*]:whitespace-nowrap">
               <button onClick={() => runBulk("create_shipments")} className="inline-flex items-center gap-2 rounded-[var(--radius-control)] bg-primary px-3 py-2 text-xs font-black text-[var(--primary-contrast)]"><Send className="h-4 w-4" /> {t("shipping.center.bulk.createShipments")}</button>
               <button onClick={() => runBulk("refresh_status")} className="inline-flex items-center gap-2 rounded-[var(--radius-control)] border border-[var(--border)] bg-[var(--card)] px-3 py-2 text-xs font-black"><RefreshCw className="h-4 w-4" /> {t("shipping.center.bulk.refreshStatus")}</button>
               <button onClick={() => printLabels()} className="inline-flex items-center gap-2 rounded-[var(--radius-control)] border border-[var(--border)] bg-[var(--card)] px-3 py-2 text-xs font-black"><Printer className="h-4 w-4" /> {t("shipping.center.bulk.printLabels")}</button>
@@ -853,6 +878,13 @@ export default function ShippingCenter() {
           ) : null}
         </section>
       </div>
+      <MobileBottomSheet
+        open={isPhone && filtersSheetOpen}
+        title={t("shipping.center.filters.button")}
+        onClose={() => setFiltersSheetOpen(false)}
+      >
+        <div className="grid gap-3 [&_button]:w-full [&_select]:w-full [&_select]:text-base">{filterFields}</div>
+      </MobileBottomSheet>
       <ShipmentDrawer order={drawerOrder} onClose={() => setDrawerOrder(null)} onPrintLabel={(id) => printLabels([id])} />
       <NotificationSettingsModal open={settingsOpen} onClose={() => setSettingsOpen(false)} />
       <PickupRequestModal open={pickupsOpen} onClose={() => setPickupsOpen(false)} />

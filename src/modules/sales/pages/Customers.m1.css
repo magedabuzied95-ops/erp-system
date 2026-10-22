@@ -45,3 +45,30 @@
    brand at --primary. Retiring them would revert Customers to emerald branding.
    They belong to a brand-hue cleanup at the call sites, not to this batch. */
 @media(max-width:767px){.m1-customers-page{padding:12px!important}.m1-customers-page :where(section,form){padding:14px!important}.customer-records{padding:0!important}.customer-records-toolbar{align-items:stretch;flex-direction:column;padding:14px!important}.customer-records-heading{justify-content:space-between}.customer-records-actions{width:100%;align-items:stretch;flex-direction:column}.customer-records-search{width:100%}.customer-records-add{width:100%}}
+
+/* Phone pass (375px): list-first. The title row carries the count and two
+   icon actions, the records toolbar is search + add on one row, and each
+   customer is a card instead of a 1080px table row. */
+.customers-phone-count{display:none}
+@media(max-width:767px){
+.m1-customers-page{padding:0!important}
+.m1-customers-page>div>:not(:last-child){margin-block-end:12px!important}
+.m1-customers-page :where(input:not([type="checkbox"]):not([type="radio"]),select,textarea){font-size:16px!important}
+.m1-customers-page .customer-records-search__input{font-size:16px!important}
+.m1-customers-page .customers-page-header{flex-direction:row;align-items:center;justify-content:space-between;gap:10px;padding:0!important;border:0!important;background:transparent!important;box-shadow:none!important;backdrop-filter:none!important}
+.m1-customers-page .customers-page-eyebrow{display:none}
+.m1-customers-page .customers-page-header h1{margin-top:0;font-size:24px;line-height:1.25}
+.m1-customers-page .customers-phone-count{display:inline-grid}
+.m1-customers-page .customers-count-tile{display:none!important}
+.m1-customers-page .customers-page-actions{flex-direction:row;flex:none}
+.m1-customers-page .customers-import-button{width:44px;height:44px!important;padding:0!important}
+.m1-customers-page .customers-phone-hide-label{display:none}
+.m1-customers-page .customer-records{border:0!important;border-radius:0!important;background:transparent!important;box-shadow:none!important;backdrop-filter:none!important;overflow:visible!important}
+.m1-customers-page .customer-records-toolbar{flex-direction:row;align-items:center;gap:8px;padding:0 0 10px!important;border:0!important;background:transparent!important}
+.m1-customers-page .customer-records-heading{display:none}
+.m1-customers-page .customer-records-actions{flex-direction:row;align-items:center;gap:8px}
+.m1-customers-page .customer-records-search{flex:1 1 auto;min-width:0}
+.m1-customers-page .customer-records-add{width:44px!important;height:44px;padding:0!important;flex:none}
+.m1-customers-page .customer-phone-cards{display:grid;gap:8px}
+.m1-customers-page .customer-phone-card{min-width:0;padding:12px;border:1px solid var(--border);border-radius:var(--radius-card);background:var(--card)}
+}

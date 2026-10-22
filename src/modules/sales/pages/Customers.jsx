@@ -1007,25 +1007,30 @@ function Customers() {
   return (
     <div className="m1-customers-page min-h-screen bg-background px-6 py-6 text-text">
       <div className="w-full space-y-6">
-        <div className="flex flex-col gap-4 rounded-[var(--radius-card)] border border-border bg-surface p-5 shadow-2xl shadow-black/30 backdrop-blur-xl lg:flex-row lg:items-center lg:justify-between">
-          <div>
-            <div className="text-xs font-black uppercase tracking-[0.22em] text-emerald-300">{t("customers.eyebrow")}</div>
-            <h1 className="m1-display mt-2 text-text">{t("customers.title")}</h1>
+        <div className="customers-page-header flex flex-col gap-4 rounded-[var(--radius-card)] border border-border bg-surface p-5 shadow-2xl shadow-black/30 backdrop-blur-xl lg:flex-row lg:items-center lg:justify-between">
+          <div className="min-w-0">
+            <div className="customers-page-eyebrow text-xs font-black uppercase tracking-[0.22em] text-emerald-300">{t("customers.eyebrow")}</div>
+            <h1 className="m1-display mt-2 text-text">
+              {t("customers.title")}
+              <span className="customer-records-count customers-phone-count ms-2 align-middle">{totalCustomers.toLocaleString("ar-EG-u-nu-latn")}</span>
+            </h1>
           </div>
 
-          <div className="flex flex-col gap-3 sm:flex-row sm:items-center">
+          <div className="customers-page-actions flex flex-col gap-3 sm:flex-row sm:items-center">
             <button
               type="button"
               onClick={() => {
                 resetImport();
                 setImportOpen(true);
               }}
-              className="inline-flex h-14 items-center justify-center gap-3 rounded-[var(--radius-control)] border border-primary/20 bg-primary/10 px-5 text-sm font-black text-primary shadow-2xl shadow-primary/20 transition hover:bg-primary/20"
+              aria-label={tt("customers.import.title")}
+              title={tt("customers.import.title")}
+              className="customers-import-button inline-flex h-14 items-center justify-center gap-3 rounded-[var(--radius-control)] border border-primary/20 bg-primary/10 px-5 text-sm font-black text-primary shadow-2xl shadow-primary/20 transition hover:bg-primary/20"
             >
               <UploadCloud className="h-5 w-5" />
-              {tt("customers.import.title")}
+              <span className="customers-phone-hide-label">{tt("customers.import.title")}</span>
             </button>
-            <div className="inline-flex items-center gap-3 rounded-[var(--radius-card)] border border-emerald-400/20 bg-emerald-400/10 px-5 py-4 shadow-2xl shadow-emerald-950/20">
+            <div className="customers-count-tile inline-flex items-center gap-3 rounded-[var(--radius-card)] border border-emerald-400/20 bg-emerald-400/10 px-5 py-4 shadow-2xl shadow-emerald-950/20">
               <div className="flex h-12 w-12 items-center justify-center rounded-[var(--radius-card)] bg-emerald-400 text-text">
                 <UsersRound className="h-6 w-6" />
               </div>
@@ -1180,15 +1185,99 @@ function Customers() {
                   setCustomerFormOpen(true);
                 }}
                 aria-expanded={customerFormOpen}
+                aria-label={customerFormOpen ? t("customers.form.cancel") : t("customers.form.titleAdd")}
                 className="customer-records-add inline-flex h-11 shrink-0 items-center justify-center gap-2 rounded-[var(--radius-control)] px-4 text-sm font-black transition"
               >
                 {customerFormOpen ? <X className="h-4 w-4" /> : <PlusCircle className="h-4 w-4" />}
-                {customerFormOpen ? t("customers.form.cancel") : t("customers.form.titleAdd")}
+                <span className="customers-phone-hide-label">{customerFormOpen ? t("customers.form.cancel") : t("customers.form.titleAdd")}</span>
               </button>
             </div>
           </div>
 
-          <div className="m1-table-container overflow-x-auto">
+          {/* Phones: one card per customer instead of a 1080px table. */}
+          <div className="customer-phone-cards md:hidden">
+            {loading ? (
+              <div className="px-4 py-10 text-center text-sm font-black text-emerald-300">{t("customers.loading")}</div>
+            ) : safeCustomers.length > 0 ? (
+              safeCustomers.map((customer) => (
+                <article key={customer.id} className="customer-phone-card">
+                  <div className="flex min-w-0 items-center gap-3">
+                    <CustomerAvatar customer={customer} />
+                    <div className="min-w-0 flex-1">
+                      <h3 className="truncate text-sm font-black text-text">{customer.name || t("customers.records.unnamed")}</h3>
+                      <p className="mt-0.5 text-xs font-medium text-text-muted">{t("customers.records.id")} {customer.id}</p>
+                    </div>
+                  </div>
+                  <div className="mt-2 grid gap-1 text-xs font-semibold text-text">
+                    {customer.phone ? (
+                      <a href={`tel:${String(customer.phone).replace(/[^\d+]/g, "")}`} className="inline-flex items-center gap-1.5 text-primary">
+                        <Phone className="h-3.5 w-3.5 shrink-0" />
+                        <span dir="ltr">{customer.phone}</span>
+                      </a>
+                    ) : null}
+                    {customer.email ? (
+                      <span className="flex min-w-0 items-center gap-1.5"><Mail className="h-3.5 w-3.5 shrink-0 text-text-muted" /><span className="truncate">{customer.email}</span></span>
+                    ) : null}
+                    {customer.address ? (
+                      <span className="flex min-w-0 items-start gap-1.5 text-text-muted"><MapPin className="mt-0.5 h-3.5 w-3.5 shrink-0" /><span className="min-w-0 break-words">{customer.address}</span></span>
+                    ) : null}
+                  </div>
+                  {Array.isArray(customer.tags) && customer.tags.length ? (
+                    <div className="mt-2 flex flex-wrap gap-1" data-customer-tags="card">
+                      {customer.tags.slice(0, 4).map((tag) => (
+                        <span key={tag} className="rounded-full bg-amber-50 px-2 py-0.5 text-[10px] font-black text-amber-800 ring-1 ring-amber-200">{tag}</span>
+                      ))}
+                      {customer.tags.length > 4 ? <span className="text-[10px] font-bold text-text-muted">+{customer.tags.length - 4}</span> : null}
+                    </div>
+                  ) : null}
+                  <div className="mt-2 flex flex-wrap gap-2 text-xs font-black">
+                    <span className="inline-flex items-center gap-1.5 rounded-[var(--radius-control)] border border-primary/20 bg-primary/10 px-2.5 py-1.5 text-primary" title={tt("customers.common.loyaltyPoints")}>
+                      <Sparkles className="h-3.5 w-3.5" />
+                      {Number(customer.loyalty_points ?? customer.available_points ?? 0).toLocaleString("ar-EG-u-nu-latn")}
+                    </span>
+                    <span className="inline-flex items-center gap-1.5 rounded-[var(--radius-control)] border border-emerald-400/20 bg-emerald-500/10 px-2.5 py-1.5 text-emerald-100" title={tt("customers.wallet.balance")}>
+                      <Wallet className="h-3.5 w-3.5 text-emerald-300" />
+                      {Number(customer.wallet_balance ?? customer.balance ?? 0).toLocaleString("ar-EG-u-nu-latn", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                    </span>
+                  </div>
+                  <div className="mt-3 grid grid-cols-3 gap-2">
+                    <button
+                      type="button"
+                      onClick={() => handleOpenProfile(customer)}
+                      className="inline-flex min-h-[var(--control-height-md)] min-w-0 items-center justify-center gap-1.5 rounded-[var(--radius-control)] border border-emerald-300/20 bg-emerald-400/10 px-2 text-xs font-black text-emerald-100"
+                    >
+                      <FileText className="h-4 w-4 shrink-0" />
+                      <span className="truncate">{tt("customers.statement.title")}</span>
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => editCustomer(customer)}
+                      className="inline-flex min-h-[var(--control-height-md)] min-w-0 items-center justify-center gap-1.5 rounded-[var(--radius-control)] border border-primary/20 bg-primary/10 px-2 text-xs font-black text-primary"
+                    >
+                      <Pencil className="h-4 w-4 shrink-0" />
+                      <span className="truncate">{t("customers.actions.edit")}</span>
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => deleteCustomer(customer.id)}
+                      className="inline-flex min-h-[var(--control-height-md)] min-w-0 items-center justify-center gap-1.5 rounded-[var(--radius-control)] border border-rose-300/20 bg-rose-400/10 px-2 text-xs font-black text-rose-100"
+                    >
+                      <Trash2 className="h-4 w-4 shrink-0" />
+                      <span className="truncate">{t("customers.actions.delete")}</span>
+                    </button>
+                  </div>
+                </article>
+              ))
+            ) : (
+              <div className="flex flex-col items-center gap-3 px-4 py-12 text-center">
+                <UsersRound className="h-7 w-7 text-text-muted" />
+                <h3 className="m1-section-title text-text">{t("customers.empty.title")}</h3>
+                <p className="text-sm text-text-muted">{t("customers.empty.description")}</p>
+              </div>
+            )}
+          </div>
+
+          <div className="m1-table-container hidden overflow-x-auto md:block">
             <table className="m1-table m1-table--compact w-full min-w-[1080px]">
               <colgroup>
                 <col style={{ width: "30%", minWidth: "320px" }} />
@@ -1774,7 +1863,7 @@ function CustomerStatementDrawer({
 
   return (
     <div className="m1-customers-page min-h-screen bg-background px-4 py-6 text-text sm:px-6">
-      <main className="mx-auto w-full max-w-[1500px] rounded-[var(--radius-card)] border border-border bg-surface p-5 shadow-2xl shadow-black/30 backdrop-blur-xl lg:p-7">
+      <main className="customer-statement-main mx-auto w-full max-w-[1500px] rounded-[var(--radius-card)] border border-border bg-surface p-5 shadow-2xl shadow-black/30 backdrop-blur-xl lg:p-7 max-md:rounded-none max-md:border-0 max-md:bg-transparent max-md:p-0 max-md:shadow-none">
         <div className="flex flex-col gap-3 border-b border-border pb-5 lg:flex-row lg:items-start lg:justify-between">
           <div>
             <div className="text-xs font-black uppercase tracking-[0.2em] text-emerald-300">{tt("customers.statement.title")}</div>
@@ -1834,22 +1923,22 @@ function CustomerStatementDrawer({
           </div>
         </div>
 
-        <div className="mt-5 grid gap-3 md:grid-cols-2 xl:grid-cols-4">
-          <div className="rounded-[var(--radius-card)] border border-border bg-surface-soft p-4">
+        <div className="mt-5 grid grid-cols-2 gap-2 md:grid-cols-2 md:gap-3 xl:grid-cols-4">
+          <div className="min-w-0 rounded-[var(--radius-card)] border border-border bg-surface-soft p-4 max-md:p-3">
             <div className="text-[11px] font-black uppercase tracking-[0.16em] text-text-muted">{tt("customers.statement.openingBalance")}</div>
-            <div className="mt-2 text-xl font-black text-text">{formatMoney(openingBalance)} ج.م</div>
+            <div className="mt-2 break-words text-xl font-black max-md:text-base text-text">{formatMoney(openingBalance)} ج.م</div>
           </div>
-          <div className="rounded-[var(--radius-card)] border border-amber-300/20 bg-amber-400/[0.08] p-4">
+          <div className="min-w-0 rounded-[var(--radius-card)] border border-amber-300/20 bg-amber-400/[0.08] p-4 max-md:p-3">
             <div className="text-[11px] font-black uppercase tracking-[0.16em] text-amber-200/70">{tt("customers.statement.totalDue")}</div>
-            <div className="mt-2 text-xl font-black text-amber-100">{formatMoney(totals.credit)} ج.م</div>
+            <div className="mt-2 break-words text-xl font-black max-md:text-base text-amber-100">{formatMoney(totals.credit)} ج.م</div>
           </div>
-          <div className="rounded-[var(--radius-card)] border border-primary/20 bg-primary/[0.08] p-4">
+          <div className="min-w-0 rounded-[var(--radius-card)] border border-primary/20 bg-primary/[0.08] p-4 max-md:p-3">
             <div className="text-[11px] font-black uppercase tracking-[0.16em] text-primary/70">{tt("customers.statement.totalPayments")}</div>
-            <div className="mt-2 text-xl font-black text-primary">{formatMoney(totals.debit)} ج.م</div>
+            <div className="mt-2 break-words text-xl font-black max-md:text-base text-primary">{formatMoney(totals.debit)} ج.م</div>
           </div>
-          <div className={`rounded-[var(--radius-card)] border p-4 ${currentBalance > 0 ? "border-rose-300/25 bg-rose-400/[0.09]" : "border-emerald-300/20 bg-emerald-400/[0.08]"}`}>
+          <div className={`min-w-0 rounded-[var(--radius-card)] border p-4 max-md:p-3 ${currentBalance > 0 ? "border-rose-300/25 bg-rose-400/[0.09]" : "border-emerald-300/20 bg-emerald-400/[0.08]"}`}>
             <div className="text-[11px] font-black uppercase tracking-[0.16em] text-text-muted">{tt("customers.statement.outstanding")}</div>
-            <div className={`mt-2 text-2xl font-black ${currentBalance > 0 ? "text-rose-100" : "text-emerald-100"}`}>{formatMoney(currentBalance)} ج.م</div>
+            <div className={`mt-2 break-words text-2xl font-black max-md:text-base ${currentBalance > 0 ? "text-rose-100" : "text-emerald-100"}`}>{formatMoney(currentBalance)} ج.م</div>
           </div>
         </div>
 
@@ -2007,7 +2096,79 @@ function CustomerStatementDrawer({
               {statementError}
             </div>
           ) : null}
-          <div className="m1-table-container overflow-x-auto">
+          {/* Phones: one card per movement instead of a 1180px table. */}
+          <div className="mt-3 grid gap-2 md:hidden">
+            {auditLoading ? (
+              <div className="px-3 py-10 text-center text-sm font-bold text-emerald-300">{tt("customers.statement.loading")}</div>
+            ) : statementRows.length ? (
+              statementRows.map((row, index) => {
+                const amount = Number(row.amount || 0);
+                const personalValue = Number(row.personal_value || row.total_amount || 0);
+                const debit = amount > 0 ? formatMoney(amount) : "";
+                const credit = amount < 0 ? formatMoney(Math.abs(amount)) : "";
+                const reference = row.invoice_number || row.return_number || row.reference_id || "-";
+                const rowMeta = getStatementMovementMeta(row);
+                const rowLabel = row.personal_operation_type_label || row.transaction_type_label || row.notes || row.transaction_type || "-";
+                const rowDetails = [
+                  personalValue > 0 ? `القيمة: ${formatMoney(personalValue)}` : "",
+                  row.notes ? `ملاحظة: ${row.notes}` : "",
+                ].filter(Boolean).join(" • ");
+                const showMovementBadge = String(rowMeta.label || "").trim() !== String(rowLabel || "").trim();
+                return (
+                  <article key={row.id || `${row.created_at || "row"}-${index}`} className="min-w-0 rounded-[var(--radius-card)] border border-border bg-surface p-3 text-text">
+                    <div className="flex min-w-0 items-start justify-between gap-2">
+                      <div className="flex min-w-0 flex-wrap items-center gap-1.5">
+                        <div className="min-w-0 break-words text-sm font-black text-text">{rowLabel}</div>
+                        {showMovementBadge ? (
+                          <div className={`inline-flex rounded-full border px-2 py-0.5 text-[10px] font-black ${getStatementBadgeClass(rowMeta.tone)}`}>{rowMeta.label}</div>
+                        ) : null}
+                      </div>
+                      <div className="shrink-0 text-end">
+                        <div className="text-[11px] font-black text-text">{formatDateTime(row.created_at)}</div>
+                        <div className="mt-0.5 text-[10px] font-bold text-text-muted">{tt("customers.statement.movementNumber", { index: index + 1 })}</div>
+                      </div>
+                    </div>
+                    <div className="mt-2 inline-flex max-w-full truncate rounded-[var(--radius-control)] border border-border bg-black/20 px-2 py-0.5 text-xs font-black text-text" dir="ltr">{reference}</div>
+                    {rowDetails ? <div className="mt-1.5 break-words text-xs leading-5 text-text-muted">{rowDetails}</div> : null}
+                    <div className="mt-2 grid grid-cols-3 gap-1.5 text-center">
+                      <div className="min-w-0 rounded-[var(--radius-control)] border border-emerald-300/20 bg-emerald-400/10 px-1 py-1.5">
+                        <div className="truncate text-[10px] font-bold text-emerald-200">{tt("customers.statement.creditColumn")}</div>
+                        <div className="mt-0.5 break-all text-xs font-black tabular-nums text-emerald-100">{credit || "—"}</div>
+                      </div>
+                      <div className="min-w-0 rounded-[var(--radius-control)] border border-rose-300/20 bg-rose-400/10 px-1 py-1.5">
+                        <div className="truncate text-[10px] font-bold text-rose-200">{tt("customers.statement.debitColumn")}</div>
+                        <div className="mt-0.5 break-all text-xs font-black tabular-nums text-rose-100">{debit || "—"}</div>
+                      </div>
+                      <div className="min-w-0 rounded-[var(--radius-control)] border border-primary/15 bg-primary/[0.07] px-1 py-1.5">
+                        <div className="truncate text-[10px] font-bold text-text-muted">{tt("customers.statement.balance")}</div>
+                        <div className="mt-0.5 break-all text-xs font-black tabular-nums text-primary">{formatMoney(row.after_balance)}</div>
+                      </div>
+                    </div>
+                    {row.order_id ? (
+                      <div className="mt-2 grid grid-cols-2 gap-2">
+                        <button type="button" onClick={() => onViewOrder?.(row.order_id)} className="inline-flex min-h-[var(--control-height-md)] min-w-0 items-center justify-center gap-1.5 rounded-[var(--radius-control)] border border-primary/25 bg-primary/10 px-2 text-[11px] font-black text-primary">
+                          <FileText className="h-3.5 w-3.5 shrink-0" />
+                          <span className="truncate">{tt("customers.statement.viewInvoice")}</span>
+                        </button>
+                        <button type="button" onClick={() => onEditOrder?.(row.order_id)} className="inline-flex min-h-[var(--control-height-md)] min-w-0 items-center justify-center gap-1.5 rounded-[var(--radius-control)] border border-amber-400/25 bg-amber-400/10 px-2 text-[11px] font-black text-amber-100">
+                          <Pencil className="h-3.5 w-3.5 shrink-0" />
+                          <span className="truncate">{tt("customers.statement.editInvoice")}</span>
+                        </button>
+                      </div>
+                    ) : null}
+                    {row.personal_operation_type ? (
+                      <div className={`mt-2 inline-flex rounded-full border px-2 py-0.5 text-[10px] font-black uppercase tracking-[0.16em] ${getStatementBadgeClass(rowMeta.tone)}`}>
+                        {row.personal_operation_type_label || row.personal_operation_type}
+                      </div>
+                    ) : null}
+                  </article>
+                );
+              })
+            ) : (
+              <div className="px-3 py-10 text-center text-sm text-text-muted">{tt("customers.statement.noCurrentMatches")}</div>
+            )}
+          </div>
+          <div className="m1-table-container hidden overflow-x-auto md:block">
             <table className="m1-table m1-table--compact w-full min-w-[1180px] text-sm">
               <thead className="sticky top-0 z-10 bg-surface backdrop-blur-xl">
                 <tr className="border-b border-border text-right text-xs font-black text-text-muted">
@@ -2121,7 +2282,7 @@ function CustomerStatementDrawer({
           </div>
         </section>
 
-        <section className="mt-5 grid gap-3 md:grid-cols-3">
+        <section className="mt-5 grid gap-3 md:grid-cols-3 max-md:!p-0">
           <div className="rounded-[var(--radius-card)] border border-emerald-300/15 bg-emerald-400/[0.06] p-4">
             <div className="text-[11px] font-black uppercase tracking-[0.16em] text-emerald-200/70">{tt("customers.statement.totalPayments")}</div>
             <div className="mt-2 text-2xl font-black text-emerald-100">{formatMoney(totals.debit)}</div>
