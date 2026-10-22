@@ -27,6 +27,7 @@ import {
   text,
 } from "../../metaAdsCore.js";
 import { metaAdsManage, metaAdsView } from "../../metaAdsGuards.js";
+import { buildRecommendedAudiences } from "../../metaAdsAudiences.js";
 import { setObjectStatus } from "../wizard/metaAdsPublisher.js";
 import {
   loadBootstrap,
@@ -129,6 +130,15 @@ router.post("/sync", metaAdsManage, handle(async (req) => {
     }
   }
   return { result, warnings };
+}));
+
+// "بناء الجمهور": the recommended audience set from the shop's own data (metaAdsAudiences.js).
+router.post("/audiences/build", metaAdsManage, handle(async (req) => {
+  const tenantId = tenantOf(req);
+  const accountId = await accountIdOf(tenantId, req.body?.account_id);
+  const ctx = await getAccountContext(tenantId, accountId);
+  requireToken(ctx);
+  return buildRecommendedAudiences(ctx);
 }));
 
 // ------------------------------------------------------------------ automated rules

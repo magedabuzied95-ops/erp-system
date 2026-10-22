@@ -11,6 +11,7 @@ export const managerApi = {
   breakdown: (params) => metaAdsRequest.get("/manager/insights/breakdown", params),
   syncInsights: (accountId, days) => metaAdsRequest.post("/manager/insights/sync", { account_id: accountId, days }),
   sync: (accountId) => metaAdsRequest.post("/manager/sync", { account_id: accountId }),
+  buildAudiences: (accountId) => metaAdsRequest.post("/manager/audiences/build", { account_id: accountId }),
   rules: (accountId) => metaAdsRequest.get("/manager/rules", { account_id: accountId }),
   saveRule: (rule) => metaAdsRequest.post("/manager/rules/save", rule),
   deleteRule: (id) => metaAdsRequest.post("/manager/rules/delete", { id }),

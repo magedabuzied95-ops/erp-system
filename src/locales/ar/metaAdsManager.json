@@ -8,6 +8,11 @@
   "syncWarnings": "تمت المزامنة مع تحذيرات: {{list}}",
   "syncFailed": "تعذّرت المزامنة",
   "rules": "القواعد التلقائية",
+  "buildAudiences": "بناء الجمهور",
+  "buildingAudiences": "جارٍ بناء الجمهور…",
+  "buildAudiencesHint": "ينشئ في Meta جماهير من بياناتك: مشترو الموقع من الـ ERP، زوار الموقع، من أضافوا للسلة، المتفاعلون، وجمهور مشابه للمشترين. الضغط مرة أخرى لا يكرر شيئًا.",
+  "audiencesBuilt": "تم إنشاء {{created}} جمهور، و{{exists}} كان موجودًا",
+  "audiencesFailed": "تعذّر بناء الجمهور",
   "datePreset": "الفترة",
   "presets": {
     "all": "كل الأوقات",

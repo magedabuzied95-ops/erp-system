@@ -2,7 +2,7 @@ import { useCallback, useEffect, useMemo, useState } from "react";
 import { useTranslation } from "react-i18next";
 import { Link } from "react-router-dom";
 import toast from "react-hot-toast";
-import { AlertTriangle, Folder, Layers, LayoutGrid, Plus, RefreshCw, Workflow, X, Zap } from "lucide-react";
+import { AlertTriangle, Folder, Layers, LayoutGrid, Plus, RefreshCw, Users, Workflow, X, Zap } from "lucide-react";
 
 import { Button, EmptyState, LoadingState, Modal, SearchInput, Select } from "../../../shared/ui";
 import { hasPermission } from "../../../shared/auth/authStorage";
@@ -69,6 +69,7 @@ export default function AdsManagerPage() {
   const [pending, setPending] = useState(() => new Set());
   const [syncing, setSyncing] = useState(false);
   const [rulesOpen, setRulesOpen] = useState(false);
+  const [buildingAudiences, setBuildingAudiences] = useState(false);
   const [charts, setCharts] = useState(null);
   const [wizard, setWizard] = useState(null);
   const [confirmDelete, setConfirmDelete] = useState(null);
@@ -167,6 +168,26 @@ export default function AdsManagerPage() {
       toast.error(metaErrorMessage(error) || t("metaAdsManager.syncFailed"));
     } finally {
       setSyncing(false);
+    }
+  };
+
+  // "بناء الجمهور": the recommended audience set from the shop's own data; idempotent by name.
+  const buildAudiences = async () => {
+    if (!account || buildingAudiences) return;
+    setBuildingAudiences(true);
+    try {
+      const data = await managerApi.buildAudiences(account.id);
+      const results = data?.results || [];
+      const created = results.filter((item) => item.status === "created").length;
+      const exists = results.filter((item) => item.status === "exists").length;
+      const failed = results.filter((item) => item.status === "failed");
+      toast.success(t("metaAdsManager.audiencesBuilt", { created, exists }));
+      for (const item of failed) toast.error(`${item.name}: ${item.error}`, { duration: 9000 });
+      await loadBoot();
+    } catch (error) {
+      toast.error(metaErrorMessage(error) || t("metaAdsManager.audiencesFailed"));
+    } finally {
+      setBuildingAudiences(false);
     }
   };
 
@@ -313,6 +334,12 @@ export default function AdsManagerPage() {
             <Zap size={17} aria-hidden="true" />
             <span>{t("metaAdsManager.rules")}</span>
           </button>
+          {canManage ? (
+            <button type="button" className="ma-plain-btn" onClick={buildAudiences} disabled={buildingAudiences || !account?.has_token} aria-busy={buildingAudiences || undefined} title={t("metaAdsManager.buildAudiencesHint")}>
+              <Users size={17} aria-hidden="true" className={buildingAudiences ? "ma-spin" : undefined} />
+              <span>{buildingAudiences ? t("metaAdsManager.buildingAudiences") : t("metaAdsManager.buildAudiences")}</span>
+            </button>
+          ) : null}
           {canManage ? (
             <button type="button" className="ma-plain-btn" onClick={sync} disabled={syncing || !account?.has_token} aria-busy={syncing || undefined}>
               <RefreshCw size={17} aria-hidden="true" className={syncing ? "ma-spin" : undefined} />

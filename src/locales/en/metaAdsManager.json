@@ -8,6 +8,11 @@
   "syncWarnings": "Synced with warnings: {{list}}",
   "syncFailed": "Sync failed",
   "rules": "Automated rules",
+  "buildAudiences": "Build audiences",
+  "buildingAudiences": "Building audiences…",
+  "buildAudiencesHint": "Creates audiences on Meta from your own data: online buyers from the ERP, site visitors, cart abandoners, engagers, and lookalikes of the buyers. Pressing it again creates nothing twice.",
+  "audiencesBuilt": "{{created}} audiences created, {{exists}} already existed",
+  "audiencesFailed": "Could not build the audiences",
   "datePreset": "Date range",
   "presets": {
     "all": "All time",
