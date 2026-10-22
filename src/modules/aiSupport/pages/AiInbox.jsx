@@ -3490,9 +3490,9 @@ function ManualReplyComposer({
               {[
                 { key: "photos", label: t("aiSupport.inbox.pwa.attachPhotos"), Icon: ImageIcon, tone: "bg-sky-100 text-sky-600", disabled: loading || noteMode || !canSendLive, action: () => imageInputRef.current?.click() },
                 { key: "camera", label: t("aiSupport.inbox.pwa.attachCamera"), Icon: Camera, tone: "bg-slate-200 text-slate-700", disabled: loading || noteMode || !canSendLive, action: () => cameraInputRef.current?.click() },
+                ...(onOpenSharePost && !isCommentConversation ? [{ key: "share_post", label: t("aiSupport.inbox.sharePost.button"), Icon: Clapperboard, tone: "bg-rose-100 text-rose-600", disabled: loading || noteMode || !canSendLive, action: () => onOpenSharePost() }] : []),
                 { key: "product", label: t("aiSupport.inbox.pwa.attachProduct"), Icon: PackagePlus, tone: "bg-emerald-100 text-emerald-600", disabled: loading, action: () => onOpenProductPicker?.() },
                 { key: "available", label: t("aiSupport.inbox.composer.availableProducts"), Icon: FileText, tone: "bg-indigo-100 text-indigo-600", disabled: loading, action: () => onOpenAvailableBySizePicker?.() },
-                ...(onOpenSharePost && !isCommentConversation ? [{ key: "share_post", label: t("aiSupport.inbox.sharePost.button"), Icon: Clapperboard, tone: "bg-rose-100 text-rose-600", disabled: loading || noteMode || !canSendLive, action: () => onOpenSharePost() }] : []),
                 { key: "paste", label: t("aiSupport.inbox.pwa.attachPaste"), Icon: ClipboardPaste, tone: "bg-amber-100 text-amber-700", disabled: !attachmentsAllowed, action: () => void pasteFromClipboard() },
               ].map((tile) => (
                 <button
