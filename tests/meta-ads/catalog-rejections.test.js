@@ -37,12 +37,29 @@ test("exclusions are applied to the feed and kept up to date", () => {
   assert.match(jobs, /syncAccounts\("job-insights-backfill", \{ days: 0, structure: false, rejections: true \}\)/);
   const sync = read("../../server/modules/metaAds/metaAdsCatalogRejections.js");
   // Graph's review_status filter returned nothing on the live catalogue: read all, filter here.
-  assert.match(sync, /fields: "id,retailer_id,retailer_product_group_id,name,review_status"/);
+  assert.match(sync, /const BASE_FIELDS = "id,retailer_id,retailer_product_group_id,name,review_status";/);
+  assert.match(sync, /review_rejection_reasons,capability_to_review_status/);
   assert.doesNotMatch(sync, /filter: \{ review_status/);
-  assert.match(sync, /catalog_review_statuses: statuses/);
+  assert.match(sync, /catalog_review_statuses: statuses, catalog_rejection_diagnostics: diagnostics/);
   assert.doesNotMatch(sync, /DELETE FROM meta_catalog_feed_exclusions/);
 });
 
 test("the sync reports how many products sit in each review status", () => {
   assert.deepEqual(reviewStatusCounts([{ review_status: "approved" }, { review_status: "REJECTED" }, { review_status: "rejected" }, {}]), { approved: 1, rejected: 2, none: 1 });
+});
+
+// review_status came back empty for every product on the live catalogue, so the other signals
+// Meta uses must each mark an item rejected on their own.
+test("any rejection signal marks the item, and the sync says which signals arrived", async () => {
+  const { isRejectedProduct, rejectionDiagnostics } = await import("../../server/modules/metaAds/metaAdsCatalogRejections.js");
+  assert.equal(isRejectedProduct({ review_rejection_reasons: ["COUNTERFEIT"] }), true);
+  assert.equal(isRejectedProduct({ capability_to_review_status: [{ key: "ADS", value: "REJECTED" }] }), true);
+  assert.equal(isRejectedProduct({ capability_to_review_status: { shops: "rejected" } }), true);
+  assert.equal(isRejectedProduct({ review_status: "", review_rejection_reasons: [], capability_to_review_status: [{ key: "ADS", value: "APPROVED" }] }), false);
+  // errors are reported, never acted on: they include plain warnings.
+  assert.equal(isRejectedProduct({ errors: [{ severity: "warning", title: "Missing gender" }] }), false);
+  const diag = rejectionDiagnostics([{ review_rejection_reasons: ["COUNTERFEIT"], errors: [{ severity: "fatal", title: "Counterfeit" }] }, {}]);
+  assert.deepEqual(diag.signals, { review_status: 0, rejection_reasons: 1, capability: 0 });
+  assert.deepEqual(diag.reasons, { COUNTERFEIT: 1 });
+  assert.deepEqual(diag.errors, { "fatal: Counterfeit": 1 });
 });
