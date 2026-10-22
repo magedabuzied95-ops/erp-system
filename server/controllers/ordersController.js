@@ -7206,9 +7206,23 @@ export const editOrder = async (req, res) => {
       && refundOrCreditDue <= 0.009
       && !isEmployeeAdvanceSettledOrder
       && !isOnlineShippingOrder(loaded.order)
-      ? planEditPaymentMethodChange({ paymentBreakdown: loaded.order.payment_breakdown, requestedMethod: req.body.payment_method })
+      ? planEditPaymentMethodChange({
+          paymentBreakdown: loaded.order.payment_breakdown,
+          requestedMethod: req.body.payment_method,
+          requestedSplit: req.body.payment_split,
+        })
       : null;
-    if (paymentMethodChange && paymentMethodChange.fromMethod === "card" && paymobCardCharge) {
+    if (paymentMethodChange?.error) {
+      await client.query("ROLLBACK");
+      return res.status(400).json({
+        success: false,
+        code: "EDIT_PAYMENT_SPLIT_INVALID",
+        message: paymentMethodChange.error === "SPLIT_TOTAL_MISMATCH"
+          ? `التقسيم الجديد لازم يساوي المدفوع في الفاتورة (${paymentMethodChange.collected}) — المكتوب ${paymentMethodChange.requested}.`
+          : "التقسيم الجديد ينفع بس بين كاش وفيزا وإنستاباي وفودافون كاش.",
+      });
+    }
+    if (paymentMethodChange && paymobCardCharge && paymentMethodChange.moves.some((move) => move.method === "card")) {
       await client.query("ROLLBACK");
       return res.status(400).json({ success: false, message: "دفع الفيزا من ماكينة Paymob مينفعش يتغير لطريقة دفع تانية." });
     }
@@ -7774,9 +7788,12 @@ export const editOrder = async (req, res) => {
       // The money already collected moves from the old rail to the new one, everywhere the
       // sale booked it: the drawer for cash, the mapped money account otherwise, and the
       // settlement account in the journal.
-      const { fromMethod, toMethod, amount: changedAmount } = paymentMethodChange;
-      settlementMetadata.payment_method_change = { from: fromMethod, to: toMethod, amount: changedAmount };
-      const changeNotes = `POS invoice edit payment method ${fromMethod} → ${toMethod} for ${loaded.order.invoice_number || loaded.order.id}`;
+      // A re-split moves several rails at once; each rail's net move is booked on its own.
+      const { moves, amount: changedAmount } = paymentMethodChange;
+      const movedFrom = moves.filter((move) => move.delta < 0).map((move) => move.method).join("+");
+      const movedTo = moves.filter((move) => move.delta > 0).map((move) => move.method).join("+");
+      settlementMetadata.payment_method_change = { from: movedFrom, to: movedTo, amount: changedAmount, moves };
+      const changeNotes = `POS invoice edit payment method ${movedFrom} → ${movedTo} for ${loaded.order.invoice_number || loaded.order.id}`;
       const resolveChangeAccount = async (method) => {
         if (method === "cash") return null;
         const mapped = await resolveFinancialAccountForPayment(client, { tenantId, branchId: settlementBranchId, paymentMethod: method });
@@ -7787,61 +7804,65 @@ export const editOrder = async (req, res) => {
         }
         return mapped.financialAccountId;
       };
-      const fromAccountId = await resolveChangeAccount(fromMethod);
-      const toAccountId = await resolveChangeAccount(toMethod);
-      const sameMoneyAccount = fromAccountId && toAccountId && String(fromAccountId) === String(toAccountId);
-
-      if (fromMethod === "cash" || toMethod === "cash") {
-        // The invoice's own shift if it is still open, else the cashier's open one.
-        const cashEvent = await recordCashDrawerEvent(client, {
+      // Net per money account: two rails mapped to one account (InstaPay and Vodafone Cash
+      // on the same wallet) cancel out instead of booking an out and an in.
+      const accountMoves = new Map();
+      for (const move of moves) {
+        if (move.method === "cash") {
+          // The invoice's own shift if it is still open, else the cashier's open one.
+          const cashEvent = await recordCashDrawerEvent(client, {
+            tenantId,
+            branchId: settlementBranchId,
+            createdBy: req.user?.id || null,
+            shiftId: loaded.order.shift_id || null,
+            eventType: move.delta < 0 ? "cash_out" : "cash_in",
+            sourceType: "order_edit",
+            sourceId: editAuditId,
+            amount: Math.abs(move.delta),
+            requireOpenShift: true,
+          });
+          settlementMetadata.settlement_shift_id = cashEvent?.shift_id || null;
+          continue;
+        }
+        const accountId = await resolveChangeAccount(move.method);
+        const key = String(accountId);
+        const entry = accountMoves.get(key) || { accountId, method: move.method, delta: 0 };
+        entry.delta = Math.round((entry.delta + move.delta) * 100) / 100;
+        if (move.delta > 0) entry.method = move.method;
+        accountMoves.set(key, entry);
+      }
+      for (const entry of accountMoves.values()) {
+        if (Math.abs(entry.delta) <= 0.009) continue;
+        await recordFinancialAccountActivity(client, {
           tenantId,
           branchId: settlementBranchId,
-          createdBy: req.user?.id || null,
-          shiftId: loaded.order.shift_id || null,
-          eventType: fromMethod === "cash" ? "cash_out" : "cash_in",
+          financialAccountId: entry.accountId,
+          paymentMethod: entry.method,
+          entryType: entry.delta < 0 ? "out" : "in",
+          direction: entry.delta < 0 ? -1 : 1,
           sourceType: "order_edit",
           sourceId: editAuditId,
-          amount: changedAmount,
-          requireOpenShift: true,
+          amount: Math.abs(entry.delta),
+          notes: changeNotes,
+          createdBy: req.user?.id || null,
         });
-        settlementMetadata.settlement_shift_id = cashEvent?.shift_id || null;
-      }
-      if (!sameMoneyAccount) {
-        if (fromAccountId) {
-          await recordFinancialAccountActivity(client, {
-            tenantId,
-            branchId: settlementBranchId,
-            financialAccountId: fromAccountId,
-            paymentMethod: fromMethod,
-            entryType: "out",
-            direction: -1,
-            sourceType: "order_edit",
-            sourceId: editAuditId,
-            amount: changedAmount,
-            notes: changeNotes,
-            createdBy: req.user?.id || null,
-          });
-        }
-        if (toAccountId) {
-          await recordFinancialAccountActivity(client, {
-            tenantId,
-            branchId: settlementBranchId,
-            financialAccountId: toAccountId,
-            paymentMethod: toMethod,
-            entryType: "in",
-            direction: 1,
-            sourceType: "order_edit",
-            sourceId: editAuditId,
-            amount: changedAmount,
-            notes: changeNotes,
-            createdBy: req.user?.id || null,
-          });
-        }
       }
 
-      const fromAccountCode = SALE_SETTLEMENT_ACCOUNT_CODES[fromMethod];
-      const toAccountCode = SALE_SETTLEMENT_ACCOUNT_CODES[toMethod];
-      if (fromAccountCode && toAccountCode && fromAccountCode !== toAccountCode) {
+      const journalByCode = new Map();
+      for (const move of moves) {
+        const code = SALE_SETTLEMENT_ACCOUNT_CODES[move.method];
+        if (!code) continue;
+        journalByCode.set(code, Math.round(((journalByCode.get(code) || 0) + move.delta) * 100) / 100);
+      }
+      const journalLines = Array.from(journalByCode)
+        .filter(([, delta]) => Math.abs(delta) > 0.009)
+        .map(([accountCode, delta]) => ({
+          accountCode,
+          debit: delta > 0 ? delta : 0,
+          credit: delta < 0 ? -delta : 0,
+          notes: changeNotes,
+        }));
+      if (journalLines.length >= 2) {
         await createJournalEntry(client, {
           tenantId,
           description: "POS invoice edit payment method change",
@@ -7850,10 +7871,7 @@ export const editOrder = async (req, res) => {
           createdBy: req.user?.id || null,
           branchId: settlementBranchId,
           notes: changeNotes,
-          lines: [
-            { accountCode: toAccountCode, debit: changedAmount, credit: 0, notes: changeNotes },
-            { accountCode: fromAccountCode, debit: 0, credit: changedAmount, notes: changeNotes },
-          ],
+          lines: journalLines,
         });
       }
 

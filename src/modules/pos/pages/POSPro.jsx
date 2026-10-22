@@ -4484,7 +4484,22 @@ function POSPro() {
   const originalEditPaidAmount = editingOrder?.id ? resolveOriginalCollectedAmount(editingOrder) : 0;
   const editAmountDueNow = editingOrder?.id ? Math.max(0, Number(cartTotals.total || 0) - originalEditPaidAmount) : 0;
   const editRefundOrCreditDue = editingOrder?.id ? Math.max(0, originalEditPaidAmount - Number(cartTotals.total || 0)) : 0;
-  const paymentTargetAmount = editingOrder?.id ? editAmountDueNow : Math.max(0, Number(cartTotals.total || 0) - appliedExchangeCredit);
+  // An edit that moves no money but where the cashier types a split is a re-split of what
+  // was already collected ("600 Vodafone Cash + 400 cash, not 500/500"). The split then has
+  // to add up to the collected amount, not to the 0 the edit makes due — against 0 every
+  // typed amount read as an overpayment and the save button stayed disabled (INV-2243).
+  const editSplitEnteredTotal = Number(cashAmount || 0) + Number(cardAmount || 0) + Number(walletAmount || 0) + Number(vodafoneCashAmount || 0);
+  const editResplitActive = Boolean(
+    editingOrder?.id
+    && paymentMode === "split"
+    && editAmountDueNow <= 0.009
+    && editRefundOrCreditDue <= 0.009
+    && originalEditPaidAmount > 0.009
+    && editSplitEnteredTotal > 0.009
+  );
+  const paymentTargetAmount = editingOrder?.id
+    ? (editResplitActive ? originalEditPaidAmount : editAmountDueNow)
+    : Math.max(0, Number(cartTotals.total || 0) - appliedExchangeCredit);
   const amountDueNow = paymentTargetAmount;
   const exchangeDifference = Number((Number(cartTotals.total || 0) - exchangeCreditAmount).toFixed(2));
   const remainingExchangeCustomerCredit = Math.max(0, exchangeCreditAmount - Number(cartTotals.total || 0));
@@ -7152,7 +7167,8 @@ function POSPro() {
             { method: "vodafone_cash", amount: payloadVodafoneCashAmount },
             { method: "customer_wallet", amount: payloadCustomerWalletAmount },
           ].filter((item) => item && Number(item.amount || 0) > 0);
-      const additionalPaymentBreakdown = editingOrder?.id
+      // A re-split collects nothing new: the typed split replaces how the old money is booked.
+      const additionalPaymentBreakdown = editingOrder?.id && !editResplitActive
         ? paymentBreakdown.filter((item) => item.method !== "exchange_credit")
         : [];
       // A Paymob terminal sale arrives with the key minted once for its terminal
@@ -7193,15 +7209,17 @@ function POSPro() {
         tax_rate: 0,
         service_fee: cartTotals.serviceFee,
         total: cartTotals.total,
-        paid_amount: checkoutPaymentSummary.paidAmount,
-        change_amount: checkoutPaymentSummary.changeAmount,
+        paid_amount: editResplitActive ? 0 : checkoutPaymentSummary.paidAmount,
+        change_amount: editResplitActive ? 0 : checkoutPaymentSummary.changeAmount,
         // The Vodafone Cash / InstaPay transfer the cashier confirmed from the till's alert.
         wallet_transfer_id: editingOrder?.id ? null : options?.walletTransferId || null,
         status: checkoutPaymentSummary.paymentStatus,
         // On an edit "collect nothing now" does not mean "nothing was ever collected":
         // whatever the invoice already took stays paid, so the deferred edit is
         // partially paid rather than unpaid.
-        payment_status: creditSaleCheckout
+        payment_status: editResplitActive
+          ? null
+          : creditSaleCheckout
           ? (editActive && originalEditPaidAmount > 0.009 ? "partially_paid" : "unpaid")
           : partialCreditCheckout ? "partially_paid" : checkoutPaymentSummary.paymentStatus,
         branch_id: checkoutBranchId,
@@ -7227,11 +7245,14 @@ function POSPro() {
         change_payment_method: Boolean(
           editActive
           && editSettlementType === "none"
-          && ["cash", "card", "instapay", "vodafone_cash"].includes(paymentMode)
-          && paymentMode !== resolveCollectedPaymentMode({
-            payment_breakdown: editingOrder.original_payment_breakdown ?? editingOrder.originalPaymentBreakdown ?? editingOrder.payment_breakdown ?? editingOrder.paymentBreakdown ?? editingOrder.payments,
-          }, normalizePaymentMethodKey(editingOrder.payment_method || ""))
+          && (editResplitActive || (
+            ["cash", "card", "instapay", "vodafone_cash"].includes(paymentMode)
+            && paymentMode !== resolveCollectedPaymentMode({
+              payment_breakdown: editingOrder.original_payment_breakdown ?? editingOrder.originalPaymentBreakdown ?? editingOrder.payment_breakdown ?? editingOrder.paymentBreakdown ?? editingOrder.payments,
+            }, normalizePaymentMethodKey(editingOrder.payment_method || ""))
+          ))
         ),
+        payment_split: editResplitActive ? paymentBreakdown : null,
         additional_payment_breakdown: additionalPaymentBreakdown,
         exchange_mode: Boolean(exchangeState?.active && !editingOrder?.id),
         original_order_id: !editingOrder?.id ? exchangeState?.originalOrderId || null : null,
