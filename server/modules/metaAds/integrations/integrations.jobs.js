@@ -7,12 +7,19 @@ import { scanCompetitor } from "./competitors.js";
 import { enqueuePurchaseEvents, retryFailedEvents } from "./conversions.js";
 import { TOKEN_INVALID_RE, clip, log, text, warn } from "./integrationsCommon.js";
 
-const refreshInsights = async () => {
+const connectedAccounts = async () => {
   const { rows } = await db.query(
     `SELECT id, tenant_id, last_sync_error FROM meta_ads_accounts
       WHERE COALESCE(user_access_token_encrypted, '') <> '' AND (token_expires_at IS NULL OR token_expires_at > NOW())
       ORDER BY last_synced_at NULLS FIRST, id`,
   );
+  return rows;
+};
+
+// One pass over every connected account; `label` names the job in the log and `days` the
+// insights window (0 = the account's whole history).
+const syncAccounts = async (label, { days, structure }) => {
+  const rows = await connectedAccounts();
   let ok = 0;
   let skipped = 0;
   for (const row of rows) {
@@ -22,18 +29,24 @@ const refreshInsights = async () => {
     }
     try {
       const ctx = await getAccountContext(row.tenant_id, row.id);
-      await syncStructure(ctx);
-      await syncInsights(ctx, { days: 3 });
+      if (structure) await syncStructure(ctx);
+      await syncInsights(ctx, { days });
       await db.query(`UPDATE meta_ads_accounts SET last_synced_at = NOW(), last_sync_error = NULL WHERE tenant_id = $1 AND id = $2`, [row.tenant_id, row.id]);
       ok += 1;
     } catch (error) {
-      warn("job-insights", error, { tenant_id: row.tenant_id, account_id: row.id });
+      warn(label, error, { tenant_id: row.tenant_id, account_id: row.id });
       await db.query(`UPDATE meta_ads_accounts SET last_sync_error = $3 WHERE tenant_id = $1 AND id = $2`, [row.tenant_id, row.id, clip(error?.message, 500)]).catch(() => {});
     }
   }
-  if (rows.length) log("job-insights", { accounts: rows.length, ok, skipped });
+  if (rows.length) log(label, { accounts: rows.length, ok, skipped });
   return { ok, skipped };
 };
+
+// Hourly: the structure (statuses, verdicts) and the last three days, which is where Meta's
+// numbers still move. Daily: the whole history, so a day the hourly pass never saw (a deploy, a
+// token lapse, an account connected later) is filled in rather than left as a hole in the chart.
+const refreshInsights = () => syncAccounts("job-insights", { days: 3, structure: true });
+const backfillInsights = () => syncAccounts("job-insights-backfill", { days: 0, structure: false });
 
 const scanCompetitors = async () => {
   const { rows } = await db.query(
@@ -67,6 +80,7 @@ const runCapi = async () => {
 
 export const jobs = [
   { name: "meta-ads-insights-refresh", everyMinutes: 60, run: refreshInsights },
+  { name: "meta-ads-insights-backfill", everyMinutes: 1440, run: backfillInsights },
   { name: "meta-ads-competitor-scan", everyMinutes: 1440, run: scanCompetitors },
   { name: "meta-ads-capi", everyMinutes: 10, run: runCapi },
 ];

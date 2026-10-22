@@ -23,7 +23,7 @@ const SPEND_COLOR = "var(--ma-blue, #1877f2)";
 const PURCHASES_COLOR = "var(--warning, #d97706)";
 const AXIS_COLOR = "var(--muted, #6b7280)";
 const GRID_COLOR = "var(--border, #e5e7eb)";
-const BREAKDOWNS = ["age", "gender", "platform", "country"];
+const BREAKDOWNS = ["age", "gender", "platform", "placement", "device", "country", "region", "hour"];
 
 const tick = { fontSize: 11, fill: AXIS_COLOR };
 
@@ -68,10 +68,11 @@ export default function ChartsDrawer({ target, accountId, days, currency, onClos
   const emptyText = t("metaAdsManager.charts.empty");
   const moneyTip = (value, name) => (name === spendLabel ? formatMoney(value, currency, locale) : Number(value).toLocaleString(locale));
   const points = series.points.map((point) => ({ ...point, label: String(point.date).slice(5) }));
-  const splitRows = split.rows.map((row) => ({
-    ...row,
-    label: t(`metaAdsManager.charts.values.${row.key}`, { defaultValue: row.key }),
-  }));
+  // "instagram / instagram_reels" labels each part; an hour sorts by the clock, not by spend.
+  const valueLabel = (key) => String(key).split(" / ").map((part) => t(`metaAdsManager.charts.values.${part}`, { defaultValue: part })).join(" / ");
+  const splitRows = split.rows
+    .map((row) => ({ ...row, label: breakdown === "hour" ? row.key : valueLabel(row.key) }))
+    .sort((a, b) => (breakdown === "hour" ? String(a.key).localeCompare(String(b.key)) : 0));
 
   return (
     <div className="ma-charts">

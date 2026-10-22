@@ -3,7 +3,7 @@
 // Every query is tenant-scoped; nothing here ever selects a token column.
 
 import db from "../../../../database/db.js";
-import { metaAdsCatalog } from "../../metaAdsCatalog.js";
+import { BREAKDOWNS, metaAdsCatalog } from "../../metaAdsCatalog.js";
 import { getAccountContext, httpError, listAccounts, syncBreakdown, text } from "../../metaAdsCore.js";
 import { adReviewUrl, rejectionSummary } from "../../metaAdsReview.js";
 
@@ -227,7 +227,7 @@ export const loadSeries = async (tenantId, { accountId, level, id, days }) => {
   };
 };
 
-const BREAKDOWN_KEYS = ["age", "gender", "platform", "country"];
+const BREAKDOWN_KEYS = Object.keys(BREAKDOWNS);
 
 export const loadBreakdown = async (tenantId, { level, id, breakdown, days }) => {
   if (!BREAKDOWN_KEYS.includes(breakdown)) throw httpError(400, "Unknown breakdown");

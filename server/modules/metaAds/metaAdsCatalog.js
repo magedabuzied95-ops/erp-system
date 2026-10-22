@@ -164,7 +164,28 @@ export const PLACEMENT_TREE = [
   },
 ];
 
-export const BREAKDOWNS = { age: "age", gender: "gender", platform: "publisher_platform", country: "country" };
+// Each chart breakdown → the Graph `breakdowns` fields it needs. A composite one (placement =
+// platform + position) is stored as "instagram / instagram_reels" so one column holds every kind.
+export const BREAKDOWNS = {
+  age: ["age"],
+  gender: ["gender"],
+  platform: ["publisher_platform"],
+  placement: ["publisher_platform", "platform_position"],
+  device: ["device_platform"],
+  country: ["country"],
+  region: ["region"],
+  hour: ["hourly_stats_aggregated_by_advertiser_time_zone"],
+};
+
+const cleanText = (value) => (value === undefined || value === null ? "" : String(value).trim());
+
+export const breakdownValueOf = (row = {}, breakdown = "") => {
+  const fields = BREAKDOWNS[breakdown] || [];
+  const parts = fields.map((field) => cleanText(row[field])).filter(Boolean);
+  // Meta labels an hour "00:00:00 - 00:59:59"; the chart wants "00:00".
+  if (breakdown === "hour" && parts[0]) return parts[0].slice(0, 5);
+  return parts.join(" / ") || "unknown";
+};
 
 // EU/EEA: ad sets targeting these need the DSA beneficiary/payer fields.
 export const EU_COUNTRIES = ["AT", "BE", "BG", "HR", "CY", "CZ", "DK", "EE", "FI", "FR", "DE", "GR", "HU", "IE", "IT", "LV", "LT", "LU", "MT", "NL", "PL", "PT", "RO", "SK", "SI", "ES", "SE", "IS", "LI", "NO"];

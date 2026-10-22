@@ -13,7 +13,7 @@ import {
   graphGet,
   graphGetAll,
 } from "./metaAdsGraph.js";
-import { BREAKDOWNS, RESULT_ACTION_BY_GOAL } from "./metaAdsCatalog.js";
+import { BREAKDOWNS, RESULT_ACTION_BY_GOAL, breakdownValueOf } from "./metaAdsCatalog.js";
 import { INSIGHT_ATTRIBUTION_WINDOWS, funnelFromInsightRow } from "./metaAdsFunnel.js";
 
 export const text = (value) => (value === undefined || value === null ? "" : String(value).trim());
@@ -329,15 +329,21 @@ export const syncInsights = async (ctx, { days = 30, levels = ["campaign", "adse
   const { account } = ctx;
   const tenantId = account.tenant_id;
   const goals = await goalByObject(tenantId, account.id);
-  const until = new Date();
-  const since = new Date(until.getTime() - Math.max(1, days) * 86400000);
-  const timeRange = { since: since.toISOString().slice(0, 10), until: until.toISOString().slice(0, 10) };
+  // days = 0 → the account's whole history (Meta serves up to 37 months), one row per day, so
+  // a day the hourly job never covered is filled in rather than left as a hole in the chart.
+  const window = days > 0
+    ? (() => {
+      const until = new Date();
+      const since = new Date(until.getTime() - days * 86400000);
+      return { time_range: { since: since.toISOString().slice(0, 10), until: until.toISOString().slice(0, 10) } };
+    })()
+    : { date_preset: "maximum" };
   let written = 0;
   for (const level of levels) {
     const rows = await graphGetAll(`/${ctx.actId}/insights`, token, {
       level,
       fields: INSIGHT_FIELDS,
-      time_range: timeRange,
+      ...window,
       time_increment: 1,
       action_attribution_windows: INSIGHT_ATTRIBUTION_WINDOWS,
     }, { limit: 20000 });
@@ -376,9 +382,9 @@ export const syncInsights = async (ctx, { days = 30, levels = ["campaign", "adse
 // Breakdown for one object (charts drawer). range_days 0 = lifetime.
 export const syncBreakdown = async (ctx, { level, objectMetaId, breakdown, rangeDays = 30 }) => {
   const token = requireToken(ctx);
-  const apiBreakdown = BREAKDOWNS[breakdown];
-  if (!apiBreakdown) throw httpError(400, "Unknown breakdown");
-  const params = { fields: "impressions,reach,clicks,spend,actions,action_values", breakdowns: apiBreakdown };
+  const apiFields = BREAKDOWNS[breakdown];
+  if (!apiFields) throw httpError(400, "Unknown breakdown");
+  const params = { fields: "impressions,reach,clicks,spend,actions,action_values", breakdowns: apiFields.join(",") };
   if (rangeDays > 0) {
     const until = new Date();
     const since = new Date(until.getTime() - rangeDays * 86400000);
@@ -393,7 +399,7 @@ export const syncBreakdown = async (ctx, { level, objectMetaId, breakdown, range
     [tenantId, level, objectMetaId, breakdown, rangeDays],
   );
   for (const row of rows) {
-    const value = text(row[apiBreakdown]) || "unknown";
+    const value = breakdownValueOf(row, breakdown);
     const result = resultFromActions(row.actions);
     const funnel = funnelFromInsightRow(row);
     await db.query(
