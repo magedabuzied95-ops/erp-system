@@ -105,8 +105,9 @@ export const validateAd = (node, { campaignSpec, adsetSpec, account = {}, catalo
     add("media", "mediaRequired");
   }
 
-  if (blank(spec.primary_text)) add("primary_text", "primaryTextRequired");
-  else if (String(spec.primary_text).length > 2200) add("primary_text", "primaryTextTooLong");
+  // A catalog ad's cards carry the product's own text, so the primary text is optional there.
+  if (blank(spec.primary_text) && !isCatalogAd(spec, adset)) add("primary_text", "primaryTextRequired");
+  else if (String(spec.primary_text || "").length > 2200) add("primary_text", "primaryTextTooLong");
   if (String(spec.headline || "").length > 255) add("headline", "headlineTooLong");
 
   if (adNeedsWebsite(destination)) {

@@ -149,7 +149,9 @@ export const adsetSpecFromRow = (row, campaignSpec) => {
   if (!isEmptySpec(row.spec)) return withDefaults("adset", row.spec);
   const objective = campaignSpec?.objective || "";
   const location = locationsFor(objective, catalog).find((item) => item.destination === row.destination_type)
-    || (objective === "OUTCOME_ENGAGEMENT" && row.destination_type === "ON_POST" ? { code: "ON_AD" } : null);
+    || (objective === "OUTCOME_ENGAGEMENT" && row.destination_type === "ON_POST" ? { code: "ON_AD" } : null)
+    // A catalog ad set (synced from Meta) carries no destination_type; its products open on the website.
+    || (text(row.promoted_object?.product_set_id) ? { code: "WEBSITE" } : null);
   const lifetime = Number(row.lifetime_budget) > 0;
   return withDefaults("adset", {
     name: row.name || "",

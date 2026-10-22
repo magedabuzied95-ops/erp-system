@@ -113,3 +113,15 @@ test("sync, drafts and publisher carry the catalog fields", () => {
   const bootstrap = read("../../server/modules/metaAds/manager/list/managerData.js");
   assert.match(bootstrap, /product_sets: group\(productSets\.rows/);
 });
+
+// Opening the shop's own synced catalog ad raised two false issues: "enter the primary text"
+// (Meta's cards carry the product's text) and "choose a conversion location" (Meta sends no
+// destination_type on a catalog ad set).
+test("a synced catalog ad set and its ad open without false issues", () => {
+  const catalog = { conversion_locations: {}, optimization_goals: [] };
+  const node = { key: "ad-1", spec: { name: "A", primary_text: "", link: "https://m1store-egy.com/" } };
+  const issues = validateAd(node, { campaignSpec: { objective: "OUTCOME_SALES", product_catalog_id: "55" }, adsetSpec: { product_set_id: "7788" }, account: { page_id: "100" }, catalog });
+  assert.deepEqual(issues.map((issue) => issue.key), []);
+  const drafts = read("../../server/modules/metaAds/manager/wizard/wizardDrafts.js");
+  assert.match(drafts, /text\(row\.promoted_object\?\.product_set_id\) \? \{ code: "WEBSITE" \}/);
+});
