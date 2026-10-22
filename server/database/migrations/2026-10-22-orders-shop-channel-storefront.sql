@@ -1,0 +1,12 @@
+-- The shop is one order channel (2026-10-22).
+--
+-- The storefront has always written orders.channel = 'storefront', while the orders screen
+-- wrote 'website' whenever staff picked الموقع when editing an order. Channel reports therefore
+-- showed the shop twice (57 storefront + 10 website orders for Aug–Oct 2026). From this change
+-- every writer goes through canonicalOrderChannel() in server/utils/publicOrderNumber.js, which
+-- folds website / web / online into 'storefront'. `orders.source` keeps its own vocabulary
+-- ('website' is what coupons, loyalty and the portal read) and is not touched.
+--
+-- Data only, idempotent. ensurePosShiftOrderColumnsNow() in ordersController.js runs the same
+-- statement once per boot (the house pattern), so this file is the record rather than the gate.
+UPDATE orders SET channel = 'storefront' WHERE LOWER(COALESCE(channel, '')) IN ('website', 'web', 'online');

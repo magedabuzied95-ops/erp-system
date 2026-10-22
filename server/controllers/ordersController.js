@@ -44,7 +44,7 @@ import {
   buildDerivedInvoiceNumber,
   buildTemporaryInvoiceNumber,
 } from "../utils/invoiceNumber.js";
-import { attachPublicOrderNumber } from "../utils/publicOrderNumber.js";
+import { attachPublicOrderNumber, canonicalOrderChannel, isShopOrderChannel } from "../utils/publicOrderNumber.js";
 import { buildBulkOrderItemInsertQuery, buildOrderItemInsertQuery, enrichOrderItemsInsertError } from "../utils/orderItemInsert.js";
 import { canOverridePosDiscount, canOverridePosSeller, ensurePosUserShiftSchema, resolvePosBranch } from "./posController.js";
 import {
@@ -747,6 +747,9 @@ const ensurePosShiftOrderColumnsNow = async (client, tenantId = null) => {
   await client.query(`ALTER TABLE IF EXISTS orders ADD COLUMN IF NOT EXISTS coupon_discount_amount NUMERIC(12,2) NOT NULL DEFAULT 0`);
   await client.query(`CREATE INDEX IF NOT EXISTS idx_orders_public_order_number ON orders (public_order_number)`);
   await client.query(`CREATE INDEX IF NOT EXISTS idx_orders_display_order_number ON orders (display_order_number)`);
+  // The shop is ONE channel (see canonicalOrderChannel): rows the orders screen once saved as
+  // "website" join the storefront's "storefront". Runs once per boot and is a no-op afterwards.
+  await client.query(`UPDATE orders SET channel = 'storefront' WHERE LOWER(COALESCE(channel, '')) IN ('website', 'web', 'online')`);
 
   await client.query(`ALTER TABLE IF EXISTS order_items ADD COLUMN IF NOT EXISTS tenant_id BIGINT`);
   await client.query(`ALTER TABLE IF EXISTS order_items ADD COLUMN IF NOT EXISTS product_id BIGINT`);
@@ -1150,7 +1153,7 @@ const normalizeCreateOrderPayload = (body = {}) => {
     customer_phone: firstValue(body.customer_phone, body.customerPhone) || "",
     payment_method: firstValue(body.payment_method, body.paymentMethod) || "cash",
     payment_status: firstValue(body.payment_status, body.paymentStatus) || body.status || "paid",
-    channel: firstValue(body.channel, body.order_type, body.orderType, body.source) || "pos",
+    channel: canonicalOrderChannel(firstValue(body.channel, body.order_type, body.orderType, body.source)) || "pos",
     branch_id: firstValue(body.branch_id, body.branchId) || null,
     warehouse_id: firstValue(body.warehouse_id, body.warehouseId) || null,
     seller_user_id: firstValue(body.seller_user_id, body.sellerUserId) || null,
@@ -3540,7 +3543,7 @@ export const createOrder = async (req, res) => {
         shippingAmount: totalServiceFee,
         items,
         appliedDiscounts: { loyalty: verifiedLoyaltyDiscount, invoice: normalizedInvoiceDiscountAmount },
-        source: channel === "website" ? "website" : "pos",
+        source: isShopOrderChannel(channel) ? "website" : "pos",
         customerId: resolvedCustomerId,
         client,
         lock: true,
@@ -4241,7 +4244,7 @@ export const createOrder = async (req, res) => {
           code: safeCouponCode,
           orderId: order.id,
           customerId: resolvedCustomerId || order.customer_id || null,
-          source: channel === "website" ? "website" : "pos",
+          source: isShopOrderChannel(channel) ? "website" : "pos",
           orderTotal: couponBaseTotal,
         shippingAmount: totalServiceFee,
         items,
@@ -6804,7 +6807,7 @@ export const editOrder = async (req, res) => {
         status: Object.prototype.hasOwnProperty.call(req.body, "status") ? resolveEditedOrderStatus(req.body.status) || loaded.order.status : loaded.order.status,
         payment_status: Object.prototype.hasOwnProperty.call(req.body, "payment_status") ? String(req.body.payment_status || "").trim() || loaded.order.payment_status : loaded.order.payment_status,
         source: Object.prototype.hasOwnProperty.call(req.body, "source") ? String(req.body.source || "").trim() || loaded.order.source || loaded.order.channel : loaded.order.source,
-        channel: Object.prototype.hasOwnProperty.call(req.body, "channel") ? String(req.body.channel || "").trim() || loaded.order.channel || loaded.order.source : loaded.order.channel,
+        channel: canonicalOrderChannel(Object.prototype.hasOwnProperty.call(req.body, "channel") ? String(req.body.channel || "").trim() || loaded.order.channel || loaded.order.source : loaded.order.channel),
         branch_id: Object.prototype.hasOwnProperty.call(req.body, "branch_id") && req.body.branch_id !== "" ? req.body.branch_id : loaded.order.branch_id,
         shipping_status: Object.prototype.hasOwnProperty.call(req.body, "shipping_status") ? normalizeShipmentStatus(req.body.shipping_status || loaded.order.shipment_status || loaded.order.shipping_status) : normalizeShipmentStatus(loaded.order.shipment_status || loaded.order.shipping_status),
         notes: Object.prototype.hasOwnProperty.call(req.body, "notes") ? String(req.body.notes || "").trim() : loaded.order.notes,
@@ -7100,7 +7103,7 @@ export const editOrder = async (req, res) => {
         shippingAmount: serviceValue,
         items: newItems,
         appliedDiscounts: { invoice: invoiceDiscountAmount },
-        source: String(loaded.order.channel || "").toLowerCase() === "website" ? "website" : "pos",
+        source: isShopOrderChannel(loaded.order.channel) ? "website" : "pos",
         customerId: loaded.order.customer_id || null,
         excludeOrderId: loaded.order.id,
         client,
@@ -7422,7 +7425,7 @@ export const editOrder = async (req, res) => {
         String(req.body.notes || "").trim() || null,
         loaded.order.id,
         req.body.source || null,
-        req.body.channel || req.body.source || null,
+        canonicalOrderChannel(req.body.channel || req.body.source) || null,
         req.body.branch_id || null,
         JSON.stringify(editPaymentBreakdown),
         originalPaidAmount,

@@ -16,6 +16,18 @@ const CHANNEL_PREFIXES = {
 
 const cleanText = (value = "") => String(value ?? "").trim();
 
+// One name for the shop's own channel. The storefront writes "storefront", while the orders
+// screen wrote "website" whenever staff picked الموقع, so channel reports counted the shop as
+// two channels (57 storefront + 10 website in Aug–Oct 2026). Every writer goes through here;
+// `source` keeps its own vocabulary ("website" is what coupons and the portal read).
+const SHOP_CHANNEL_ALIASES = new Set(["storefront", "website", "web", "online"]);
+export const SHOP_ORDER_CHANNEL = "storefront";
+export const canonicalOrderChannel = (value = "") => {
+  const trimmed = cleanText(value);
+  return SHOP_CHANNEL_ALIASES.has(trimmed.toLowerCase()) ? SHOP_ORDER_CHANNEL : trimmed;
+};
+export const isShopOrderChannel = (value = "") => canonicalOrderChannel(value) === SHOP_ORDER_CHANNEL;
+
 export const publicOrderPrefixForChannel = (channel = "") => {
   const normalized = cleanText(channel).toLowerCase().replace(/[^a-z0-9]+/g, "_");
   return CHANNEL_PREFIXES[normalized] || CHANNEL_PREFIXES[normalized.replace(/_chat$/, "")] || "WEB";
