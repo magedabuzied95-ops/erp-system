@@ -18,12 +18,23 @@ const fakeClient = {
     calls.queries.push(sql);
     if (/FROM cash_drawer_shifts/.test(sql)) return { rows: params[0] === 31 ? [{ id: 31, branch_id: 1 }] : [] };
     if (/SELECT \* FROM orders WHERE id = ANY/.test(sql)) return { rows: orders.filter((row) => params[0].includes(row.id)) };
+    // The backlog path: lock one order, mark it delivered, collect.
+    if (/SELECT \* FROM orders WHERE id = \$1 AND/.test(sql)) return { rows: orders.filter((row) => row.id === Number(params[0])) };
+    if (/UPDATE orders SET\s+status =/.test(sql)) return { rows: [{ ...orders.find((row) => row.id === params[0]), shipping_status: "delivered", shipping_provider: "local_courier" }] };
     if (/INSERT INTO courier_settlements/.test(sql)) return { rows: [{ id: 77, gross_amount: params[4], fees_amount: params[5], net_amount: params[6], payment_breakdown: JSON.parse(params[11]) }] };
     return { rows: [], rowCount: 1 };
   },
   release: () => {},
 };
-const fakeDb = { query: async (sql) => (/FROM local_courier_settings/.test(sql) ? { rows: [{ courier_name: "Ahmed", courier_phone: "", fee_per_order: 20 }] } : { rows: [] }), connect: async () => fakeClient };
+const fakeDb = {
+  query: async (sql) => {
+    if (/FROM local_courier_settings/.test(sql)) return { rows: [{ courier_name: "Ahmed", courier_phone: "", fee_per_order: 20 }] };
+    // The sweep: delivered courier parcels that carry an exchange.
+    if (/ai_agent_metadata::text LIKE/.test(sql)) return { rows: [{ id: 2228, tenant_id: 1 }, { id: 2240, tenant_id: 1 }] };
+    return { rows: [] };
+  },
+  connect: async () => fakeClient,
+};
 
 // Real modules first, so each mock keeps every export the import graph needs.
 const realAccounting = await import("../../server/services/accountingService.js");
@@ -49,7 +60,7 @@ mock.module("../../server/modules/shipping/shipping.costs.service.js", {
   },
 });
 
-const { createLocalCourierSettlement } = await import("../../server/modules/shipping/localCourier.js");
+const { createLocalCourierSettlement, deps, markLocalCourierBacklogDelivered, settleDeliveredLocalExchanges } = await import("../../server/modules/shipping/localCourier.js");
 
 const reset = () => { calls.drawer = []; calls.accounts = []; calls.expenses = []; calls.queries = []; };
 
@@ -101,4 +112,22 @@ test("New Damietta: his fee is the customer's shipping passed through, so it nev
   const mixed = await createLocalCourierSettlement({ tenantId: 1, orderIds: [2301, 2303], shiftId: 31, feesAmount: 90, createdBy: 4 });
   assert.equal(mixed.fees_expensed, 45, "only the old-Damietta order's share is an expense");
   assert.equal(calls.expenses[0].amount, 45);
+});
+
+test("closing an exchange parcel from the old-orders list puts the returned piece back on the shelf", async () => {
+  reset();
+  const settled = [];
+  deps.settleExchange = async (order) => { settled.push(order?.id); return { restocked: true }; };
+  orders.push({ id: 2228, public_order_number: "INV-2228", status: "ready_to_ship", shipping_provider: "local_courier", shipping_status: "ready_to_ship", total_amount: 1100, paid_amount: 1100, cod_amount: 0, courier_collected_at: null, courier_settlement_id: null });
+  const result = await markLocalCourierBacklogDelivered({ tenantId: 1, orderIds: [2228] });
+  assert.deepEqual(result.applied.map((row) => row.order_id), [2228]);
+  assert.deepEqual(settled, [2228]);
+});
+
+test("the sweep restocks every delivered exchange parcel still owed its piece, and repeats safely", async () => {
+  const seen = [];
+  deps.settleExchange = async (order) => { seen.push(order.id); return order.id === 2228 ? { restocked: true } : { restocked: false, reason: "already_received" }; };
+  const sweep = await settleDeliveredLocalExchanges({ tenantId: 1 });
+  assert.deepEqual(seen, [2228, 2240]);
+  assert.deepEqual(sweep.restocked, [2228]);
 });

@@ -52,6 +52,11 @@ export const isNewDamiettaOrder = (order = {}) => {
   return haystack.includes("دمياط الجديد") || haystack.includes("new damietta") || haystack.includes("new dumyat");
 };
 
+// Imported lazily: shipping.service.js imports half the shipping module.
+export const deps = {
+  settleExchange: async (order, options) => (await import("./shipping.service.js")).settleExchangeReturnOnDelivery(order, options),
+};
+
 // Why this order cannot go with the shop's courier, or "" when it can.
 export const localCourierBlockReason = (order = {}) => {
   if (!order?.id) return "order_not_found";
@@ -216,8 +221,7 @@ const afterDelivered = (order) => {
   void Promise.resolve(sendShipmentNotificationForStatus(order, "delivered"))
     .catch((error) => console.warn("[local-courier] delivered notice failed", { orderId: order?.id, message: error?.message }));
   void syncDeliveryOrderFavorite({ tenantId: order?.tenant_id, order, source: "local_courier:delivered" });
-  void import("./shipping.service.js")
-    .then((module) => module.settleExchangeReturnOnDelivery(order, { source: "local_courier" }))
+  void deps.settleExchange(order, { source: "local_courier" })
     .catch((error) => console.warn("[local-courier] exchange restock failed", { orderId: order?.id, message: error?.message }));
 };
 
@@ -340,8 +344,39 @@ export const markLocalCourierBacklogDelivered = async ({ tenantId = null, orderI
     client.release();
   }
   // No "تم تسليم طلبك" for these: they arrived days ago, the message would be news to nobody.
-  for (const row of applied) void syncDeliveryOrderFavorite({ tenantId: row.order?.tenant_id, order: row.order, source: "local_courier:backlog" });
+  // But an exchange parcel still brings the old piece back: that restock is due now
+  // (INV-2228, 2026-10-23: closed from this list, the returned 43 never reached the shelf).
+  for (const row of applied) {
+    void syncDeliveryOrderFavorite({ tenantId: row.order?.tenant_id, order: row.order, source: "local_courier:backlog" });
+    await deps.settleExchange(row.order, { source: "local_courier" })
+      .catch((error) => console.warn("[local-courier] exchange restock failed", { orderId: row.order_id, message: error?.message }));
+  }
   return { applied: applied.map(({ order_id, collected }) => ({ order_id, collected })), skipped };
+};
+
+// Exchange parcels the courier delivered whose old piece is still waiting to be restocked —
+// closed before the backlog list did it, or a restock that failed. Safe to repeat: the return
+// row records that it was received, so a second pass restocks nothing.
+export const settleDeliveredLocalExchanges = async ({ tenantId = null } = {}) => {
+  const params = [];
+  const where = [
+    `LOWER(COALESCE(o.shipping_provider, o.shipping_provider_id, '')) = '${LOCAL_COURIER_PROVIDER}'`,
+    `LOWER(COALESCE(o.shipment_status, o.shipping_status, '')) = 'delivered'`,
+    `o.ai_agent_metadata::text LIKE '%return_id%'`,
+    "o.cancelled_at IS NULL",
+  ];
+  if (tenantId !== null && tenantId !== undefined) {
+    params.push(Number(tenantId));
+    where.push(`(o.tenant_id = $${params.length} OR o.tenant_id IS NULL)`);
+  }
+  const candidates = (await db.query(`SELECT o.* FROM orders o WHERE ${where.join(" AND ")} ORDER BY o.id DESC LIMIT 200`, params)).rows;
+  const restocked = [];
+  for (const order of candidates) {
+    const outcome = await deps.settleExchange(order, { source: "local_courier" })
+      .catch((error) => ({ restocked: false, reason: error?.message || "failed" }));
+    if (outcome?.restocked) restocked.push(order.id);
+  }
+  return { checked: candidates.length, restocked };
 };
 
 // ---------------------------------------------------------------------------

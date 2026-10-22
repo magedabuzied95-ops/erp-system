@@ -9,6 +9,7 @@ import {
   markLocalCourierDelivered,
   markLocalCourierReturned,
   saveLocalCourierSettings,
+  settleDeliveredLocalExchanges,
 } from "./localCourier.js";
 
 const sendError = (res, error) => {
@@ -67,8 +68,12 @@ export const localCourierOrderActionController = async (req, res) => {
 
 export const listLocalCourierBacklogController = async (req, res) => {
   try {
-    const rows = await listLocalCourierBacklog({ tenantId: tenantOf(req), limit: req.query.limit });
-    res.json({ success: true, rows });
+    const tenantId = tenantOf(req);
+    // Opening the tab also puts back any exchange piece a delivered parcel is still owed.
+    const exchanges = await settleDeliveredLocalExchanges({ tenantId })
+      .catch((error) => ({ error: error?.message || "failed", restocked: [] }));
+    const rows = await listLocalCourierBacklog({ tenantId, limit: req.query.limit });
+    res.json({ success: true, rows, exchanges_restocked: exchanges.restocked || [] });
   } catch (error) {
     sendError(res, error);
   }
