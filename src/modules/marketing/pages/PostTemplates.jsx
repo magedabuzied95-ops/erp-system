@@ -145,7 +145,7 @@ export default function PostTemplates() {
     <div className="min-h-full bg-[var(--card)] text-[var(--text)]">
       <div className="mx-auto flex w-full flex-col gap-6 px-4 py-6 md:px-6 lg:px-8">
         <MarketingStudioHeader />
-        <section className="rounded-[var(--radius-card)] border border-amber-300/20 bg-[var(--card)] p-5 shadow-[var(--shadow-card)]">
+        <section className="rounded-[var(--radius-card)] border border-amber-300/20 bg-[var(--card)] p-3 shadow-[var(--shadow-card)] sm:p-5">
           <div className="flex flex-col gap-4 lg:flex-row lg:items-end lg:justify-between">
             <div className="space-y-2">
               <h1 className="m1-display">{t("marketing.templates.title")}</h1>
@@ -165,7 +165,7 @@ export default function PostTemplates() {
           </div>
         </section>
 
-        <section className="rounded-[var(--radius-card)] border border-[var(--border)] bg-[var(--surface)] p-5 shadow-[var(--shadow-card)]">
+        <section className="rounded-[var(--radius-card)] border border-[var(--border)] bg-[var(--surface)] p-3 shadow-[var(--shadow-card)] sm:p-5">
           <div className="mb-5 flex items-center justify-between gap-3">
             <div>
               <h2 className="m1-section-title text-[var(--text)]">{t("marketing.templates.curatedCards")}</h2>
@@ -210,7 +210,7 @@ export default function PostTemplates() {
 
         {error ? <div className="rounded-2xl border border-rose-500/20 bg-rose-500/10 p-4 text-sm text-rose-100">{error}</div> : null}
 
-        <section className="rounded-[var(--radius-card)] border border-[var(--border)] bg-[var(--surface)] p-5 shadow-[var(--shadow-card)]">
+        <section className="rounded-[var(--radius-card)] border border-[var(--border)] bg-[var(--surface)] p-3 shadow-[var(--shadow-card)] sm:p-5">
           <div className="mb-4 flex items-center justify-between gap-3">
             <div>
               <div className="text-xs font-semibold uppercase tracking-[0.22em] text-[var(--muted)]">{t("marketing.templates.savedTemplates")}</div>

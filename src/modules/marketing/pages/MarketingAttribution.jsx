@@ -117,7 +117,7 @@ export default function MarketingAttribution() {
   return (
     <div className="min-h-full w-full overflow-x-hidden bg-[var(--bg)] text-[var(--text)]">
       <div className="mx-auto flex w-full flex-col gap-6 px-4 py-6 md:px-6 lg:px-8">
-        <section className="rounded-[var(--radius-card)] border border-[var(--border)] bg-[var(--card)] p-5 shadow-[var(--shadow-card)]">
+        <section className="rounded-[var(--radius-card)] border border-[var(--border)] bg-[var(--card)] p-3 shadow-[var(--shadow-card)] sm:p-5">
           <div className="flex flex-col gap-4 lg:flex-row lg:items-end lg:justify-between">
             <div className="space-y-2">
               <div className="inline-flex items-center gap-2 rounded-full border border-primary/20 bg-primary/10 px-3 py-1 text-xs font-semibold uppercase tracking-[0.22em] text-primary">
@@ -159,7 +159,7 @@ export default function MarketingAttribution() {
           <MarketingMetricCard label={t("marketing.analytics.attribution.metrics.conversionRate")} value={loading ? "-" : formatPercent(summary.conversion_rate)} tone="rose" icon={<RefreshCw className="h-5 w-5" />} />
         </section>
 
-        <section className="rounded-[var(--radius-card)] border border-[var(--border)] bg-[var(--surface)] p-5 shadow-[var(--shadow-card)]">
+        <section className="rounded-[var(--radius-card)] border border-[var(--border)] bg-[var(--surface)] p-3 shadow-[var(--shadow-card)] sm:p-5">
           <div className="grid gap-4 md:grid-cols-3">
             <label className="space-y-2">
               <span className="text-xs font-semibold uppercase tracking-[0.18em] text-[var(--muted)]">{t("marketing.social.platform")}</span>
@@ -207,7 +207,7 @@ export default function MarketingAttribution() {
         </section>
 
         <section className="grid gap-4 xl:grid-cols-2">
-          <div className="rounded-[var(--radius-card)] border border-[var(--border)] bg-[var(--surface)] p-5 shadow-[var(--shadow-card)]">
+          <div className="rounded-[var(--radius-card)] border border-[var(--border)] bg-[var(--surface)] p-3 shadow-[var(--shadow-card)] sm:p-5">
             <h2 className="m1-section-title text-[var(--text)]">{t("marketing.analytics.funnel.title")}</h2>
             <div className="mt-4 h-72">
               <ResponsiveContainer width="100%" height="100%">
@@ -224,7 +224,7 @@ export default function MarketingAttribution() {
             </div>
           </div>
 
-          <div className="rounded-[var(--radius-card)] border border-[var(--border)] bg-[var(--surface)] p-5 shadow-[var(--shadow-card)]">
+          <div className="rounded-[var(--radius-card)] border border-[var(--border)] bg-[var(--surface)] p-3 shadow-[var(--shadow-card)] sm:p-5">
             <h2 className="m1-section-title text-[var(--text)]">{t("marketing.analytics.salesOverTime")}</h2>
             <div className="mt-4 h-72">
               <ResponsiveContainer width="100%" height="100%">
@@ -241,7 +241,7 @@ export default function MarketingAttribution() {
         </section>
 
         <section className="grid gap-4 xl:grid-cols-2">
-          <div className="rounded-[var(--radius-card)] border border-[var(--border)] bg-[var(--surface)] p-5 shadow-[var(--shadow-card)]">
+          <div className="rounded-[var(--radius-card)] border border-[var(--border)] bg-[var(--surface)] p-3 shadow-[var(--shadow-card)] sm:p-5">
             <h2 className="m1-section-title text-[var(--text)]">{t("marketing.analytics.platformComparison")}</h2>
             <div className="mt-4 h-72">
               <ResponsiveContainer width="100%" height="100%">
@@ -257,7 +257,7 @@ export default function MarketingAttribution() {
             </div>
           </div>
 
-          <div className="rounded-[var(--radius-card)] border border-[var(--border)] bg-[var(--surface)] p-5 shadow-[var(--shadow-card)]">
+          <div className="rounded-[var(--radius-card)] border border-[var(--border)] bg-[var(--surface)] p-3 shadow-[var(--shadow-card)] sm:p-5">
             <h2 className="m1-section-title text-[var(--text)]">{t("marketing.analytics.storyVsPost")}</h2>
             <div className="mt-4 h-72">
               <ResponsiveContainer width="100%" height="100%">
@@ -274,7 +274,7 @@ export default function MarketingAttribution() {
         </section>
 
         <section className="grid gap-4 xl:grid-cols-[minmax(0,1.4fr)_minmax(0,0.9fr)]">
-          <div className="rounded-[var(--radius-card)] border border-[var(--border)] bg-[var(--surface)] p-5 shadow-[var(--shadow-card)]">
+          <div className="rounded-[var(--radius-card)] border border-[var(--border)] bg-[var(--surface)] p-3 shadow-[var(--shadow-card)] sm:p-5">
             <div className="mb-4">
               <h2 className="m1-section-title text-[var(--text)]">{t("marketing.analytics.attribution.topPostsBySales")}</h2>
             </div>
@@ -320,7 +320,7 @@ export default function MarketingAttribution() {
           </div>
 
           <div className="space-y-4">
-            <div className="rounded-[var(--radius-card)] border border-[var(--border)] bg-[var(--surface)] p-5 shadow-[var(--shadow-card)]">
+            <div className="rounded-[var(--radius-card)] border border-[var(--border)] bg-[var(--surface)] p-3 shadow-[var(--shadow-card)] sm:p-5">
               <h2 className="m1-section-title text-[var(--text)]">{t("marketing.analytics.attribution.topCampaigns")}</h2>
               <div className="mt-4 space-y-3">
                 {topCampaigns.length === 0 ? (
@@ -340,7 +340,7 @@ export default function MarketingAttribution() {
               </div>
             </div>
 
-            <div className="rounded-[var(--radius-card)] border border-[var(--border)] bg-[var(--surface)] p-5 shadow-[var(--shadow-card)]">
+            <div className="rounded-[var(--radius-card)] border border-[var(--border)] bg-[var(--surface)] p-3 shadow-[var(--shadow-card)] sm:p-5">
               <h2 className="m1-section-title text-[var(--text)]">{t("marketing.analytics.attribution.revenuePerPlatform")}</h2>
               <div className="mt-4 space-y-3">
                 {platformComparison.length === 0 ? (

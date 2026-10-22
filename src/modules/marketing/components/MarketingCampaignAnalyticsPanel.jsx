@@ -635,12 +635,12 @@ export default function MarketingCampaignAnalyticsPanel({
       </section>
 
       {selectedPost ? (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-[var(--surface)] p-4 backdrop-blur-sm" role="presentation" onClick={() => setSelectedPost(null)}>
+        <div className="fixed inset-0 z-50 flex items-end justify-center bg-[var(--surface)] p-0 backdrop-blur-sm md:items-center md:p-4" role="presentation" onClick={() => setSelectedPost(null)}>
           <div
             role="dialog"
             aria-modal="true"
             aria-label={t("marketing.campaignAnalytics.modal.aria")}
-            className="flex w-full max-w-3xl flex-col overflow-hidden rounded-[2rem] border border-[var(--border)] bg-[var(--card)] text-[var(--text)] shadow-[var(--shadow-card)]"
+            className="flex w-full max-w-3xl flex-col overflow-hidden rounded-[2rem] border border-[var(--border)] bg-[var(--card)] text-[var(--text)] shadow-[var(--shadow-card)] max-md:rounded-b-none"
             onClick={(event) => event.stopPropagation()}
           >
             <div className="flex items-center justify-between gap-3 border-b border-[var(--border)] px-4 py-4 md:px-6">
@@ -652,7 +652,7 @@ export default function MarketingCampaignAnalyticsPanel({
                 {t("marketing.campaignAnalytics.actions.close")}
               </button>
             </div>
-            <div className="max-h-[78vh] overflow-y-auto p-4 md:p-6">
+            <div className="max-h-[calc(100dvh-6rem)] overflow-y-auto p-4 pb-[calc(env(safe-area-inset-bottom)+1rem)] md:max-h-[78vh] md:p-6">
               <PostMediaPreview post={selectedPost} className="mb-4 h-72 w-full rounded-[var(--radius-card)] md:h-96" />
               <div className="grid gap-3 md:grid-cols-2">
                 <div className="rounded-[var(--radius-card)] border border-[var(--border)] bg-[var(--surface)] p-4">

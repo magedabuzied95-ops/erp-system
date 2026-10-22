@@ -101,13 +101,13 @@ export default function Campaigns() {
 
   return (
     <div className="min-h-full bg-[var(--bg)] text-[var(--text)]">
-      <div className="mx-auto flex w-full flex-col gap-6 px-4 py-6 md:px-6 lg:px-8">
-        <section className="rounded-[var(--radius-card)] border border-[var(--border)] bg-[var(--card)] p-5 shadow-[var(--shadow-card)]">
-          <div className="flex flex-col gap-4 lg:flex-row lg:items-end lg:justify-between">
+      <div className="mx-auto flex w-full flex-col gap-4 px-4 py-4 md:gap-6 md:px-6 md:py-6 lg:px-8">
+        <section className="rounded-[var(--radius-card)] border border-[var(--border)] bg-[var(--card)] p-3 shadow-[var(--shadow-card)] sm:p-5">
+          <div className="flex flex-wrap items-center justify-between gap-3 lg:items-end lg:gap-4">
             <div className="space-y-2">
               <h1 className="m1-display">{t("marketing.campaigns.title")}</h1>
             </div>
-            <div className="flex gap-3">
+            <div className="flex flex-wrap gap-2 sm:gap-3">
               {canCreate ? (
                 <button onClick={openCreate} className="inline-flex items-center gap-2 rounded-[var(--radius-control)] bg-primary px-4 py-3 text-sm font-semibold text-[var(--primary-contrast)] hover:bg-primary">
                   <Plus className="h-4 w-4" />
@@ -124,7 +124,7 @@ export default function Campaigns() {
 
         {error ? <div className="rounded-2xl border border-rose-500/20 bg-rose-500/10 p-4 text-sm text-rose-100">{error}</div> : null}
 
-        <section className="rounded-[var(--radius-card)] border border-[var(--border)] bg-[var(--surface)] p-5 shadow-[var(--shadow-card)]">
+        <section className="rounded-[var(--radius-card)] border border-[var(--border)] bg-[var(--surface)] p-3 shadow-[var(--shadow-card)] sm:p-5">
           <div className="m1-table-container overflow-x-auto">
             <table className="m1-table m1-table--compact min-w-full">
               <thead>

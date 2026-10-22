@@ -1,6 +1,8 @@
 import { useEffect, useMemo, useState } from "react";
 import { Bot, Clock3, Filter, Loader2, RefreshCw, Sparkles, Users2 } from "lucide-react";
 import { useNavigate } from "react-router-dom";
+import { createPortal } from "react-dom";
+import { MobileBottomSheet } from "../../../shared/components/mobile/ResponsiveMobile";
 import { useTranslation } from "react-i18next";
 
 import i18n from "../../../i18n/i18n";
@@ -249,6 +251,10 @@ export default function AiLeadCenter() {
   const { t } = useTranslation();
   const [assignedFilter, setAssignedFilter] = useState("all");
   const [timeFilter, setTimeFilter] = useState("all");
+  // Phones: the four chip groups took a full screen before the first lead, so
+  // they open from one filters button as a bottom sheet instead.
+  const [filtersSheetOpen, setFiltersSheetOpen] = useState(false);
+  const activeFilterCount = [platformFilter, stageFilter, assignedFilter, timeFilter].filter((value) => value !== "all").length;
   const [selectedLeadId, setSelectedLeadId] = useState("");
   const [customerDrawer, setCustomerDrawer] = useState({ open: false, customer: null, customerId: "", context: {} });
 
@@ -437,18 +443,34 @@ export default function AiLeadCenter() {
 
         {error ? <div className="rounded-2xl border border-rose-300/20 bg-rose-400/10 px-4 py-3 text-sm font-semibold text-rose-100">{error}</div> : null}
 
-        <section className="grid gap-3 md:grid-cols-2 xl:grid-cols-4 2xl:grid-cols-8">
+        <section className="grid grid-cols-2 gap-3 xl:grid-cols-4 2xl:grid-cols-8">
           {summaryCards.map((card) => (
             <LeadStatCard key={card.key} label={card.label} value={card.value} tone={card.tone} />
           ))}
         </section>
 
-        <section className="rounded-[2rem] border border-white/10 bg-white/[0.04] p-4 shadow-2xl shadow-black/20">
+        <div className="md:hidden">
+          <button
+            type="button"
+            onClick={() => setFiltersSheetOpen(true)}
+            className="inline-flex h-11 items-center gap-2 rounded-full border border-white/10 bg-white/[0.06] px-4 text-sm font-black text-slate-200"
+          >
+            <Filter className="h-4 w-4 text-primary" />
+            {t("marketing.leadCenter.filters.title")}
+            {activeFilterCount ? (
+              <span className="inline-flex h-5 min-w-5 items-center justify-center rounded-full bg-primary px-1.5 text-[11px] font-black text-slate-950">{activeFilterCount}</span>
+            ) : null}
+          </button>
+        </div>
+
+        {(() => {
+          const filtersPanel = (
+        <section className={`rounded-[2rem] border border-white/10 bg-white/[0.04] p-4 shadow-2xl shadow-black/20 ${filtersSheetOpen ? "max-md:border-0 max-md:bg-transparent max-md:p-0 max-md:shadow-none" : "max-md:hidden"}`}>
           <div className="flex flex-col gap-4 xl:flex-row xl:items-start xl:justify-between">
             <div className="flex flex-1 flex-wrap items-center gap-2">
-              <Filter className="h-4 w-4 text-primary" />
-              <span className="text-sm font-black uppercase tracking-[0.18em] text-slate-300">{t("marketing.leadCenter.filters.title")}</span>
-              <div className="h-6 w-px bg-white/10" />
+              <Filter className="h-4 w-4 text-primary max-md:hidden" />
+              <span className="text-sm font-black uppercase tracking-[0.18em] text-slate-300 max-md:hidden">{t("marketing.leadCenter.filters.title")}</span>
+              <div className="h-6 w-px bg-white/10 max-md:hidden" />
               <div className="flex flex-wrap gap-2">
                 {PLATFORM_OPTIONS.map((option) => (
                   <button
@@ -523,6 +545,16 @@ export default function AiLeadCenter() {
             </button>
           </div>
         </section>
+          );
+          return filtersSheetOpen
+            ? createPortal(
+                <MobileBottomSheet open title={t("marketing.leadCenter.filters.title")} onClose={() => setFiltersSheetOpen(false)}>
+                  <div className="text-white">{filtersPanel}</div>
+                </MobileBottomSheet>,
+                document.body
+              )
+            : filtersPanel;
+        })()}
 
         <div className="grid min-w-0 items-start gap-5 xl:grid-cols-[minmax(0,1fr)_minmax(20rem,0.72fr)]">
           <section className="min-w-0 space-y-3">

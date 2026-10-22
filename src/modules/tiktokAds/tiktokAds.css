@@ -183,3 +183,46 @@
 .tiktok-ads-page .m1-card .tiktok-ads-notice {
   margin-top: 12px;
 }
+
+/* Phones: the date presets wrapped inside their bordered pill into a ragged
+   two-line block; they scroll as one row instead, and the account picker and
+   search take the full width. */
+@media (max-width: 767px) {
+  .tiktok-ads-sections {
+    scrollbar-width: none;
+  }
+
+  .tiktok-ads-sections::-webkit-scrollbar {
+    display: none;
+  }
+
+  .tiktok-ads-sections__link {
+    display: inline-flex;
+    align-items: center;
+    min-height: 44px;
+  }
+
+  .tiktok-ads-toolbar > * {
+    flex: 1 1 100%;
+    min-width: 0;
+  }
+
+  .tiktok-ads-presets {
+    display: flex;
+    flex-wrap: nowrap;
+    max-width: 100%;
+    overflow-x: auto;
+    scrollbar-width: none;
+    -webkit-overflow-scrolling: touch;
+  }
+
+  .tiktok-ads-presets::-webkit-scrollbar {
+    display: none;
+  }
+
+  .tiktok-ads-presets__item {
+    flex: 1 0 auto;
+    min-height: 40px;
+    white-space: nowrap;
+  }
+}

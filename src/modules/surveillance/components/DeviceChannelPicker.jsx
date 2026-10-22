@@ -45,7 +45,7 @@ export default function DeviceChannelPicker({ value, onChange }) {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [value.deviceId]);
 
-  const select = "h-[var(--control-height-md)] rounded-full border border-white/10 bg-white/[0.055] px-3 text-[12px] font-bold text-slate-200";
+  const select = "h-[var(--control-height-md)] min-w-0 rounded-full border border-white/10 bg-white/[0.055] px-3 text-[12px] font-bold text-slate-200 max-md:h-11 max-md:text-base max-sm:flex-1";
 
   return (
     <div className="flex flex-wrap items-center gap-2">

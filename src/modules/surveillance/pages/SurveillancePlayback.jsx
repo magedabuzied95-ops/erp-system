@@ -139,18 +139,18 @@ export default function SurveillancePlayback() {
 
       <Section title={t("surveillance.playback.window")}>
         <div className="flex flex-wrap items-end gap-3">
-          <label className="flex flex-col gap-1 text-[11px] text-slate-500">
+          <label className="flex flex-col gap-1 text-[11px] text-slate-500 max-sm:w-full">
             {t("surveillance.playback.from")}
             <input type="datetime-local" value={from} onChange={(e) => setFrom(e.target.value)}
-              className="h-[var(--control-height-md)] rounded-lg border border-white/10 bg-white/[0.055] px-2 text-[12px] text-slate-200" />
+              className="h-[var(--control-height-md)] w-full min-w-0 rounded-lg border border-white/10 bg-white/[0.055] px-2 text-[12px] text-slate-200 max-md:h-11 max-md:text-base" />
           </label>
-          <label className="flex flex-col gap-1 text-[11px] text-slate-500">
+          <label className="flex flex-col gap-1 text-[11px] text-slate-500 max-sm:w-full">
             {t("surveillance.playback.to")}
             <input type="datetime-local" value={to} onChange={(e) => setTo(e.target.value)}
-              className="h-[var(--control-height-md)] rounded-lg border border-white/10 bg-white/[0.055] px-2 text-[12px] text-slate-200" />
+              className="h-[var(--control-height-md)] w-full min-w-0 rounded-lg border border-white/10 bg-white/[0.055] px-2 text-[12px] text-slate-200 max-md:h-11 max-md:text-base" />
           </label>
           <button type="button" disabled={searching || !selection.deviceId} onClick={() => void runSearch()}
-            className="inline-flex h-[var(--control-height-md)] items-center gap-2 rounded-full border border-primary/50 bg-primary/15 px-4 text-[11px] font-black hover:border-primary disabled:opacity-50">
+            className="inline-flex h-[var(--control-height-md)] items-center justify-center gap-2 rounded-full border border-primary/50 bg-primary/15 px-4 text-[11px] font-black hover:border-primary disabled:opacity-50 max-md:h-11 max-sm:w-full">
             {searching ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Search className="h-3.5 w-3.5" />}
             {t("surveillance.playback.search")}
           </button>

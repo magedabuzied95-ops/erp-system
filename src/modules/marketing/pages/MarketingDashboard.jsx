@@ -63,7 +63,7 @@ export default function MarketingDashboard() {
   return (
     <div className="min-h-full w-full overflow-x-hidden bg-[var(--bg)] text-[var(--text)]">
       <div className="mx-auto flex w-full flex-col gap-6 px-4 py-6 md:px-6 lg:px-8">
-        <section className="rounded-[var(--radius-card)] border border-[var(--border)] bg-[var(--card)] p-5 shadow-[var(--shadow-card)]">
+        <section className="rounded-[var(--radius-card)] border border-[var(--border)] bg-[var(--card)] p-3 shadow-[var(--shadow-card)] sm:p-5">
           <div className="flex flex-col gap-4 lg:flex-row lg:items-end lg:justify-between">
             <div className="space-y-2">
               <h1 className="m1-display">{t("marketing.dashboard.title")}</h1>
@@ -95,7 +95,7 @@ export default function MarketingDashboard() {
           <MarketingMetricCard label={t("marketing.dashboard.metrics.drafts")} value={loading ? "-" : metrics.draft_posts ?? 0} tone="slate" icon={<Pencil className="h-5 w-5" />} />
         </section>
 
-        <section className="rounded-[var(--radius-card)] border border-[var(--border)] bg-[var(--card)] p-5 shadow-[var(--shadow-card)]">
+        <section className="rounded-[var(--radius-card)] border border-[var(--border)] bg-[var(--card)] p-3 shadow-[var(--shadow-card)] sm:p-5">
           <div className="mb-4 flex items-center justify-between gap-3">
             <div>
               <h2 className="m1-section-title text-[var(--text)]">{t("marketing.dashboard.recent.title")}</h2>

@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
-import { AlertCircle, Loader2, Maximize2, Minimize2, RefreshCw } from "lucide-react";
-import { useSearchParams } from "react-router-dom";
+import { AlertCircle, ChevronLeft, Loader2, Maximize2, Minimize2, RefreshCw } from "lucide-react";
+import { useNavigate, useSearchParams } from "react-router-dom";
 
 import { api } from "../../../shared/api/api";
 import { getCurrentTenant, getCurrentUser } from "../../../shared/auth/authStorage";
@@ -9,6 +9,7 @@ import { subscribeRealtime } from "../../../shared/realtime/socketStore";
 import Customer360Drawer from "../../aiSupport/components/Customer360Drawer.jsx";
 import SocialCommentsWorkspace, { normalizeSocialPostDisplay } from "../../aiSupport/components/SocialCommentsWorkspace.jsx";
 import { useTranslation } from "react-i18next";
+import "./SocialCommentsCenter.css";
 
 const clean = (value = "") => String(value ?? "").trim();
 const ENABLE_SOCIAL_FAST_CENTER = true;
@@ -297,6 +298,13 @@ function SocialCommentsCenter() {
   const commentIdParam = clean(searchParams.get("commentId") || searchParams.get("comment_id") || "");
   const platformParam = clean(searchParams.get("platform") || "");
   const pageIdParam = clean(searchParams.get("pageId") || searchParams.get("page_id") || "");
+  // Phones (below the workspace's 1024px two-column breakpoint) show either the
+  // post list or the open thread, like the inbox. Tapping a post pushes
+  // ?pane=thread so the browser back gesture returns to the list; a deep link to
+  // a specific comment opens straight on the thread.
+  const navigate = useNavigate();
+  const phoneThreadOpen = searchParams.get("pane") === "thread" || Boolean(commentIdParam);
+  const pushedThreadPaneRef = useRef(false);
 
   const [items, setItems] = useState([]);
   const [nextCursor, setNextCursor] = useState("");
@@ -870,10 +878,31 @@ const fastSocialCommentItemsEqual = (left = {}, right = {}) =>
     const nextPageId = clean(item?.page_id || item?.metadata?.page_id || "");
     if (nextPageId) nextParams.set("pageId", nextPageId);
     if (tenantId) nextParams.set("tenant", tenantId);
+    if (nextParams.get("pane") !== "thread") {
+      nextParams.set("pane", "thread");
+      pushedThreadPaneRef.current = true;
+    }
     setSearchParams(nextParams, { replace: false });
     setSelectedPost(normalizeSocialPostDisplay(item));
     setTargetCommentMissing(false);
   }, [platformParam, searchParams, setSearchParams, tenantId]);
+
+  const backToPostList = useCallback(() => {
+    if (pushedThreadPaneRef.current) {
+      pushedThreadPaneRef.current = false;
+      navigate(-1);
+      return;
+    }
+    const nextParams = new URLSearchParams(searchParams);
+    nextParams.delete("pane");
+    nextParams.delete("commentId");
+    nextParams.delete("comment_id");
+    setSearchParams(nextParams, { replace: true });
+  }, [navigate, searchParams, setSearchParams]);
+  useEffect(() => {
+    // The back gesture (or any URL change) left the thread pane.
+    if (!phoneThreadOpen) pushedThreadPaneRef.current = false;
+  }, [phoneThreadOpen]);
 
   const [isExpanded, setIsExpanded] = useState(false);
   const missingCommentMessage = targetCommentMissing ? "Comment not found or already deleted." : "";
@@ -923,11 +952,23 @@ const fastSocialCommentItemsEqual = (left = {}, right = {}) =>
   return (
     <div
       ref={fullscreenHostRef}
-      className="min-h-[100dvh] bg-[radial-gradient(circle_at_12%_8%,rgba(34,211,238,0.14),transparent_28%),linear-gradient(180deg,#020617,#0f172a)] px-2 py-2 text-white md:px-3 md:py-3"
+      data-phone-pane={phoneThreadOpen ? "thread" : "list"}
+      className="scc-page min-h-[100dvh] bg-[radial-gradient(circle_at_12%_8%,rgba(34,211,238,0.14),transparent_28%),linear-gradient(180deg,#020617,#0f172a)] px-0 py-0 text-white md:px-3 md:py-3"
     >
       <div className="mx-auto flex min-h-[calc(100dvh-1rem)] w-full flex-col gap-2 overflow-hidden">
-        <div className="flex items-start justify-between gap-3 rounded-[var(--radius-card)] border border-white/10 bg-white/[0.055] p-3 shadow-[0_18px_50px_rgba(0,0,0,0.22)] backdrop-blur">
-          <div className="min-w-0">
+        <div className="flex items-start justify-between gap-3 rounded-[var(--radius-card)] border border-white/10 bg-white/[0.055] p-3 shadow-[0_18px_50px_rgba(0,0,0,0.22)] backdrop-blur max-md:rounded-none max-md:border-x-0 max-md:border-t-0">
+          {phoneThreadOpen ? (
+            <button
+              type="button"
+              onClick={backToPostList}
+              className="inline-flex h-10 w-10 shrink-0 items-center justify-center rounded-[var(--radius-control)] border border-white/10 bg-white/[0.07] text-white shadow-sm min-[1024px]:hidden"
+              aria-label={t("common.back")}
+              title={t("common.back")}
+            >
+              <ChevronLeft className="h-5 w-5 rtl:rotate-180" />
+            </button>
+          ) : null}
+          <div className="min-w-0 flex-1">
             <div className="text-[11px] font-black uppercase tracking-[0.16em] text-primary">{t("marketing.comments.breadcrumb")}</div>
             <div className="mt-1 text-xl font-black text-white">{t("marketing.comments.title")}</div>
           </div>
@@ -1038,7 +1079,7 @@ const fastSocialCommentItemsEqual = (left = {}, right = {}) =>
           </div>
         ) : null}
 
-        <div className="min-h-0 flex-1 overflow-hidden">
+        <div className="scc-workspace min-h-0 flex-1 overflow-hidden">
           {loading && !items.length ? (
             <div className="flex h-full min-h-[420px] flex-col gap-3 rounded-[var(--radius-card)] border border-white/10 bg-white/[0.055] p-4 shadow-[0_18px_50px_rgba(0,0,0,0.18)]">
               <div className="h-5 w-40 rounded bg-slate-200/80" />

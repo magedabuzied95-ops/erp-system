@@ -33,7 +33,7 @@ export default function MarketingStudioHeader({
   const { t } = useTranslation();
 
   return (
-    <section className={`${size === "large" ? "rounded-[2rem] px-6 py-5 sm:px-7 sm:py-6" : "rounded-[var(--radius-card)] px-5 py-4 sm:px-6 sm:py-5"} border border-[var(--border)] bg-[var(--card)] shadow-[var(--shadow-card)]`}>
+    <section className={`${size === "large" ? "rounded-[2rem] px-6 py-5 sm:px-7 sm:py-6" : "rounded-[var(--radius-card)] px-5 py-4 sm:px-6 sm:py-5"} border border-[var(--border)] bg-[var(--card)] shadow-[var(--shadow-card)] max-md:rounded-none max-md:border-0 max-md:bg-transparent max-md:px-0 max-md:py-1 max-md:shadow-none`}>
       <div className="flex flex-col gap-2">
         <div className="max-w-3xl">
           <h1 className="m1-page-title text-[var(--text)]">
