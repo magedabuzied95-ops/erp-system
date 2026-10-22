@@ -882,6 +882,11 @@
     flex: 1 1 100%;
   }
 
+  /* iOS Safari zooms into a focused field under 16px. */
+  .ma-toolbar__search input {
+    font-size: 16px;
+  }
+
   .ma-tab {
     height: 48px;
     padding: 0 12px;

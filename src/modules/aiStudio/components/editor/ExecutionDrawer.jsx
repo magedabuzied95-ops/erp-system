@@ -12,7 +12,7 @@ export default function ExecutionDrawer({ open, run, steps = [], running, inputT
   const awaiting = run?.status === "awaiting_approval";
 
   return (
-    <div className="flex h-full w-[340px] flex-col border-l border-white/10 bg-slate-950/70 backdrop-blur">
+    <div className="flex h-full w-[340px] max-md:w-full flex-col border-l border-white/10 bg-slate-950/70 backdrop-blur">
       <div className="flex items-center justify-between border-b border-white/10 px-3 py-2.5">
         <div className="text-[11px] font-black uppercase tracking-[0.16em] text-slate-300">{t("aiStudio.workflow.drawer.title")}</div>
         <button type="button" onClick={onClose} className="inline-flex h-[var(--control-height-sm)] w-7 items-center justify-center rounded-[var(--radius-control)] border border-white/10 text-slate-400 hover:text-white"><X className="h-3.5 w-3.5" /></button>

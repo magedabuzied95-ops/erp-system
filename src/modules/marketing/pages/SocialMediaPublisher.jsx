@@ -1880,7 +1880,7 @@ export default function SocialMediaPublisher() {
         {error ? <div className="rounded-2xl border border-rose-400/20 bg-rose-500/10 px-4 py-3 text-sm text-rose-100">{error}</div> : null}
 
         <div className="grid gap-5">
-          <section className="min-w-0 rounded-[var(--radius-card)] border border-white/10 bg-white/[0.04] p-4 shadow-2xl shadow-black/25">
+          <section className="min-w-0 rounded-[var(--radius-card)] border border-white/10 bg-white/[0.04] p-4 shadow-2xl shadow-black/25 max-md:rounded-none max-md:border-0 max-md:bg-transparent max-md:p-0 max-md:shadow-none">
             <div className="mb-4 flex items-center gap-3">
               <div className="rounded-2xl border border-amber-400/20 bg-amber-400/10 p-2 text-amber-100">
                 <Upload className="h-5 w-5" />
@@ -2137,7 +2137,7 @@ export default function SocialMediaPublisher() {
                     onChange={(event) => setCaption(event.target.value)}
                     rows={9}
                     placeholder="Write your post caption..."
-                    className="min-h-[170px] w-full rounded-[1.75rem] border border-white/10 bg-slate-950/70 px-4 py-3 text-sm leading-6 text-white outline-none transition placeholder:text-slate-500 focus:border-amber-400/40 focus:ring-2 focus:ring-amber-400/10"
+                    className="min-h-[170px] w-full rounded-[1.75rem] border border-white/10 bg-slate-950/70 px-4 py-3 text-base leading-6 md:text-sm text-white outline-none transition placeholder:text-slate-500 focus:border-amber-400/40 focus:ring-2 focus:ring-amber-400/10"
                   />
 
                   <div className="flex flex-col overflow-hidden rounded-[1.75rem] border border-white/10 bg-slate-950/60 p-4">
@@ -2378,7 +2378,7 @@ export default function SocialMediaPublisher() {
                       <select
                         value={selectedFacebookPageId}
                         onChange={(event) => handleFacebookPageChange(event.target.value)}
-                        className="w-full rounded-[var(--radius-control)] border border-white/10 bg-slate-950/80 px-4 py-3 text-sm text-white outline-none transition focus:border-primary/40"
+                        className="w-full rounded-[var(--radius-control)] border border-white/10 bg-slate-950/80 px-4 py-3 text-base text-white outline-none transition focus:border-primary/40 md:text-sm"
                       >
                         {facebookPages.map((page) => (
                           <option key={page.facebook_page_id} value={page.facebook_page_id}>
@@ -2407,7 +2407,7 @@ export default function SocialMediaPublisher() {
                       <select
                         value={selectedInstagramAccountId}
                         onChange={(event) => handleInstagramAccountChange(event.target.value)}
-                        className="w-full rounded-[var(--radius-control)] border border-white/10 bg-slate-950/80 px-4 py-3 text-sm text-white outline-none transition focus:border-primary/40"
+                        className="w-full rounded-[var(--radius-control)] border border-white/10 bg-slate-950/80 px-4 py-3 text-base text-white outline-none transition focus:border-primary/40 md:text-sm"
                       >
                         {instagramAccounts.map((account) => (
                           <option key={account.instagram_account_id} value={account.instagram_account_id}>
@@ -2466,7 +2466,7 @@ export default function SocialMediaPublisher() {
                       type="datetime-local"
                       value={scheduledAt}
                       onChange={(event) => setScheduledAt(event.target.value)}
-                      className="w-full rounded-[var(--radius-control)] border border-white/10 bg-slate-950/70 px-4 py-3 pr-10 text-sm text-white outline-none transition focus:border-amber-400/40"
+                      className="w-full min-w-0 rounded-[var(--radius-control)] border border-white/10 bg-slate-950/70 px-4 py-3 pr-10 text-base text-white outline-none transition focus:border-amber-400/40 md:text-sm"
                     />
                   </div>
                 </label>
@@ -2631,7 +2631,7 @@ export default function SocialMediaPublisher() {
                   </div>
                 </div>
 
-                <div className="sticky bottom-0 border-t border-[var(--border)] bg-[var(--card)] px-4 py-4 md:px-6">
+                <div className="sticky bottom-0 border-t border-[var(--border)] bg-[var(--card)] px-4 pb-[calc(env(safe-area-inset-bottom)+1rem)] pt-4 md:px-6 md:py-4">
                   <div className="grid grid-cols-1 gap-2 sm:grid-cols-3">
                     <button
                       type="button"
@@ -2677,7 +2677,7 @@ export default function SocialMediaPublisher() {
                 role="dialog"
                 aria-modal="true"
                 aria-label="Templates"
-                className="flex h-[92vh] w-full max-w-5xl flex-col overflow-hidden rounded-t-[2rem] border border-[var(--border)] bg-[var(--card)] text-[var(--text)] shadow-2xl shadow-black/60 md:h-[86vh] md:rounded-[2rem]"
+                className="flex h-[92dvh] w-full max-w-5xl flex-col overflow-hidden rounded-t-[2rem] border border-[var(--border)] bg-[var(--card)] text-[var(--text)] shadow-2xl shadow-black/60 md:h-[86vh] md:rounded-[2rem]"
                 onClick={(event) => event.stopPropagation()}
               >
                 <div className="flex items-start justify-between gap-3 border-b border-white/10 px-4 py-4 md:px-6">
@@ -2743,7 +2743,7 @@ export default function SocialMediaPublisher() {
                       ) : null}
                       {aiTemplateSource ? <div className="mt-3 text-xs uppercase tracking-[0.18em] text-slate-500">Source: {aiTemplateSource}</div> : null}
                     </div>
-                    <div className="flex flex-wrap gap-2 border-t border-white/10 px-4 py-4 md:px-5">
+                    <div className="flex flex-wrap gap-2 border-t border-white/10 px-4 pb-[calc(env(safe-area-inset-bottom)+1rem)] pt-4 md:px-5 md:py-4">
                       <button
                         type="button"
                         onClick={useAiTemplateCaption}
@@ -2787,7 +2787,7 @@ export default function SocialMediaPublisher() {
                 role="dialog"
                 aria-modal="true"
                 aria-label="Select Product"
-                className="flex h-[92vh] w-full max-w-4xl flex-col overflow-hidden rounded-t-[2rem] border border-[var(--border)] bg-[var(--card)] text-[var(--text)] shadow-2xl shadow-black/60 md:h-[86vh] md:rounded-[2rem]"
+                className="flex h-[92dvh] w-full max-w-4xl flex-col overflow-hidden rounded-t-[2rem] border border-[var(--border)] bg-[var(--card)] text-[var(--text)] shadow-2xl shadow-black/60 md:h-[86vh] md:rounded-[2rem]"
                 onClick={(event) => event.stopPropagation()}
               >
                 <div className="flex items-start justify-between gap-3 border-b border-white/10 px-4 py-4 md:px-6">
@@ -2812,7 +2812,7 @@ export default function SocialMediaPublisher() {
                       value={productCatalogQuery}
                       onChange={(event) => setProductCatalogQuery(event.target.value)}
                       placeholder="Search products..."
-                      className="w-full bg-transparent text-sm text-white outline-none placeholder:text-slate-500"
+                      className="w-full bg-transparent text-base text-white outline-none placeholder:text-slate-500 md:text-sm"
                     />
                   </div>
                 </div>

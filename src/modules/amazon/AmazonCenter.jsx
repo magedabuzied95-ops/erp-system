@@ -383,7 +383,7 @@ function SkuMappingTab() {
 
   return (
     <div className="space-y-3">
-      <div className="grid gap-3 sm:grid-cols-4">
+      <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">
         {["mapped", "unmapped", "conflict", "missing_m1_sku"].map((key) => (
           <MetricCard key={key} density="compact" label={statusLabel(t, "mappingStatus", key)} value={totals[key] || 0} tone={MAPPING_STATUS_TONES[key]} />
         ))}

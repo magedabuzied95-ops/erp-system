@@ -851,4 +851,8 @@
   .mar-sheet__title,
   .mar-field { grid-template-columns: minmax(0, 1fr); gap: 4px; }
   .mar-crumbs__current { max-width: 160px; }
+  /* iOS Safari zooms into a focused field under 16px. */
+  .mar-search input { font-size: 16px; }
+  .mar-bar__search .mar-icon-btn,
+  .mar-popover-anchor > .mar-icon-btn { min-width: 40px; min-height: 40px; }
 }

@@ -15,14 +15,14 @@ const TABS = [
 export default function AiStudioNav() {
   const { t } = useTranslation();
   return (
-    <nav dir="ltr" className="flex flex-wrap gap-1.5">
+    <nav dir="ltr" className="mobile-scroll-tabs flex gap-1.5 max-md:-mx-1 max-md:flex-nowrap max-md:overflow-x-auto max-md:px-1 max-md:pb-1 md:flex-wrap">
       {TABS.map(({ to, labelKey, icon: Icon, end }) => (
         <NavLink
           key={to}
           to={to}
           end={end}
           className={({ isActive }) =>
-            `inline-flex h-9 items-center gap-2 rounded-full border px-3.5 text-[12px] font-black transition ${
+            `inline-flex h-9 max-md:h-10 shrink-0 items-center gap-2 whitespace-nowrap rounded-full border px-3.5 text-[12px] font-black transition ${
               isActive
                 ? "border-primary/40 bg-primary text-[var(--primary-contrast)]"
                 : "border-white/10 bg-white/[0.055] text-white hover:border-white/20"

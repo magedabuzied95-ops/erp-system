@@ -119,3 +119,26 @@
     display: none;
   }
 }
+
+/* The section menu is portaled to <body> (see MetaAdsSectionBar). */
+.meta-ads-bar__menu {
+  max-width: calc(100vw - 16px);
+  max-height: calc(100dvh - 120px);
+  overflow-y: auto;
+}
+
+@media (max-width: 767px) {
+  .meta-ads-bar {
+    padding: 4px;
+  }
+
+  .meta-ads-bar__button {
+    height: 40px;
+  }
+
+  .meta-ads-bar__item {
+    display: flex;
+    align-items: center;
+    min-height: 44px;
+  }
+}

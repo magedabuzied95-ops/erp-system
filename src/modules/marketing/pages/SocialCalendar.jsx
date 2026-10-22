@@ -202,7 +202,7 @@ export default function SocialCalendar() {
     <div className="min-h-full bg-[var(--bg)] text-[var(--text)]">
       <div className="mx-auto flex w-full max-w-[1600px] flex-col gap-5 px-4 py-5 md:px-6 lg:px-7">
         <MarketingStudioHeader />
-        <section className="overflow-hidden rounded-[2rem] border border-[var(--border)] bg-[var(--card)] p-5 shadow-[var(--shadow-card)]">
+        <section className="overflow-hidden rounded-[2rem] border border-[var(--border)] bg-[var(--card)] p-4 sm:p-5 shadow-[var(--shadow-card)]">
           <div className="flex flex-col gap-5 lg:flex-row lg:items-end lg:justify-between">
             <div className="space-y-3">
               <div className="inline-flex items-center gap-2 rounded-full border border-primary/20 bg-primary/10 px-3 py-1 text-xs font-semibold uppercase tracking-[0.22em] text-primary">
@@ -221,7 +221,7 @@ export default function SocialCalendar() {
         </section>
 
         <section className="grid gap-6 xl:grid-cols-[1.45fr_1fr]">
-          <article className="rounded-[2rem] border border-white/10 bg-white/[0.04] p-5 shadow-2xl shadow-black/20">
+          <article className="rounded-[2rem] border border-white/10 bg-white/[0.04] p-3 shadow-2xl sm:p-5 shadow-black/20">
             <div className="mb-4 flex flex-wrap items-center justify-between gap-3">
               <div>
                 <h2 className="m1-section-title text-white">{t("marketing.socialCalendar.month.title")}</h2>
@@ -232,15 +232,18 @@ export default function SocialCalendar() {
               </div>
             </div>
 
-            <div className="grid grid-cols-7 gap-2 text-center text-[11px] font-bold uppercase tracking-[0.2em] text-slate-500">
+            <div className="grid grid-cols-7 gap-1 text-center text-[11px] font-bold uppercase tracking-normal text-slate-500 md:gap-2 md:tracking-[0.2em]">
               {weekDates.map((date) => (
-                <div key={date.toISOString()} className="pb-2">
+                <div key={date.toISOString()} className="min-w-0 truncate pb-2">
                   {new Intl.DateTimeFormat(undefined, { weekday: "short" }).format(date)}
                 </div>
               ))}
             </div>
 
-            <div className="grid grid-cols-7 gap-2">
+            {/* Phones: a 7-column month at 375px leaves ~40px per day, so the
+                cells shrink to a date + dot and the week agenda below carries
+                the detail. */}
+            <div className="grid grid-cols-7 gap-1 md:gap-2">
               {monthGrid.flat().map((date) => {
                 const isCurrentMonth = date.getMonth() === referenceDate.getMonth();
                 const isToday = toLocalDateKey(date) === todayKey;
@@ -249,7 +252,7 @@ export default function SocialCalendar() {
                   <div
                     key={date.toISOString()}
                     className={[
-                      "min-h-[7.5rem] rounded-3xl border p-3 transition",
+                      "min-h-[3rem] min-w-0 rounded-xl border p-1.5 transition md:min-h-[7.5rem] md:rounded-3xl md:p-3",
                       isCurrentMonth ? "border-white/10 bg-black/20" : "border-white/5 bg-black/10 opacity-45",
                       isToday ? "ring-2 ring-primary/70" : "",
                     ].join(" ")}
@@ -258,9 +261,10 @@ export default function SocialCalendar() {
                       <div className={`text-sm font-black ${isToday ? "text-primary" : isCurrentMonth ? "text-white" : "text-slate-500"}`}>
                         {date.getDate()}
                       </div>
-                      {event ? <span className={`rounded-full border px-2 py-0.5 text-[10px] font-bold uppercase tracking-[0.18em] ${badgeToneClass[event.tone]}`}>{event.tone}</span> : null}
+                      {event ? <span className={`hidden rounded-full border px-2 py-0.5 text-[10px] font-bold uppercase tracking-[0.18em] md:inline-flex ${badgeToneClass[event.tone]}`}>{event.tone}</span> : null}
+                      {event ? <span aria-hidden="true" className="mt-1 h-2 w-2 shrink-0 rounded-full bg-primary md:hidden" /> : null}
                     </div>
-                    <div className="mt-3 space-y-1.5">
+                    <div className="mt-3 hidden space-y-1.5 md:block">
                       {event ? (
                         <>
                           <div className="line-clamp-2 text-sm font-semibold text-white">{event.label}</div>
@@ -276,7 +280,7 @@ export default function SocialCalendar() {
             </div>
           </article>
 
-          <article className="rounded-[2rem] border border-white/10 bg-white/[0.04] p-5 shadow-2xl shadow-black/20">
+          <article className="rounded-[2rem] border border-white/10 bg-white/[0.04] p-3 shadow-2xl sm:p-5 shadow-black/20">
             <div className="mb-4 flex flex-wrap items-center justify-between gap-3">
               <div>
                 <h2 className="m1-section-title text-white">{t("marketing.socialCalendar.week.title")}</h2>
@@ -336,7 +340,7 @@ export default function SocialCalendar() {
           </article>
         </section>
 
-        <section className="rounded-[2rem] border border-white/10 bg-white/[0.04] p-5 shadow-2xl shadow-black/20">
+        <section className="rounded-[2rem] border border-white/10 bg-white/[0.04] p-3 shadow-2xl sm:p-5 shadow-black/20">
           <div className="mb-5 flex flex-col gap-2 md:flex-row md:items-end md:justify-between">
             <div>
               <h2 className="m1-section-title text-white">{t("marketing.socialCalendar.draft.title")}</h2>
@@ -406,7 +410,7 @@ export default function SocialCalendar() {
           </div>
         </section>
 
-        <section className="rounded-[2rem] border border-white/10 bg-white/[0.04] p-5 shadow-2xl shadow-black/20">
+        <section className="rounded-[2rem] border border-white/10 bg-white/[0.04] p-3 shadow-2xl sm:p-5 shadow-black/20">
           <div className="mb-5">
             <h2 className="m1-section-title text-white">{t("marketing.socialCalendar.cards.title")}</h2>
           </div>
@@ -417,7 +421,7 @@ export default function SocialCalendar() {
           </div>
         </section>
 
-        <section className="rounded-[2rem] border border-white/10 bg-white/[0.04] p-5 shadow-2xl shadow-black/20">
+        <section className="rounded-[2rem] border border-white/10 bg-white/[0.04] p-3 shadow-2xl sm:p-5 shadow-black/20">
           <div className="mb-5 flex items-center justify-between gap-3">
             <div>
               <h2 className="m1-section-title text-white">{t("marketing.socialCalendar.scheduled.title")}</h2>
@@ -452,7 +456,7 @@ export default function SocialCalendar() {
           </div>
         </section>
 
-        <section className="rounded-[2rem] border border-white/10 bg-white/[0.04] p-5 shadow-2xl shadow-black/20">
+        <section className="rounded-[2rem] border border-white/10 bg-white/[0.04] p-3 shadow-2xl sm:p-5 shadow-black/20">
           <div className="mb-5 flex items-center justify-between gap-3">
             <div>
               <h2 className="m1-section-title text-white">{t("marketing.socialCalendar.history.title")}</h2>
