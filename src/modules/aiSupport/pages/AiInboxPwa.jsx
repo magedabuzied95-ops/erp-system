@@ -9366,6 +9366,10 @@ export default function AiInboxPwa({ portal = null } = {}) {
           onClearRestockPick={() => setRestockPick(null)}
           exchangePicks={exchangePicks}
           onRequestExchangePick={openExchangePicker}
+          onOpenConversation={(thread) => {
+            setCustomerDrawer((current) => ({ ...current, open: false }));
+            updateUrlState({ nextConversationId: thread.id, nextTab: "conversations" });
+          }}
         />
       </div>
     </div>

@@ -123,6 +123,16 @@ export const localEgyptMobile = (value = "") => {
   return /^01[0125][0-9]{8}$/.test(digits) ? digits : "";
 };
 
+// Messenger, Instagram and TikTok know a customer by a page-scoped id (15-17 digits), and the inbox
+// hands that id around as "customer_phone". It is no number anyone can call: stored here it showed on
+// the page as the customer's masked number and went on the order. Off WhatsApp only a real Egyptian
+// mobile counts; a WhatsApp thread keeps what it has, since its id IS the number (foreign ones too).
+export const addressRequestPhone = (value = "", channel = "") => {
+  const local = localEgyptMobile(value);
+  if (local) return local;
+  return /whatsapp/i.test(text(channel)) ? text(value).replace(/[^\d+]/g, "").slice(0, 20) : "";
+};
+
 // The same rule as the website checkout: the order confirmation and every update after it are
 // WhatsApp messages, so a main number with no WhatsApp means a customer we can never reach. Only a
 // definite "no" blocks; an unreachable gateway lets the order through.
@@ -154,7 +164,7 @@ const serializeForStaff = (row = null) => {
     url: buildAddressRequestPublicUrl(row.code),
     status: rowIsExpired(row) && row.status === "pending" ? "expired" : row.status,
     customer_name: row.customer_name || "",
-    customer_phone: row.customer_phone || "",
+    customer_phone: addressRequestPhone(row.customer_phone, row.channel),
     address: row.address || {},
     expires_at: row.expires_at,
     submitted_at: row.submitted_at,
@@ -175,6 +185,7 @@ export const createAddressRequest = async ({
 } = {}) => {
   await ensureAddressRequestSchema();
   const safeSessionId = text(sessionId);
+  const storedPhone = addressRequestPhone(customerPhone, channel);
   if (!safeSessionId) {
     throw Object.assign(new Error("Conversation id is required"), { status: 400, code: "ADDRESS_REQUEST_SESSION_REQUIRED" });
   }
@@ -207,7 +218,7 @@ export const createAddressRequest = async ({
       )
       RETURNING *
       `,
-      [tenantId || null, safeSessionId, expiresAt, text(customerName), text(customerPhone), salesFlowJson]
+      [tenantId || null, safeSessionId, expiresAt, text(customerName), storedPhone, salesFlowJson]
     );
     return refreshed.rows[0] || null;
   };
@@ -221,7 +232,7 @@ export const createAddressRequest = async ({
       VALUES ($1, $2, $3, $4, 'pending', $5, $6, $7, $8, $9::jsonb)
       RETURNING *
       `,
-      [tenantId || null, safeSessionId, text(channel), generateAddressRequestCode(), text(customerName), text(customerPhone), createdBy || null, expiresAt, salesFlowJson]
+      [tenantId || null, safeSessionId, text(channel), generateAddressRequestCode(), text(customerName), storedPhone, createdBy || null, expiresAt, salesFlowJson]
     );
     return { ...serializeForStaff(inserted.rows[0]), reused: false };
   } catch (error) {
@@ -276,8 +287,9 @@ export const loadPublicAddressRequest = async (code = "") => {
   return {
     status: row.status,
     customer_name: row.customer_name || "",
-    customer_phone_masked: maskPhone(row.customer_phone),
-    has_phone: Boolean(text(row.customer_phone)),
+    // A pending link minted before addressRequestPhone may still hold a Meta id.
+    customer_phone_masked: maskPhone(addressRequestPhone(row.customer_phone, row.channel)),
+    has_phone: Boolean(addressRequestPhone(row.customer_phone, row.channel)),
     expires_at: row.expires_at,
     submitted_at: row.submitted_at,
     address: row.status === "submitted" ? row.address || {} : {},
@@ -338,7 +350,16 @@ export const submitPublicAddressRequest = async ({ code = "", payload = {}, ipAd
   // The customer may correct the number; absent that, the conversation's
   // number stands. Nothing on the public page ever echoes the stored one.
   const submittedPhone = text(payload.customer_phone).replace(/[^\d+]/g, "").slice(0, 20);
-  const customerPhone = submittedPhone || row.customer_phone;
+  const customerPhone = submittedPhone || addressRequestPhone(row.customer_phone, row.channel);
+  // A Messenger/Instagram customer has no number until they type one here, and an order with none
+  // can be neither confirmed on WhatsApp nor handed to Bosta.
+  if (!customerPhone) {
+    throw Object.assign(new Error("اكتب رقم موبايلك اللي عليه واتساب."), {
+      status: 422,
+      code: "ADDRESS_REQUEST_PHONE_REQUIRED",
+      field: "customer_phone",
+    });
+  }
   if (await mainPhoneHasWhatsapp(customerPhone) === false) {
     throw Object.assign(new Error("الرقم ده مش عليه واتساب. اكتب رقم عليه واتساب علشان نقدر نأكدلك الطلب."), {
       status: 422,

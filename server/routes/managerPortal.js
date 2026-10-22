@@ -347,8 +347,9 @@ router.get("/:token/online-orders", async (req, res) => {
     const manager = await loadVerifiedManager(req, res);
     if (!manager) return;
     const payload = await listPortalOnlineOrders({ tenantId: manager.tenant_id, query: req.query || {} });
-    // Every manager-portal holder may act (owner decision 2026-09-10).
-    return res.json({ success: true, ...payload, permissions: { can_act: true, can_ship: true, can_create: true } });
+    // Every manager-portal holder may act (owner decision 2026-09-10). can_open_inbox: the chat
+    // buttons open the thread in the shop's inbox, which asks for its own login.
+    return res.json({ success: true, ...payload, permissions: { can_act: true, can_ship: true, can_create: true, can_open_inbox: true } });
   } catch (error) {
     console.error("[manager-portal] online orders error", error);
     return res.status(error.status || 500).json({ success: false, code: error.code, message: error.message || "Failed to load online orders" });

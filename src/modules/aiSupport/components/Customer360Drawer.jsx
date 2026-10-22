@@ -211,6 +211,8 @@ export default function Customer360Drawer({
   // Same borrowed picker, for the replacement on an exchange.
   onRequestExchangePick = null,
   exchangePicks = null,
+  // Opens one of the customer's other threads (WhatsApp/Messenger/Instagram/TikTok) in this inbox.
+  onOpenConversation = null,
   // The inbox hands this in so "تعيين موظف" opens its team-tools panel in place. The old
   // fallback navigated to the desktop inbox with ?action=assign, which on the phone left the
   // conversation entirely.
@@ -582,6 +584,7 @@ export default function Customer360Drawer({
                   picks={exchangePicks}
                   onRequestPick={onRequestExchangePick}
                   onNotice={onOrderNotice}
+                  onOpenConversation={onOpenConversation}
                 />
               ) : null}
               {orders.length ? orders.map((order, index) => (

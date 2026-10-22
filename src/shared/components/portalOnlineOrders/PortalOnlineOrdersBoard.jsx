@@ -13,6 +13,8 @@ import {
   Loader2,
   MapPin,
   MessageCircle,
+  MessagesSquare,
+  Music2,
   Package,
   PackageCheck,
   PackagePlus,
@@ -266,18 +268,63 @@ function CopyButton({ value, label, copiedLabel, className = "" }) {
 // thread there, it goes to that thread — the whole history, the same replies, and the
 // message counts as the shop's (owner request 2026-09-18). With no thread, or in a
 // portal without الرسائل, it stays the plain wa.me link that starts a fresh chat.
+//
+// The other doors (owner, 2026-10-22): the server ties the customer's threads together by their
+// number (order.conversations — WhatsApp, Messenger, Instagram, TikTok), so a Messenger order also
+// offers the WhatsApp chat and the reverse. واتساب now opens only a WhatsApp thread; the order's own
+// Messenger/Instagram/TikTok thread gets its own button instead of hiding behind the واتساب label.
+const SOCIAL_CHANNEL_BUTTONS = {
+  messenger: { Icon: MessagesSquare, tone: "text-[#0084ff]" },
+  instagram: { Icon: MessageCircle, tone: "text-[#e1306c]" },
+  tiktok: { Icon: Music2, tone: "text-text" },
+};
+
 function ContactButtons({ order = null, phone, ui, size = "sm", onOpenChat = null }) {
   const tel = telHref(phone);
   const wa = whatsappHref(phone);
-  const conversationId = text(order?.conversation?.id);
-  const chat = onOpenChat && conversationId ? () => onOpenChat(order) : null;
-  if (!tel && !wa && !chat) return null;
+  const linked = Array.isArray(order?.conversations) ? order.conversations : [];
+  // An older server sends no `conversations`; its one `conversation` keeps the old behaviour.
+  const whatsappThread = linked.length
+    ? linked.find((thread) => thread.kind === "whatsapp")
+    : order?.conversation?.id ? order.conversation : null;
+  const chat = onOpenChat && whatsappThread?.id ? () => onOpenChat(order, whatsappThread) : null;
+  // One button per channel: the newest thread of each kind (the server sorts newest first).
+  const socialThreads = onOpenChat
+    ? Object.keys(SOCIAL_CHANNEL_BUTTONS)
+      .map((kind) => linked.find((thread) => thread.kind === kind))
+      .filter(Boolean)
+    : [];
+  if (!tel && !wa && !chat && !socialThreads.length) return null;
   const base = size === "lg"
     ? "min-h-[var(--control-height-lg)] px-4 text-sm"
     : "min-h-9 px-3 text-xs";
   const waClass = `inline-flex items-center justify-center gap-1.5 rounded-[var(--radius-control)] bg-success-subtle font-black text-text transition hover:opacity-90 ${base}`;
+  // On the card the row is shared with the customer's name, so the extra doors are icons only.
+  const socialClass = size === "lg"
+    ? `inline-flex items-center justify-center gap-1.5 rounded-[var(--radius-control)] border border-border bg-surface font-black text-text transition hover:bg-surface-hover ${base}`
+    : "inline-flex min-h-9 min-w-9 items-center justify-center rounded-[var(--radius-control)] border border-border bg-surface text-text transition hover:bg-surface-hover";
   return (
-    <div className="flex shrink-0 items-center gap-1.5">
+    <div className="flex shrink-0 flex-wrap items-center gap-1.5">
+      {socialThreads.map((thread) => {
+        const { Icon, tone } = SOCIAL_CHANNEL_BUTTONS[thread.kind];
+        const label = ui.tb(`actions.${thread.kind}`);
+        return (
+          <button
+            key={thread.id}
+            type="button"
+            onClick={(event) => {
+              event.stopPropagation();
+              onOpenChat(order, thread);
+            }}
+            className={socialClass}
+            aria-label={ui.tb("actions.openChannelChat", { channel: label })}
+            title={ui.tb("actions.openChannelChat", { channel: label })}
+          >
+            <Icon className={`h-4 w-4 ${tone}`} />
+            {size === "lg" ? <span>{label}</span> : null}
+          </button>
+        );
+      })}
       {tel ? (
         <a
           href={tel}

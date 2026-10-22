@@ -959,6 +959,10 @@
     "actions": {
       "call": "اتصال",
       "whatsapp": "واتساب",
+      "messenger": "ماسنجر",
+      "instagram": "انستجرام",
+      "tiktok": "تيك توك",
+      "openChannelChat": "افتح محادثة العميل على {{channel}}",
       "copy": "نسخ",
       "copied": "تم النسخ",
       "copyAddress": "نسخ العنوان",

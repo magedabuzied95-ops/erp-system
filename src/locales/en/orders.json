@@ -959,6 +959,10 @@
     "actions": {
       "call": "Call",
       "whatsapp": "WhatsApp",
+      "messenger": "Messenger",
+      "instagram": "Instagram",
+      "tiktok": "TikTok",
+      "openChannelChat": "Open the customer's {{channel}} chat",
       "copy": "Copy",
       "copied": "Copied",
       "copyAddress": "Copy address",

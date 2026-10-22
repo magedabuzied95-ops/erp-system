@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
-import { ArrowLeftRight, Banknote, CheckCircle2, Loader2, Printer, RefreshCw, Send, ShoppingBag, Truck, XCircle } from "lucide-react";
+import { ArrowLeftRight, Banknote, CheckCircle2, Loader2, MessageCircle, Printer, RefreshCw, Send, ShoppingBag, Truck, XCircle } from "lucide-react";
 
 import { api } from "../../api/api";
 import { formatCurrency } from "../../lib/currency";
@@ -78,7 +78,97 @@ const LABELS = {
   labelFailed: "تعذر تجهيز البوليصة",
   exchangeDone: "تم إنشاء الاستبدال",
   exchangeBadge: "أوردر استبدال",
+  linkedTitle: "حسابات العميل التانية",
+  whatsapp: "واتساب",
+  messenger: "ماسنجر",
+  instagram: "انستجرام",
+  tiktok: "تيك توك",
 };
+
+const LINKED_TONES = {
+  whatsapp: "text-emerald-500",
+  messenger: "text-sky-500",
+  instagram: "text-pink-500",
+  tiktok: "text-slate-400",
+};
+
+// The same customer's other threads — WhatsApp ↔ Messenger ↔ Instagram ↔ TikTok — tied by the
+// number they typed in the address link or that went on their order (server:
+// modules/orders/customerChannelLinks.js). When WhatsApp fails, the Messenger chat the order came
+// from is one tap away, and the reverse. A number with no WhatsApp thread yet opens wa.me.
+function LinkedChannels({ sessionId, phone, headers, skin, onOpenConversation }) {
+  const [linked, setLinked] = useState({ phones: [], conversations: [] });
+
+  useEffect(() => {
+    if (!sessionId) return undefined;
+    let active = true;
+    api.get(`/ai-agent/conversations/${encodeURIComponent(sessionId)}/linked-channels`, {
+      params: phone ? { phone } : {},
+      headers,
+      suppressErrorStatuses: [403, 404, 500],
+    })
+      .then((response) => {
+        if (!active) return;
+        setLinked({
+          phones: Array.isArray(response?.phones) ? response.phones : [],
+          conversations: Array.isArray(response?.conversations) ? response.conversations : [],
+        });
+      })
+      .catch(() => active && setLinked({ phones: [], conversations: [] }));
+    return () => {
+      active = false;
+    };
+  }, [headers, phone, sessionId]);
+
+  const others = linked.conversations.filter((thread) => text(thread.id) !== sessionId);
+  const hasWhatsappThread = linked.conversations.some((thread) => thread.kind === "whatsapp");
+  // A number we know but no WhatsApp chat to open: offer wa.me, unless we are in that chat.
+  const looseNumbers = hasWhatsappThread || sessionId.startsWith("whatsapp:") ? [] : linked.phones;
+  if (!others.length && !looseNumbers.length) return null;
+
+  const open = (thread) => {
+    if (typeof onOpenConversation === "function") {
+      onOpenConversation(thread);
+      return;
+    }
+    const params = new URLSearchParams({ conversation: thread.id, channel: thread.kind });
+    window.open(`/admin/ai-inbox?${params.toString()}`, "_blank", "noopener");
+  };
+  const chipClass = `inline-flex min-h-9 max-w-full items-center gap-1.5 rounded-xl px-2.5 text-[11px] font-black ${skin.secondary}`;
+
+  return (
+    <div className="mt-3">
+      <div className={skin.tileLabel}>{LABELS.linkedTitle}</div>
+      <div className="mt-1.5 flex flex-wrap gap-1.5">
+        {others.map((thread) => {
+          const kindPhone = thread.kind === "whatsapp" ? text(thread.id).replace(/^whatsapp:20/, "0") : "";
+          return (
+            <button key={thread.id} type="button" onClick={() => open(thread)} className={chipClass}>
+              <MessageCircle className={`h-3.5 w-3.5 shrink-0 ${LINKED_TONES[thread.kind] || ""}`} />
+              <span>{LABELS[thread.kind] || thread.kind}</span>
+              {kindPhone || thread.customer_name ? (
+                <span className="truncate font-bold opacity-70" dir={kindPhone ? "ltr" : "auto"}>{kindPhone || thread.customer_name}</span>
+              ) : null}
+            </button>
+          );
+        })}
+        {looseNumbers.map((number) => (
+          <a
+            key={number}
+            href={`https://wa.me/2${number}`}
+            target="_blank"
+            rel="noopener noreferrer"
+            className={chipClass}
+          >
+            <MessageCircle className={`h-3.5 w-3.5 shrink-0 ${LINKED_TONES.whatsapp}`} />
+            <span>{LABELS.whatsapp}</span>
+            <span className="font-bold opacity-70" dir="ltr">{number}</span>
+          </a>
+        ))}
+      </div>
+    </div>
+  );
+}
 
 
 // Customer360Drawer is a white surface; the inbox rail is a dark one. Same panel, two skins —
@@ -118,7 +208,7 @@ const SKINS = {
   },
 };
 
-export default function InboxCustomerOrdersPanel({ conversation = null, headers = undefined, tone = "dark", onNotice = null, picks = null, onRequestPick = null }) {
+export default function InboxCustomerOrdersPanel({ conversation = null, headers = undefined, tone = "dark", onNotice = null, picks = null, onRequestPick = null, onOpenConversation = null }) {
   const skin = SKINS[tone] || SKINS.dark;
   const [orders, setOrders] = useState([]);
   const [loading, setLoading] = useState(false);
@@ -432,6 +522,7 @@ export default function InboxCustomerOrdersPanel({ conversation = null, headers 
           {LABELS.refresh}
         </button>
       </div>
+      <LinkedChannels sessionId={sessionId} phone={phone} headers={headers} skin={skin} onOpenConversation={onOpenConversation} />
       {error ? <div className={skin.error}>{error}</div> : null}
       <div className="mt-3 space-y-3">{body}</div>
       <InboxExchangeSheet

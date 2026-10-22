@@ -229,6 +229,7 @@ import { loadCodPolicySettings } from "../services/storefrontShippingService.js"
 import { shippingFeeAdvanceNoticeFor } from "../services/codPolicyReplyService.js";
 import { resolveCodPolicy } from "../../shared/codPolicy.js";
 import { listInboxConversationOrders } from "../modules/orders/inboxConversationOrders.js";
+import { linkedChannelsForConversation } from "../modules/orders/customerChannelLinks.js";
 
 const router = express.Router();
 
@@ -6559,15 +6560,38 @@ router.post("/conversations/:conversationId/address-request", protect, inboxRepl
   }
 });
 
+// The same customer's other threads (WhatsApp ↔ Messenger ↔ Instagram ↔ TikTok), tied by the number
+// they typed in the address link or that went on their order — see customerChannelLinks.js.
+router.get("/conversations/:conversationId/linked-channels", protect, inboxView(), async (req, res) => {
+  try {
+    const linked = await linkedChannelsForConversation({
+      tenantId: toTenantId(req),
+      sessionId: envText(req.params.conversationId),
+      phones: [envText(req.query?.phone)],
+    });
+    return res.json({ success: true, ...linked });
+  } catch (error) {
+    return sendError(res, error, "Failed to load the customer's other channels");
+  }
+});
+
 // Every order this customer has, so the confirmation message and the payment review happen
 // where the conversation is instead of sending staff to the orders page.
 router.get("/conversations/:conversationId/orders", protect, inboxView(), async (req, res) => {
   try {
     const tenantId = toTenantId(req);
+    const sessionId = envText(req.params.conversationId);
+    let phone = envText(req.query?.phone);
+    // A Messenger/Instagram thread sends its Meta id as the "phone". The number the customer typed
+    // in that thread (address link, earlier order) finds their orders from every channel.
+    if (!/^(?:\+?20|0020|0)?1[0125]\d{8}$/.test(phone.replace(/\D/g, "")) && !sessionId.startsWith("whatsapp:")) {
+      const linked = await linkedChannelsForConversation({ tenantId, sessionId }).catch(() => null);
+      if (linked?.phones?.[0]) phone = linked.phones[0];
+    }
     const orders = await listInboxConversationOrders({
       tenantId,
-      sessionId: envText(req.params.conversationId),
-      phone: envText(req.query?.phone),
+      sessionId,
+      phone,
       limit: req.query?.limit,
     });
     return res.json({ success: true, orders });

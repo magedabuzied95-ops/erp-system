@@ -1925,6 +1925,17 @@ export default function ManagerPortal() {
   // أوردرات الشحن tab: the board owns its own filters, paging and refresh; the portal
   // only says where to fetch from.
   const loadOnlineOrders = useCallback((params) => managerPortalApi.onlineOrders(token, params), [token]);
+  // The portal has no الرسائل of its own, so a chat button (WhatsApp, Messenger, Instagram, TikTok)
+  // opens that thread in the shop's inbox in a new tab — the phone inbox on a phone.
+  const openOnlineOrderConversation = useCallback((order, thread = null) => {
+    const conversationId = String(thread?.id || order?.conversation?.id || "").trim();
+    if (!conversationId) return;
+    const phone = typeof window !== "undefined" && window.matchMedia?.("(max-width: 767px)")?.matches;
+    const url = phone
+      ? `/inbox/${encodeURIComponent(conversationId)}`
+      : `/admin/ai-inbox?${new URLSearchParams({ conversation: conversationId }).toString()}`;
+    window.open(url, "_blank", "noopener");
+  }, []);
   const loadOnlineOrder = useCallback(async (orderId) => {
     const response = await managerPortalApi.onlineOrder(token, orderId);
     return response?.order || null;
@@ -4838,6 +4849,7 @@ export default function ManagerPortal() {
                     deleteOrder={deleteOnlineOrder}
                     pickups={onlineOrderPickups}
                     createOrder={newOnlineOrder}
+                    openConversation={openOnlineOrderConversation}
                     title={tt("orders.portalBoard.title")}
                     subtitle={tt("orders.portalBoard.subtitle")}
                     bulkBarOffset={isMobilePortal ? "calc(env(safe-area-inset-bottom) + 5.75rem)" : "1rem"}

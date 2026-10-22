@@ -47,6 +47,15 @@ const shippingLocationLabel = (item) => {
   const location = item || {};
   return clean(location.name_ar || location.name_en || location.name || location.city_name_ar || location.zone_name_ar || location.district_name_ar);
 };
+// A Messenger/Instagram/TikTok thread carries the customer's page-scoped Meta id where a phone
+// would be (15-17 digits). Prefilled, it went out as the customer's number on the order and in the
+// address link, so off WhatsApp only something shaped like a mobile is taken.
+const composerPhone = (value, channel) => {
+  const phone = clean(value);
+  if (!phone || /whatsapp/i.test(clean(channel))) return phone;
+  const digits = phone.replace(/\D/g, "");
+  return /^(?:\+?20|0020|0)?1[0125]\d{8}$/.test(digits) ? phone : "";
+};
 const AI_INBOX_SHIPPING_PROVIDERS = [
   { id: "bosta", label: "Bosta" },
   { id: "mylerz", label: "Mylerz" },
@@ -171,7 +180,12 @@ function InboxOrderComposer({ open, conversation = {}, products = [], busy = fal
     setDiscountType("amount");
     setDiscountValue(0);
     setCustomerName(firstUsefulCustomerName(conversation?.customer_name, profile.name, profile.display_name));
-    setCustomerPhone(clean(profile.phone || conversation?.customer_phone || conversation?.channel_metadata?.resolved_phone || ""));
+    const channel = conversation?.channel || conversation?.source || "";
+    setCustomerPhone(
+      [profile.phone, conversation?.customer_phone, conversation?.channel_metadata?.resolved_phone]
+        .map((value) => composerPhone(value, channel))
+        .find(Boolean) || ""
+    );
     setCustomerSecondaryPhone("");
     setShippingProvider(clean(profile.shipping_provider || profile.shipping_provider_id || conversation?.shipping_provider || "bosta").toLowerCase());
     setShippingCityId(clean(profile.shipping_city_id || conversation?.shipping_city_id || ""));

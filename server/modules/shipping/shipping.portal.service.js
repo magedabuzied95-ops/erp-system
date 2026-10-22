@@ -6,6 +6,7 @@ import { loadCodPolicySettings } from "../../services/storefrontShippingService.
 import { buildPortalOnlineSql, loadColumns, tableExists } from "./onlineOrderSql.js";
 import { bostaExceptionReason, describeDeliveryAlert, orderLeftTheShop } from "../../../shared/bostaDeliveryInsights.js";
 import { normalizeWhatsappSessionId } from "../../utils/whatsappIdentity.js";
+import { linkedChannelsForSubjects } from "../orders/customerChannelLinks.js";
 
 export { buildPortalOnlineSql };
 
@@ -263,6 +264,22 @@ export const conversationsForOrders = async (orders = [], { tenantId = null, cli
   return byOrder;
 };
 
+/*
+ * Every thread the customer can be reached on, one button each (owner, 2026-10-22): an order from
+ * Messenger also shows the customer's WhatsApp, and a WhatsApp order whose number was typed in an
+ * Instagram chat shows that chat — so when one channel fails, staff follow up on the other.
+ * The tie is the number; see modules/orders/customerChannelLinks.js.
+ */
+export const linkedConversationsForOrders = async (orders = [], { tenantId = null, client = db } = {}) => {
+  const subjects = orders.map((order) => ({
+    key: String(order.id),
+    sessionIds: [text(order.ai_agent_conversation_id)].filter(Boolean),
+    phones: [order.customer_phone, order.customer_record_phone, order.customer_secondary_phone],
+  }));
+  const linked = await linkedChannelsForSubjects(subjects, { tenantId: idOrNull(tenantId), client });
+  return new Map([...linked].map(([orderId, value]) => [orderId, value.conversations]));
+};
+
 // "Which door did it come in through", said once here so both portals label the
 // same order the same way.
 export const portalOrderSourceKey = (order = {}) => {
@@ -348,6 +365,7 @@ const shapeOrder = (order = {}, items = [], codPolicy = undefined) => {
       ? order.cancelled_at
       : null,
     conversation: order.portal_conversation || null,
+    conversations: Array.isArray(order.portal_conversations) ? order.portal_conversations : [],
     whatsapp_confirmation_sent_at: order.whatsapp_confirmation_sent_at || null,
     whatsapp_confirmed_at: order.whatsapp_confirmed_at || null,
     whatsapp_cancelled_at: order.whatsapp_cancelled_at || null,
@@ -487,15 +505,27 @@ export const listPortalOnlineOrders = async ({ tenantId = null, query = {}, clie
   counts.all = PORTAL_ONLINE_GROUPS.reduce((sum, key) => sum + counts[key], 0);
 
   const rows = pageResult.rows.slice(0, PAGE_SIZE);
-  const [itemsByOrder, codPolicy, conversationByOrder] = await Promise.all([
+  const [itemsByOrder, codPolicy, conversationByOrder, linkedByOrder] = await Promise.all([
     itemsForOrders(rows.map((row) => row.id), client),
     loadCodPolicySettings().catch(() => undefined),
     // Never fatal to the board: no inbox thread just means the واتساب button opens wa.me.
     conversationsForOrders(rows, { tenantId, client }).catch(() => new Map()),
+    linkedConversationsForOrders(rows, { tenantId, client }).catch((error) => {
+      console.warn("[portal-online-orders] linked channels skipped", { message: error?.message });
+      return new Map();
+    }),
   ]);
   return {
     orders: rows.map((row) =>
-      shapeOrder({ ...row, portal_conversation: conversationByOrder.get(String(row.id)) || null }, itemsByOrder.get(String(row.id)) || [], codPolicy)
+      shapeOrder(
+        {
+          ...row,
+          portal_conversation: conversationByOrder.get(String(row.id)) || null,
+          portal_conversations: linkedByOrder.get(String(row.id)) || [],
+        },
+        itemsByOrder.get(String(row.id)) || [],
+        codPolicy
+      )
     ),
     counts,
     range,
@@ -630,14 +660,19 @@ export const getPortalOnlineOrder = async ({ tenantId = null, orderId, client = 
   );
   const order = result.rows[0];
   if (!order) throw notFound();
-  const [itemsByOrder, codPolicy, conversationByOrder] = await Promise.all([
+  const [itemsByOrder, codPolicy, conversationByOrder, linkedByOrder] = await Promise.all([
     itemsForOrders([order.id], client),
     loadCodPolicySettings().catch(() => undefined),
     conversationsForOrders([order], { tenantId, client }).catch(() => new Map()),
+    linkedConversationsForOrders([order], { tenantId, client }).catch(() => new Map()),
   ]);
   return {
     ...shapeOrder(
-      { ...order, portal_conversation: conversationByOrder.get(String(order.id)) || null },
+      {
+        ...order,
+        portal_conversation: conversationByOrder.get(String(order.id)) || null,
+        portal_conversations: linkedByOrder.get(String(order.id)) || [],
+      },
       itemsByOrder.get(String(order.id)) || [],
       codPolicy
     ),

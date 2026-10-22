@@ -351,6 +351,12 @@ function CustomerAddressPageInner() {
       setFieldError(sfText("storefront.addressLink.fieldsRequired"));
       return;
     }
+    // A Messenger/Instagram link carries no number (the chat only knows a Meta id), so the
+    // customer must type one; the server refuses the submit without it too.
+    if (!request?.has_phone && !text(phoneOverride)) {
+      setFieldError(sfText("storefront.addressLink.phoneRequired"));
+      return;
+    }
     if (whatsappState === "missing") {
       setFieldError(sfText("storefront.addressLink.whatsappMissing"));
       return;

@@ -32,9 +32,10 @@ export default function EmployeePortalOnlineOrders() {
   // reply carries the whole history and lands in the shop's inbox (owner, 2026-09-18).
   // The board only calls this for an order the server matched to a real conversation,
   // and only when this employee has messages access.
+  // `thread` is the one button pressed (WhatsApp, Messenger, Instagram, TikTok — see ContactButtons).
   const openConversation = useCallback(
-    (order) => {
-      const conversationId = String(order?.conversation?.id || "").trim();
+    (order, thread = null) => {
+      const conversationId = String(thread?.id || order?.conversation?.id || "").trim();
       if (!conversationId) return;
       navigate(`${homePath()}/inbox/${encodeURIComponent(conversationId)}`);
     },
