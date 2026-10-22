@@ -13,4 +13,4 @@
 .m1-reports-page .recharts-cartesian-grid line{stroke:var(--border)}.m1-reports-page .recharts-text{fill:var(--muted)}
 .m1-reports-page table{font-size:12px}.m1-reports-page thead{background:var(--table-head)!important;color:var(--muted)!important}.m1-reports-page tbody{border-color:var(--border)!important}.m1-reports-page tbody tr{background:var(--card)!important}.m1-reports-page tbody tr:hover{background:var(--table-hover)!important}.m1-reports-page td,.m1-reports-page th{border-color:var(--border)!important;text-align:start}
 [dir="rtl"] .m1-reports-page{font-family:var(--font-ar)}[dir="rtl"] .m1-reports-page :where(h1,h2,h3,button,input,select){font-family:var(--font-ar)!important;letter-spacing:0!important}
-@media(max-width:767px){.m1-reports-page header{padding:16px!important}.m1-reports-page section{padding:14px!important}}
+@media(max-width:767px){.m1-reports-page header{padding:16px!important}.m1-reports-page section{padding:14px!important}.m1-reports-page :where(input,select,textarea){font-size:16px!important}}

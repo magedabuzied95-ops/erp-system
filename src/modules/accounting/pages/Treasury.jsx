@@ -4,6 +4,7 @@ import toast from "react-hot-toast";
 
 import AccountingShell from "../components/AccountingShell";
 import FinanceMetricCard from "../components/FinanceMetricCard";
+import PhoneFilterSheet from "../components/PhoneFilterSheet";
 import { formatCurrency } from "../lib/financeStore";
 import { accountingApi } from "../services/accountingApi";
 
@@ -167,7 +168,7 @@ export default function Treasury() {
       }
       tabs={tabs}
     >
-      <div className="grid gap-3 md:grid-cols-2 xl:grid-cols-7">
+      <div className="grid gap-3 max-md:grid-cols-2 max-md:gap-2 md:grid-cols-2 xl:grid-cols-7">
         <FinanceMetricCard label={tt("accounting.treasury.metrics.totalCash")} value={formatCurrency(totals.cash || 0)} tone="emerald" icon={<Banknote className="h-5 w-5" />} />
         <FinanceMetricCard label={tt("accounting.treasury.metrics.totalBank")} value={formatCurrency(totals.bank || 0)} tone="cyan" icon={<Wallet className="h-5 w-5" />} />
         <FinanceMetricCard label={tt("accounting.treasury.metrics.totalWallets")} value={formatCurrency(totals.wallets || 0)} tone="violet" icon={<Wallet className="h-5 w-5" />} />
@@ -194,20 +195,20 @@ export default function Treasury() {
       ) : null}
 
       <div className="grid gap-4 xl:grid-cols-[1.3fr_0.7fr]">
-        <section className="rounded-[var(--radius-card)] border border-white/10 bg-white/[0.04] p-5 shadow-2xl shadow-black/20">
+        <section className="rounded-[var(--radius-card)] border border-white/10 bg-white/[0.04] p-5 shadow-2xl shadow-black/20 max-md:rounded-none max-md:border-0 max-md:bg-transparent! max-md:p-0 max-md:shadow-none">
           <div className="flex items-center justify-between gap-3">
             <div>
               <h2 className="m1-section-title text-white">{tt("accounting.treasury.accountBalances")}</h2>
             </div>
             <span className="rounded-full border border-white/10 bg-white/5 px-3 py-1 text-xs font-bold text-zinc-300">{accounts.length} حساب</span>
           </div>
-          <div className="mt-5 grid gap-3 md:grid-cols-2">
+          <div className="mt-5 grid gap-3 max-md:mt-3 md:grid-cols-2">
             {accounts.map((account) => {
               const tone = balanceTone(account.current_balance);
               return (
               <article key={account.id} className={`rounded-2xl border p-4 ${tone.classes}`}>
-                <div className="flex items-start justify-between gap-3">
-                  <div>
+                <div className="flex flex-wrap items-start justify-between gap-3">
+                  <div className="min-w-0">
                     <div className="text-sm font-black text-white">{account.name}</div>
                     <div className="mt-1 text-xs uppercase tracking-[0.16em] text-zinc-500">{translateMoneyType(account.type)}{account.provider ? ` - ${account.provider}` : ""}</div>
                     <div className="mt-2 inline-flex rounded-full border border-current/20 px-2 py-0.5 text-[10px] font-black">{tt(tone.labelKey)}</div>
@@ -215,9 +216,9 @@ export default function Treasury() {
                   <div className={`text-right text-lg font-black ${tone.valueClass}`}>{formatCurrency(account.current_balance || 0)}</div>
                 </div>
                 <div className="mt-4 grid grid-cols-3 gap-1.5">
-                  <button type="button" onClick={() => quickRecharge(account)} className="rounded-[var(--radius-control)] border border-current/15 bg-black/15 px-2 py-1.5 text-[10px] font-black transition hover:bg-black/25">{tt("accounting.treasury.topUp")}</button>
-                  <button type="button" onClick={() => quickOpeningBalance(account)} className="rounded-[var(--radius-control)] border border-current/15 bg-black/15 px-2 py-1.5 text-[10px] font-black transition hover:bg-black/25">{tt("accounting.treasury.opening")}</button>
-                  <button type="button" onClick={() => quickTransferInto(account)} className="rounded-[var(--radius-control)] border border-current/15 bg-black/15 px-2 py-1.5 text-[10px] font-black transition hover:bg-black/25">{tt("accounting.financialAccounts.actions.transfer")}</button>
+                  <button type="button" onClick={() => quickRecharge(account)} className="rounded-[var(--radius-control)] border border-current/15 bg-black/15 px-2 py-1.5 text-[10px] font-black transition hover:bg-black/25 max-md:min-h-10 max-md:text-xs">{tt("accounting.treasury.topUp")}</button>
+                  <button type="button" onClick={() => quickOpeningBalance(account)} className="rounded-[var(--radius-control)] border border-current/15 bg-black/15 px-2 py-1.5 text-[10px] font-black transition hover:bg-black/25 max-md:min-h-10 max-md:text-xs">{tt("accounting.treasury.opening")}</button>
+                  <button type="button" onClick={() => quickTransferInto(account)} className="rounded-[var(--radius-control)] border border-current/15 bg-black/15 px-2 py-1.5 text-[10px] font-black transition hover:bg-black/25 max-md:min-h-10 max-md:text-xs">{tt("accounting.financialAccounts.actions.transfer")}</button>
                 </div>
               </article>
             );
@@ -226,7 +227,7 @@ export default function Treasury() {
         </section>
 
         <aside className="space-y-4">
-          <form onSubmit={submitTransfer} className="rounded-[var(--radius-card)] border border-white/10 bg-white/[0.04] p-5 shadow-2xl shadow-black/20">
+          <form onSubmit={submitTransfer} className="rounded-[var(--radius-card)] border border-white/10 bg-white/[0.04] p-5 shadow-2xl shadow-black/20 max-md:p-4">
             <div className="flex items-center gap-2 text-lg font-black text-white"><Repeat2 className="h-5 w-5 text-emerald-200" /> {tt("accounting.treasury.cashTransfer")}</div>
             <div className="mt-4 grid gap-3">
               <Select value={transfer.from_account_id} onChange={(value) => setTransfer((current) => ({ ...current, from_account_id: value }))} accounts={accounts} placeholder={tt("accounting.treasury.fromAccount")} />
@@ -237,7 +238,7 @@ export default function Treasury() {
             </div>
           </form>
 
-          <form onSubmit={submitAdjustment} className="rounded-[var(--radius-card)] border border-white/10 bg-white/[0.04] p-5 shadow-2xl shadow-black/20">
+          <form onSubmit={submitAdjustment} className="rounded-[var(--radius-card)] border border-white/10 bg-white/[0.04] p-5 shadow-2xl shadow-black/20 max-md:p-4">
             <div className="flex items-center gap-2 text-lg font-black text-white"><SlidersHorizontal className="h-5 w-5 text-violet-200" /> {tt("accounting.journal.referenceTypes.manualAdjustment")}</div>
             <div className="mt-4 grid gap-3">
               <Select value={adjustment.account_id} onChange={(value) => setAdjustment((current) => ({ ...current, account_id: value }))} accounts={accounts} placeholder={tt("accounting.common.labels.account")} />
@@ -253,20 +254,27 @@ export default function Treasury() {
         </aside>
       </div>
 
-      <section className="rounded-[var(--radius-card)] border border-white/10 bg-white/[0.04] p-5 shadow-2xl shadow-black/20">
+      <section className="rounded-[var(--radius-card)] border border-white/10 bg-white/[0.04] p-5 shadow-2xl shadow-black/20 max-md:rounded-none max-md:border-0 max-md:bg-transparent! max-md:p-0 max-md:shadow-none">
         <div className="flex flex-col gap-4 xl:flex-row xl:items-end xl:justify-between">
           <div>
             <h2 className="m1-section-title text-white">{tt("accounting.treasury.cashMovements")}</h2>
             <p className="mt-1 text-sm text-zinc-400">{tt("accounting.treasury.cashMovementsHint")}</p>
           </div>
+          <PhoneFilterSheet
+            label={tt("accounting.common.actions.filter")}
+            activeCount={Object.values(filters).filter(Boolean).length}
+          >
+            {({ close }) => (
           <div className="grid gap-2 sm:grid-cols-2 xl:grid-cols-6">
             <Select compact value={filters.account_id} onChange={(value) => updateFilter("account_id", value)} accounts={accounts} placeholder={tt("accounting.ledgers.filters.allAccounts")} />
             <input className={inputClass} value={filters.transaction_type} onChange={(event) => updateFilter("transaction_type", event.target.value)} list="money-transaction-types" placeholder={tt("accounting.common.labels.type")} />
             <input className={inputClass} value={filters.reference_type} onChange={(event) => updateFilter("reference_type", event.target.value)} placeholder={tt("accounting.common.labels.reference")} />
             <input className={inputClass} value={filters.branch_id} onChange={(event) => updateFilter("branch_id", event.target.value)} placeholder={tt("orders.table.branch")} />
             <input className={inputClass} type="date" value={filters.from_date} onChange={(event) => updateFilter("from_date", event.target.value)} />
-            <button type="button" onClick={() => loadTreasury(filters)} className="rounded-[var(--radius-control)] border border-white/10 bg-white/5 px-4 py-2 text-sm font-bold text-white transition hover:bg-white/10">{tt("accounting.common.actions.filter")}</button>
+            <button type="button" onClick={() => { loadTreasury(filters); close(); }} className="rounded-[var(--radius-control)] border border-white/10 bg-white/5 px-4 py-2 text-sm font-bold text-white transition hover:bg-white/10 max-md:min-h-11">{tt("accounting.common.actions.filter")}</button>
           </div>
+            )}
+          </PhoneFilterSheet>
           <datalist id="money-transaction-types">
             {transactionTypes.map((type) => <option key={type} value={type} />)}
           </datalist>

@@ -100,7 +100,7 @@ export default function ReportExportMenu({ reportKey, title, subtitle = "", filt
         )}
         <span>{busy ? t("overview.export.working") : t("overview.export.label")}</span>
       </summary>
-      <div className="absolute end-0 z-30 mt-1 w-40 overflow-hidden rounded-[var(--radius-card)] border border-[var(--border)] bg-[var(--card)] shadow-[var(--shadow-card)]">
+      <div className="absolute end-0 z-30 mt-1 w-40 overflow-hidden rounded-[var(--radius-card)] max-sm:static max-sm:w-44 border border-[var(--border)] bg-[var(--card)] shadow-[var(--shadow-card)]">
         {EXPORT_FORMATS.map((format) => {
           const Icon = ICONS[format];
           return (

@@ -28,7 +28,7 @@ function Taxes() {
         { to: "/accounting/audit-trail", label: t("accounting.tabs.auditTrail") },
       ]}
     >
-      <div className="grid gap-3 md:grid-cols-2 xl:grid-cols-4">
+      <div className="grid gap-3 max-md:grid-cols-2 max-md:gap-2 md:grid-cols-2 xl:grid-cols-4">
         <FinanceMetricCard label={t("accounting.compliance.metrics.revenueBase")} value={formatCurrency(snapshot.revenue)} tone="emerald" icon={<Calculator className="h-5 w-5" />} />
         <FinanceMetricCard label={t("accounting.compliance.metrics.expenseBase")} value={formatCurrency(snapshot.expensesTotal)} tone="rose" icon={<Building2 className="h-5 w-5" />} />
         <FinanceMetricCard label={t("accounting.compliance.metrics.status")} value={t("accounting.compliance.status.placeholder")} tone="cyan" icon={<ShieldCheck className="h-5 w-5" />} />
@@ -44,7 +44,7 @@ function Taxes() {
 
 function Card({ title, text }) {
   return (
-    <div className="rounded-3xl border border-white/10 bg-zinc-950/90 p-5 shadow-2xl shadow-black/10">
+    <div className="rounded-3xl border border-white/10 bg-zinc-950/90 p-5 shadow-2xl shadow-black/10 max-md:rounded-none max-md:border-0 max-md:bg-transparent! max-md:p-0 max-md:shadow-none">
       <h3 className="m1-section-title text-white">{title}</h3>
       <p className="mt-2 text-sm text-zinc-400">{text}</p>
     </div>

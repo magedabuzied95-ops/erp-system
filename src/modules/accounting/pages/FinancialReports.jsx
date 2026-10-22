@@ -22,6 +22,7 @@ import {
 
 import AccountingShell from "../components/AccountingShell";
 import FinanceMetricCard from "../components/FinanceMetricCard";
+import PhoneFilterSheet from "../components/PhoneFilterSheet";
 import { accountingApi } from "../services/accountingApi";
 import { api } from "../../../shared/api/api";
 import { formatCurrency, formatNumber } from "../../../shared/lib/currency";
@@ -146,7 +147,7 @@ function FinancialReports() {
         title={shellTitle}
         actions={
           <>
-            <div className="flex items-center gap-2 rounded-[var(--radius-card)] border border-[var(--border)] bg-[var(--surface)] px-3 py-2 text-sm text-[var(--muted)]">
+            <div className="flex items-center gap-2 rounded-[var(--radius-card)] border border-[var(--border)] bg-[var(--surface)] px-3 py-2 text-sm text-[var(--muted)] max-md:hidden">
               {loading ? <LoaderCircle className="h-4 w-4 animate-spin" /> : <CalendarRange className="h-4 w-4" />}
               {isArabic ? "تحديث مباشر حسب الفلاتر" : "Live from current filters"}
             </div>
@@ -193,7 +194,11 @@ function FinancialReports() {
           { to: "/accounting/audit-trail", label: t("accounting.tabs.auditTrail") },
         ]}
       >
-        <section className="theme-card rounded-[var(--radius-card)] border border-[var(--border)] bg-[var(--surface)] p-4 shadow-xl shadow-[var(--shadow)]">
+        <PhoneFilterSheet
+          label={t("accounting.common.actions.filter")}
+          activeCount={Object.keys(defaultFilters).filter((key) => String(filters[key] ?? "") !== String(defaultFilters[key] ?? "")).length}
+        >
+        <section className="theme-card rounded-[var(--radius-card)] border border-[var(--border)] bg-[var(--surface)] p-4 shadow-xl shadow-[var(--shadow)] max-md:rounded-none max-md:border-0 max-md:bg-transparent! max-md:p-0 max-md:shadow-none">
           <div className="grid gap-3 md:grid-cols-3 xl:grid-cols-[1fr_1fr_1fr_auto]">
             <FilterField
               label={isArabic ? "من تاريخ" : "From date"}
@@ -228,8 +233,9 @@ function FinancialReports() {
             </button>
           </div>
         </section>
+        </PhoneFilterSheet>
 
-        <section className="grid gap-2 rounded-[var(--radius-card)] border border-[var(--border)] bg-[var(--surface)] p-2 shadow-xl shadow-[var(--shadow)] md:grid-cols-2 xl:grid-cols-7">
+        <section className="grid gap-2 rounded-[var(--radius-card)] border border-[var(--border)] bg-[var(--surface)] p-2 shadow-xl shadow-[var(--shadow)] max-md:flex max-md:gap-1 max-md:overflow-x-auto max-md:p-1 max-md:shadow-none max-md:[-webkit-overflow-scrolling:touch] max-md:[&>button]:shrink-0 max-md:[&>button]:px-3 max-md:[&>button]:py-2.5 md:grid-cols-2 xl:grid-cols-7">
           {REPORT_TABS.map((tab) => {
             const Icon = tab.icon;
             const [title] = txtForTab(tab.key, isArabic);
@@ -247,13 +253,13 @@ function FinancialReports() {
                 ].join(" ")}
               >
                 <Icon className="h-4 w-4 shrink-0" />
-                <span className="text-sm font-semibold">{title}</span>
+                <span className="text-sm font-semibold max-md:whitespace-nowrap">{title}</span>
               </button>
             );
           })}
         </section>
 
-        <section className="theme-card rounded-[var(--radius-card)] border border-[var(--border)] bg-[var(--card)] p-5 shadow-xl shadow-[var(--shadow)]">
+        <section className="theme-card rounded-[var(--radius-card)] border border-[var(--border)] bg-[var(--card)] p-5 shadow-xl shadow-[var(--shadow)] max-md:rounded-none max-md:border-0 max-md:bg-transparent! max-md:p-0 max-md:shadow-none">
           <div className="flex flex-col gap-2 border-b border-[var(--border)] pb-4">
             <div className="text-[11px] uppercase tracking-[0.18em] text-[var(--primary)]/70">
               {isArabic ? "التبويب الحالي" : "Current report"}
@@ -309,7 +315,7 @@ function DashboardTab({ data, loading, isArabic }) {
 
   return (
     <div className="space-y-5">
-      <div className="grid gap-3 md:grid-cols-2 xl:grid-cols-5">
+      <div className="grid gap-3 max-md:grid-cols-2 max-md:gap-2 md:grid-cols-2 xl:grid-cols-5">
         <FinanceMetricCard label={isArabic ? "صافي الإيراد" : "Net Revenue"} value={formatCurrency(cards.net_revenue, isArabic ? "ar" : "en")} tone="emerald" icon={<TrendingUp className="h-5 w-5" />} />
         <FinanceMetricCard label={isArabic ? "صافي الربح" : "Net Profit"} value={formatCurrency(cards.net_profit, isArabic ? "ar" : "en")} tone="cyan" icon={<ArrowUpRight className="h-5 w-5" />} />
         <FinanceMetricCard label={isArabic ? "مديونيات العملاء" : "Receivables Due"} value={formatCurrency(cards.receivables_due, isArabic ? "ar" : "en")} tone="amber" icon={<HandCoins className="h-5 w-5" />} />
@@ -355,7 +361,7 @@ function IncomeTab({ data, loading, isArabic }) {
   const summary = data?.summary || {};
   return (
     <div className="space-y-5">
-      <div className="grid gap-3 md:grid-cols-2 xl:grid-cols-4">
+      <div className="grid gap-3 max-md:grid-cols-2 max-md:gap-2 md:grid-cols-2 xl:grid-cols-4">
         <FinanceMetricCard label={isArabic ? "الإيراد" : "Revenue"} value={formatCurrency(summary.revenue, isArabic ? "ar" : "en")} tone="emerald" icon={<TrendingUp className="h-5 w-5" />} />
         <FinanceMetricCard label={isArabic ? "صافي الإيراد" : "Net Revenue"} value={formatCurrency(summary.net_revenue, isArabic ? "ar" : "en")} tone="cyan" icon={<ReceiptText className="h-5 w-5" />} />
         <FinanceMetricCard label="COGS" value={formatCurrency(summary.cogs, isArabic ? "ar" : "en")} hint={summary.cogs_estimated ? (isArabic ? "تقديري" : "Estimated") : ""} tone="amber" icon={<PackageSearch className="h-5 w-5" />} />
@@ -395,7 +401,7 @@ function CashTab({ data, loading, isArabic }) {
   const summary = data?.summary || {};
   return (
     <div className="space-y-5">
-      <div className="grid gap-3 md:grid-cols-2 xl:grid-cols-5">
+      <div className="grid gap-3 max-md:grid-cols-2 max-md:gap-2 md:grid-cols-2 xl:grid-cols-5">
         <FinanceMetricCard label={isArabic ? "رصيد افتتاحي" : "Opening Balance"} value={formatCurrency(summary.opening_balance, isArabic ? "ar" : "en")} tone="zinc" icon={<Landmark className="h-5 w-5" />} />
         <FinanceMetricCard label={isArabic ? "وارد" : "Incoming"} value={formatCurrency(summary.incoming, isArabic ? "ar" : "en")} tone="emerald" icon={<ArrowUpRight className="h-5 w-5" />} />
         <FinanceMetricCard label={isArabic ? "صادر" : "Outgoing"} value={formatCurrency(summary.outgoing, isArabic ? "ar" : "en")} tone="rose" icon={<ArrowDownLeft className="h-5 w-5" />} />
@@ -437,7 +443,7 @@ function ReceivablesTab({ data, loading, isArabic }) {
   const summary = data?.summary || {};
   return (
     <div className="space-y-5">
-      <div className="grid gap-3 md:grid-cols-2 xl:grid-cols-4">
+      <div className="grid gap-3 max-md:grid-cols-2 max-md:gap-2 md:grid-cols-2 xl:grid-cols-4">
         <FinanceMetricCard label={isArabic ? "إجمالي البيع الآجل" : "Credit Sales"} value={formatCurrency(summary.total_credit_sales, isArabic ? "ar" : "en")} tone="amber" icon={<ReceiptText className="h-5 w-5" />} />
         <FinanceMetricCard label={isArabic ? "المحصل من العملاء" : "Collected"} value={formatCurrency(summary.collected_amount, isArabic ? "ar" : "en")} tone="emerald" icon={<HandCoins className="h-5 w-5" />} />
         <FinanceMetricCard label={isArabic ? "الرصيد المستحق" : "Outstanding"} value={formatCurrency(summary.outstanding_balance, isArabic ? "ar" : "en")} tone="rose" icon={<CreditCard className="h-5 w-5" />} />
@@ -477,7 +483,7 @@ function PayablesTab({ data, loading, isArabic }) {
   const branchNote = data?.meta?.branch_filter_note ? [data.meta.branch_filter_note] : [];
   return (
     <div className="space-y-5">
-      <div className="grid gap-3 md:grid-cols-2 xl:grid-cols-4">
+      <div className="grid gap-3 max-md:grid-cols-2 max-md:gap-2 md:grid-cols-2 xl:grid-cols-4">
         <FinanceMetricCard label={isArabic ? "إجمالي المشتريات غير المسددة" : "Unpaid Purchases"} value={formatCurrency(summary.total_unpaid_purchases, isArabic ? "ar" : "en")} tone="amber" icon={<ReceiptText className="h-5 w-5" />} />
         <FinanceMetricCard label={isArabic ? "المدفوع للموردين" : "Paid to Suppliers"} value={formatCurrency(summary.paid_amount, isArabic ? "ar" : "en")} tone="emerald" icon={<HandCoins className="h-5 w-5" />} />
         <FinanceMetricCard label={isArabic ? "الرصيد المستحق" : "Outstanding"} value={formatCurrency(summary.outstanding_balance, isArabic ? "ar" : "en")} tone="rose" icon={<CreditCard className="h-5 w-5" />} />
@@ -518,7 +524,7 @@ function InventoryTab({ data, loading, isArabic }) {
   const notes = [summary.cogs_note].filter(Boolean);
   return (
     <div className="space-y-5">
-      <div className="grid gap-3 md:grid-cols-2 xl:grid-cols-4">
+      <div className="grid gap-3 max-md:grid-cols-2 max-md:gap-2 md:grid-cols-2 xl:grid-cols-4">
         <FinanceMetricCard label={isArabic ? "قيمة المخزون" : "Inventory Value"} value={formatCurrency(summary.inventory_value, isArabic ? "ar" : "en")} tone="emerald" icon={<Boxes className="h-5 w-5" />} />
         <FinanceMetricCard label={isArabic ? "إجمالي الوحدات" : "Total Units"} value={formatNumber(summary.total_units, isArabic ? "ar" : "en")} tone="cyan" icon={<PackageSearch className="h-5 w-5" />} />
         <FinanceMetricCard label="COGS" value={formatCurrency(summary.cogs, isArabic ? "ar" : "en")} hint={summary.cogs_estimated ? (isArabic ? "تقديري" : "Estimated") : ""} tone="amber" icon={<ReceiptText className="h-5 w-5" />} />
@@ -553,7 +559,7 @@ function SpecialsTab({ data, loading, isArabic }) {
   const notes = [data?.meta?.gifts_note].filter(Boolean);
   return (
     <div className="space-y-5">
-      <div className="grid gap-3 md:grid-cols-2 xl:grid-cols-5">
+      <div className="grid gap-3 max-md:grid-cols-2 max-md:gap-2 md:grid-cols-2 xl:grid-cols-5">
         <FinanceMetricCard label={isArabic ? "الخصومات" : "Discounts"} value={formatCurrency(summary.discounts, isArabic ? "ar" : "en")} tone="amber" icon={<ReceiptText className="h-5 w-5" />} />
         <FinanceMetricCard label={isArabic ? "المرتجعات" : "Refunds"} value={formatCurrency(summary.refunds, isArabic ? "ar" : "en")} tone="rose" icon={<ArrowDownLeft className="h-5 w-5" />} />
         <FinanceMetricCard label={isArabic ? "سلف الموظفين" : "Employee Advances"} value={formatCurrency(summary.employee_advances, isArabic ? "ar" : "en")} tone="cyan" icon={<HandCoins className="h-5 w-5" />} />

@@ -17,6 +17,7 @@ import {
 import toast from "react-hot-toast";
 
 import AccountingShell from "../components/AccountingShell";
+import PhoneFilterSheet from "../components/PhoneFilterSheet";
 import FinanceMetricCard from "../components/FinanceMetricCard";
 import { formatCurrency, formatDateTime } from "../lib/financeStore";
 import { accountingApi } from "../services/accountingApi";
@@ -226,7 +227,7 @@ function CashRegisters() {
       }
       tabs={cashDrawerTabs(t)}
     >
-      <div className="grid gap-3 md:grid-cols-2 xl:grid-cols-4">
+      <div className="grid gap-3 max-md:grid-cols-2 max-md:gap-2 md:grid-cols-2 xl:grid-cols-4">
         <FinanceMetricCard label={t("accounting.cashDrawer.metrics.expectedCash")} value={formatCurrency(currentShift?.expected_cash || 0)} tone="emerald" icon={<Banknote className="h-5 w-5" />} />
         <FinanceMetricCard label={t("accounting.cashDrawer.metrics.cashSales")} value={formatCurrency(summary.sales)} tone="cyan" icon={<ArrowDownLeft className="h-5 w-5" />} />
         <FinanceMetricCard label={t("accounting.cashDrawer.metrics.refundsExpenses")} value={formatCurrency(summary.refunds + summary.expenses + summary.cashOut)} tone="rose" icon={<ArrowUpRight className="h-5 w-5" />} />
@@ -241,7 +242,7 @@ function CashRegisters() {
       ) : null}
 
       <div className="grid gap-4 xl:grid-cols-[0.85fr_1.15fr]">
-        <div className="rounded-3xl border border-white/10 bg-zinc-950/90 p-5 shadow-2xl shadow-black/10">
+        <div className="rounded-3xl border border-white/10 bg-zinc-950/90 p-5 shadow-2xl shadow-black/10 max-md:rounded-none max-md:border-0 max-md:bg-transparent! max-md:p-0 max-md:shadow-none">
           <h3 className="m1-section-title text-white">{t("accounting.cashDrawer.currentShift")}</h3>
           {currentShift ? (
             <div className="mt-4 space-y-3 text-sm text-zinc-300">
@@ -258,7 +259,7 @@ function CashRegisters() {
             </div>
           )}
 
-          <form onSubmit={submitMovement} className="mt-6 rounded-[var(--radius-card)] border border-white/10 bg-white/5 p-4">
+          <form onSubmit={submitMovement} className="mt-6 rounded-[var(--radius-card)] border border-white/10 bg-white/5 p-4 max-md:mt-4">
             <h4 className="font-black text-white">{t("accounting.cashDrawer.manualMovement")}</h4>
             <div className="mt-3 grid gap-3 sm:grid-cols-2">
               <Field label={t("accounting.common.labels.type")}>
@@ -271,29 +272,29 @@ function CashRegisters() {
                 <input type="number" min="0" step="0.01" value={movementForm.amount} onChange={(event) => setMovementForm((current) => ({ ...current, amount: event.target.value }))} className={inputClass} />
               </Field>
             </div>
-            <button type="submit" disabled={!currentShift || saving === "movement"} className="mt-4 inline-flex items-center gap-2 rounded-[var(--radius-control)] bg-primary px-4 py-2 text-sm font-black text-black transition hover:bg-primary disabled:opacity-60">
+            <button type="submit" disabled={!currentShift || saving === "movement"} className="mt-4 inline-flex items-center gap-2 max-md:min-h-11 max-md:w-full max-md:justify-center rounded-[var(--radius-control)] bg-primary px-4 py-2 text-sm font-black text-black transition hover:bg-primary disabled:opacity-60">
               {saving === "movement" ? <Loader2 className="h-4 w-4 animate-spin" /> : <Plus className="h-4 w-4" />}
               {t("accounting.cashDrawer.actions.addMovement")}
             </button>
           </form>
         </div>
 
-        <div className="rounded-3xl border border-white/10 bg-zinc-950/90 p-5 shadow-2xl shadow-black/10">
+        <div className="rounded-3xl border border-white/10 bg-zinc-950/90 p-5 shadow-2xl shadow-black/10 max-md:rounded-none max-md:border-0 max-md:bg-transparent! max-md:p-0 max-md:shadow-none">
           <div className="flex items-center justify-between gap-3">
             <div>
               <h3 className="m1-section-title text-white">{t("accounting.cashDrawer.shiftEvents")}</h3>
               <p className="mt-1 text-sm text-zinc-500">{t("accounting.cashDrawer.eventsCount", { count: events.length })}</p>
             </div>
           </div>
-          <div className="mt-4 max-h-[460px] space-y-3 overflow-auto pr-1">
+          <div className="mt-4 max-h-[460px] space-y-3 overflow-auto pr-1 max-md:max-h-none max-md:overflow-visible max-md:pr-0">
             {events.length ? events.map((event) => (
               <div key={event.id} className="rounded-[var(--radius-card)] border border-white/10 bg-white/5 p-4">
                 <div className="flex items-start justify-between gap-3">
-                  <div>
+                  <div className="min-w-0">
                     <div className="font-black text-white">{translateEventType(event.event_type)}</div>
                     <div className="mt-1 text-xs text-zinc-500">{translateSourceType(event.source_type || "manual")} {event.source_id ? `#${event.source_id}` : ""}</div>
                   </div>
-                  <div className="text-right">
+                  <div className="shrink-0 text-right">
                     <div className="font-black text-white">{formatCurrency(event.amount)}</div>
                     <div className="mt-1 text-xs text-zinc-500">{formatDateTime(event.created_at)}</div>
                   </div>
@@ -306,8 +307,12 @@ function CashRegisters() {
         </div>
       </div>
 
-      <div className="rounded-3xl border border-white/10 bg-zinc-950 shadow-2xl shadow-black/20">
-        <div className="flex flex-col gap-3 border-b border-white/10 p-4 lg:flex-row lg:items-end lg:justify-between">
+      <div className="rounded-3xl border border-white/10 bg-zinc-950 shadow-2xl shadow-black/20 max-md:rounded-2xl max-md:shadow-none">
+        <div className="flex flex-col gap-3 border-b border-white/10 p-4 max-md:flex-row max-md:p-3 max-md:[&>*]:min-w-0 max-md:[&>*]:flex-1 lg:flex-row lg:items-end lg:justify-between">
+          <PhoneFilterSheet
+            label={t("accounting.common.actions.filter")}
+            activeCount={Object.values(filters).filter(Boolean).length}
+          >
           <form onSubmit={applyFilters} className="grid flex-1 gap-3 md:grid-cols-4">
             <Field label={t("accounting.common.labels.branchId")}>
               <input type="number" min="1" value={filters.branch_id} onChange={(event) => setFilters((current) => ({ ...current, branch_id: event.target.value }))} className={inputClass} placeholder={t("accounting.cashDrawer.placeholders.any")} />
@@ -325,9 +330,10 @@ function CashRegisters() {
             <Field label={t("accounting.common.labels.to")}>
               <input type="date" value={filters.to_date} onChange={(event) => setFilters((current) => ({ ...current, to_date: event.target.value }))} className={inputClass} />
             </Field>
-            <button type="submit" className="rounded-[var(--radius-control)] bg-primary px-4 py-2 text-sm font-black text-black md:col-span-4">{t("accounting.cashDrawer.actions.applyFilters")}</button>
+            <button type="submit" className="rounded-[var(--radius-control)] bg-primary px-4 py-2 text-sm font-black text-black max-md:min-h-11 md:col-span-4">{t("accounting.cashDrawer.actions.applyFilters")}</button>
           </form>
-          <button type="button" onClick={exportHistory} disabled={!history.length} className="inline-flex items-center justify-center gap-2 rounded-[var(--radius-control)] border border-white/10 bg-white/5 px-4 py-2 text-sm font-black text-white transition hover:bg-white/10 disabled:opacity-60">
+          </PhoneFilterSheet>
+          <button type="button" onClick={exportHistory} disabled={!history.length} className="inline-flex items-center justify-center gap-2 max-md:min-h-10 rounded-[var(--radius-control)] border border-white/10 bg-white/5 px-4 py-2 text-sm font-black text-white transition hover:bg-white/10 disabled:opacity-60">
             <Download className="h-4 w-4" />
             {t("accounting.common.actions.exportCsv")}
           </button>
@@ -450,8 +456,8 @@ function Field({ label, children }) {
 
 function Modal({ title, children, onClose }) {
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/70 p-4">
-      <div className="w-full max-w-lg rounded-3xl border border-white/10 bg-zinc-950 p-5 shadow-2xl shadow-black">
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/70 p-4 max-sm:items-end max-sm:p-0">
+      <div className="w-full max-w-lg rounded-3xl border border-white/10 bg-zinc-950 p-5 shadow-2xl shadow-black max-sm:max-h-[calc(100dvh-env(safe-area-inset-top)-12px)] max-sm:overflow-y-auto max-sm:overscroll-contain max-sm:rounded-b-none max-sm:p-4 max-sm:pb-[calc(1rem+env(safe-area-inset-bottom))]">
         <div className="mb-5 flex items-center justify-between gap-3">
           <h3 className="m1-section-title text-white">{title}</h3>
           <button type="button" onClick={onClose} className="rounded-[var(--radius-control)] border border-white/10 bg-white/5 p-2 text-white transition hover:bg-white/10">

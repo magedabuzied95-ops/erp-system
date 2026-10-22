@@ -15,6 +15,7 @@ import {
 import toast from "react-hot-toast";
 
 import AccountingShell from "../components/AccountingShell";
+import PhoneFilterSheet from "../components/PhoneFilterSheet";
 import FinanceMetricCard from "../components/FinanceMetricCard";
 import { formatCurrency, formatDateTime } from "../lib/financeStore";
 import { accountingApi } from "../services/accountingApi";
@@ -286,7 +287,7 @@ function JournalEntries() {
         </div>
       ) : null}
 
-      <div className="flex flex-wrap gap-2">
+      <div className="flex flex-wrap gap-2 max-md:-mx-1 max-md:flex-nowrap max-md:overflow-x-auto max-md:px-1 max-md:pb-1 max-md:[&>button]:min-h-10 max-md:[&>button]:shrink-0">
         <button
           type="button"
           onClick={() => setActiveTab("list")}
@@ -310,7 +311,7 @@ function JournalEntries() {
         </button>
       </div>
 
-      <div className="grid gap-3 md:grid-cols-2 xl:grid-cols-4">
+      <div className="grid gap-3 max-md:grid-cols-2 max-md:gap-2 md:grid-cols-2 xl:grid-cols-4">
         <FinanceMetricCard label={t("accounting.journal.metrics.entries")} value={metrics.total} tone="cyan" icon={<BookOpenText className="h-5 w-5" />} />
         <FinanceMetricCard label={t("accounting.journal.metrics.balanced")} value={metrics.balanced} tone="emerald" icon={<ChevronRight className="h-5 w-5" />} />
         <FinanceMetricCard label={t("accounting.journal.metrics.debits")} value={formatCurrency(metrics.debit)} tone="rose" icon={<ArrowLabel className="h-5 w-5" />} />
@@ -318,20 +319,24 @@ function JournalEntries() {
       </div>
 
       {activeTab === "list" ? (
-        <div className="rounded-3xl border border-white/10 bg-zinc-950/90 p-5 shadow-2xl shadow-black/10">
+        <div className="rounded-3xl border border-white/10 bg-zinc-950/90 p-5 shadow-2xl shadow-black/10 max-md:rounded-none max-md:border-0 max-md:bg-transparent! max-md:p-0 max-md:shadow-none">
           <div className="flex flex-col gap-3 xl:flex-row xl:items-end xl:justify-between">
             <div>
               <h3 className="m1-section-title text-white">{t("accounting.journal.ledgerTitle")}</h3>
             </div>
-            <div className="flex flex-wrap gap-2">
+            <PhoneFilterSheet
+              label={t("accounting.common.actions.filter")}
+              activeCount={[referenceType, dateFrom, dateTo].filter(Boolean).length}
+            >
+            <div className="flex flex-wrap gap-2 max-md:flex-col max-md:[&>*]:w-full">
               <FilterChip value={referenceType} onChange={setReferenceType} options={movementTypes()} />
               <label className="flex items-center gap-2 rounded-[var(--radius-card)] border border-white/10 bg-white/5 px-3 py-2 text-sm text-zinc-300">
                 <span className="text-[11px] uppercase tracking-[0.18em] text-zinc-500">{t("accounting.common.labels.from")}</span>
-                <input type="date" value={dateFrom} onChange={(e) => setDateFrom(e.target.value)} className="bg-transparent text-sm outline-none" />
+                <input type="date" value={dateFrom} onChange={(e) => setDateFrom(e.target.value)} className="bg-transparent text-sm outline-none max-md:min-w-0 max-md:flex-1" />
               </label>
               <label className="flex items-center gap-2 rounded-[var(--radius-card)] border border-white/10 bg-white/5 px-3 py-2 text-sm text-zinc-300">
                 <span className="text-[11px] uppercase tracking-[0.18em] text-zinc-500">{t("accounting.common.labels.to")}</span>
-                <input type="date" value={dateTo} onChange={(e) => setDateTo(e.target.value)} className="bg-transparent text-sm outline-none" />
+                <input type="date" value={dateTo} onChange={(e) => setDateTo(e.target.value)} className="bg-transparent text-sm outline-none max-md:min-w-0 max-md:flex-1" />
               </label>
               <button
                 type="button"
@@ -347,9 +352,10 @@ function JournalEntries() {
                 {t("accounting.common.actions.clear")}
               </button>
             </div>
+            </PhoneFilterSheet>
           </div>
 
-          <label className="mt-4 flex items-center gap-3 rounded-[var(--radius-card)] border border-white/10 bg-white/5 px-4 py-3 text-zinc-300">
+          <label className="mt-4 flex items-center gap-3 rounded-[var(--radius-card)] border border-white/10 bg-white/5 px-4 py-3 text-zinc-300 max-md:mt-3">
             <Search className="h-4 w-4 text-zinc-500" />
             <input
               value={search}
@@ -359,7 +365,7 @@ function JournalEntries() {
             />
           </label>
 
-          <div className="mt-5 overflow-hidden rounded-3xl border border-white/10">
+          <div className="mt-5 overflow-hidden rounded-3xl border border-white/10 max-md:mt-3 max-md:rounded-2xl">
             <div className="m1-table-container overflow-x-auto">
               <table className="m1-table m1-table--compact min-w-full text-sm">
                 <thead className="bg-white/5 text-zinc-400">
@@ -428,7 +434,7 @@ function JournalEntries() {
       ) : null}
 
       {activeTab === "manual" ? (
-        <form onSubmit={submitJournalEntry} className="rounded-3xl border border-white/10 bg-zinc-950/90 p-5 shadow-2xl shadow-black/10">
+        <form onSubmit={submitJournalEntry} className="rounded-3xl border border-white/10 bg-zinc-950/90 p-5 shadow-2xl shadow-black/10 max-md:rounded-none max-md:border-0 max-md:bg-transparent! max-md:p-0 max-md:shadow-none">
           <div className="flex flex-col gap-3 md:flex-row md:items-end md:justify-between">
             <div>
               <h3 className="m1-section-title text-white">{tt("accounting.journal.manualJournalEntry")}</h3>
@@ -515,7 +521,7 @@ function JournalEntries() {
       ) : null}
 
       {activeTab === "preview" ? (
-        <div className="rounded-3xl border border-white/10 bg-zinc-950/90 p-5 shadow-2xl shadow-black/10">
+        <div className="rounded-3xl border border-white/10 bg-zinc-950/90 p-5 shadow-2xl shadow-black/10 max-md:rounded-none max-md:border-0 max-md:bg-transparent! max-md:p-0 max-md:shadow-none">
           <div>
             <h3 className="m1-section-title text-white">{tt("accounting.journal.postingPreview")}</h3>
             <p className="mt-1 text-sm text-zinc-400">{tt("accounting.journal.previewOnly")}</p>
@@ -612,14 +618,14 @@ function EntryDrawer({ entry, loading, onClose, t }) {
   return (
     <div className="fixed inset-0 z-50 flex justify-end bg-black/60">
       <button type="button" aria-label={t("accounting.journal.actions.closeDrawer")} onClick={onClose} className="absolute inset-0 cursor-default" />
-      <div className="relative z-10 h-full w-full max-w-2xl overflow-y-auto border-l border-white/10 bg-zinc-950 p-5 shadow-2xl shadow-black/40">
+      <div className="relative z-10 h-full w-full max-w-2xl overflow-y-auto border-l border-white/10 bg-zinc-950 p-5 shadow-2xl shadow-black/40 max-sm:h-[100dvh] max-sm:border-l-0 max-sm:p-4 max-sm:pt-[calc(1rem+env(safe-area-inset-top))] max-sm:pb-[calc(1rem+env(safe-area-inset-bottom))]">
         <div className="flex items-start justify-between gap-3">
           <div>
             <div className="text-[11px] uppercase tracking-[0.18em] text-primary/70">{t("accounting.journal.detailTitle")}</div>
             <h3 className="m1-section-title mt-2 text-white">{entry.entry_number}</h3>
             <p className="mt-1 text-sm text-zinc-400">{entry.description || t("accounting.journal.fallbacks.journalEntry")}</p>
           </div>
-          <button type="button" onClick={onClose} className="rounded-[var(--radius-control)] border border-white/10 bg-white/5 p-2 text-zinc-200 transition hover:bg-white/10">
+          <button type="button" onClick={onClose} className="shrink-0 rounded-[var(--radius-control)] border border-white/10 bg-white/5 p-2 text-zinc-200 transition hover:bg-white/10 max-sm:p-3">
             <X className="h-4 w-4" />
           </button>
         </div>

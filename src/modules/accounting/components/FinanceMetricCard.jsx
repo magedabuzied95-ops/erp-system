@@ -9,7 +9,7 @@ export default function FinanceMetricCard({ label, value, hint, tone = "zinc", i
   };
 
   return (
-    <div className={`theme-card rounded-3xl border p-4 shadow-xl ${classes[tone]}`}>
+    <div className={`theme-card min-w-0 rounded-3xl border p-4 shadow-xl max-md:rounded-2xl max-md:px-3.5 max-md:py-3 max-md:shadow-none ${classes[tone]}`}>
       <div className="flex items-start justify-between gap-3">
         {/* min-w-0: flex items default to min-width:auto, so a long currency value
             (e.g. -2,848,153.00) could not shrink and pushed the icon box outside
@@ -17,10 +17,11 @@ export default function FinanceMetricCard({ label, value, hint, tone = "zinc", i
             the value wraps instead of the icon being squeezed. */}
         <div className="min-w-0">
           <div className="text-[11px] uppercase tracking-[0.18em] text-[var(--muted)]">{label}</div>
-          <div className="mt-2 text-2xl font-black text-[var(--text)]">{value}</div>
+          {/* Phones (2-up grid, icon hidden): a long EGP figure wraps instead of running past the card edge. */}
+          <div className="mt-2 text-2xl font-black text-[var(--text)] max-md:mt-1 max-md:[overflow-wrap:anywhere] max-md:text-lg max-md:leading-snug">{value}</div>
           {hint ? <div className="mt-1 text-xs text-[var(--muted)]">{hint}</div> : null}
         </div>
-        {icon ? <div className="shrink-0 rounded-[var(--radius-card)] border border-[var(--border)] bg-[var(--surface)] p-3 text-[var(--text)]">{icon}</div> : null}
+        {icon ? <div className="shrink-0 rounded-[var(--radius-card)] border border-[var(--border)] bg-[var(--surface)] p-3 text-[var(--text)] max-md:hidden">{icon}</div> : null}
       </div>
     </div>
   );

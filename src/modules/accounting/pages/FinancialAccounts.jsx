@@ -5,6 +5,7 @@ import { AlertTriangle, ArrowRightLeft, Building2, CreditCard, Landmark, Loader2
 import toast from "react-hot-toast";
 
 import AccountingShell from "../components/AccountingShell";
+import PhoneFilterSheet from "../components/PhoneFilterSheet";
 import { formatCurrency, formatDateTime } from "../lib/financeStore";
 import { accountingApi } from "../services/accountingApi";
 import { getCurrency } from "../../../shared/lib/currency";
@@ -211,7 +212,11 @@ function FinancialAccounts() {
         { to: "/accounting/audit-trail", label: t("accounting.tabs.auditTrail") },
       ]}
     >
-      <form onSubmit={applyFilters} className="grid gap-3 rounded-3xl border border-white/10 bg-zinc-950/90 p-4 shadow-2xl shadow-black/10 md:grid-cols-3">
+      <PhoneFilterSheet
+        label={t("accounting.common.actions.filter")}
+        activeCount={[filters.account_type, filters.branch_id].filter(Boolean).length}
+      >
+      <form onSubmit={applyFilters} className="grid gap-3 rounded-3xl border border-white/10 bg-zinc-950/90 p-4 shadow-2xl shadow-black/10 max-md:rounded-none max-md:border-0 max-md:bg-transparent! max-md:p-0 max-md:shadow-none md:grid-cols-3">
         <Field label={t("accounting.common.labels.accountType")}>
           <select value={filters.account_type} onChange={(event) => setFilters((current) => ({ ...current, account_type: event.target.value }))} className={inputClass}>
             <option value="">{t("accounting.financialAccounts.filters.allTypes")}</option>
@@ -222,9 +227,10 @@ function FinancialAccounts() {
           <input type="number" min="1" value={filters.branch_id} onChange={(event) => setFilters((current) => ({ ...current, branch_id: event.target.value }))} className={inputClass} placeholder={t("accounting.financialAccounts.filters.anyBranch")} />
         </Field>
         <div className="flex items-end">
-          <button type="submit" className="w-full rounded-[var(--radius-control)] bg-primary px-4 py-2 text-sm font-black text-black">{t("accounting.common.actions.apply")}</button>
+          <button type="submit" className="w-full rounded-[var(--radius-control)] bg-primary px-4 py-2 text-sm font-black text-black max-md:min-h-11">{t("accounting.common.actions.apply")}</button>
         </div>
       </form>
+      </PhoneFilterSheet>
 
       <div className="grid gap-3 md:grid-cols-3">
         <Metric label={t("accounting.financialAccounts.metrics.accounts")} value={accounts.length} />
@@ -235,15 +241,15 @@ function FinancialAccounts() {
       <div className="grid gap-4 xl:grid-cols-[minmax(0,1fr)_420px]">
         <div className="grid gap-4 md:grid-cols-2 2xl:grid-cols-3">
           {accounts.length ? accounts.map((account) => (
-            <button key={account.id} type="button" onClick={() => selectAccount(account)} className="rounded-[var(--radius-control)] border border-white/10 bg-zinc-950/90 p-5 text-left shadow-2xl shadow-black/10 transition hover:border-primary/40 hover:bg-white/[0.03]">
+            <button key={account.id} type="button" onClick={() => selectAccount(account)} className="min-w-0 rounded-[var(--radius-control)] border border-white/10 bg-zinc-950/90 p-5 text-left shadow-2xl shadow-black/10 max-md:p-4 max-md:shadow-none transition hover:border-primary/40 hover:bg-white/[0.03]">
               <div className="flex items-start justify-between gap-3">
-                <div>
+                <div className="min-w-0">
                   <div className="font-black text-white">{account.name}</div>
                   <div className="mt-1 text-xs uppercase tracking-[0.16em] text-zinc-500">{t(`accounting.accountTypes.${account.account_type}`, { defaultValue: labelForType(account.account_type) })}</div>
                 </div>
                 <AccountIcon type={account.account_type} />
               </div>
-              <div className={money(account.current_balance) < 0 ? "mt-5 text-3xl font-black text-rose-300" : "mt-5 text-3xl font-black text-white"}>
+              <div className={money(account.current_balance) < 0 ? "mt-5 text-3xl font-black text-rose-300 max-md:mt-3 max-md:text-2xl max-md:[overflow-wrap:anywhere]" : "mt-5 text-3xl font-black text-white max-md:mt-3 max-md:text-2xl max-md:[overflow-wrap:anywhere]"}>
                 {formatCurrency(account.current_balance)}
               </div>
               <div className="mt-3 flex items-center justify-between gap-3 text-xs text-zinc-500">
@@ -256,7 +262,7 @@ function FinancialAccounts() {
                   {t("accounting.financialAccounts.labels.negativeBalance")}
                 </div>
               ) : null}
-              <button type="button" onClick={(event) => { event.stopPropagation(); openEditModal(account); }} className="mt-4 rounded-[var(--radius-control)] border border-white/10 bg-white/5 px-3 py-2 text-xs font-black text-white transition hover:bg-white/10">
+              <button type="button" onClick={(event) => { event.stopPropagation(); openEditModal(account); }} className="mt-4 rounded-[var(--radius-control)] border border-white/10 bg-white/5 px-3 py-2 text-xs font-black text-white max-md:min-h-10 max-md:px-4 transition hover:bg-white/10">
                 {t("accounting.common.actions.edit")}
               </button>
             </button>
@@ -267,10 +273,10 @@ function FinancialAccounts() {
           )}
         </div>
 
-        <div className="rounded-3xl border border-white/10 bg-zinc-950/90 p-5 shadow-2xl shadow-black/10">
+        <div className="rounded-3xl border border-white/10 bg-zinc-950/90 p-5 shadow-2xl shadow-black/10 max-md:rounded-none max-md:border-0 max-md:bg-transparent! max-md:p-0 max-md:shadow-none">
           <h3 className="m1-section-title text-white">{t("accounting.financialAccounts.history.title")}</h3>
           <p className="mt-1 text-sm text-zinc-500">{selectedAccount ? selectedAccount.name : t("accounting.financialAccounts.history.selectAccount")}</p>
-          <div className="mt-4 max-h-[560px] space-y-3 overflow-auto pr-1">
+          <div className="mt-4 max-h-[560px] space-y-3 overflow-auto pr-1 max-md:max-h-none max-md:overflow-visible max-md:pr-0">
             {entries.length ? entries.map((entry) => (
               <div key={entry.id} className="rounded-[var(--radius-card)] border border-white/10 bg-white/5 p-4">
                 <div className="flex items-start justify-between gap-3">
@@ -410,9 +416,9 @@ function AccountIcon({ type }) {
 
 function Metric({ label, value }) {
   return (
-    <div className="rounded-3xl border border-white/10 bg-zinc-950/90 p-5 shadow-2xl shadow-black/10">
+    <div className="rounded-3xl border border-white/10 bg-zinc-950/90 p-5 shadow-2xl shadow-black/10 max-md:rounded-2xl max-md:p-4 max-md:shadow-none">
       <div className="text-[11px] font-black uppercase tracking-[0.18em] text-zinc-500">{label}</div>
-      <div className="mt-3 text-2xl font-black text-white">{value}</div>
+      <div className="mt-3 text-2xl font-black text-white max-md:mt-1.5 max-md:text-xl max-md:[overflow-wrap:anywhere]">{value}</div>
     </div>
   );
 }
@@ -428,8 +434,8 @@ function Field({ label, children }) {
 
 function Modal({ title, children, onClose }) {
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/70 p-4">
-      <div className="w-full max-w-xl rounded-3xl border border-white/10 bg-zinc-950 p-5 shadow-2xl shadow-black">
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/70 p-4 max-sm:items-end max-sm:p-0">
+      <div className="w-full max-w-xl rounded-3xl border border-white/10 bg-zinc-950 p-5 shadow-2xl shadow-black max-sm:max-h-[calc(100dvh-env(safe-area-inset-top)-12px)] max-sm:overflow-y-auto max-sm:overscroll-contain max-sm:rounded-b-none max-sm:p-4 max-sm:pb-[calc(1rem+env(safe-area-inset-bottom))]">
         <div className="mb-5 flex items-center justify-between gap-3">
           <h3 className="m1-section-title text-white">{title}</h3>
           <button type="button" onClick={onClose} className="rounded-[var(--radius-control)] border border-white/10 bg-white/5 p-2 text-white transition hover:bg-white/10">

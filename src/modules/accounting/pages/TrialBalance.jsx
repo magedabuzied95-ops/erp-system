@@ -110,7 +110,7 @@ function TrialBalance() {
         { to: "/accounting/reports", label: tt("accounting.tabs.reports") },
       ]}
     >
-      <form onSubmit={applyFilters} className="grid gap-3 rounded-3xl border border-white/10 bg-zinc-950/90 p-4 shadow-2xl shadow-black/10 md:grid-cols-4">
+      <form onSubmit={applyFilters} className="grid gap-3 rounded-3xl border border-white/10 bg-zinc-950/90 p-4 shadow-2xl shadow-black/10 max-md:grid-cols-2 max-md:gap-2 max-md:rounded-2xl max-md:p-3 max-md:shadow-none md:grid-cols-4">
         <Field label={tt("accounting.common.filters.fromDate")}>
           <input type="date" value={filters.from_date} onChange={(event) => updateFilter("from_date", event.target.value)} className="w-full rounded-[var(--radius-control)] border border-white/10 bg-white/5 px-3 py-2 text-sm text-white outline-none" />
         </Field>
@@ -130,13 +130,13 @@ function TrialBalance() {
 
       {error ? <Banner text={error} /> : null}
 
-      <div className="grid gap-3 md:grid-cols-3">
+      <div className="grid gap-3 max-md:grid-cols-2 max-md:gap-2 md:grid-cols-3">
         <FinanceMetricCard label={tt("accounting.common.metrics.totalDebit")} value={formatCurrency(report.totals.total_debits)} tone="emerald" icon={<Scale className="h-5 w-5" />} />
         <FinanceMetricCard label={tt("accounting.common.metrics.totalCredit")} value={formatCurrency(report.totals.total_credits)} tone="rose" icon={<Scale className="h-5 w-5" />} />
         <FinanceMetricCard label={tt("orders.table.status")} value={report.totals.is_balanced ? tt("accounting.journal.metrics.balanced") : tt("accounting.journal.metrics.unbalanced")} tone={report.totals.is_balanced ? "cyan" : "amber"} icon={<Scale className="h-5 w-5" />} />
       </div>
 
-      <div className="rounded-3xl border border-white/10 bg-zinc-950/90 p-5 shadow-2xl shadow-black/10">
+      <div className="rounded-3xl border border-white/10 bg-zinc-950/90 p-5 shadow-2xl shadow-black/10 max-md:rounded-none max-md:border-0 max-md:bg-transparent! max-md:p-0 max-md:shadow-none">
         <div className="flex items-center gap-3">
           <div className={`inline-flex rounded-full px-3 py-1 text-xs font-black ${report.totals.is_balanced ? "bg-emerald-500/15 text-emerald-300" : "bg-amber-500/15 text-amber-300"}`}>
             {report.totals.is_balanced ? tt("accounting.journal.metrics.balanced") : tt("accounting.journal.metrics.unbalanced")}

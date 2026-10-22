@@ -91,7 +91,7 @@ function Revenues() {
         { to: "/accounting/reports", label: t("accounting.tabs.reports") },
       ]}
     >
-      <div className="grid gap-3 md:grid-cols-2 xl:grid-cols-4">
+      <div className="grid gap-3 max-md:grid-cols-2 max-md:gap-2 md:grid-cols-2 xl:grid-cols-4">
         <FinanceMetricCard label={t("accounting.revenues.metrics.incomeTotal")} value={formatCurrency(analytics.total)} tone="emerald" icon={<BadgeDollarSign className="h-5 w-5" />} />
         <FinanceMetricCard label={t("accounting.revenues.metrics.entries")} value={incomeEntries.length} tone="cyan" icon={<CirclePlus className="h-5 w-5" />} />
         <FinanceMetricCard label={t("accounting.revenues.metrics.categories")} value={analytics.breakdown.length} tone="amber" icon={<ReceiptText className="h-5 w-5" />} />
@@ -99,7 +99,7 @@ function Revenues() {
       </div>
 
       <div className="grid gap-4 xl:grid-cols-[minmax(0,0.95fr)_minmax(0,1.05fr)]">
-        <div className="rounded-3xl border border-white/10 bg-zinc-950/90 p-5 shadow-2xl shadow-black/10">
+        <div className="rounded-3xl border border-white/10 bg-zinc-950/90 p-5 shadow-2xl shadow-black/10 max-md:rounded-none max-md:border-0 max-md:bg-transparent! max-md:p-0 max-md:shadow-none">
           <h3 className="m1-section-title text-white">{t("accounting.revenues.createTitle")}</h3>
           <div className="mt-4 grid gap-3 md:grid-cols-2">
             <Field label={t("accounting.common.labels.title")} value={title} onChange={setTitle} placeholder={t("accounting.revenues.placeholders.title")} />
@@ -118,14 +118,14 @@ function Revenues() {
         </div>
 
         <div className="space-y-4">
-          <div className="rounded-3xl border border-white/10 bg-zinc-950/90 p-5 shadow-2xl shadow-black/10">
+          <div className="rounded-3xl border border-white/10 bg-zinc-950/90 p-5 shadow-2xl shadow-black/10 max-md:rounded-none max-md:border-0 max-md:bg-transparent! max-md:p-0 max-md:shadow-none">
             <h3 className="m1-section-title text-white">{t("accounting.revenues.categoriesTitle")}</h3>
             <div className="mt-4 space-y-3">
               {analytics.breakdown.length === 0 ? <Empty label={t("accounting.revenues.empty.noAnalytics")} /> : analytics.breakdown.map((item) => <Row key={item.label} label={item.label} value={formatCurrency(item.value)} />)}
             </div>
           </div>
 
-          <div className="rounded-3xl border border-white/10 bg-zinc-950/90 p-5 shadow-2xl shadow-black/10">
+          <div className="rounded-3xl border border-white/10 bg-zinc-950/90 p-5 shadow-2xl shadow-black/10 max-md:rounded-none max-md:border-0 max-md:bg-transparent! max-md:p-0 max-md:shadow-none">
             <h3 className="m1-section-title text-white">{t("accounting.revenues.historyTitle")}</h3>
             <div className="mt-4 space-y-3">
               {incomeEntries.length === 0 ? (
