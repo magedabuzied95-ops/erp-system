@@ -82,10 +82,14 @@ test("WhatsApp: words over product cards carry no «شوفه من هنا» link"
 // 2026-10-23, «عايزه اسود» over a Skechers card came back Beige twice, its name growing a colour per pass.
 test("a colour card normalized again stays its own colour, under its base name", () => {
   const skechers = { id: 562, name: "SKECHERS SLIP INS", price: 1550, product_url: "https://m1store-egy.com/p/562",
-    variants: ["Grey", "Beige", "Black"].flatMap((color, c) => ["41", "42"].map((size, s) => ({ ...variant(7913 + c * 2 + s, color), size, price: 1550 }))) };
-  const black = normalizeProductCards([skechers], { limit: 24, preserveUnavailableCards: true }).find((card) => card.color === "Black");
-  const again = normalizeProductCards([black], { limit: 1, preserveUnavailableCards: true });
-  assert.equal(again[0].color, "Black");
-  assert.equal(again[0].name, "SKECHERS SLIP INS - Black");
-  assert.equal(again[0].base_name, "SKECHERS SLIP INS");
+    // As on the shelf: Grey and Beige in 41–45, Black up to 44 — the colour with more sizes used to win.
+    variants: ["Grey", "Beige", "Black"].flatMap((color, c) => (color === "Black" ? ["41", "42", "43", "44"] : ["41", "42", "43", "44", "45"])
+      .map((size, s) => ({ ...variant(7913 + c * 5 + s, color), size, price: 1550 }))) };
+  const black = normalizeProductCards([skechers], { limit: 24 }).find((card) => card.color === "Black");
+  for (const options of [{ limit: 1 }, { limit: 1, preserveUnavailableCards: true }]) {
+    const again = normalizeProductCards([black], options);
+    assert.equal(again[0].color, "Black", JSON.stringify(options));
+    assert.equal(again[0].name, "SKECHERS SLIP INS - Black");
+    assert.equal(again[0].base_name, "SKECHERS SLIP INS");
+  }
 });

@@ -847,6 +847,9 @@ const asReNormalizedCard = (product = {}) => {
     ...product,
     name: text(product.base_name),
     title: text(product.base_name),
+    // The expansion sends the requested colour first; without it, the colour with the most sizes
+    // won (Beige's five over Black's four).
+    requested_color: text(product.color),
     variants: [...variants.filter(isOwn), ...variants.filter((variant) => !isOwn(variant))],
   };
 };
