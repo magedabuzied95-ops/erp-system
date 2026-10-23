@@ -67,7 +67,7 @@ export default function ConversationCrmCard({
       <div className="space-y-3">
         <div>
           <div className={sectionTitle}>{t("aiSupport.inbox.crmCard.stage")}</div>
-          {!currentStage ? <p className="mb-1.5 text-[11px] text-slate-500">{t("aiSupport.inbox.crmCard.notLead")}</p> : null}
+          {!currentStage && !crm ? <p className="mb-1.5 text-[11px] text-slate-500">{t("aiSupport.inbox.crmCard.notLead")}</p> : null}
           {crm ? <ThemedSelect ariaLabel={t('aiSupport.inbox.crmCard.stage')} value={String(crm.stage_id)} disabled={!canEditCrm||crmBusy||Boolean(busy)} options={crmStages.filter(stage=>String(stage.pipeline_id)===String(crm.pipeline_id)&&!stage.is_archived).map(stage=>({value:String(stage.id),label:stage.legacy_key&&stage.name===({new:'New',contacted:'Contacted',interested:'Interested',negotiation:'Negotiation',won:'Won',lost:'Lost'})[stage.legacy_key]?t(`aiSupport.crm.stages.${stage.legacy_key}`):stage.name}))} onChange={setCrmStage} /> : <div role="radiogroup" aria-label={t("aiSupport.inbox.crmCard.stage")} className="flex flex-wrap gap-1.5">
             {stageOptions.map((stage) => {
               const on = stage.id === currentStage;

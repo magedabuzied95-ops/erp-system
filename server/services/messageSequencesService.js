@@ -643,7 +643,7 @@ const customerRepliedSince = async ({ tenantId, sessionId, since }) => {
 
 const finish = (id, status, reason = "") =>
   db.query(
-    `UPDATE message_sequence_enrollments SET status = $2, stopped_reason = $3, finished_at = NOW(), locked_at = NULL, updated_at = NOW() WHERE id = $1`,
+    `UPDATE message_sequence_enrollments SET status = $2, stopped_reason = $3, finished_at = NOW(), locked_at = NULL, updated_at = NOW() WHERE id = $1 AND status = 'active' RETURNING id`,
     [id, status, reason]
   );
 
@@ -664,8 +664,8 @@ const processEnrollment = async (row) => {
     if (hasStageResult) {
       const replied = await customerRepliedSince({ tenantId, sessionId: row.session_id, since: row.last_sent_at });
       const nextStage = text(replied ? row.move_to_if_replied : row.move_to_if_no_reply);
-      await finish(row.id, "completed", replied ? "customer_replied" : "no_reply");
-      if (nextStage) await setConversationLeadStage({ tenantId, sessionId: row.session_id, stage: nextStage });
+      const finished = await finish(row.id, "completed", replied ? "customer_replied" : "no_reply");
+      if (nextStage && finished.rowCount) await setConversationLeadStage({ tenantId, sessionId: row.session_id, stage: nextStage });
       return replied ? "completed_replied" : "completed_no_reply";
     }
     await finish(row.id, "completed", "");
@@ -681,8 +681,8 @@ const processEnrollment = async (row) => {
     return "conversation_closed";
   }
   if (row.stop_on_reply !== false && stepIndex > 0 && (await customerRepliedSince({ tenantId, sessionId: row.session_id, since: row.last_sent_at }))) {
-    await finish(row.id, "stopped", "customer_replied");
-    if (text(row.move_to_if_replied)) await setConversationLeadStage({ tenantId, sessionId: row.session_id, stage: row.move_to_if_replied });
+    const finished = await finish(row.id, "stopped", "customer_replied");
+    if (text(row.move_to_if_replied) && finished.rowCount) await setConversationLeadStage({ tenantId, sessionId: row.session_id, stage: row.move_to_if_replied });
     return "customer_replied";
   }
   if (row.stop_on_purchase !== false) {
@@ -730,6 +730,10 @@ const processEnrollment = async (row) => {
   }
 
   let delivered = false;
+  // A CRM transition may have cancelled this enrollment while AI text was being
+  // generated. Re-read immediately before delivery; cancellation never starts a replacement.
+  const live = await db.query('SELECT status FROM message_sequence_enrollments WHERE id=$1 AND tenant_id=$2',[row.id,tenantId]);
+  if (live.rows[0]?.status !== 'active') return 'cancelled_before_delivery';
   try {
     if (messageText) {
       const result = await sendInboxText({

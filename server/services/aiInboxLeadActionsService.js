@@ -211,14 +211,15 @@ export const createOrUpdateLeadOpportunity = async ({ tenantId, conversation = {
     WHERE tenant_id=$1 AND channel=$2 AND external_conversation_id IN ($3,$4)
     ORDER BY id LIMIT 1`, [tenantId,channel,conversationId,rawId]);
   if (linked.rows[0]) {
+    const canonicalConversationId = conversationId.startsWith(`${channel}:`) ? conversationId : `${channel}:${conversationId}`;
     const canonical = await client.query(`INSERT INTO ai_lead_opportunities
       (tenant_id,profile_id,conversation_id,source_key,source_label,title,notes,metadata,channel_conversation_id)
       VALUES($1,$2,$3,$4,$5,$6,$7,$8::jsonb,$9)
-      ON CONFLICT (tenant_id,channel_conversation_id) WHERE channel_conversation_id IS NOT NULL DO UPDATE SET
-        source_label=EXCLUDED.source_label,title=EXCLUDED.title,notes=EXCLUDED.notes,
+      ON CONFLICT (tenant_id,conversation_id) WHERE channel_conversation_id IS NOT NULL DO UPDATE SET
+        channel_conversation_id=EXCLUDED.channel_conversation_id,source_label=EXCLUDED.source_label,title=EXCLUDED.title,notes=EXCLUDED.notes,
         metadata=ai_lead_opportunities.metadata || EXCLUDED.metadata,
         version=ai_lead_opportunities.version+1,updated_at=NOW()
-      RETURNING *`, [tenantId,profile?.id || conversation.customer_profile?.id || null,conversationId,
+      RETURNING *`, [tenantId,profile?.id || conversation.customer_profile?.id || null,canonicalConversationId,
       payload.source_key,payload.source_label,payload.title,payload.notes,JSON.stringify(payload.metadata),linked.rows[0].id]);
     return canonical.rows[0];
   }

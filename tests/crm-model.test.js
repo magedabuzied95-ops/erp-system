@@ -3,7 +3,7 @@ import assert from 'node:assert/strict';
 import { crmDealInput, crmStageInput, crmPositiveId } from '../shared/crmModel.js';
 
 test('CRM does not accept ambiguous identifiers', () => {
-  for (const value of [0, -1, 1.5, 'a', Infinity, Number.MAX_SAFE_INTEGER + 1]) assert.throws(() => crmPositiveId(value));
+  for (const value of [0, -1, 1.5, 'a', true, ['1'], {}, '1e2', '0x10', Infinity, Number.MAX_SAFE_INTEGER + 1]) assert.throws(() => crmPositiveId(value));
   assert.equal(crmPositiveId('12'), 12);
 });
 test('terminal stages cannot be both won and lost', () => {

@@ -116,6 +116,14 @@ BEGIN
     VALUES(NEW.tenant_id,NEW.id,CASE WHEN TG_OP='UPDATE' THEN OLD.stage_id ELSE NULL END,NEW.stage_id,
       NULLIF(current_setting('m1.crm_actor',true),'')::bigint,
       COALESCE(NULLIF(current_setting('m1.crm_source',true),''),'auto'));
+    IF TG_OP='UPDATE' AND NULLIF(NEW.conversation_id,'') IS NOT NULL
+      AND to_regclass('message_sequence_enrollments') IS NOT NULL THEN
+      UPDATE message_sequence_enrollments e SET status='stopped',stopped_reason='stage_changed',
+        finished_at=NOW(),locked_at=NULL,updated_at=NOW()
+      FROM message_sequences s WHERE s.id=e.sequence_id AND s.tenant_id=NEW.tenant_id
+        AND e.tenant_id=NEW.tenant_id AND e.session_id=NEW.conversation_id
+        AND e.status='active' AND s.trigger_type='lead_stage';
+    END IF;
   END IF;
   RETURN NEW;
 END $$;
@@ -132,32 +140,38 @@ BEGIN
   stage_key := COALESCE(NULLIF(NEW.lead_status,''),'new');
   IF NOT (COALESCE(NEW.metadata,'{}'::jsonb) ? 'crm_lead'
       OR COALESCE(NEW.metadata,'{}'::jsonb) ? 'campaign_lead' OR stage_key <> 'new') THEN RETURN NEW; END IF;
+  session_key := CASE WHEN NEW.external_conversation_id LIKE NEW.channel || ':%'
+    THEN NEW.external_conversation_id ELSE NEW.channel || ':' || NEW.external_conversation_id END;
+  PERFORM pg_advisory_xact_lock(hashtextextended(NEW.tenant_id::text || ':' || session_key,0));
   SELECT p.id,s.id INTO pid,sid FROM crm_pipelines p JOIN crm_stages s
     ON s.pipeline_id=p.id AND s.tenant_id=p.tenant_id AND s.legacy_key=stage_key
     WHERE p.tenant_id=NEW.tenant_id AND p.id=COALESCE(
-      (SELECT pipeline_id FROM ai_lead_opportunities WHERE tenant_id=NEW.tenant_id AND channel_conversation_id=NEW.id LIMIT 1),
+      (SELECT pipeline_id FROM ai_lead_opportunities WHERE tenant_id=NEW.tenant_id
+        AND (channel_conversation_id=NEW.id OR conversation_id=session_key) ORDER BY id LIMIT 1),
       (SELECT id FROM crm_pipelines WHERE tenant_id=NEW.tenant_id AND is_default LIMIT 1)) LIMIT 1;
   IF sid IS NULL THEN RETURN NEW; END IF;
-  session_key := CASE WHEN NEW.external_conversation_id LIKE NEW.channel || ':%'
-    THEN NEW.external_conversation_id ELSE NEW.channel || ':' || NEW.external_conversation_id END;
   details := COALESCE(NEW.metadata->'crm_lead_details','{}'::jsonb);
   SELECT id INTO oid FROM ai_lead_opportunities
     WHERE tenant_id=NEW.tenant_id AND (channel_conversation_id=NEW.id OR
-      (channel_conversation_id IS NULL AND (conversation_id=session_key OR
-        (conversation_id=NEW.external_conversation_id AND source_key=NEW.channel))))
+      conversation_id=session_key OR
+      (channel_conversation_id IS NULL AND conversation_id=NEW.external_conversation_id AND source_key=NEW.channel))
     ORDER BY (channel_conversation_id IS NOT NULL) DESC,id LIMIT 1 FOR UPDATE;
   IF oid IS NULL THEN
-    INSERT INTO ai_lead_opportunities(tenant_id,profile_id,conversation_id,source_key,title,pipeline_id,stage_id,channel_conversation_id)
-    VALUES(NEW.tenant_id,NEW.customer_profile_id,session_key,'crm',COALESCE(NULLIF(details->>'lead_name',''),NULLIF(NEW.customer_name,''),session_key),pid,sid,NEW.id)
-    ON CONFLICT (tenant_id,channel_conversation_id) WHERE channel_conversation_id IS NOT NULL DO NOTHING
+    INSERT INTO ai_lead_opportunities(tenant_id,profile_id,conversation_id,source_key,title,pipeline_id,stage_id,channel_conversation_id,status)
+    VALUES(NEW.tenant_id,NEW.customer_profile_id,session_key,'crm',COALESCE(NULLIF(details->>'lead_name',''),NULLIF(NEW.customer_name,''),session_key),pid,sid,NEW.id,
+      CASE WHEN stage_key IN ('won','lost') THEN stage_key ELSE 'open' END)
+    ON CONFLICT DO NOTHING
     RETURNING id INTO oid;
-    IF oid IS NULL THEN SELECT id INTO oid FROM ai_lead_opportunities WHERE tenant_id=NEW.tenant_id AND channel_conversation_id=NEW.id; END IF;
+    IF oid IS NULL THEN SELECT id INTO oid FROM ai_lead_opportunities WHERE tenant_id=NEW.tenant_id
+      AND (channel_conversation_id=NEW.id OR conversation_id=session_key) ORDER BY id LIMIT 1; END IF;
   END IF;
-  UPDATE ai_lead_opportunities SET channel_conversation_id=NEW.id,
-    status=CASE WHEN TG_OP='UPDATE' AND OLD.lead_status IS NOT DISTINCT FROM NEW.lead_status AND stage_id IS NOT NULL THEN status
+  UPDATE ai_lead_opportunities SET channel_conversation_id=NEW.id,conversation_id=session_key,
+    status=CASE WHEN stage_id IS NOT NULL AND ((TG_OP='UPDATE' AND OLD.lead_status IS NOT DISTINCT FROM NEW.lead_status)
+      OR (TG_OP='INSERT' AND stage_key='new')) THEN status
       WHEN stage_key IN ('won','lost') THEN stage_key ELSE 'open' END,
     pipeline_id=COALESCE(pipeline_id,pid),
-    stage_id=CASE WHEN stage_id IS NULL OR (TG_OP='UPDATE' AND OLD.lead_status IS DISTINCT FROM NEW.lead_status) THEN sid ELSE stage_id END,
+    stage_id=CASE WHEN stage_id IS NULL OR (TG_OP='UPDATE' AND OLD.lead_status IS DISTINCT FROM NEW.lead_status)
+      OR (TG_OP='INSERT' AND stage_key<>'new') THEN sid ELSE stage_id END,
     title=COALESCE(NULLIF(details->>'lead_name',''),NULLIF(title,''),NEW.customer_name,session_key),
     expected_revenue=CASE WHEN details ? 'expected_revenue' AND details->>'expected_revenue' IS NULL THEN NULL
       WHEN details->>'expected_revenue' ~ '^[0-9]{1,12}([.][0-9]{1,2})?$' THEN (details->>'expected_revenue')::numeric ELSE expected_revenue END,
@@ -178,6 +192,15 @@ FOR EACH ROW EXECUTE FUNCTION crm_sync_inbox_lead();
 -- Backfill using the same trigger without editing the conversation data.
 -- Ambiguous legacy deals require review; never merge distinct records silently.
 DO $$ BEGIN
+  IF EXISTS (
+    SELECT 1 FROM ai_channel_conversations c JOIN ai_lead_opportunities o ON o.tenant_id=c.tenant_id
+      AND o.channel_conversation_id IS NULL AND NULLIF(o.conversation_id,'') IS NOT NULL
+      AND o.conversation_id=c.external_conversation_id AND o.source_key<>c.channel
+      AND c.external_conversation_id NOT LIKE c.channel || ':%'
+    WHERE COALESCE(c.metadata,'{}'::jsonb) ? 'crm_lead'
+      OR COALESCE(c.metadata,'{}'::jsonb) ? 'campaign_lead' OR COALESCE(c.lead_status,'new') <> 'new'
+  ) THEN RAISE EXCEPTION 'CRM backfill stopped: a bare legacy conversation has unverified channel attribution';
+  END IF;
   IF EXISTS (
     SELECT c.id FROM ai_channel_conversations c JOIN ai_lead_opportunities o
       ON o.tenant_id=c.tenant_id AND (o.channel_conversation_id=c.id OR
@@ -209,5 +232,8 @@ DO $$ BEGIN
       FOREIGN KEY (tenant_id,pipeline_id,stage_id) REFERENCES crm_stages(tenant_id,pipeline_id,id);
   END IF;
 END $$;
+
+CREATE UNIQUE INDEX IF NOT EXISTS crm_primary_session
+  ON ai_lead_opportunities(tenant_id,conversation_id) WHERE channel_conversation_id IS NOT NULL;
 
 COMMIT;

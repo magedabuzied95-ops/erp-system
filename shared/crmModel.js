@@ -2,6 +2,10 @@
 export const CRM_LEGACY_STAGES = Object.freeze(['new', 'contacted', 'interested', 'negotiation', 'won', 'lost']);
 
 export function crmPositiveId(value) {
+  if ((typeof value !== 'number' && typeof value !== 'string')
+      || (typeof value === 'string' && !/^[1-9][0-9]*$/.test(value))) {
+    throw Object.assign(new Error('Invalid identifier'), { status: 400 });
+  }
   const number = Number(value);
   if (!Number.isSafeInteger(number) || number <= 0) throw Object.assign(new Error('Invalid identifier'), { status: 400 });
   return number;
