@@ -18,7 +18,7 @@ import { genderizeDecision, resolveCustomerGender } from "../utils/customerGende
 import { runClaudeSalesAgent } from "./aiClaudeSalesAgentService.js";
 import { buildStoreFactsDecision, STORE_FACTS_INTENTS } from "./aiStoreFactsReplyService.js";
 import { buildCatalogBrowseDecision, CATALOG_BROWSE_INTENTS } from "./aiCatalogBrowseService.js";
-import { coloursNamedIn } from "../utils/colourWords.js";
+import { arabicColourName, coloursNamedIn } from "../utils/colourWords.js";
 import {
   buildConversationMemoryV2,
   mergeConversationMemoryV2,
@@ -1320,7 +1320,8 @@ export const generateUnifiedConversationDecision = async (normalizedInbound = {}
         const watched = await addRestockWatch({ tenantId, sessionId: inbound.externalConversationId, channel: inbound.channel, productId: target.productId, size: target.size, color: target.color });
         console.info("[ai-unified] restock watch from the size step", { conversation_id: inbound.externalConversationId, ...target, ok: Boolean(watched?.ok), reason: watched?.reason || "" });
         if (watched?.ok) {
-          const confirmation = `مقاس ${target.size}${target.color ? ` ${target.color}` : ""} مش متوفر دلوقتي يا فندم، وسجّلت طلب حضرتك — هبلّغك هنا أول ما ينزل إن شاء الله 🙏`;
+          const colourWord = arabicColourName(target.color);
+          const confirmation = `مقاس ${target.size}${colourWord ? ` ${colourWord}` : ""} مش متوفر دلوقتي يا فندم، وسجّلت طلب حضرتك — هبلّغك هنا أول ما ينزل إن شاء الله 🙏`;
           output.text = confirmation;
           if (output.answer !== undefined) output.answer = confirmation;
           if (output.channel_reply && typeof output.channel_reply === "object") output.channel_reply = { ...output.channel_reply, text: confirmation };

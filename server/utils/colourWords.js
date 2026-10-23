@@ -14,5 +14,9 @@ export const COLOUR_WORDS = [
   [/(نبيتي|برجندي|burgundy)/i, ["burgundy"]],
 ];
 
+// The Arabic a reply uses for a catalog colour word («مقاس 47 الأسود»); "" when there is none.
+const ARABIC_COLOUR = { black: "الأسود", white: "الأبيض", beige: "البيج", biege: "البيج", navy: "الكحلي", grey: "الرمادي", gray: "الرمادي", red: "الأحمر", green: "الأخضر", brown: "البني", pink: "البينك", rose: "البينك", blue: "الأزرق", burgundy: "النبيتي" };
+export const arabicColourName = (colour = "") => ARABIC_COLOUR[String(colour ?? "").trim().toLowerCase()] || "";
+
 export const coloursNamedIn = (message = "") =>
   COLOUR_WORDS.filter(([pattern]) => pattern.test(String(message ?? "").trim())).flatMap(([, names]) => names);

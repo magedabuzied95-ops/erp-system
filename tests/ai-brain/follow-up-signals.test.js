@@ -17,6 +17,7 @@ import {
 } from "../../server/services/messageSequencesService.js";
 import { addRestockWatch, ensureRestockWatchSchema, normalizeSize, resolveCatalogColour, runRestockWatchTick, variantMatchesWatch } from "../../server/modules/restockWatch/restockWatch.js";
 import { RESTOCK_REQUEST, restockTargetFrom, safeProductFacts } from "../../server/services/aiUnifiedDecisionService.js";
+import { arabicColourName } from "../../server/utils/colourWords.js";
 
 /**
  * The owner, 2026-10-23: follow-ups "the way GENI does them, professionally" — four ready ones
@@ -169,6 +170,10 @@ test("«بلّغني لما ينزل» in the size step is read for model, size 
     message: "لا أنا عايزه أسود مش نيفي، الأسود مقاس ٤٧ موجود؟ لو مش موجود بلغني",
   });
   assert.deepEqual(target, { productId: "180", size: "47", color: "black" });
+  // The reply names the colour in Arabic, not the catalog's English («مقاس 47 black» went out live).
+  assert.equal(arabicColourName("Black"), "الأسود");
+  assert.equal(arabicColourName("Teal"), "");
+  assert.match(read("../../server/services/aiUnifiedDecisionService.js"), /const colourWord = arabicColourName\(target\.color\);/);
 });
 
 test("the wiring: one track per customer, quiet hours, the audience at send time, the order steps, the worker", () => {
