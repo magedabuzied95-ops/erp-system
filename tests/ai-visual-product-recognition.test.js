@@ -124,7 +124,7 @@ test("the visual reply leaves the colours and sizes to the cards", () => {
     inboxService.indexOf("const buildVisualRecognitionPayload"),
     inboxService.indexOf("const buildBareConfirmationPayload")
   );
-  assert.match(builder, /response_type: "product_card"/);
+  assert.match(builder, /response_type: cards\.length \? "product_card" : "text"/, "a size answer with no other colour in that size is text alone");
   assert.match(builder, /product_cards: cards/, "the cards are what carry the colours and sizes");
   // Listing every colour in the text as well makes the customer read the same catalogue twice —
   // the exact complaint that shrank the approve-and-send text leg.

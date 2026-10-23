@@ -348,10 +348,43 @@ export const VISUAL_SAME_MODEL_TEXT = "أيوه متاح إن شاء الله �
 export const VISUAL_CLOSEST_MODEL_TEXT = "مش لاقي نفس الموديل اللي في الصورة بالظبط يا فندم، بس ده أقرب موديل ليه عندنا 👇";
 export const VISUAL_OTHER_COLOR_TEXT = "الموديل ده متاح إن شاء الله، بس مش باللون اللي في الصورة 🙏 دي الألوان المتاحة منه 👇";
 
-export const buildVisualRecognitionPayload = ({ cards = [], recognition = {} } = {}) => {
+// «دا موجود ٤٥ ؟» under the photo: the size the caption asks for (shoe sizes only).
+export const captionShoeSize = (caption = "") => {
+  const digits = text(caption).replace(/[٠-٩]/g, (digit) => String("٠١٢٣٤٥٦٧٨٩".indexOf(digit)));
+  const size = (digits.match(/(?<!\d)(\d{2})(?:\.5)?(?!\d)/g) || []).find((value) => Number(value) >= 30 && Number(value) <= 49);
+  return size || "";
+};
+
+/*
+ * A photo with a size question answers the size for THAT colour (owner's test, 2026-10-23: the
+ * Jordan 4 «Gray» photo with «دا موجود ٤٥ ؟» got «أيوه متاح» and the whole model, and Gray has no
+ * 45). Only when the photo is the colour for sure; a closest/other-colour match keeps its own words.
+ */
+export const visualSizeAnswer = ({ cards = [], recognition = {}, caption = "" } = {}) => {
+  const size = captionShoeSize(caption);
+  if (!size || recognition.photoMatch !== "same" || recognition.closest) return null;
+  const colourKey = (card) => text(card?.color || card?.matched_variant_color).toLowerCase();
+  const sizesOf = (card) => [...new Set(asArray(card?.available_sizes || card?.sizes).map(text).filter(Boolean))];
+  const matched = asArray(cards).find((card) => colourKey(card) && colourKey(card) === text(recognition.matchedColor).toLowerCase()) || asArray(cards)[0];
+  if (!matched) return null;
+  if (sizesOf(matched).includes(size)) return { text: `أيوه مقاس ${size} متاح في اللون ده 👇`, cards: [matched] };
+  const others = asArray(cards).filter((card) => card !== matched && sizesOf(card).includes(size));
+  const ownSizes = sizesOf(matched);
+  return {
+    text: [
+      `اللون ده مش متاح منه مقاس ${size} للأسف 🙏${ownSizes.length ? ` المتاح منه: ${ownSizes.join("، ")}.` : ""}`,
+      others.length ? `ومقاس ${size} متاح في الألوان دي من نفس الموديل 👇` : "",
+    ].filter(Boolean).join("\n"),
+    cards: others,
+  };
+};
+
+export const buildVisualRecognitionPayload = ({ cards: recognisedCards = [], recognition = {}, caption = "" } = {}) => {
+  const sizeAnswer = visualSizeAnswer({ cards: recognisedCards, recognition, caption });
+  const cards = sizeAnswer ? sizeAnswer.cards : recognisedCards;
   // The owner's words (2026-10-19): one line, the cards do the rest. When the photo was only
   // matched to its family, the customer is told this is the closest model, never sold it as the same.
-  const answer = recognition.photoMatch === "same_model_other_color"
+  const answer = sizeAnswer ? sizeAnswer.text : recognition.photoMatch === "same_model_other_color"
     ? VISUAL_OTHER_COLOR_TEXT
     : recognition.closest ? VISUAL_CLOSEST_MODEL_TEXT : VISUAL_SAME_MODEL_TEXT;
   const colorCount = cards.length;
@@ -359,10 +392,10 @@ export const buildVisualRecognitionPayload = ({ cards = [], recognition = {} } =
     answer,
     confidence: Number(recognition.score || 0.9),
     detected_intent: "visual_search",
-    response_type: "product_card",
+    response_type: cards.length ? "product_card" : "text",
     suggested_products: cards,
     product_cards: cards,
-    channel_reply: { text: answer, product_cards: cards, response_type: "product_card" },
+    channel_reply: { text: answer, product_cards: cards, response_type: cards.length ? "product_card" : "text" },
     product_context: cards[0] || null,
     visual_recognition: {
       product_id: recognition.productId || null,
@@ -1347,7 +1380,7 @@ export const generateWhatsappAiAutoReply = async ({ tenantId, phone, sessionId, 
     }).catch((error) => ({ matched: false, reason: error?.message || "recognition_failed" }));
     if (recognition.matched && asArray(recognition.productCards).length) {
       const visualCards = asArray(recognition.productCards);
-      const visualPayload = buildVisualRecognitionPayload({ cards: visualCards, recognition });
+      const visualPayload = buildVisualRecognitionPayload({ cards: visualCards, recognition, caption: originalBody });
       const visualReply = visualPayload.channel_reply;
       logUnifiedDecisionEarlyReturn({
         channel: AI_AGENT_CHANNELS.WHATSAPP,
@@ -1381,7 +1414,7 @@ export const generateWhatsappAiAutoReply = async ({ tenantId, phone, sessionId, 
         },
       }).then((memory) => syncWhatsappLiveMemoryToChannel({ tenantId: safeTenantId, sessionId: safeSessionId, phone: safePhone, memory })).catch(() => {});
       await addAiPayloadTraceSteps({ traceId, aiPayload: visualPayload, messageText: body, replyText: visualReply.text, replyDecision: { ok: true } });
-      logAiWhatsappCardsOutput({ aiPayload: visualPayload, reply: visualReply, productCards: visualCards });
+      logAiWhatsappCardsOutput({ aiPayload: visualPayload, reply: visualReply, productCards: visualPayload.product_cards });
       return {
         triggered: true,
         sent: false,

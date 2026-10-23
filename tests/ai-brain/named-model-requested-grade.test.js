@@ -101,9 +101,22 @@ test("no mirror of the model: said plainly, the grades it does come in are label
   assert.ok((decision.product_cards || []).every((card) => card.grade_label), "every card says its own grade");
 });
 
-test("no grade named: every grade the model comes in", async () => {
+// Owner, 2026-10-23: a model in several grades, none named → ask which one, no cards yet.
+test("no grade named: the customer is asked which of the grades the model comes in", async () => {
   catalog = [...imported.slice(0, 5), mirror, local];
-  const decision = await ask("متاح الترا بوست ؟");
+  const asked = await ask("متاح الترا بوست ؟");
+  assert.equal(asked.intent, "grade_question");
+  assert.deepEqual(asked.product_cards, []);
+  assert.match(asked.text, /موجود مصري، مستورد فيتنامي وميرور اوريجينال يا فندم، حضرتك محتاج أنهي فيهم؟$/);
+  assert.equal(asked.ai_memory_patch.preferences.pending_grade_question.query, "متاح الترا بوست ؟");
+});
+
+test("no grade named, for the agent's own search: every grade the model comes in", async () => {
+  catalog = [...imported.slice(0, 5), mirror, local];
+  const decision = await generateAiBrainV2Decision(
+    { channel: "whatsapp", text: normalizeArabicIntentPayload("متاح الترا بوست ؟").normalizedForIntent, metadata: { original_message: "متاح الترا بوست ؟", tenant_id: 1, source: "claude_agent_search" } },
+    { tenantId: 1, memory: {} },
+  );
   assert.deepEqual(grades(decision).sort(), ["imported_from_vietnam", "local", "mirror_original"]);
   assert.equal(decision.debug.grade_found_reply, undefined);
   assert.equal(decision.debug.grade_missing_reply, undefined);
@@ -115,4 +128,16 @@ test("a rewrite naming a grade the cards do not carry is dropped", () => {
   assert.deepEqual(gradesNamedOutsideGuide("متاح ميرور اوريجينال بالألوان دي", mirrorGuide), []);
   assert.deepEqual(gradesNamedOutsideGuide("متاح بالألوان دي", []), []);
   assert.deepEqual(gradesNamedOutsideGuide("ده اوريجينال", mirrorGuide), ["original"]);
+});
+
+test("«ميرور» answering the grade question shows the mirror pair of that model", async () => {
+  catalog = [...imported.slice(0, 5), mirror, local];
+  const asked = await ask("متاح الترا بوست ؟");
+  const memory = { preferences: asked.ai_memory_patch.preferences };
+  const answer = await generateAiBrainV2Decision(
+    { channel: "whatsapp", text: "ميرور", metadata: { original_message: "ميرور", tenant_id: 1 } },
+    { tenantId: 1, memory },
+  );
+  assert.deepEqual((answer.products || []).map((product) => product.id), [65]);
+  assert.equal(answer.ai_memory_patch.preferences.pending_grade_question, null, "the question is closed");
 });

@@ -69,6 +69,8 @@ const ESCALATION_MARK_DELAY_MS = 20_000;
 /** Never written by the agent: the sale's own steps and the owner's fixed answers. */
 export const SKIP_INTENTS = Object.freeze([
   "greeting",
+  // «موجود مصري وميرور، حضرتك محتاج أنهي؟» goes out as asked, with no cards (owner, 2026-10-23).
+  "grade_question",
   "human_takeover",
   "post_product_order_confirmation",
   "post_product_color_selected",

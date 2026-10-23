@@ -485,7 +485,40 @@ export const cropForMatching = async ({ imageBuffer = null, box = null } = {}) =
   return jpeg ? { buffer: jpeg, cropped: true, box: result.box || null, mimeType: "image/jpeg" } : { buffer: imageBuffer, cropped: false };
 };
 
+/*
+ * Our own product photo sent back (a screenshot of a card we just sent, a forward): CLIP puts it
+ * far above every other colour, and that IS the colour. The side-by-side vision pick read the
+ * Jordan 4 «Gray» card as «Black&white» and answered for the wrong colour (owner's test,
+ * 2026-10-23: cosine 0.955 for Gray vs 0.875 for Black&white). Same photo re-encoded ≈ 0.97,
+ * different shoes ≈ 0.70.
+ */
+export const SAME_PICTURE_MIN_SIMILARITY = 0.92;
+export const SAME_PICTURE_MIN_LEAD = 0.04;
+export const samePictureRow = (shapeRows = []) => {
+  const [top, ...rest] = asArray(shapeRows);
+  if (!top || Number(top.similarity || 0) < SAME_PICTURE_MIN_SIMILARITY || !text(top.color)) return null;
+  const runnerUp = rest.find((row) => String(row.product_id) !== String(top.product_id) || text(row.color).toLowerCase() !== text(top.color).toLowerCase());
+  return !runnerUp || Number(top.similarity) - Number(runnerUp.similarity || 0) >= SAME_PICTURE_MIN_LEAD ? top : null;
+};
+
 const pickByComparingPhotos = async ({ tenantId, search = null, modelRead = {}, understanding = null, visualQuery = "", imageUrl = "", imageBuffer = null, requestId = "", shapeRows = [] }) => {
+  const samePicture = samePictureRow(shapeRows);
+  if (samePicture) {
+    const productCards = await cardsForRecognisedProduct({ tenantId, productId: samePicture.product_id, leadColor: text(samePicture.color) }).catch(() => []);
+    if (productCards.length) {
+      console.log("[ai-visual-recognition] same picture", { tenant_id: tenantId || null, product_id: samePicture.product_id, color: text(samePicture.color), similarity: samePicture.similarity });
+      return {
+        matched: true,
+        reason: "photo_compare_same_picture",
+        photoMatch: "same",
+        closest: false,
+        productId: samePicture.product_id,
+        matchedColor: text(samePicture.color),
+        score: Number(samePicture.similarity),
+        productCards,
+      };
+    }
+  }
   const familyIds = asArray(modelRead?.modelProductIds).map((id) => String(id));
   // Shape-nearest first (CLIP is what tells colourways and lines apart), but always room for the
   // read family and the brand look-alikes too.

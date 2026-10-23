@@ -1638,7 +1638,7 @@ export const buildBaseText = ({ intent = "", cards = [], explicitModel = null, a
 
 export const generateAiBrainV2Decision = async (normalizedInbound = {}, options = {}) => {
   const channel = normalizeChannel(normalizedInbound.channel || normalizedInbound.metadata?.channel || AI_AGENT_CHANNELS.WEB_CHAT);
-  const originalMessage = text(
+  const typedMessage = text(
     normalizedInbound.original_message ||
       normalizedInbound.metadata?.original_message ||
       normalizedInbound.message_text ||
@@ -1646,11 +1646,16 @@ export const generateAiBrainV2Decision = async (normalizedInbound = {}, options 
       normalizedInbound.body ||
       normalizedInbound.text
   );
+  // «ميرور» answering «حضرتك محتاج أنهي فيهم؟» reads as the model asked about plus that grade.
+  const originalMessage = withPendingGradeQuery(typedMessage, options.memory || normalizedInbound.metadata?.ai_memory || {});
+  const answeredGradeQuestion = originalMessage !== typedMessage;
   const intentPayload = normalizeArabicIntentPayload(
-    normalizedInbound.normalized_for_intent ||
-      normalizedInbound.metadata?.normalized_for_intent ||
-      normalizedInbound.text ||
-      originalMessage
+    answeredGradeQuestion
+      ? originalMessage
+      : normalizedInbound.normalized_for_intent ||
+        normalizedInbound.metadata?.normalized_for_intent ||
+        normalizedInbound.text ||
+        originalMessage
   );
   const message = text(intentPayload.normalizedForIntent || normalizeArabicForIntent(originalMessage));
   const productAlias = resolveProductAlias(originalMessage || message);
@@ -1977,6 +1982,40 @@ export const generateAiBrainV2Decision = async (normalizedInbound = {}, options 
   const presentationProducts = selectedProducts.length
     ? selectedProducts
     : (intent === "more_images" && memoryActiveProductId ? [{ id: memoryActiveProductId, product_id: memoryActiveProductId }] : []);
+  // A model sold in more than one grade, no grade named: ask which one before any card (owner,
+  // 2026-10-23: «عايز ايرماكس ٩٧» got the Egyptian pairs only — "المفروض يسأل موجود ميرور ومصري
+  // حضرتك محتاج ايه؟"). Every grade is searched on its own, so a mirror pair cut by the local
+  // ones still counts. The agent's own searches always get cards.
+  const askGradeFirst = intent === "product_search" && namedMatches.length > 0 && !requestedGrade && !askedColorway
+    && normalizedInbound.metadata?.source !== "claude_agent_search" && !options.noGradeQuestion && !normalizedInbound.metadata?.no_grade_question;
+  if (askGradeFirst) {
+    const gradesSelling = (await Promise.all(PRODUCT_GRADES.map(async (grade) => {
+      const rows = await loadCandidateProducts({
+        tenantId,
+        message,
+        explicitModel,
+        namingTerms: namedProductTerms,
+        audience: requestedAudience && !audienceMissing ? requestedAudience : null,
+        grade: grade.key,
+        limit: 12,
+      }).catch(() => []);
+      const rankedRows = rankProducts({ products: rows, message, explicitModel, namingTerms: namedProductTerms, aliasResult, searchHints, intentPayload: normalizedPayload })
+        .filter((product) => Number(product.ai_brain_v2_score || 0) > 0 && text(product.grade).toLowerCase() === grade.key);
+      const named = namedProductMatches(rankedRows, namedProductTerms);
+      const matched = named.length ? namedProductTermsMatched(named[0], namedProductTerms) : null;
+      // Named as fully as the best match overall: a mirror «Skechers Ultra» is not «Ultra Boost».
+      return matched && bestNamed && (matched.phrase || (!bestNamed.phrase && matched.words === bestNamed.words)) ? grade : null;
+    }))).filter(Boolean);
+    if (gradesSelling.length >= 2) {
+      return gradeQuestionDecision({
+        channel,
+        grades: gradesSelling,
+        modelName: text(namedMatches[0]?.name || namedMatches[0]?.title || "").split(" - ")[0],
+        query: originalMessage || message,
+        intentBefore: intent,
+      });
+    }
+  }
   const productCards = await buildPresentationProductCards({
     tenantId,
     selectedProducts: presentationProducts,
@@ -2014,6 +2053,8 @@ export const generateAiBrainV2Decision = async (normalizedInbound = {}, options 
     } : {}),
     last_intent: intent,
     ai_brain_version: "v2",
+    // A search answered: the grade question, if one was open, is closed.
+    ...(shouldSearch ? { pending_grade_question: null } : {}),
   };
   const actions = productCards.length ? ["view_product", "choose_size", "contact_support"] : ["contact_support"];
   const output = {
@@ -2095,4 +2136,57 @@ export const generateAiBrainV2Decision = async (normalizedInbound = {}, options 
 
 export default {
   generateAiBrainV2Decision,
+};
+
+export const GRADE_QUESTION_INTENT = "grade_question";
+
+const joinArabicList = (items = []) => (items.length <= 1 ? items.join("") : `${items.slice(0, -1).join("، ")} و${items.at(-1)}`);
+
+// «إير ماكس 97 موجود مصري وميرور اوريجينال يا فندم، حضرتك محتاج أنهي فيهم؟» — no cards; the grade
+// the customer answers with is searched with this same message (pending_grade_question).
+export const gradeQuestionText = ({ grades = [], modelName = "" } = {}) =>
+  `${text(modelName) || "الموديل ده"} موجود ${joinArabicList(asArray(grades).map((grade) => grade.label))} يا فندم، حضرتك محتاج أنهي فيهم؟`;
+
+const gradeQuestionDecision = ({ channel, grades = [], modelName = "", query = "", intentBefore = "" } = {}) => {
+  const replyText = gradeQuestionText({ grades, modelName });
+  const memoryUpdates = {
+    pending_grade_question: { query: text(query), grades: grades.map((grade) => grade.key), asked_at: new Date().toISOString() },
+    last_intent: GRADE_QUESTION_INTENT,
+    ai_brain_version: "v2",
+  };
+  return {
+    text: replyText,
+    answer: replyText,
+    intent: GRADE_QUESTION_INTENT,
+    detected_intent: GRADE_QUESTION_INTENT,
+    products: [],
+    suggested_products: [],
+    product_cards: [],
+    images: [],
+    image_cards: [],
+    quickReplies: [],
+    quick_replies: [],
+    actions: ["contact_support"],
+    suggested_actions: ["contact_support"],
+    memoryUpdates,
+    memory_updates: memoryUpdates,
+    ai_memory_patch: { preferences: memoryUpdates },
+    handoff: { needs_human_support: false, reason: "", conversation_status: "" },
+    channel_reply: normalizeOutgoingChannelReply({ channel, response: { text: replyText, product_cards: [], image_cards: [], suggested_actions: ["contact_support"] } }),
+    debug: { source: "aiBrainV2", engine: "ai_brain_v2", legacy_called: false, reason: "grade_question", grades: grades.map((grade) => grade.key), intent_before: intentBefore },
+  };
+};
+
+/*
+ * The answer to the grade question is often the grade alone («ميرور»): it is searched as the model
+ * asked about plus that grade, as if typed in one message. Only within an hour, and only when the
+ * reply names a grade and nothing longer than a few words.
+ */
+export const withPendingGradeQuery = (message = "", memory = {}) => {
+  const pending = memory?.preferences?.pending_grade_question || memory?.pending_grade_question;
+  const reply = text(message);
+  if (!pending?.query || !reply || reply.split(/\s+/).length > 4) return reply;
+  if (Date.now() - Date.parse(pending.asked_at || 0) > 60 * 60 * 1000) return reply;
+  if (!productGrade(detectCatalogBrowseSlots(reply).grade)) return reply;
+  return `${text(pending.query)} ${reply}`;
 };

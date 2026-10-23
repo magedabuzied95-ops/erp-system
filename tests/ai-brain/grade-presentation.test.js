@@ -62,7 +62,8 @@ const ask = (message) => generateUnifiedConversationDecision({
   externalConversationId: "test:grades",
   externalCustomerId: "playground",
   text: message,
-  metadata: { tenant_id: 1, channel: "facebook_messenger", source: "ai_playground", ai_memory: {} },
+  // These tests are about laying out a multi-grade answer; the grade question (2026-10-23) comes first live.
+  metadata: { tenant_id: 1, channel: "facebook_messenger", source: "ai_playground", ai_memory: {}, no_grade_question: true },
 }, { tenantId: 1, memory: {} });
 
 test("a model sold in two grades is offered in both, local first", async () => {

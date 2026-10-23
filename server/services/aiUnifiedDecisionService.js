@@ -148,7 +148,7 @@ export const rewriteStructuredDecision = async ({ decision = {}, inbound = {}, t
   const intent = text(decision.detected_intent || decision.intent);
   // A bare greeting is answered from utils/greetingReply.js as it stands: re-worded, it lost the
   // next step that keeps the customer talking.
-  if (["human_takeover", "order_tracking", "order_follow_up", "post_product_order_confirmation", "greeting"].includes(intent)) return decision;
+  if (["human_takeover", "order_tracking", "order_follow_up", "post_product_order_confirmation", "greeting", "grade_question"].includes(intent)) return decision;
   // The store's own fee / policy words go out as they are: re-worded, they lost the facts.
   if (STORE_FACTS_INTENTS.includes(intent)) return decision;
   // The browse link and its counts go out exactly as built.
