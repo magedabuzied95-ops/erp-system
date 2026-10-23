@@ -70,6 +70,7 @@ export const RESOURCE_BRANCHES = [
   { branch: "marketing", file: "marketing" },
   { branch: "aiStudio", file: "aiStudio" },
   { branch: "aiSupport", file: "aiSupport" },
+  { branch: "aiRules", file: "aiRules" },
   { branch: "shipping", file: "shipping" },
   { branch: "loyalty", file: "loyalty" },
   { branch: "saas", file: "saas" },
