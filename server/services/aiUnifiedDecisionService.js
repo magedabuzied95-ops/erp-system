@@ -1306,8 +1306,18 @@ export const generateUnifiedConversationDecision = async (normalizedInbound = {}
       conversation_id: inbound.externalConversationId,
     });
   }
+  // The customer is in the order steps (colour → size → confirm): if they stop half way, the
+  // "unfinished order" follow-up picks it up. An order placed stops it (stop_on_purchase).
+  const outputIntent = text(output.detected_intent || output.intent);
+  if (ORDER_STEP_INTENTS.has(outputIntent) && tenantId && text(inbound.metadata?.source) !== "ai_playground") {
+    void import("./messageSequencesService.js")
+      .then((sequences) => sequences.onCustomerSignal({ tenantId, sessionId: inbound.externalConversationId, channel: inbound.channel, signal: "order_incomplete" }))
+      .catch((error) => console.warn("[ai-unified] unfinished-order follow-up not started", { conversation_id: inbound.externalConversationId, message: error?.message }));
+  }
   return output;
 };
+
+const ORDER_STEP_INTENTS = new Set(["post_product_color_selected", "post_product_size_selected", "post_product_order_confirmation"]);
 
 export default {
   generateUnifiedConversationDecision,

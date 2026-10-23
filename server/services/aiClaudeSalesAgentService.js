@@ -275,6 +275,7 @@ customer_memory (لو موجودة في dynamic_context) هي حاجات الع�
 - اعتراض مهم قاله (مثلا السعر غالي عليه، أو مش واثق في الميرور)
 متحفظش: رقم موبايل أو عنوان أو اسم (دول متسجلين في مكانهم)، تفاصيل الأوردر الحالي، ولا حاجة مؤقتة زي «مستعجل النهارده». متحفظش حاجة موجودة في customer_memory بنفس المعنى.
 لو العميل قال حاجة عكس سطر في customer_memory: forget_fact بالرقم بتاعه، وبعدين remember_fact بالجديد.
+لو طلب نبلّغه لما موديل أو مقاس ينزل وهو مش متاح دلوقتي: اعرف الـ product_id (من الكروت أو search_products)، واستدعي watch_restock بالمقاس واللون اللي قالهم — ده اللي بيخلّي الرسالة توصله فعلًا أول ما ينزل.
 الحفظ بيحصل في الخلفية — متقولش للعميل إنك حفظت حاجة.
 </customer_memory_rules>
 
@@ -366,6 +367,11 @@ export const buildDynamicContext = ({ customerName = "", customerPhone = "", cha
     "</dynamic_context>",
   ].filter(Boolean).join("\n");
 };
+
+// An objection the agent wrote down is about PRICE when it says so: «السعر غالي عليه», «عايز أرخص».
+const PRICE_WORDS = /(غال[يىة]|غاليه|السعر|سعر|أرخص|ارخص|ميزاني|فلوس|كتير عليا|مش معايا|price|expensive|cheaper)/i;
+export const isPriceObjection = (fact = {}) => text(fact.category) === "objection" && PRICE_WORDS.test(text(fact.fact));
+const defaultCustomerSignal = async (input) => (await import("./messageSequencesService.js")).onCustomerSignal(input);
 
 /* ----------------------------------------------------------------- history */
 
@@ -518,6 +524,20 @@ const AGENT_TOOLS = [
       properties: {
         fact: { type: "string", description: "الحقيقة في جملة قصيرة، مثلا «مقاسه 43 بس بيحب نص مقاس أكبر لأن رجله عريضة»." },
         category: { type: "string", enum: [...FACT_CATEGORIES], description: "size_fit مقاس/قياس، style ستايل وألوان، budget ميزانية، for_whom بيشتري لمين، request طلب يتابع (زي يتبلغ لما موديل ينزل)، objection اعتراض، other." },
+      },
+    },
+  },
+  {
+    name: "watch_restock",
+    description: "العميل طلب نبلّغه لما موديل (أو مقاس/لون منه) ينزل تاني، وget_inventory قال إنه مش متاح دلوقتي. سجّل طلبه، وهيتبعتله رسالة تلقائي أول ما يتوفر. لو رجعت in_stock_now يبقى متاح فعلًا — اعرضه عليه بدل ما تسجّل.",
+    input_schema: {
+      type: "object",
+      additionalProperties: false,
+      required: ["product_id"],
+      properties: {
+        product_id: { type: "string" },
+        size: { type: "string", description: "المقاس اللي مستنيه، لو قال." },
+        color: { type: "string", description: "اللون اللي مستنيه، لو قال." },
       },
     },
   },
@@ -831,6 +851,7 @@ export const runClaudeSalesAgent = async ({
     let escalation = null;
     const rememberedFacts = [];
     const forgottenFacts = [];
+    const restockWatches = [];
 
     const registry = buildToolRegistry({
       tenantId,
@@ -960,7 +981,26 @@ export const runClaudeSalesAgent = async ({
             source: "agent",
           });
           if (saved?.ok) rememberedFacts.push({ id: saved.id, fact: text(input.fact), already_known: Boolean(saved.already_known) });
+          // «غالي عليا»: the price-objection follow-up takes over from the general one.
+          if (saved?.ok && !saved.already_known && isPriceObjection(input)) {
+            void (loaders.customerSignal || defaultCustomerSignal)({ tenantId, sessionId, channel: inbound.channel, signal: "price_objection" })
+              .catch((error) => console.warn("[claude-agent] price-objection follow-up not started", { sessionId, message: error?.message }));
+          }
           return saved?.ok ? { ok: true, id: saved.id, already_known: saved.already_known || undefined } : { error: saved?.reason || "not_saved" };
+        }
+        case "watch_restock": {
+          const watched = await (loaders.watchRestock || (async (watch) => (await import("../modules/restockWatch/restockWatch.js")).addRestockWatch(watch)))({
+            tenantId,
+            sessionId,
+            channel: inbound.channel,
+            productId: input.product_id,
+            size: input.size,
+            color: input.color,
+          });
+          if (watched?.ok) restockWatches.push({ id: watched.id, product_id: text(input.product_id), size: text(input.size), color: text(input.color) });
+          return watched?.ok
+            ? { ok: true, next: "قول للعميل إنك هتبلّغه أول ما ينزل." }
+            : { ok: false, reason: watched?.reason || "not_saved" };
         }
         case "forget_fact": {
           const forgot = await (loaders.forgetFact || forgetCustomerFact)({
@@ -1138,6 +1178,7 @@ export const runClaudeSalesAgent = async ({
           usage,
           // The playground shows what the agent knew coming in and what it wrote down or dropped.
           memory: { known: asArray(customerFacts).length, remembered: rememberedFacts, forgotten: forgottenFacts },
+          restock_watches: restockWatches,
         },
       },
     };
@@ -1155,13 +1196,26 @@ export const runClaudeSalesAgent = async ({
  *
  * @returns {Promise<string>} the text, or "" so the sequence falls back to its fixed text.
  */
+// The facts behind a follow-up (restockWatch's model / size / colour), as a block the writer may quote.
+export const followUpContextLines = (context = {}) => {
+  const lines = [
+    kbLine("الموديل", context?.product_name),
+    kbLine("المقاس", context?.size),
+    kbLine("اللون", context?.color),
+  ].filter(Boolean);
+  return lines.length ? ["<follow_up_context>", ...lines, "</follow_up_context>"] : [];
+};
+
 export const writeFollowUpMessage = async ({
   tenantId = null,
   sessionId = "",
+  channel = "",
   customerName = "",
   instruction = "",
   stepNumber = 1,
   totalSteps = 1,
+  // What started the follow-up, e.g. the model that came back in stock: { product_name, size, color }.
+  context = {},
   loaders = {},
 } = {}) => {
   if (!isClaudeAgentEnabled() || !text(instruction)) return "";
@@ -1189,9 +1243,10 @@ export const writeFollowUpMessage = async ({
       "من غير ضغط ولا إلحاح، ومتكررش متابعة قديمة بنفس الكلام. متخترعش عرض ولا خصم ولا سعر مش مكتوب.",
       "اكتب نص الرسالة بس.",
       "</follow_up_task>",
+      ...followUpContextLines(context),
     ].join("\n");
     const stablePrompt = buildStablePrompt({ kb, persona });
-    const dynamicContext = buildDynamicContext({ customerName, channel: "", gender: inferCustomerGender(customerName).gender, customerFacts });
+    const dynamicContext = buildDynamicContext({ customerName, channel, gender: inferCustomerGender(customerName).gender, customerFacts });
     let raw = "";
     if (agentProvider() === "openai") {
       const model = agentModel();

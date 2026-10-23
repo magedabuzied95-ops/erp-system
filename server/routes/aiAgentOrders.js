@@ -42,6 +42,7 @@ import {
   createMessageSequence,
   deleteMessageSequence,
   enrollSessionInSequence,
+  installFollowUpPresets,
   listMessageSequences,
   listSessionEnrollments,
   onLeadStageChanged,
@@ -9549,6 +9550,17 @@ router.post("/sequences", protect, permit("settings", "edit"), async (req, res) 
     return res.status(201).json({ success: true, sequence });
   } catch (error) {
     return sendError(res, error, "Failed to create the sequence");
+  }
+});
+
+// The four ready follow-ups (messageSequencesService FOLLOW_UP_PRESETS): adds the ones the shop
+// does not have yet, active; the owner edits them like any other sequence.
+router.post("/sequences/presets", protect, permit("settings", "edit"), async (req, res) => {
+  try {
+    const added = await installFollowUpPresets({ tenantId: toTenantId(req), userId: req.user?.id || null });
+    return res.status(201).json({ success: true, added });
+  } catch (error) {
+    return sendError(res, error, "Failed to add the ready follow-ups");
   }
 });
 

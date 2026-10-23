@@ -854,6 +854,7 @@ const { runAutomationTick } = await import("./services/aiWorkflowTriggerService.
 const { runAbandonedCartReminderTick } = await import("./services/abandonedCartReminderService.js");
 const { runDueRemindersTick } = await import("./services/aiInboxRemindersService.js");
 const { runMessageSequencesTick } = await import("./services/messageSequencesService.js");
+const { ensureRestockWatchSchema, runRestockWatchTick } = await import("./modules/restockWatch/restockWatch.js");
 const { BOSTA_RECONCILE_INTERVAL_MS, bostaReconcileEnabled, reconcileStaleBostaShipments } = await import("./modules/shipping/bosta.reconcile.js");
 const { ensurePriceDropAlertSchema, runPriceDropAlertTick } = await import("./services/storefrontPriceDropAlertService.js");
 const { ensureAiSupportLogSchema } = await import("./services/aiSupportLogService.js");
@@ -2575,6 +2576,10 @@ const runDeferredStartupSyncs = async ({ skipStartupSyncs = false } = {}) => {
         void runMessageSequencesTick().catch((error) => {
           console.error("[server] message sequence tick error", { message: error?.message || String(error) });
         });
+        // Throttles itself to every 10 minutes: «بلّغني لما ينزل» watches whose stock came back.
+        void runRestockWatchTick().catch((error) => {
+          console.error("[server] restock watch tick error", { message: error?.message || String(error) });
+        });
         try {
           sweepStaleStaffPresence();
         } catch (error) {
@@ -2853,6 +2858,10 @@ const bootstrapStartup = async () => {
     await ensureCustomerMemorySchema(db)
       .then(() => console.log("[server] customer memory schema ensured"))
       .catch((error) => console.error("[server] customer memory schema skipped", error?.message || error));
+    // Same rule for the back-in-stock watches: a new table, never worth a crash loop.
+    await ensureRestockWatchSchema(db)
+      .then(() => console.log("[server] restock watch schema ensured"))
+      .catch((error) => console.error("[server] restock watch schema skipped", error?.message || error));
     await ensureStorefrontCustomerSessionSchema(db);
     console.log("[server] storefront customer session schema ensured");
     await ensureMarketingSchema();

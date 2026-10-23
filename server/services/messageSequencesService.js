@@ -30,7 +30,14 @@ import {
  * follow-up card shows ("Moves to … if no reply in …"). A step can be written by the Claude agent
  * from the conversation itself (mode "ai") instead of a fixed text.
  */
-export const SEQUENCE_TRIGGERS = Object.freeze(["manual", "inquiry_no_purchase", "lead_stage"]);
+/*
+ * The customer-signal triggers (2026-10-23, the owner's four ready follow-ups): the agent hears a
+ * price objection, the order steps stop half way, or a model the customer waits for comes back
+ * (restockWatch). A conversation follows ONE of these at a time — the more specific signal replaces
+ * the general one (SIGNAL_PRIORITY) — and while the sales agent is test-only, so are they.
+ */
+export const SEQUENCE_TRIGGERS = Object.freeze(["manual", "inquiry_no_purchase", "lead_stage", "price_objection", "order_incomplete", "back_in_stock"]);
+const SIGNAL_PRIORITY = Object.freeze({ inquiry_no_purchase: 1, price_objection: 2, order_incomplete: 3 });
 export const SEQUENCE_STAGES = Object.freeze(["new", "contacted", "interested", "negotiation", "won", "lost"]);
 export const STEP_MODES = Object.freeze(["text", "ai"]);
 const DEFAULT_FINALIZE_MINUTES = 24 * 60;
@@ -110,6 +117,8 @@ export const ensureMessageSequencesSchema = async () => {
       await db.query(`CREATE UNIQUE INDEX IF NOT EXISTS idx_message_sequence_enrollments_active ON message_sequence_enrollments (tenant_id, sequence_id, session_id) WHERE status = 'active'`);
       await db.query(`CREATE INDEX IF NOT EXISTS idx_message_sequence_enrollments_due ON message_sequence_enrollments (status, next_run_at)`);
       await db.query(`CREATE INDEX IF NOT EXISTS idx_message_sequence_enrollments_session ON message_sequence_enrollments (tenant_id, session_id)`);
+      // What started this enrolment, for the AI writer: the model that came back in stock, say.
+      await db.query(`ALTER TABLE message_sequence_enrollments ADD COLUMN IF NOT EXISTS context JSONB NOT NULL DEFAULT '{}'::jsonb`);
     })().catch((error) => {
       schemaReadyPromise = null;
       throw error;
@@ -393,8 +402,42 @@ const forgetAutoSequences = (tenantId) => {
   }
 };
 
+/*
+ * Who an AUTOMATIC follow-up may reach. While the sales agent is test-only (AI_SALES_AGENT_SCOPE,
+ * default "test"), so are these: only the owner's test numbers (ai_channels.ai_test_contacts).
+ * A sequence staff start by hand on a conversation is their decision and is not gated.
+ */
+export const followUpAudienceAllows = async ({ sessionId = "", phone = "", loadTestContacts = null } = {}) => {
+  if (text(process.env.AI_SALES_AGENT_SCOPE).toLowerCase() === "all") return true;
+  const { isAiTestContact, parseAiTestContacts } = await import("../utils/aiAutoReplyGate.js");
+  const raw = loadTestContacts
+    ? await loadTestContacts()
+    : await import("./settingsService.js").then((settings) => settings.getSetting("ai_channels.ai_test_contacts", ""));
+  const contacts = parseAiTestContacts(raw || "");
+  const fromSession = /^whatsapp:/i.test(text(sessionId)) ? text(sessionId).slice("whatsapp:".length) : "";
+  return [phone, fromSession].some((value) => text(value) && isAiTestContact(contacts, value));
+};
+
+/*
+ * Quiet hours: an automatic message never lands at night in Cairo. A step that falls due outside
+ * 10:00–22:00 waits for the next 10:00 (plus a few minutes' spread, so a night's backlog does not go
+ * out as one burst). Returns null when now is fine.
+ */
+export const SEND_WINDOW = Object.freeze({ startMinute: 10 * 60, endMinute: 22 * 60 });
+export const nextSendWindowStart = (now = new Date(), { spreadMinutes = 0 } = {}) => {
+  const parts = Object.fromEntries(
+    new Intl.DateTimeFormat("en-GB", { timeZone: "Africa/Cairo", hour: "2-digit", minute: "2-digit", hourCycle: "h23" })
+      .formatToParts(now)
+      .map((part) => [part.type, part.value])
+  );
+  const minute = Number(parts.hour) * 60 + Number(parts.minute);
+  if (minute >= SEND_WINDOW.startMinute && minute < SEND_WINDOW.endMinute) return null;
+  const wait = minute < SEND_WINDOW.startMinute ? SEND_WINDOW.startMinute - minute : 24 * 60 - minute + SEND_WINDOW.startMinute;
+  return new Date(now.getTime() + (wait + Math.max(0, spreadMinutes)) * 60 * 1000);
+};
+
 /** Enrols a conversation in each sequence that matches its channel, honouring the cooldown. */
-const enrollAutomatically = async ({ tenantId, sessionId, channel = "", sequences = [] }) => {
+const enrollAutomatically = async ({ tenantId, sessionId, channel = "", sequences = [], context = {} }) => {
   const normalizedChannel = normalizeInboxSendChannel(channel);
   const matching = sequences.filter((sequence) => !normalizedChannel || sequence.channels.includes(normalizedChannel));
   if (!matching.length) return 0;
@@ -403,9 +446,29 @@ const enrollAutomatically = async ({ tenantId, sessionId, channel = "", sequence
   const { channel: resolvedChannel, recipientId, sessionId: resolvedSessionId } = resolveInboxRecipient(conversation);
   if (!SEQUENCE_CHANNELS.includes(resolvedChannel) || !recipientId) return 0;
   const phone = await conversationCustomerPhone({ tenantId, conversation }).catch(() => "");
+  if (!(await followUpAudienceAllows({ sessionId: resolvedSessionId, phone }).catch(() => false))) return 0;
   let enrolled = 0;
   for (const sequence of matching) {
     if (!sequence.channels.includes(resolvedChannel)) continue;
+    // One customer-signal follow-up at a time: a more specific one already running wins, and this
+    // one replaces any less specific one («غالي» after a plain inquiry, an unfinished order after both).
+    const priority = SIGNAL_PRIORITY[sequence.trigger_type];
+    if (priority) {
+      const running = await db.query(
+        `SELECT s.trigger_type FROM message_sequence_enrollments e JOIN message_sequences s ON s.id = e.sequence_id
+         WHERE e.tenant_id = $1 AND e.session_id = $2 AND e.status = 'active' AND s.trigger_type = ANY($3::text[])`,
+        [tenantId, resolvedSessionId, Object.keys(SIGNAL_PRIORITY)]
+      );
+      if (running.rows.some((row) => SIGNAL_PRIORITY[row.trigger_type] >= priority)) continue;
+      const weaker = Object.keys(SIGNAL_PRIORITY).filter((trigger) => SIGNAL_PRIORITY[trigger] < priority);
+      await db.query(
+        `UPDATE message_sequence_enrollments e
+            SET status = 'stopped', stopped_reason = $4, finished_at = NOW(), locked_at = NULL, updated_at = NOW()
+           FROM message_sequences s
+          WHERE s.id = e.sequence_id AND e.tenant_id = $1 AND e.session_id = $2 AND e.status = 'active' AND s.trigger_type = ANY($3::text[])`,
+        [tenantId, resolvedSessionId, weaker, `replaced_by_${sequence.trigger_type}`.slice(0, 60)]
+      );
+    }
     const recent = await db.query(
       `SELECT 1 FROM message_sequence_enrollments
        WHERE tenant_id = $1 AND sequence_id = $2 AND session_id = $3
@@ -416,12 +479,12 @@ const enrollAutomatically = async ({ tenantId, sessionId, channel = "", sequence
     if (recent.rows.length) continue;
     const inserted = await db.query(
       `
-      INSERT INTO message_sequence_enrollments (tenant_id, sequence_id, session_id, channel, customer_phone, status, current_step, next_run_at, source)
-      VALUES ($1, $2, $3, $4, $5, 'active', 0, $6, 'auto')
+      INSERT INTO message_sequence_enrollments (tenant_id, sequence_id, session_id, channel, customer_phone, status, current_step, next_run_at, source, context)
+      VALUES ($1, $2, $3, $4, $5, 'active', 0, $6, 'auto', $7::jsonb)
       ON CONFLICT DO NOTHING
       RETURNING id
       `,
-      [tenantId, sequence.id, resolvedSessionId, resolvedChannel, phone || "", firstStepRunAt(sequence)]
+      [tenantId, sequence.id, resolvedSessionId, resolvedChannel, phone || "", firstStepRunAt(sequence), JSON.stringify(context && typeof context === "object" ? context : {})]
     );
     enrolled += inserted.rows.length;
   }
@@ -489,6 +552,21 @@ export const onLeadStageChanged = async ({ tenantId, sessionId, stage = "", chan
 };
 
 /*
+ * A customer signal the AI heard (price_objection, order_incomplete) or the stock worker saw
+ * (back_in_stock): enrols the conversation in that trigger's sequences. Fire-and-forget for the
+ * callers — a follow-up that cannot start must never break a reply.
+ */
+export const onCustomerSignal = async ({ tenantId, sessionId, channel = "", signal = "", context = {} } = {}) => {
+  const safeTenantId = Number(tenantId);
+  const safeSessionId = text(sessionId);
+  if (!safeTenantId || !safeSessionId || !SEQUENCE_TRIGGERS.includes(signal) || ["manual", "lead_stage", "inquiry_no_purchase"].includes(signal)) return 0;
+  await ensureMessageSequencesSchema();
+  const sequences = await autoSequencesFor(safeTenantId, signal);
+  if (!sequences.length) return 0;
+  return enrollAutomatically({ tenantId: safeTenantId, sessionId: safeSessionId, channel, sequences, context });
+};
+
+/*
  * The inbound tap. Called for every customer message that reaches the live
  * inbox (see utils/socket.js); it must be cheap on the common path, which is
  * "no sequences at all" — one cached lookup and out.
@@ -527,7 +605,16 @@ export const onInboundCustomerMessage = async ({ tenantId, sessionId, channel = 
   await enrollAutomatically({ tenantId: safeTenantId, sessionId: safeSessionId, channel, sequences: candidates });
 };
 
-const purchasedSince = async ({ tenantId, phone, since }) => {
+const purchasedSince = async ({ tenantId, phone, since, sessionId = "" }) => {
+  // An order written from this very chat counts even with no phone on the thread (Messenger,
+  // Instagram): orders.ai_agent_conversation_id is the inbox session it came from.
+  if (text(sessionId)) {
+    const fromChat = await db.query(
+      `SELECT 1 FROM orders WHERE tenant_id = $1 AND created_at >= $2 AND ai_agent_conversation_id = $3 LIMIT 1`,
+      [tenantId, since, text(sessionId)]
+    ).catch(() => ({ rows: [] }));
+    if (fromChat.rows.length) return true;
+  }
   const digits = text(phone).replace(/\D/g, "");
   if (digits.length < 9) return false;
   const result = await db.query(
@@ -600,10 +687,21 @@ const processEnrollment = async (row) => {
   }
   if (row.stop_on_purchase !== false) {
     const phone = row.customer_phone || (await conversationCustomerPhone({ tenantId, conversation }).catch(() => ""));
-    if (phone && (await purchasedSince({ tenantId, phone, since: row.enrolled_at }))) {
+    if (await purchasedSince({ tenantId, phone, since: row.enrolled_at, sessionId: row.session_id })) {
       await finish(row.id, "stopped", "customer_purchased");
       return "customer_purchased";
     }
+  }
+  // An automatic follow-up re-checks its audience at send time too: a number taken off the test
+  // list stops getting them, even mid-sequence.
+  if (row.source !== "manual" && !(await followUpAudienceAllows({ sessionId: row.session_id, phone: row.customer_phone }).catch(() => false))) {
+    await finish(row.id, "stopped", "audience_test_only");
+    return "audience_test_only";
+  }
+  const sendAt = nextSendWindowStart(new Date(), { spreadMinutes: Number(row.id) % 20 });
+  if (sendAt) {
+    await db.query(`UPDATE message_sequence_enrollments SET next_run_at = $2, locked_at = NULL, updated_at = NOW() WHERE id = $1`, [row.id, sendAt]);
+    return "quiet_hours";
   }
 
   // An "ai" step is written now, from this conversation; its fixed text is only the fallback.
@@ -613,10 +711,12 @@ const processEnrollment = async (row) => {
       .then((agent) => agent.writeFollowUpMessage({
         tenantId,
         sessionId: row.session_id,
+        channel: row.channel,
         customerName: text(conversation.customer_name || conversation.customer_profile?.name),
         instruction: step.ai_instruction,
         stepNumber: stepIndex + 1,
         totalSteps: steps.length,
+        context: row.context && typeof row.context === "object" ? row.context : {},
       }))
       .catch((error) => {
         console.warn("[message-sequence:ai-step-failed]", { enrollment_id: row.id, step: stepIndex, message: error?.message });
@@ -740,6 +840,114 @@ export const runMessageSequencesTick = async () => {
     }
   }
   return { claimed: ids.length, outcomes };
+};
+
+/*
+ * The owner's four ready follow-ups (2026-10-23), GENI-style: each step is written by the sales agent
+ * from the conversation and the customer's memory; the fixed text is only the fallback. Installed
+ * once from the sequences screen and edited there like any other sequence. Rules every step keeps:
+ * no invented discount, price or stock claim, one short message, no pressure, never a repeat.
+ */
+const STEP_RULES = "رسالة واحدة قصيرة (سطرين بالكتير) بالعامية المصرية ومن غير ضغط. متخترعش خصم ولا سعر ولا تقول إن مقاس متاح أو محجوز إلا لو مكتوب قدامك. متكررش كلام متابعة قبلها.";
+export const FOLLOW_UP_PRESETS = Object.freeze([
+  {
+    key: "inquiry_no_purchase",
+    name: "سأل ومشتراش",
+    trigger_type: "inquiry_no_purchase",
+    cooldown_days: 14,
+    steps: [
+      {
+        delay_minutes: 120,
+        mode: "ai",
+        ai_instruction: `العميل سأل عن منتج ووقف الكلام. فكّره بالموديل اللي كان بيسأل عليه (واللون والمقاس لو اتقالوا أو موجودين في customer_memory) واسأله سؤال واحد سهل يرجّعه للكلام، زي لو حابب صور تانية أو يعرف المقاسات. ${STEP_RULES}`,
+        body: "لسه حابب حضرتك الموديل اللي سألت عليه؟ لو محتاج صور تانية أو تعرف المقاسات المتاحة أنا موجود 😊",
+      },
+      {
+        delay_minutes: 24 * 60,
+        mode: "ai",
+        ai_instruction: `متابعة تانية بعد يوم. قدّم قيمة حقيقية مش سؤال مكرر: ميزة في الموديل اللي سأل عليه (الخامة، الراحة، الاستبدال، الدفع عند الاستلام لو مكتوب في company_info)، أو اقترح عليه حاجة قريبة تناسب اللي في customer_memory. ${STEP_RULES}`,
+        body: "على فكرة يا فندم، عندنا استبدال لو المقاس مجاش مظبوط، فتقدر تطلب وانت مطمّن. تحب أساعدك تختار؟",
+      },
+      {
+        delay_minutes: 3 * 24 * 60,
+        mode: "ai",
+        ai_instruction: `آخر متابعة. اختم بلطف واحترام: قوله إنك موجود في أي وقت يحتاج حاجة، ومتسألش سؤال ومتعرضش منتجات. ${STEP_RULES}`,
+        body: "مش هطوّل على حضرتك 🙏 لو احتجت أي حاجة في أي وقت ابعتلي هنا وأنا تحت أمرك.",
+      },
+    ],
+  },
+  {
+    key: "price_objection",
+    name: "اعتراض على السعر",
+    trigger_type: "price_objection",
+    cooldown_days: 7,
+    steps: [
+      {
+        delay_minutes: 60,
+        mode: "ai",
+        ai_instruction: `العميل قال إن السعر غالي عليه. متنزلش السعر ومتخترعش خصم. ساعده يلاقي اللي يناسب ميزانيته: وضّح بإيجاز الفرق بين الدرجات (مصري / مستورد فيتنامي / ميرور) أو اعرض إنك تبعتله بديل أوفر في نفس الستايل، واسأله هو حابب أنهي. ${STEP_RULES}`,
+        body: "فاهم حضرتك تمامًا 👌 عندنا نفس الستايل في درجات أوفر، تحب أبعتلك اختيارات في حدود ميزانيتك؟",
+      },
+      {
+        delay_minutes: 24 * 60,
+        mode: "ai",
+        ai_instruction: `متابعة تانية بعد اعتراض السعر. فكّره بقيمة الشراء من غير ما تتكلم في تخفيض: الاستبدال، المعاينة، الدفع عند الاستلام — بس اللي مكتوب في company_info. ${STEP_RULES}`,
+        body: "وبالمناسبة يا فندم، تقدر تعاين الأوردر وتدفع عند الاستلام، ولو المقاس مجاش مظبوط بنبدّله. لو حابب نكمّل أنا موجود.",
+      },
+    ],
+  },
+  {
+    key: "order_incomplete",
+    name: "أوردر مكملش",
+    trigger_type: "order_incomplete",
+    cooldown_days: 3,
+    steps: [
+      {
+        delay_minutes: 30,
+        mode: "ai",
+        ai_instruction: `العميل كان بيعمل أوردر (اختار لون أو مقاس) ووقف قبل ما يكمّل. فكّره بلطف بالموديل واللون والمقاس اللي اختارهم من المحادثة، واسأله لو محتاج مساعدة يكمّل أو عنده أي سؤال. ${STEP_RULES}`,
+        body: "حضرتك كنت قربت تخلّص الأوردر 😊 محتاج مساعدة نكمّله سوا؟",
+      },
+      {
+        delay_minutes: 24 * 60,
+        mode: "ai",
+        ai_instruction: `آخر تذكير بالأوردر اللي مكملش. جملة لطيفة إن الأوردر مستنيه لو لسه حابب، وإنك موجود لأي سؤال. ${STEP_RULES}`,
+        body: "الأوردر بتاعك لسه مستني حضرتك لو حابب تكمّله. أنا موجود لأي سؤال 🙏",
+      },
+    ],
+  },
+  {
+    key: "back_in_stock",
+    name: "الموديل نزل تاني",
+    trigger_type: "back_in_stock",
+    cooldown_days: 0,
+    stop_on_reply: true,
+    steps: [
+      {
+        delay_minutes: 1,
+        mode: "ai",
+        ai_instruction: `العميل كان طالب نبلّغه لما موديل ينزل، والموديل ده رجع متاح دلوقتي (التفاصيل في follow_up_context: الموديل، المقاس، اللون). بلّغه بالخبر بفرحة خفيفة واسأله لو يحب نجهّزهوله. ${STEP_RULES}`,
+        body: "خبر حلو يا فندم 🎉 الموديل اللي حضرتك سألت عليه رجع متاح دلوقتي. تحب نجهّزهولك؟",
+      },
+    ],
+  },
+]);
+
+// Adds every preset the tenant does not have yet (matched by trigger), active; returns what it added.
+export const installFollowUpPresets = async ({ tenantId, userId = null } = {}) => {
+  await ensureMessageSequencesSchema();
+  const safeTenantId = tenant(tenantId);
+  const existing = await db.query(`SELECT trigger_type FROM message_sequences WHERE tenant_id = $1`, [safeTenantId]);
+  const have = new Set(existing.rows.map((row) => text(row.trigger_type)));
+  const added = [];
+  for (const preset of FOLLOW_UP_PRESETS) {
+    if (have.has(preset.trigger_type)) continue;
+    const input = { ...preset, is_active: true };
+    delete input.key;
+    added.push(await createMessageSequence({ tenantId: safeTenantId, input, userId }));
+  }
+  forgetAutoSequences(safeTenantId);
+  return added;
 };
 
 export const __testing = { normalizeSequenceInput, normalizeSteps, mapEnrollment };

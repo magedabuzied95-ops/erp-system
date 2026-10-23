@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useTranslation } from "react-i18next";
-import { ArrowDown, ArrowUp, ImagePlus, Loader2, Pencil, Plus, Power, Trash2, Workflow, X } from "lucide-react";
+import { ArrowDown, ArrowUp, ImagePlus, Loader2, Pencil, Plus, Power, Sparkles, Trash2, Workflow, X } from "lucide-react";
 
 import { api } from "../../../../shared/api/api";
 import { resolveChatMediaUrl } from "../../../../shared/lib/imageUrls.js";
@@ -165,6 +165,22 @@ export default function SequencesPanel({ headers, tenantId }) {
     setForm(emptyForm());
     setEditing("new");
   };
+  const [notice, setNotice] = useState("");
+  // The four ready follow-ups (server FOLLOW_UP_PRESETS); only the missing ones are added.
+  const installPresets = async () => {
+    setBusyId("presets");
+    setError("");
+    try {
+      const payload = await api.post("/ai-inbox/sequences/presets", { tenant_id: tenantId }, { headers });
+      const count = asArray(payload?.added).length;
+      setNotice(count ? t("aiSupport.teamTools.sequencesPanel.presetsAdded", { count }) : t("aiSupport.teamTools.sequencesPanel.presetsNone"));
+      await load();
+    } catch (err) {
+      setError(err?.message || t("aiSupport.teamTools.sequencesPanel.saveError"));
+    } finally {
+      setBusyId(null);
+    }
+  };
   const startEdit = (sequence) => {
     setForm({
       name: sequence.name,
@@ -243,13 +259,18 @@ export default function SequencesPanel({ headers, tenantId }) {
     manual: t("aiSupport.teamTools.sequencesPanel.triggers.manual"),
     inquiry_no_purchase: t("aiSupport.teamTools.sequencesPanel.triggers.inquiryNoPurchase"),
     lead_stage: t("aiSupport.teamTools.sequencesPanel.triggers.leadStage"),
+    price_objection: t("aiSupport.teamTools.sequencesPanel.triggers.priceObjection"),
+    order_incomplete: t("aiSupport.teamTools.sequencesPanel.triggers.orderIncomplete"),
+    back_in_stock: t("aiSupport.teamTools.sequencesPanel.triggers.backInStock"),
   }), [t]);
   const stageLabel = (stage) => (stage ? t(`aiSupport.teamTools.sequencesPanel.stages.${stage}`) : t("aiSupport.teamTools.sequencesPanel.noMove"));
-  const triggerHint = form.trigger_type === "inquiry_no_purchase"
-    ? t("aiSupport.teamTools.sequencesPanel.triggers.inquiryHint")
-    : form.trigger_type === "lead_stage"
-      ? t("aiSupport.teamTools.sequencesPanel.triggers.leadStageHint")
-      : t("aiSupport.teamTools.sequencesPanel.triggers.manualHint");
+  const triggerHint = {
+    inquiry_no_purchase: t("aiSupport.teamTools.sequencesPanel.triggers.inquiryHint"),
+    lead_stage: t("aiSupport.teamTools.sequencesPanel.triggers.leadStageHint"),
+    price_objection: t("aiSupport.teamTools.sequencesPanel.triggers.priceObjectionHint"),
+    order_incomplete: t("aiSupport.teamTools.sequencesPanel.triggers.orderIncompleteHint"),
+    back_in_stock: t("aiSupport.teamTools.sequencesPanel.triggers.backInStockHint"),
+  }[form.trigger_type] || t("aiSupport.teamTools.sequencesPanel.triggers.manualHint");
   const finalizeParts = delayParts(form.finalize_after_minutes);
 
   return (
@@ -258,9 +279,17 @@ export default function SequencesPanel({ headers, tenantId }) {
         icon={Workflow}
         title={t("aiSupport.teamTools.sequencesPanel.title")}
         subtitle={t("aiSupport.teamTools.sequencesPanel.subtitle")}
-        action={editing ? null : <ActionButton icon={Plus} onClick={startCreate}>{t("aiSupport.teamTools.sequencesPanel.add")}</ActionButton>}
+        action={editing ? null : (
+          <div className="flex flex-wrap gap-2">
+            <ActionButton icon={Sparkles} onClick={installPresets} loading={busyId === "presets"} title={t("aiSupport.teamTools.sequencesPanel.presetsHint")}>
+              {t("aiSupport.teamTools.sequencesPanel.presets")}
+            </ActionButton>
+            <ActionButton icon={Plus} onClick={startCreate}>{t("aiSupport.teamTools.sequencesPanel.add")}</ActionButton>
+          </div>
+        )}
       >
         {error ? <div className="mb-3 rounded-xl border border-rose-300/20 bg-rose-400/10 px-3 py-2 text-xs font-bold text-rose-100">{error}</div> : null}
+        {notice && !editing ? <div className="mb-3 rounded-xl border border-white/10 bg-white/[0.04] px-3 py-2 text-xs font-bold text-slate-200">{notice}</div> : null}
 
         {editing ? (
           <div className="space-y-4">
@@ -273,6 +302,9 @@ export default function SequencesPanel({ headers, tenantId }) {
                   <option value="manual">{triggerLabel.manual}</option>
                   <option value="inquiry_no_purchase">{triggerLabel.inquiry_no_purchase}</option>
                   <option value="lead_stage">{triggerLabel.lead_stage}</option>
+                  <option value="price_objection">{triggerLabel.price_objection}</option>
+                  <option value="order_incomplete">{triggerLabel.order_incomplete}</option>
+                  <option value="back_in_stock">{triggerLabel.back_in_stock}</option>
                 </SelectInput>
               </Field>
             </div>
