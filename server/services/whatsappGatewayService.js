@@ -4093,7 +4093,10 @@ export const buildAiReplyCarouselCards = (cards = []) =>
     })
     .filter((card) => card.imageUrl && (card.buttonId || card.url));
 
-const AI_REPLY_CAROUSEL_MIN_CARDS = 2;
+// A lone card is a one-card carousel too (2026-10-23, owner's test «عايز ايرفورس اسود ميرور»): left
+// to the photo loop it reached the phone as a bare captioned photo — no «اطلب اللون ده» button, and
+// the AI's words, which only the carousel carries when cards exist, never went out.
+const AI_REPLY_CAROUSEL_MIN_CARDS = 1;
 const AI_REPLY_CAROUSEL_MAX_CARDS = 10;
 
 /*
@@ -7456,10 +7459,12 @@ export const triggerWhatsappAiAutoReply = async (message = {}) => {
       cards: sendableImageCards,
       conversationId: outboundPlan.conversation_id,
     });
-    // An official (Cloud) number has no session carousel, so the cards leave as photos below — and
-    // the AI's words, which the carousel would have carried as its lead line, would go nowhere.
-    // They go first as their own text instead.
-    if (willSendCards && aiCarousel.reason === "cloud_transport") {
+    // An official (Cloud) number has no session carousel, and Evolution can refuse one: either way
+    // the cards leave as photos below — and the AI's words, which the carousel would have carried as
+    // its lead line, would go nowhere. They go first as their own text instead.
+    const carouselDeliveredNothing = aiCarousel.reason === "cloud_transport"
+      || (aiCarousel.sent_count === 0 && ["carousel_failed", "unbuildable_card"].includes(aiCarousel.reason));
+    if (willSendCards && carouselDeliveredNothing) {
       const cloudLeadLine = applyWhatsappGreetingGuard({ customerMessageText: message.message_text || "", replyText: generated.replyText || "" });
       if (text(cloudLeadLine)) {
         try {

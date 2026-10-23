@@ -83,12 +83,24 @@ test("an empty AI text still gives the carousel a lead line (Evolution 400s an e
   });
 });
 
-test("one card is left to the photo send", async () => {
-  await withFetch([], async (calls) => {
-    const outcome = await gateway.sendAiReplyProductCarousel({ phone: "01024960585", body: "x", cards: cards.slice(0, 1) });
-    assert.equal(outcome.sent_count, 0);
-    assert.equal(calls.length, 0);
+// 2026-10-23, owner's test «عايز ايرفورس اسود ميرور»: the one Black card reached the phone as a bare
+// captioned photo — no order button, and the AI's words were dropped with it.
+test("one card goes as a one-card carousel with the AI's words and the order button", async () => {
+  await withFetch([ok], async (calls) => {
+    const outcome = await gateway.sendAiReplyProductCarousel({ phone: "01024960585", body: "Air Force الأسود ميرور متاح 👇", cards: cards.slice(1, 2) });
+    assert.equal(outcome.sent_count, 1);
+    assert.equal(calls.length, 1);
+    assert.equal(calls[0].url, "http://evolution.test/message/sendCarousel/default_instance");
+    assert.equal(calls[0].body.body, "Air Force الأسود ميرور متاح 👇");
+    assert.equal(calls[0].body.cards.length, 1);
+    assert.equal(calls[0].body.cards[0].buttons[0].id, "choose_color:902");
   });
+});
+
+test("gateway source: the AI's words go as text whenever no carousel delivered the cards", () => {
+  const source = fs.readFileSync(new URL("../server/services/whatsappGatewayService.js", import.meta.url), "utf8");
+  const trigger = source.slice(source.indexOf("export const triggerWhatsappAiAutoReply"));
+  assert.match(trigger, /aiCarousel\.sent_count === 0 && \["carousel_failed", "unbuildable_card"\]\.includes\(aiCarousel\.reason\)/);
 });
 
 test("a carousel Evolution refuses falls back to photos, and says so in the log", async () => {
