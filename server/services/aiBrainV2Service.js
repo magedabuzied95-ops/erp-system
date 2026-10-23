@@ -1505,6 +1505,18 @@ const withGrade = (card = {}, product = {}) => {
   return { ...card, grade, grade_label: productGrade(grade)?.label || "" };
 };
 
+/*
+ * Every in-stock colour card of one product, straight off the shelf. A search caps its cards per
+ * grade, so a colour can be missing from it altogether: «اسكتشر اسود ميرور مقاس ٤٤» found the
+ * Skechers Slip-Ins in Grey and Beige only, and the Black pair the customer named was never offered
+ * (owner's test, 2026-10-23).
+ */
+export const loadProductColourCards = async ({ tenantId = null, productId = null } = {}) => {
+  const fullProduct = await loadFullProductForPresentation({ tenantId, productId });
+  if (!fullProduct) return [];
+  return normalizeProductCards([withShelfStock(fullProduct, fullProduct)], { limit: 24 }).map((card) => withGrade(card, fullProduct));
+};
+
 const buildPresentationProductCards = async ({ tenantId = null, selectedProducts = [], explicitModel = null, forceColorPresentation = false, withVariants = false } = {}) => {
   if (!selectedProducts.length) return [];
   if (!explicitModel && !forceColorPresentation) {

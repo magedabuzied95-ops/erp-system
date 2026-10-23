@@ -203,7 +203,8 @@ ${companyInfo.length ? companyInfo.join("\n") : "مفيش معلومات مسج�
 </company_info>
 ${knowledge.length ? `\n<owner_knowledge>\nمعلومات صاحب المحل بنفسه. اعتمدها مرجع، وقولها بأسلوبك:\n${knowledge.join("\n")}\n</owner_knowledge>\n` : ""}
 <products_and_cards>
-- الكروت هي اللي بتعرض الصورة والألوان والسعر وزراير الاختيار. لما فيه كروت هتتبعت، رسالتك سطر واحد قصير فوقها، زي «أيوه متاح إن شاء الله 👇» أو «دي الموديلات المتاحة من الإير فورس 👇». متعيدش كتابة الألوان والأسعار اللي على الكروت.
+- الكروت هي اللي بتعرض الصورة والألوان والسعر وزراير الاختيار. لما فيه كروت هتتبعت، رسالتك سطر واحد قصير فوقها، زي «أيوه متاح إن شاء الله 👇» أو «دي الموديلات المتاحة من الإير فورس 👇». متعيدش كتابة الألوان والأسعار اللي على الكروت، ومتختمش بـ«تحب أحجزهولك؟» ولا تحط لينك — زرار «اطلب اللون ده» اللي على الكارت هو الحجز.
+- اللون اللي العميل طلبه هو اللي يتبعت: لو قال «اسود» والكارت اللي قدامك رمادي، ابعت card_id الأسود (لو مش في نتيجة البحث، ابعت product_id:variant_id بتاع الأسود من get_inventory والنظام هيجيبه).
 - لما العميل يسأل عن موديل، ابعت كروت بتغطي كل الدرجات المتاحة منه (مصري / مستورد فيتنامي / ميرور اوريجينال — من grade_label) وألوان مختلفة، لحد 6 كروت؛ متبعتش كارت واحد غير لو العميل حدد لون أو درجة. في show_products ابعت card_id لكل كارت (product_id لوحده = كل ألوان الموديل ده).
 - system_findings فيها الكروت الجاهزة للرسالة دي، وهتتبعت زي ما هي. لو مش هي اللي العميل عايزها، استدعي search_products باسم الموديل، وبعدين show_products بالـ product_id اللي تختارها. show_products بقايمة فاضية = متبعتش كروت.
 - النظام ساعات بيفهم الرسالة غلط ويجهّز كروت ملهاش علاقة (مثلًا العميل بيسأل عن أوردر أو بيدردش). لو الكروت الجاهزة مش ليها علاقة بكلام العميل، لازم تستدعي show_products بقايمة فاضية قبل ما ترد.
@@ -791,7 +792,7 @@ export const runClaudeSalesAgent = async ({
   if (!customerMessage) return null;
   if (!(await agentAppliesTo(inbound, { loadTestContacts: loaders.testContacts }))) return null;
 
-  const { safeProductFacts, searchCards, mustKeepFacts = false } = helpers;
+  const { safeProductFacts, searchCards, productColourCards, mustKeepFacts = false } = helpers;
   const startedAt = Date.now();
   const deadline = startedAt + agentDeadlineMs();
   const sessionId = text(inbound.externalConversationId);
@@ -846,6 +847,22 @@ export const runClaudeSalesAgent = async ({
       searchProducts: async () => [],
     });
 
+    // Once per product per turn; a load that fails leaves the pool as it was.
+    const shelfLoadedProducts = new Set();
+    const addProductColoursToPool = async (productId = "") => {
+      const id = text(productId);
+      if (!id || !/^\d+$/.test(id) || shelfLoadedProducts.has(id) || typeof productColourCards !== "function") return;
+      shelfLoadedProducts.add(id);
+      const cards = await productColourCards(id).catch(() => []);
+      // The search's own card for a colour wins: the shelf may elect another size row as its key.
+      const colourOf = (card) => text(card.color || card.matched_variant_color).toLowerCase();
+      const pooled = new Set([...cardPool.values()].filter((card) => cardId(card) === id).map(colourOf));
+      for (const card of asArray(cards)) {
+        if (cardPool.has(cardKey(card)) || pooled.has(colourOf(card))) continue;
+        cardPool.set(cardKey(card), card);
+      }
+    };
+
     const runTool = async (name, input = {}) => {
       switch (name) {
         case "search_products": {
@@ -865,11 +882,22 @@ export const runClaudeSalesAgent = async ({
         }
         case "show_products": {
           const ids = asArray(input.product_ids).map(text).filter(Boolean);
+          // A card the pool does not hold — «562:7926», the Black size-44 row the model read off
+          // get_inventory, or a colour the search cut — comes off the shelf: that product's colour
+          // cards join the pool, and a size row resolves to the card of its colour.
+          for (const id of ids.filter((value) => !cardPool.has(value))) await addProductColoursToPool(id.split(":")[0]);
+          const cardForId = (id) => {
+            if (cardPool.has(id)) return cardPool.get(id);
+            const [productId, variantId] = id.split(":");
+            if (!variantId) return null;
+            return [...cardPool.values()].find((card) => cardId(card) === productId && asArray(card.variants).some((variant) => text(variant?.id || variant?.variant_id) === variantId)) || null;
+          };
           // A card_id picks that card; a bare product_id picks every colour of that model.
           const picked = [];
           const unknown = [];
           for (const id of ids) {
-            const matches = cardPool.has(id) ? [cardPool.get(id)] : [...cardPool.values()].filter((card) => cardId(card) === id);
+            const exact = cardForId(id);
+            const matches = exact ? [exact] : [...cardPool.values()].filter((card) => cardId(card) === id);
             if (!matches.length) unknown.push(id);
             for (const card of matches) if (!picked.includes(card)) picked.push(card);
           }
@@ -940,7 +968,13 @@ export const runClaudeSalesAgent = async ({
             if (!inColour.length) {
               const modelOf = (card) => text(safeProductFacts(card).name).toLowerCase().split(" - ")[0].replace(/\s+/g, " ").trim();
               const models = new Set(picked.map(modelOf));
-              inColour = [...cardPool.values()].filter((card) => hasColour(card) && models.has(modelOf(card)));
+              const pooledInColour = () => [...cardPool.values()].filter((card) => hasColour(card) && models.has(modelOf(card)));
+              inColour = pooledInColour();
+              // Not in the pool either: the search cut that colour, so ask the shelf for it.
+              if (!inColour.length) {
+                for (const productId of new Set(picked.map(cardId))) await addProductColoursToPool(productId);
+                inColour = pooledInColour();
+              }
             }
             if (inColour.length && !inColour.every((card) => picked.includes(card) && picked.length === inColour.length)) {
               picked.splice(0, picked.length, ...inColour);

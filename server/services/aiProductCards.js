@@ -832,7 +832,27 @@ const buildBaseCard = (product = {}, overrides = {}) => {
   };
 };
 
-const colorVariantCardsForProduct = (product = {}, { limit = 6, preserveUnavailableCards = false, saleModeSettings = null } = {}) => {
+/*
+ * A card built here and normalized again (memory, the colour pick, a channel adapter) still carries
+ * every colour's variants. Expanded as a product it came back as the FIRST colour — the owner said
+ * «عايزه اسود» over a Skechers card and got Beige twice — and each pass glued another colour onto
+ * its name («SKECHERS SLIP INS - Grey - Black - Beige»). Its own colour leads now, under its base name.
+ */
+const asReNormalizedCard = (product = {}) => {
+  const ownColor = typeof product?.color === "string" ? text(product.color).toLowerCase() : "";
+  if (!ownColor || !text(product?.base_name)) return product;
+  const variants = asArray(product.variants);
+  const isOwn = (variant) => [variant?.color, variant?.color_name, variant?.color_value].some((value) => text(value).toLowerCase() === ownColor);
+  return {
+    ...product,
+    name: text(product.base_name),
+    title: text(product.base_name),
+    variants: [...variants.filter(isOwn), ...variants.filter((variant) => !isOwn(variant))],
+  };
+};
+
+const colorVariantCardsForProduct = (sourceProduct = {}, { limit = 6, preserveUnavailableCards = false, saleModeSettings = null } = {}) => {
+  const product = asReNormalizedCard(sourceProduct);
   const expansionDebug = debugProductColorExpansion(product, { limit });
   const colorGroups = new Map();
   for (const group of expansionDebug.color_groups || []) {

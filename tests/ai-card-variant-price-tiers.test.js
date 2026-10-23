@@ -78,3 +78,14 @@ test("WhatsApp: words over product cards carry no «شوفه من هنا» link"
   const source = read("server/services/aiInboxService.js");
   assert.match(source, /let replyText = repliesWithCards\s*\? text\(reply\.text \|\| aiPayload\.answer \|\| ""\)\s*: ensureProductLinkInReply\(/);
 });
+
+// 2026-10-23, «عايزه اسود» over a Skechers card came back Beige twice, its name growing a colour per pass.
+test("a colour card normalized again stays its own colour, under its base name", () => {
+  const skechers = { id: 562, name: "SKECHERS SLIP INS", price: 1550, product_url: "https://m1store-egy.com/p/562",
+    variants: ["Grey", "Beige", "Black"].flatMap((color, c) => ["41", "42"].map((size, s) => ({ ...variant(7913 + c * 2 + s, color), size, price: 1550 }))) };
+  const black = normalizeProductCards([skechers], { limit: 24, preserveUnavailableCards: true }).find((card) => card.color === "Black");
+  const again = normalizeProductCards([black], { limit: 1, preserveUnavailableCards: true });
+  assert.equal(again[0].color, "Black");
+  assert.equal(again[0].name, "SKECHERS SLIP INS - Black");
+  assert.equal(again[0].base_name, "SKECHERS SLIP INS");
+});

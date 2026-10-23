@@ -1,5 +1,5 @@
 import { AI_AGENT_CHANNELS, normalizeChannel } from "./aiChannelAdapterService.js";
-import { generateAiBrainV2Decision } from "./aiBrainV2Service.js";
+import { generateAiBrainV2Decision, loadProductColourCards } from "./aiBrainV2Service.js";
 import { detectNamedColorway } from "../utils/namedColorways.js";
 import { generateUnifiedAiReply } from "./aiConversationOrchestrator.js";
 import { normalizeProductCards } from "./aiProductCards.js";
@@ -1238,6 +1238,8 @@ export const generateUnifiedConversationDecision = async (normalizedInbound = {}
         }, { tenantId, branchId, memory: {} });
         return asArray(found?.product_cards);
       },
+      // All colours of one product, for a colour or card the search cut.
+      productColourCards: (productId) => loadProductColourCards({ tenantId, productId }),
     },
   });
   decision = agentDecision

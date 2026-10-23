@@ -277,3 +277,45 @@ test("the same agent runs on OpenAI's Responses API: tools, call outputs, cards"
     }
   });
 });
+
+// Owner's WhatsApp test, 2026-10-23: «طيب عايز اسكتشر اسود ميرور مقاس ٤٤ موجود». The search held the
+// Skechers Slip-Ins in Grey and Beige only (it caps cards per grade), the model asked for «562:7926» —
+// the Black size-44 row it read off get_inventory — found nothing, fell back to «562», and the Grey
+// card went out under «أيوه متاح … أسود».
+test("a colour the search cut, or a size row id, is fetched off the shelf as that colour's card", async () => {
+  const skechers = (variant, color, sizes) => ({
+    product_id: "562", id: "562", variant_id: String(variant), title: `SKECHERS SLIP INS - ${color}`, name: `SKECHERS SLIP INS - ${color}`,
+    color, grade: "mirror_original", grade_label: "ميرور اوريجينال", price: 1550, available_sizes: sizes, total_stock: 4, image_url: `https://x/${color}.jpg`,
+    variants: sizes.map((size, index) => ({ id: variant + index, color, size, stock: 1 })),
+  });
+  const grey = skechers(7913, "Grey", ["41", "42", "43", "44"]);
+  const beige = skechers(7918, "Beige", ["41", "42", "43", "44"]);
+  const black = skechers(7923, "Black", ["41", "42", "43", "44"]);
+  const skechersInbound = { ...inbound, text: "طيب عايز اسكتشر اسود ميرور مقاس ٤٤ موجود", originalText: "طيب عايز اسكتشر اسود ميرور مقاس ٤٤ موجود" };
+  const run = async (productIds) => withEnv(async () => {
+    __setAgentClientForTests(fakeClient([
+      { stop_reason: "tool_use", content: [{ type: "tool_use", id: "t1", name: "search_products", input: { query: "SKECHERS" } }], usage: {} },
+      { stop_reason: "tool_use", content: [{ type: "tool_use", id: "t2", name: "show_products", input: { product_ids: productIds } }], usage: {} },
+      { stop_reason: "end_turn", content: [{ type: "text", text: "أيوه متاح 👇" }], usage: {} },
+    ]));
+    const shelfAsked = [];
+    const out = await runClaudeSalesAgent({
+      decision: { ...decision, product_cards: [grey] },
+      inbound: skechersInbound,
+      loaders,
+      helpers: {
+        safeProductFacts,
+        searchCards: async () => [grey, beige],
+        productColourCards: async (productId) => { shelfAsked.push(productId); return productId === "562" ? [grey, beige, black] : []; },
+      },
+    });
+    return { out, shelfAsked };
+  });
+
+  const bySizeRow = await run(["562:7926"]);
+  assert.deepEqual(bySizeRow.out.product_cards.map((card) => card.color), ["Black"], "the size-44 row resolves to the Black card");
+  assert.deepEqual(bySizeRow.shelfAsked, ["562"]);
+
+  const byProduct = await run(["562"]);
+  assert.deepEqual(byProduct.out.product_cards.map((card) => card.color), ["Black"], "«اسود» keeps the Black card out of the whole range");
+});

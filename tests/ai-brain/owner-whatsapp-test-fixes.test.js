@@ -34,7 +34,9 @@ test("an order is only found for the phone it was placed with, inside this shop"
 test("every colour of a model is its own card; a bare product id picks them all", async () => {
   const agent = await import("../../server/services/aiClaudeSalesAgentService.js");
   const source = read("../../server/services/aiClaudeSalesAgentService.js");
-  assert.match(source, /const matches = cardPool\.has\(id\) \? \[cardPool\.get\(id\)\] : \[\.\.\.cardPool\.values\(\)\]\.filter\(\(card\) => cardId\(card\) === id\);/);
+  // cardForId: the pool's own card, or (2026-10-23) the colour card that holds a size row's id.
+  assert.match(source, /if \(cardPool\.has\(id\)\) return cardPool\.get\(id\);/);
+  assert.match(source, /const matches = exact \? \[exact\] : \[\.\.\.cardPool\.values\(\)\]\.filter\(\(card\) => cardId\(card\) === id\);/);
   assert.ok(agent.__testing.cardSummary);
 });
 
