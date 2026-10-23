@@ -15,8 +15,8 @@ import {
   followUpAudienceAllows,
   nextSendWindowStart,
 } from "../../server/services/messageSequencesService.js";
-import { addRestockWatch, ensureRestockWatchSchema, runRestockWatchTick, variantMatchesWatch } from "../../server/modules/restockWatch/restockWatch.js";
-import { safeProductFacts } from "../../server/services/aiUnifiedDecisionService.js";
+import { addRestockWatch, ensureRestockWatchSchema, normalizeSize, resolveCatalogColour, runRestockWatchTick, variantMatchesWatch } from "../../server/modules/restockWatch/restockWatch.js";
+import { RESTOCK_REQUEST, restockTargetFrom, safeProductFacts } from "../../server/services/aiUnifiedDecisionService.js";
 
 /**
  * The owner, 2026-10-23: follow-ups "the way GENI does them, professionally" — four ready ones
@@ -145,10 +145,30 @@ test("«بلّغني لما ينزل» becomes a restock watch", async () => {
   assert.deepEqual(out.debug.claude_agent.restock_watches, [{ id: 8, product_id: "61", size: "44", color: "" }]);
 });
 
-test("a watch matches by size exactly and by colour loosely", () => {
-  assert.equal(variantMatchesWatch({ size: "44", color: "أسود × أبيض" }, { size: "44", color: "أسود" }), true);
-  assert.equal(variantMatchesWatch({ size: "44.5", color: "أسود" }, { size: "44" }), false);
+test("a watch matches the catalog's own size and colour; «الأسود» resolves to Black", () => {
+  assert.equal(variantMatchesWatch({ size: "47", color: "Black" }, { size: "47", color: "Black" }), true);
+  assert.equal(variantMatchesWatch({ size: "47", color: "White & Black" }, { size: "47", color: "Black" }), false, "a two-tone pair is another colour");
+  assert.equal(variantMatchesWatch({ size: "44.5", color: "Black" }, { size: "44" }), false);
   assert.equal(variantMatchesWatch({ size: "42", color: "Navy" }, {}), true);
+  const variants = [{ color: "White & Black" }, { color: "Black" }, { color: "Navy" }];
+  assert.equal(resolveCatalogColour(variants, "الأسود"), "Black", "the plain colour before the two-tone one");
+  assert.equal(resolveCatalogColour(variants, "نيفي"), "Navy");
+  assert.equal(resolveCatalogColour(variants, "navy"), "Navy");
+  assert.equal(resolveCatalogColour(variants, "أحمر"), "", "a colour the model does not come in");
+  assert.equal(normalizeSize("٤٧"), "47");
+  assert.equal(normalizeSize(" 44.5 "), "44.5");
+});
+
+test("«بلّغني لما ينزل» in the size step is read for model, size and the colour said now", () => {
+  assert.equal(RESTOCK_REQUEST.test("لو مش موجود بلغني أول ما ينزل"), true);
+  assert.equal(RESTOCK_REQUEST.test("عرفني لما يتوفر"), true);
+  assert.equal(RESTOCK_REQUEST.test("عايز مقاس 47"), false);
+  const target = restockTargetFrom({
+    output: { memoryUpdates: { active_product_id: "180", selectedColor: "Navy" } },
+    memory: { selectedSize: "44" },
+    message: "لا أنا عايزه أسود مش نيفي، الأسود مقاس ٤٧ موجود؟ لو مش موجود بلغني",
+  });
+  assert.deepEqual(target, { productId: "180", size: "47", color: "black" });
 });
 
 test("the wiring: one track per customer, quiet hours, the audience at send time, the order steps, the worker", () => {

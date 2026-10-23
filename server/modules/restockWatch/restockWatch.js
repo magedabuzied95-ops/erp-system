@@ -1,4 +1,5 @@
 import db from "../../database/db.js";
+import { coloursNamedIn } from "../../utils/colourWords.js";
 
 /*
  * «بلّغني لما المقاس ده ينزل» — the customer asks to be told when a model (a size, a colour of it)
@@ -43,13 +44,38 @@ export const ensureRestockWatchSchema = async (client = db) => {
   return schemaReady;
 };
 
-// Sizes are compared as written («42», «42.5», «M»), colours loosely («أسود» inside «أسود × أبيض»).
+// Sizes and colours are compared exactly; a watch's colour is stored as the catalog spells it
+// (resolveCatalogColour), so "Black" never fires for "White & Black".
 export const variantMatchesWatch = (variant = {}, watch = {}) => {
   const size = text(watch.size).toLowerCase();
   const color = text(watch.color).toLowerCase();
   if (size && text(variant.size).toLowerCase() !== size) return false;
-  if (color && !text(variant.color).toLowerCase().includes(color)) return false;
+  if (color && text(variant.color).toLowerCase() !== color) return false;
   return true;
+};
+
+// «٤٧», « 47 », "47" → "47"; letter sizes (M, XL) pass through.
+export const normalizeSize = (value = "") =>
+  text(value)
+    .replace(/[٠-٩]/g, (digit) => String("٠١٢٣٤٥٦٧٨٩".indexOf(digit)))
+    .replace(/[^\d.a-zA-Z]/g, "")
+    .slice(0, 40);
+
+// The customer says «الأسود», the catalog says "Black": the product's own colour that the words name.
+// An exact name first, then the colour words (colourWords.js), a plain colour before a two-tone one.
+export const resolveCatalogColour = (variants = [], spoken = "") => {
+  const wanted = text(spoken).toLowerCase();
+  if (!wanted) return "";
+  const colours = [...new Set(variants.map((variant) => text(variant.color)).filter(Boolean))];
+  const exact = colours.find((colour) => colour.toLowerCase() === wanted);
+  if (exact) return exact;
+  for (const name of [wanted, ...coloursNamedIn(spoken)]) {
+    const plain = colours.find((colour) => colour.toLowerCase() === name);
+    if (plain) return plain;
+    const within = colours.find((colour) => colour.toLowerCase().includes(name));
+    if (within) return within;
+  }
+  return "";
 };
 
 const variantsOf = async (client, { tenantId, productId }) => {
@@ -72,9 +98,11 @@ export const addRestockWatch = async ({ tenantId, sessionId, channel = "", produ
   const id = Number(String(productId ?? "").replace(/\D/g, ""));
   if (!Number(tenantId) || !text(sessionId) || !Number.isInteger(id) || id <= 0) return { ok: false, reason: "bad_input" };
   await ensureRestockWatchSchema(client);
-  const watch = { size: text(size).slice(0, 40), color: text(color).slice(0, 60) };
   const variants = await variantsOf(client, { tenantId: Number(tenantId), productId: id });
   if (!variants.length) return { ok: false, reason: "product_not_found" };
+  const catalogColour = resolveCatalogColour(variants, color);
+  if (text(color) && !catalogColour) return { ok: false, reason: "color_not_found" };
+  const watch = { size: normalizeSize(size), color: catalogColour.slice(0, 60) };
   const matching = variants.filter((variant) => variantMatchesWatch(variant, watch));
   // In stock right now: nothing to wait for — the agent should just offer it.
   if (matching.some((variant) => Number(variant.stock) > 0)) return { ok: false, reason: "in_stock_now" };

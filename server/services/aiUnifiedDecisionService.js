@@ -18,6 +18,7 @@ import { genderizeDecision, resolveCustomerGender } from "../utils/customerGende
 import { runClaudeSalesAgent } from "./aiClaudeSalesAgentService.js";
 import { buildStoreFactsDecision, STORE_FACTS_INTENTS } from "./aiStoreFactsReplyService.js";
 import { buildCatalogBrowseDecision, CATALOG_BROWSE_INTENTS } from "./aiCatalogBrowseService.js";
+import { coloursNamedIn } from "../utils/colourWords.js";
 import {
   buildConversationMemoryV2,
   mergeConversationMemoryV2,
@@ -1308,6 +1309,27 @@ export const generateUnifiedConversationDecision = async (normalizedInbound = {}
   }
   // The customer is in the order steps (colour → size → confirm): if they stop half way, the
   // "unfinished order" follow-up picks it up. An order placed stops it (stop_on_purchase).
+  // «بلّغني لما ينزل» inside the size step: brain V2 owns that step (the agent never sees it), so the
+  // watch is written here from the conversation's model, colour and size. restockWatch refuses
+  // anything in stock, so a watch exists only for what really is out; the reply then says so.
+  if (ORDER_STEP_INTENTS.has(text(output.detected_intent || output.intent)) && RESTOCK_REQUEST.test(text(inbound.originalText || inbound.text)) && tenantId && text(inbound.metadata?.source) !== "ai_playground") {
+    try {
+      const target = restockTargetFrom({ output, memory: effectiveMemoryWithV2 || {}, message: text(inbound.originalText || inbound.text) });
+      if (target.productId && target.size) {
+        const { addRestockWatch } = await import("../modules/restockWatch/restockWatch.js");
+        const watched = await addRestockWatch({ tenantId, sessionId: inbound.externalConversationId, channel: inbound.channel, productId: target.productId, size: target.size, color: target.color });
+        console.info("[ai-unified] restock watch from the size step", { conversation_id: inbound.externalConversationId, ...target, ok: Boolean(watched?.ok), reason: watched?.reason || "" });
+        if (watched?.ok) {
+          const confirmation = `مقاس ${target.size}${target.color ? ` ${target.color}` : ""} مش متوفر دلوقتي يا فندم، وسجّلت طلب حضرتك — هبلّغك هنا أول ما ينزل إن شاء الله 🙏`;
+          output.text = confirmation;
+          if (output.answer !== undefined) output.answer = confirmation;
+          if (output.channel_reply && typeof output.channel_reply === "object") output.channel_reply = { ...output.channel_reply, text: confirmation };
+        }
+      }
+    } catch (error) {
+      console.warn("[ai-unified] restock watch from the size step failed", { conversation_id: inbound.externalConversationId, message: error?.message });
+    }
+  }
   // Brain V2's own price-objection read starts the price follow-up as well: the agent does not always
   // write the objection down (live test 2026-10-23: «السعر غالي عليا» → intent price_objection, no tool).
   const outputIntent = text(output.detected_intent || output.intent);
@@ -1321,6 +1343,23 @@ export const generateUnifiedConversationDecision = async (normalizedInbound = {}
 };
 
 const ORDER_STEP_INTENTS = new Set(["post_product_color_selected", "post_product_size_selected", "post_product_order_confirmation"]);
+
+// «بلغني / عرفني لما ينزل»، «أول ما يتوفر».
+export const RESTOCK_REQUEST = /(بلغ|بلّغ|بلغني|عرفني|عرّفني|كلمني لما|ابعتلي لما|ابعتلى لما|لما (ي|ت)?(نزل|توفر|يتوفر|رجع|يرجع)|[اأ]ول ما (ي|ت)?(نزل|توفر|يتوفر|رجع|يرجع))/;
+
+// The model / size / colour the customer means, from what they wrote now and the conversation so far.
+export const restockTargetFrom = ({ output = {}, memory = {}, message = "" } = {}) => {
+  const updates = output.memoryUpdates || output.memory_updates || {};
+  const preferences = memory.preferences || {};
+  const first = (...values) => values.map((value) => text(value)).find(Boolean) || "";
+  const spokenSize = (text(message).replace(/[٠-٩]/g, (digit) => String("٠١٢٣٤٥٦٧٨٩".indexOf(digit))).match(/(?<!\d)(\d{2}(?:\.5)?)(?!\d)/) || [])[1] || "";
+  return {
+    productId: first(updates.active_product_id, updates.activeProductId, memory.active_product_id, memory.activeProductId, preferences.active_product_id),
+    size: first(spokenSize, updates.selectedSize, updates.activeSize, memory.selectedSize, memory.activeSize, preferences.selectedSize),
+    // What they said now wins over the colour on screen («لا أنا عايزه أسود مش نيفي»).
+    color: first(coloursNamedIn(message)[0], updates.selectedColor, updates.activeColor, memory.selectedColor, memory.activeColor, preferences.selectedColor),
+  };
+};
 
 export default {
   generateUnifiedConversationDecision,

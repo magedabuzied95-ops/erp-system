@@ -30,6 +30,7 @@ import { buildOrderTrackingUrl } from "../utils/whatsapp.js";
 import { loadPersona, DEFAULT_PERSONA } from "./aiPersonaService.js";
 import { loadSupportKnowledgeBase } from "./aiSupportKnowledgeBaseService.js";
 import { markAiSupportConversationEscalated } from "./aiSupportLogService.js";
+import { coloursNamedIn } from "../utils/colourWords.js";
 import {
   FACT_CATEGORIES,
   conversationMemoryPhones,
@@ -640,20 +641,6 @@ export const cardsNamingTheModel = (cards = [], message = "") => {
   return kept.length ? kept : cards;
 };
 // «الاسود» → black. The customer names a colour in Arabic or Franco; card colours are in English.
-const COLOUR_WORDS = [
-  [/(اسود|أسود|سودا|بلاك|black)/i, ["black"]],
-  [/(ابيض|أبيض|بيضا|وايت|white)/i, ["white"]],
-  [/(بيج|beige|biege)/i, ["beige", "biege"]],
-  [/(كحلي|نيفي|navy)/i, ["navy"]],
-  [/(رمادي|رصاصي|جراي|جري|grey|gray)/i, ["grey", "gray"]],
-  [/(احمر|أحمر|ريد|red)/i, ["red"]],
-  [/(اخضر|أخضر|جرين|green)/i, ["green"]],
-  [/(بني|براون|brown)/i, ["brown"]],
-  [/(بينك|وردي|روز|pink|rose)/i, ["pink", "rose"]],
-  [/(ازرق|أزرق|بلو|blue)/i, ["blue"]],
-  [/(نبيتي|برجندي|burgundy)/i, ["burgundy"]],
-];
-const coloursNamedIn = (message = "") => COLOUR_WORDS.filter(([pattern]) => pattern.test(text(message))).flatMap(([, names]) => names);
 const cardColourText = (card = {}) => text(`${card.color || card.matched_variant_color || ""} ${(text(card.title || card.name).split(" - ")[1] || "")}`).toLowerCase();
 
 // The customer asked for one grade by name — then only that grade is shown.
