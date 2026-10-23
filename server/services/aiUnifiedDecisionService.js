@@ -1308,11 +1308,14 @@ export const generateUnifiedConversationDecision = async (normalizedInbound = {}
   }
   // The customer is in the order steps (colour → size → confirm): if they stop half way, the
   // "unfinished order" follow-up picks it up. An order placed stops it (stop_on_purchase).
+  // Brain V2's own price-objection read starts the price follow-up as well: the agent does not always
+  // write the objection down (live test 2026-10-23: «السعر غالي عليا» → intent price_objection, no tool).
   const outputIntent = text(output.detected_intent || output.intent);
-  if (ORDER_STEP_INTENTS.has(outputIntent) && tenantId && text(inbound.metadata?.source) !== "ai_playground") {
+  const followUpSignal = ORDER_STEP_INTENTS.has(outputIntent) ? "order_incomplete" : outputIntent === "price_objection" ? "price_objection" : "";
+  if (followUpSignal && tenantId && text(inbound.metadata?.source) !== "ai_playground") {
     void import("./messageSequencesService.js")
-      .then((sequences) => sequences.onCustomerSignal({ tenantId, sessionId: inbound.externalConversationId, channel: inbound.channel, signal: "order_incomplete" }))
-      .catch((error) => console.warn("[ai-unified] unfinished-order follow-up not started", { conversation_id: inbound.externalConversationId, message: error?.message }));
+      .then((sequences) => sequences.onCustomerSignal({ tenantId, sessionId: inbound.externalConversationId, channel: inbound.channel, signal: followUpSignal }))
+      .catch((error) => console.warn("[ai-unified] follow-up not started", { conversation_id: inbound.externalConversationId, signal: followUpSignal, message: error?.message }));
   }
   return output;
 };

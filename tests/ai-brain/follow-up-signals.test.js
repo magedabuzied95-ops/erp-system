@@ -160,7 +160,7 @@ test("the wiring: one track per customer, quiet hours, the audience at send time
   assert.match(engine, /ai_agent_conversation_id = \$3/, "an order from the chat stops it even with no phone");
   const unified = read("../../server/services/aiUnifiedDecisionService.js");
   assert.match(unified, /const ORDER_STEP_INTENTS = new Set\(\["post_product_color_selected", "post_product_size_selected", "post_product_order_confirmation"\]\);/);
-  assert.match(unified, /signal: "order_incomplete"/);
+  assert.match(unified, /ORDER_STEP_INTENTS\.has\(outputIntent\) \? "order_incomplete" : outputIntent === "price_objection" \? "price_objection" : ""/);
   const server = read("../../server/server.js");
   assert.match(server, /void runRestockWatchTick\(\)\.catch/);
   assert.match(server, /await ensureRestockWatchSchema\(db\)\n\s*\.then/);
