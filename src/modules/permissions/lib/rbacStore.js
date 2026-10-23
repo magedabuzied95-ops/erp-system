@@ -508,6 +508,7 @@ const RAW_SIDEBAR_SECTIONS = [
       { label: "Customer Intelligence", to: "/reports/customers", permission: "reports.view", icon: UserRoundSearch, keywords: "customers segments retention repeat churn loyalty ذكاء العملاء الفئات الاحتفاظ التكرار" },
       { label: "Employee & Channel Intelligence", to: "/reports/employees", permission: "reports.view", icon: Contact, keywords: "employees sellers salesperson cashier channel branch attribution ذكاء الموظفين البائعين الكاشير القنوات الفروع" },
       { label: "Reconciliation", to: "/reports/reconciliation", permission: "reports.view", icon: Scale, keywords: "reconciliation reconcile audit verify agree accounting parity المطابقة التحقق مراجعة الأرقام" },
+      { label: "Sales Channels", to: "/reports/channels", permission: "reports.view", icon: Globe, keywords: "sales channels traffic source attribution google facebook tiktok instagram paid organic sessions conversion utm قنوات البيع مصادر الزيارات جوجل فيسبوك تيك توك إعلانات مدفوع مجاني الزيارات التحويل" },
       { label: "Coupon Performance", to: "/reports/coupons", permission: "reports.view", icon: TicketPercent, keywords: "coupon coupons campaign redemption discount أداء الكوبونات حملات الخصم الاستخدام" },
       { label: "Reports", to: "/reports", permission: "reports.view", icon: BarChart3 },
     ],

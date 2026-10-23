@@ -29,6 +29,7 @@ import {
   getSalesProductsController,
   getSalesSizesController,
   getSalesSummaryController,
+  getSalesChannelsController,
 } from "../controllers/analyticsV2Controller.js";
 
 const router = express.Router();
@@ -46,6 +47,8 @@ router.get("/sales/summary", protect, viewReports, getSalesSummaryController);
 router.get("/sales/breakdown", protect, viewReports, getSalesBreakdownController);
 router.get("/sales/products", protect, viewReports, getSalesProductsController);
 router.get("/sales/sizes", protect, viewReports, getSalesSizesController);
+// Storefront sales by traffic source (channel x medium), last-touch per session.
+router.get("/sales/channels", protect, viewReports, getSalesChannelsController);
 
 // R4 — Inventory Intelligence. Four endpoints so the page loads in parallel and each
 // section degrades on its own, exactly as R3 does.

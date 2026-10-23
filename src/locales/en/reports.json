@@ -119,5 +119,40 @@
       "freeShipping": "Free shipping",
       "empty": "No coupon was used in this period."
     }
+  },
+  "salesChannels": {
+    "title": "Sales Channels",
+    "subtitle": "Each order is credited to the last source of the visit it was placed in. Sessions and carts come from storefront events; orders and revenue from the orders themselves, cancelled ones excluded.",
+    "forbidden": "You do not have access to reports.",
+    "failed": "Could not load the report.",
+    "untracked": "{{orders}} website orders worth {{revenue}} in this period have no recorded source (placed before tracking started), so they are not in the table.",
+    "tiles": {
+      "revenue": "Revenue",
+      "orders": "Orders",
+      "sessions": "Sessions",
+      "addedToCart": "Sessions with add to cart",
+      "conversion": "Conversion rate",
+      "aov": "Average order value"
+    },
+    "mediums": {
+      "all": "All",
+      "paid": "Paid",
+      "organic": "Organic",
+      "direct": "Direct",
+      "unknown": "Unknown"
+    },
+    "table": {
+      "title": "Channels",
+      "subtitle": "Last source of the visit the order was placed in",
+      "channel": "Channel",
+      "medium": "Medium",
+      "sessions": "Sessions",
+      "addedToCart": "Added to cart",
+      "orders": "Orders",
+      "revenue": "Revenue",
+      "conversion": "Conversion rate",
+      "aov": "Avg. order",
+      "empty": "No tracked sessions or orders in this period yet. Figures start from the day tracking went live."
+    }
   }
 }
