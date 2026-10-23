@@ -79,7 +79,8 @@ const LABELS = {
   exchangeDone: "تم إنشاء الاستبدال",
   exchangeBadge: "أوردر استبدال",
   linkedTitle: "حسابات العميل التانية",
-  memoryTitle: "الـ AI فاكر عن العميل",
+  // All Arabic on purpose: a Latin "AI" in the middle flipped the label's word order on screen.
+  memoryTitle: "ذاكرة المساعد عن العميل",
   memoryPlaceholder: "ضيف معلومة (مثلا: مقاسه 43 ورجله عريضة)",
   memoryAdd: "حفظ",
   memoryForget: "امسح",
