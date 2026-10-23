@@ -1,3 +1,4 @@
+import { loadTenantAiReplyRules } from "../modules/aiReplyRules.js";
 import db from "../database/db.js";
 import { AI_AGENT_CHANNELS, normalizeChannel, normalizeOutgoingChannelReply } from "./aiChannelAdapterService.js";
 import { normalizeProductCards, resolvePublicProductImageUrl, resolvePublicProductUrl } from "./aiProductCards.js";
@@ -1660,6 +1661,7 @@ export const generateAiBrainV2Decision = async (normalizedInbound = {}, options 
   const message = text(intentPayload.normalizedForIntent || normalizeArabicForIntent(originalMessage));
   const productAlias = resolveProductAlias(originalMessage || message);
   const tenantId = options.tenantId || normalizedInbound.metadata?.tenant_id || normalizedInbound.metadata?.tenantId || 1;
+  const rules = options.rules || await loadTenantAiReplyRules({ tenantId });
   const memory = await withLiveMemoryCardPrices({ memory: options.memory || normalizedInbound.metadata?.ai_memory || {}, tenantId });
   const memoryActiveProductId = activeProductFromMemory(memory);
   const memoryV2 = memory?.preferences?.aiConversationMemoryV2 || memory?.aiConversationMemoryV2 || null;
@@ -1986,7 +1988,7 @@ export const generateAiBrainV2Decision = async (normalizedInbound = {}, options 
   // 2026-10-23: «عايز ايرماكس ٩٧» got the Egyptian pairs only — "المفروض يسأل موجود ميرور ومصري
   // حضرتك محتاج ايه؟"). Every grade is searched on its own, so a mirror pair cut by the local
   // ones still counts. The agent's own searches always get cards.
-  const askGradeFirst = intent === "product_search" && (namedMatches.length > 0 || Boolean(explicitModel)) && !requestedGrade && !askedColorway
+  const askGradeFirst = rules.ai_rules_grade_question !== false && intent === "product_search" && (namedMatches.length > 0 || Boolean(explicitModel)) && !requestedGrade && !askedColorway
     && normalizedInbound.metadata?.source !== "claude_agent_search" && !options.noGradeQuestion && !normalizedInbound.metadata?.no_grade_question;
   if (askGradeFirst) {
     const gradesSelling = (await Promise.all(PRODUCT_GRADES.map(async (grade) => {

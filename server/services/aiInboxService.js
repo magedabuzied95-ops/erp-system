@@ -1,4 +1,6 @@
 import { buildProductContext, ensureProductLinkInReply } from "./aiProductContext.js";
+import { loadTenantAiReplyRules } from "../modules/aiReplyRules.js";
+import { aiCardsIntro, appendAiBookingQuestion, normalizeAiReplyRules } from "../../shared/aiReplyRules.js";
 import db from "../database/db.js";
 import { getAIChannelSettings } from "./aiChannelSettingsService.js";
 import {
@@ -379,14 +381,17 @@ export const visualSizeAnswer = ({ cards = [], recognition = {}, caption = "" } 
   };
 };
 
-export const buildVisualRecognitionPayload = ({ cards: recognisedCards = [], recognition = {}, caption = "" } = {}) => {
+export const buildVisualRecognitionPayload = ({ cards: recognisedCards = [], recognition = {}, caption = "", rules = {} } = {}) => {
   const sizeAnswer = visualSizeAnswer({ cards: recognisedCards, recognition, caption });
   const cards = sizeAnswer ? sizeAnswer.cards : recognisedCards;
   // The owner's words (2026-10-19): one line, the cards do the rest. When the photo was only
   // matched to its family, the customer is told this is the closest model, never sold it as the same.
-  const answer = sizeAnswer ? sizeAnswer.text : recognition.photoMatch === "same_model_other_color"
+  const visualAnswer = sizeAnswer ? sizeAnswer.text : recognition.photoMatch === "same_model_other_color"
     ? VISUAL_OTHER_COLOR_TEXT
-    : recognition.closest ? VISUAL_CLOSEST_MODEL_TEXT : VISUAL_SAME_MODEL_TEXT;
+    : recognition.closest ? VISUAL_CLOSEST_MODEL_TEXT : aiCardsIntro(rules);
+  const bookedAnswer = cards.length ? appendAiBookingQuestion(visualAnswer, rules) : visualAnswer;
+  const answer = cards.length && normalizeAiReplyRules(rules).ai_rules_product_link
+    ? ensureProductLinkInReply(bookedAnswer, cards[0]) : bookedAnswer;
   const colorCount = cards.length;
   return {
     answer,
@@ -1264,6 +1269,7 @@ const syncWhatsappLiveMemoryToChannel = async ({ tenantId, sessionId, phone = ""
 
 export const generateWhatsappAiAutoReply = async ({ tenantId, phone, sessionId, customerName = "", messageText = "", timestamp = "", traceId = null, dryRun = false, attachments = [] } = {}) => {
   const safeTenantId = number(tenantId, number(process.env.WHATSAPP_TENANT_ID, 1));
+  const rules = await loadTenantAiReplyRules({ tenantId: safeTenantId });
   const safePhone = text(phone);
   const safeSessionId = normalizeWhatsappSessionId(sessionId, safePhone);
   const originalBody = text(messageText);
@@ -1380,7 +1386,7 @@ export const generateWhatsappAiAutoReply = async ({ tenantId, phone, sessionId, 
     }).catch((error) => ({ matched: false, reason: error?.message || "recognition_failed" }));
     if (recognition.matched && asArray(recognition.productCards).length) {
       const visualCards = asArray(recognition.productCards);
-      const visualPayload = buildVisualRecognitionPayload({ cards: visualCards, recognition, caption: originalBody });
+      const visualPayload = buildVisualRecognitionPayload({ cards: visualCards, recognition, caption: originalBody, rules });
       const visualReply = visualPayload.channel_reply;
       logUnifiedDecisionEarlyReturn({
         channel: AI_AGENT_CHANNELS.WHATSAPP,
@@ -1561,6 +1567,7 @@ export const generateWhatsappAiAutoReply = async ({ tenantId, phone, sessionId, 
     }, {
       tenantId: safeTenantId,
       memory: loadedMemoryWithV2,
+      rules,
       providerMessageId: message.external_message_id || "",
     });
   } catch (error) {
@@ -1964,7 +1971,7 @@ export const generateWhatsappAiAutoReply = async ({ tenantId, phone, sessionId, 
   // Over product cards the words are the card's lead line: the card is the product, so no
   // «شوفه من هنا: <link>» under it (owner, 2026-10-23, on a one-card answer).
   const repliesWithCards = asArray(aiPayload.product_cards).length > 0 || asArray(aiPayload.image_cards).length > 0;
-  let replyText = repliesWithCards
+  let replyText = repliesWithCards && !normalizeAiReplyRules(rules).ai_rules_product_link
     ? text(reply.text || aiPayload.answer || "")
     : ensureProductLinkInReply(reply.text || aiPayload.answer || "", productContext);
   replyText = sanitizeWhatsappLiveReply({ replyText, payload: aiPayload, messageText: body });

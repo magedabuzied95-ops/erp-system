@@ -86,6 +86,8 @@ import { buildHumanizedReply } from "../services/aiHumanizedReplies.js";
 import { isDuplicateMessage } from "../services/aiMessageDeduplication.js";
 import { getAISettings, getAIToneInstruction, updateAISettings, wasAISettingsPersisted } from "../services/aiSettingsService.js";
 import { splitAiSettingsPayload } from "../utils/aiSettingsPartition.js";
+import { loadTenantAiReplyRules, saveTenantAiReplyRules } from "../modules/aiReplyRules.js";
+import { classifyAiRuleLesson } from "../../shared/aiReplyRules.js";
 import { channelAutoSendDecision } from "../utils/aiAutoReplyGate.js";
 import {
   __resetAgentActionPolicyCache,
@@ -9622,6 +9624,18 @@ router.post("/conversations/:conversationId/sequences/:enrollmentId/stop", prote
 
 // Two stores hide behind this one route, and until 2026-09-19 the PUT wrote everything to the wrong one.
 // See server/utils/aiSettingsPartition.js for which key belongs to which store and why.
+router.get("/settings/rules", protect, permit("settings", "view"), async (req, res) => {
+  try {
+    return res.json({ success: true, rules: await loadTenantAiReplyRules({ tenantId: toTenantId(req) }) });
+  } catch (error) { return sendError(res, error, "Failed to load AI rules"); }
+});
+
+router.put("/settings/rules", protect, permit("settings", "edit"), async (req, res) => {
+  try {
+    return res.json({ success: true, rules: await saveTenantAiReplyRules({ tenantId: toTenantId(req), rules: req.body?.rules || {} }) });
+  } catch (error) { return sendError(res, error, "Failed to save AI rules"); }
+});
+
 router.get("/settings", protect, permit("settings", "view"), async (req, res) => {
   try {
     const tenantId = toTenantId(req);
@@ -9712,7 +9726,7 @@ router.post("/feedback/propose-lesson", protect, permit("settings", "edit"), asy
   try {
     const tenantId = toTenantId(req);
     const { proposeAgentLesson } = await import("../services/aiClaudeSalesAgentService.js");
-    const lesson = await proposeAgentLesson({
+    const lesson = classifyAiRuleLesson(req.body?.feedback || req.body?.correct_reply) || await proposeAgentLesson({
       tenantId,
       customerQuestion: req.body?.customer_question,
       aiReply: req.body?.ai_reply,

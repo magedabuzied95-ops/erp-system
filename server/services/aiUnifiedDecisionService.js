@@ -1,3 +1,6 @@
+import { aiCardsIntro, appendAiBookingQuestion, normalizeAiReplyRules, AI_REPLY_RULE_DEFAULTS } from "../../shared/aiReplyRules.js";
+import { loadTenantAiReplyRules } from "../modules/aiReplyRules.js";
+import { ensureProductLinkInReply } from "./aiProductContext.js";
 import { AI_AGENT_CHANNELS, normalizeChannel } from "./aiChannelAdapterService.js";
 import { generateAiBrainV2Decision, loadProductColourCards } from "./aiBrainV2Service.js";
 import { detectNamedColorway } from "../utils/namedColorways.js";
@@ -134,7 +137,7 @@ export const gradesNamedOutsideGuide = (replyText = "", guide = []) => {
 // the card's own «اطلب اللون ده» button is the booking step, and «تحب أحجزهولك؟» under the line
 // was the owner's second complaint about that card (2026-10-23).
 export const CARDS_INTRO_TEXT = "أيوه متاح إن شاء الله 👇";
-export const cardsIntroText = () => CARDS_INTRO_TEXT;
+export const cardsIntroText = (_intent, rules = {}) => aiCardsIntro(rules);
 
 const withReplyText = (decision = {}, replyText = "", debugPatch = {}) => ({
   ...decision,
@@ -144,7 +147,7 @@ const withReplyText = (decision = {}, replyText = "", debugPatch = {}) => ({
   debug: { ...(decision.debug || {}), ...debugPatch },
 });
 
-export const rewriteStructuredDecision = async ({ decision = {}, inbound = {}, tenantId = null, customerGender = null } = {}) => {
+export const rewriteStructuredDecision = async ({ decision = {}, inbound = {}, tenantId = null, customerGender = null, rules = {} } = {}) => {
   const intent = text(decision.detected_intent || decision.intent);
   // A bare greeting is answered from utils/greetingReply.js as it stands: re-worded, it lost the
   // next step that keeps the customer talking.
@@ -170,13 +173,13 @@ export const rewriteStructuredDecision = async ({ decision = {}, inbound = {}, t
   const products = asArray(decision.product_cards?.length ? decision.product_cards : decision.suggested_products?.length ? decision.suggested_products : decision.products);
   const gradeGuide = gradeGuideFor(products);
   const multiGrade = gradeGuide.length > 1;
-  if (multiGrade) return withReplyText(decision, multiGradeIntroText(gradeGuide, products, decision.debug?.audience_reply), { grade_intro: "fixed" });
+  if (multiGrade) return withReplyText(decision, (normalizeAiReplyRules(rules).ai_rules_cards_intro === AI_REPLY_RULE_DEFAULTS.ai_rules_cards_intro ? appendAiBookingQuestion(multiGradeIntroText(gradeGuide, products, decision.debug?.audience_reply), rules) : aiCardsIntro(rules)), { grade_intro: "fixed" });
   // Cards carry the colours, prices and sizes; the owner wants one short line above them, not a
   // re-worded list of colours, a grade explanation and a link (2026-10-19). A gender miss
   // ("للأسف مش لاقي … حريمي") is a different message and keeps its own words.
   const audienceReply = decision.debug?.audience_reply;
   if (asArray(decision.product_cards).length && !(audienceReply && !audienceReply.exact)) {
-    return withReplyText(decision, cardsIntroText(intent), { cards_intro: "short" });
+    return withReplyText(decision, cardsIntroText(intent, rules), { cards_intro: "short" });
   }
   if (!groundedRewriteEnabled()) return decision;
   const currentText = text(decision.text || decision.answer || decision.channel_reply?.text);
@@ -1002,6 +1005,7 @@ export const generateUnifiedConversationDecision = async (normalizedInbound = {}
   const memorySummary = summarizeMemoryForLog(rawMemory);
   const effectiveMemorySummary = summarizeMemoryForLog(effectiveMemory);
   const tenantId = options.tenantId || inbound.metadata.tenant_id || inbound.metadata.tenantId || process.env.WHATSAPP_TENANT_ID || 1;
+  const rules = options.rules || await loadTenantAiReplyRules({ tenantId });
   const branchId = options.branchId ?? inbound.metadata.branch_id ?? inbound.metadata.branchId ?? null;
 
   console.info("AI_MEMORY_SNAPSHOT", {
@@ -1145,6 +1149,7 @@ export const generateUnifiedConversationDecision = async (normalizedInbound = {}
         ...options,
         tenantId,
         branchId,
+        rules,
         memory: effectiveMemoryWithV2,
         providerMessageId: options.providerMessageId || inbound.metadata.provider_message_id || inbound.metadata.external_message_id || "",
       });
@@ -1210,6 +1215,7 @@ export const generateUnifiedConversationDecision = async (normalizedInbound = {}
   // failure returns null and the old grounded rewrite runs exactly as before.
   const agentDecision = await runClaudeSalesAgent({
     decision,
+    rules,
     inbound,
     tenantId,
     customerGender: genderRead.gender,
@@ -1235,7 +1241,7 @@ export const generateUnifiedConversationDecision = async (normalizedInbound = {}
         const found = await generateAiBrainV2Decision({
           ...searchInbound,
           metadata: { ...searchInbound.metadata, channel: searchInbound.channel, ai_memory: {} },
-        }, { tenantId, branchId, memory: {} });
+        }, { tenantId, branchId, rules, memory: {} });
         return asArray(found?.product_cards);
       },
       // All colours of one product, for a colour or card the search cut.
@@ -1243,7 +1249,13 @@ export const generateUnifiedConversationDecision = async (normalizedInbound = {}
     },
   });
   decision = agentDecision
-    || await rewriteStructuredDecision({ decision, inbound, tenantId, customerGender: genderRead.gender });
+    || await rewriteStructuredDecision({ decision, inbound, tenantId, rules, customerGender: genderRead.gender });
+  const replyCards = asArray(decision.product_cards?.length ? decision.product_cards : decision.suggested_products);
+  if (replyCards.length) {
+    let answer = appendAiBookingQuestion(text(decision.text || decision.answer || decision.channel_reply?.text), rules);
+    if (rules.ai_rules_product_link) answer = ensureProductLinkInReply(answer, replyCards[0]);
+    decision = withReplyText(decision, answer);
+  }
   // The agent already writes in the customer's gender; the swap list is for templates only.
   if (!agentDecision) decision = genderizeDecision(decision, genderRead.gender);
   decision = { ...decision, debug: { ...(decision.debug || {}), customer_gender: genderRead.gender, customer_gender_reason: genderRead.reason } };

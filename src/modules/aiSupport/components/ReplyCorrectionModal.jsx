@@ -53,7 +53,8 @@ function TeachAgentSection({ draft, headers, tenantId }) {
     setState("saving");
     try {
       const body = { tenant_id: tenantId, kind: "knowledge", title: lesson.title, triggers: lesson.triggers, answer: lesson.answer, enabled: true };
-      if (lesson.action === "update" && lesson.entry_id) await api.patch(`/ai-agent/knowledge/${lesson.entry_id}`, body, { headers });
+      if (lesson.action === "rule") await api.put("/ai-agent/settings/rules", { tenant_id: tenantId, rules: lesson.rule_change }, { headers });
+      else if (lesson.action === "update" && lesson.entry_id) await api.patch(`/ai-agent/knowledge/${lesson.entry_id}`, body, { headers });
       else await api.post("/ai-agent/knowledge", body, { headers });
       setState("saved");
     } catch {
@@ -90,7 +91,7 @@ function TeachAgentSection({ draft, headers, tenantId }) {
       {state === "error" ? <div className="mt-2 text-xs font-bold text-rose-200">{t("aiSupport.inbox.panel.teachAgent.error")}</div> : null}
       {lesson ? (
         <div className="mt-3 space-y-2 rounded-2xl border border-white/10 bg-slate-950/60 p-3 text-sm">
-          <div className="text-[11px] font-black uppercase tracking-[0.14em] text-violet-200">{t(`aiSupport.inbox.panel.teachAgent.${lesson.action}`)}</div>
+          <div className="text-[11px] font-black uppercase tracking-[0.14em] text-violet-200">{lesson.action === "rule" ? t("aiRules.title", { defaultValue: "قواعد الـ AI" }) : t(`aiSupport.inbox.panel.teachAgent.${lesson.action}`)}</div>
           {lesson.explanation ? <div className="leading-7 text-slate-200">{lesson.explanation}</div> : null}
           {lesson.action === "update" && lesson.previous_answer ? (
             <div className="rounded-xl bg-rose-500/10 p-2 leading-7 text-rose-100 line-through decoration-rose-300/50">

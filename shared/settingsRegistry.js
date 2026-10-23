@@ -1,4 +1,5 @@
 import { ORDER_LIFECYCLE_STATUSES, ORDER_STATUS_LABELS } from "./orderStatus.js";
+import { AI_REPLY_RULE_DEFAULTS } from "./aiReplyRules.js";
 import { defaultEgyptShippingLocations } from "./egyptShippingLocations.js";
 import { DEFAULT_COD_GOVERNORATES, DEFAULT_ORDER_CONFIRMATION_FEE, governorateOptions } from "./codPolicy.js";
 import { BARCODE_PRINT_DEFAULTS, DISPLAY_REFILL_BARCODE_DEFAULTS } from "./barcodePrintSettings.js";
@@ -370,6 +371,8 @@ const definitions = [
   ["security.sensitive_settings_require_admin_password", "security", "boolean", true, "Sensitive settings require admin password", "كلمة مرور للإعدادات الحساسة", "Require admin password before changing sensitive values.", "طلب كلمة مرور المدير قبل تغيير القيم الحساسة."],
   ["security.api_tokens_management", "security", "json", [], "API tokens management placeholder", "مفاتيح API لاحقا", "Placeholder for API token management.", "عنصر جاهز لإدارة مفاتيح API لاحقا.", { placeholder: true, isSecret: true }],
 ];
+
+definitions.push(...Object.entries(AI_REPLY_RULE_DEFAULTS).map(([key, value]) => [key, "ai_channels", typeof value === "boolean" ? "boolean" : "textarea", value, key, key, "Per-store AI reply rule", "قاعدة ردود خاصة بالمتجر", { validation: typeof value === "string" ? { maxLength: 300 } : {} }]));
 
 export const settingsRegistry = definitions.map(([key, category, type, defaultValue, en, ar, descriptionEn, descriptionAr, extra = {}]) => ({
   key,

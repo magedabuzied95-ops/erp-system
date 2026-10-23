@@ -74,9 +74,9 @@ test("brain V2 reads its memory through the shelf-price refresh, before any foll
   assert.match(generate, /const memory = await withLiveMemoryCardPrices\(\{ memory: options\.memory/);
 });
 
-test("WhatsApp: words over product cards carry no «شوفه من هنا» link", () => {
+test("WhatsApp: words over product cards default to no «شوفه من هنا» link", () => {
   const source = read("server/services/aiInboxService.js");
-  assert.match(source, /let replyText = repliesWithCards\s*\? text\(reply\.text \|\| aiPayload\.answer \|\| ""\)\s*: ensureProductLinkInReply\(/);
+  assert.match(source, /let replyText = repliesWithCards && !normalizeAiReplyRules\(rules\)\.ai_rules_product_link\s*\? text\(reply\.text \|\| aiPayload\.answer \|\| ""\)\s*: ensureProductLinkInReply\(/);
 });
 
 // 2026-10-23, «عايزه اسود» over a Skechers card came back Beige twice, its name growing a colour per pass.

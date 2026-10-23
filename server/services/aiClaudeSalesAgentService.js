@@ -1,3 +1,5 @@
+import { loadTenantAiReplyRules } from "../modules/aiReplyRules.js";
+import { normalizeAiReplyRules, AI_REPLY_RULE_DEFAULTS } from "../../shared/aiReplyRules.js";
 /**
  * The sales agent that WRITES the reply — Claude Sonnet, the way GENI ERP's agent works.
  *
@@ -166,7 +168,16 @@ const kbLine = (label, value) => (text(value) ? `${label}: ${text(value)}` : "")
  * The stable half of the prompt — the same bytes for every customer of a tenant, so it is cached.
  * Nothing per-customer (name, gender, time) may enter here.
  */
-export const buildStablePrompt = ({ kb = {}, persona = DEFAULT_PERSONA } = {}) => {
+export const buildStablePrompt = ({ kb = {}, persona = DEFAULT_PERSONA, rules = {} } = {}) => {
+  const replyRules = normalizeAiReplyRules(rules);
+  // Keep the production prompt byte-for-byte when the owner has not changed card rules.
+  const cardsInstructions = !replyRules.ai_rules_booking_question && !replyRules.ai_rules_product_link
+    && replyRules.ai_rules_cards_intro === AI_REPLY_RULE_DEFAULTS.ai_rules_cards_intro
+    ? "- الكروت هي اللي بتعرض الصورة والألوان والسعر وزراير الاختيار. لما فيه كروت هتتبعت، رسالتك سطر واحد قصير فوقها، زي «أيوه متاح إن شاء الله 👇» أو «دي الموديلات المتاحة من الإير فورس 👇». متعيدش كتابة الألوان والأسعار اللي على الكروت، ومتختمش بـ«تحب أحجزهولك؟» ولا تحط لينك — زرار «اطلب اللون ده» اللي على الكارت هو الحجز."
+    : `- الكروت هي اللي بتعرض الصورة والألوان والسعر وزراير الاختيار. متعيدش كتابة الألوان والأسعار اللي على الكروت.
+- سطر الكروت: ${replyRules.ai_rules_cards_intro}
+- ${replyRules.ai_rules_booking_question ? "اختم كروت المنتجات بـ«تحب أحجزهولك؟»." : "متختمش بـ«تحب أحجزهولك؟»."}
+- ${replyRules.ai_rules_product_link ? "حط رابط المنتج المتاح مع الكروت؛ متخترعش رابط." : "متضيفش لينك تحت كروت المنتجات."}`;
   const storeName = text(kb.store_name) || "المتجر";
   const forbidden = asArray(persona.forbidden_phrases).filter(Boolean);
   const knowledge = asArray(persona.shop_knowledge).filter(Boolean);
@@ -205,7 +216,7 @@ ${companyInfo.length ? companyInfo.join("\n") : "مفيش معلومات مسج�
 </company_info>
 ${knowledge.length ? `\n<owner_knowledge>\nمعلومات صاحب المحل بنفسه. اعتمدها مرجع، وقولها بأسلوبك:\n${knowledge.join("\n")}\n</owner_knowledge>\n` : ""}
 <products_and_cards>
-- الكروت هي اللي بتعرض الصورة والألوان والسعر وزراير الاختيار. لما فيه كروت هتتبعت، رسالتك سطر واحد قصير فوقها، زي «أيوه متاح إن شاء الله 👇» أو «دي الموديلات المتاحة من الإير فورس 👇». متعيدش كتابة الألوان والأسعار اللي على الكروت، ومتختمش بـ«تحب أحجزهولك؟» ولا تحط لينك — زرار «اطلب اللون ده» اللي على الكارت هو الحجز.
+${cardsInstructions}
 - اللون اللي العميل طلبه هو اللي يتبعت: لو قال «اسود» والكارت اللي قدامك رمادي، ابعت card_id الأسود (لو مش في نتيجة البحث، ابعت product_id:variant_id بتاع الأسود من get_inventory والنظام هيجيبه).
 - لما العميل يسأل عن موديل، ابعت كروت بتغطي كل الدرجات المتاحة منه (مصري / مستورد فيتنامي / ميرور اوريجينال — من grade_label) وألوان مختلفة، لحد 6 كروت؛ متبعتش كارت واحد غير لو العميل حدد لون أو درجة. في show_products ابعت card_id لكل كارت (product_id لوحده = كل ألوان الموديل ده).
 - system_findings فيها الكروت الجاهزة للرسالة دي، وهتتبعت زي ما هي. لو مش هي اللي العميل عايزها، استدعي search_products باسم الموديل، وبعدين show_products بالـ product_id اللي تختارها. show_products بقايمة فاضية = متبعتش كروت.
@@ -779,6 +790,7 @@ const runOpenAiTurns = async ({ model = agentModel(), stablePrompt, dynamicConte
  */
 export const runClaudeSalesAgent = async ({
   decision = {},
+  rules = {},
   inbound = {},
   tenantId = null,
   customerGender = "unknown",
@@ -1075,7 +1087,7 @@ export const runClaudeSalesAgent = async ({
       }
     };
 
-    const stablePrompt = buildStablePrompt({ kb, persona });
+    const stablePrompt = buildStablePrompt({ kb, persona, rules });
     const dynamicContext = buildDynamicContext({
       customerName: inbound.customerName,
       customerPhone,
@@ -1283,7 +1295,8 @@ export const writeFollowUpMessage = async ({
       "</follow_up_task>",
       ...followUpContextLines(context),
     ].join("\n");
-    const stablePrompt = buildStablePrompt({ kb, persona });
+    const rules = await loadTenantAiReplyRules({ tenantId });
+    const stablePrompt = buildStablePrompt({ kb, persona, rules });
     const dynamicContext = buildDynamicContext({ customerName, channel, gender: inferCustomerGender(customerName).gender, customerFacts });
     let raw = "";
     if (agentProvider() === "openai") {
