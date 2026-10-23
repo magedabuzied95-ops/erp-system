@@ -9,6 +9,7 @@ import { useCallback, useEffect, useMemo, useState } from "react";
 import { useTranslation } from "react-i18next";
 import { AlertTriangle, ClipboardList, MessageSquareText, RefreshCw, Settings2, Sparkles } from "lucide-react";
 
+import AiReplyRules from "../AiReplyRules.jsx";
 import { api } from "../../../../shared/api/api";
 import { PanelSection, PanelSkeleton } from "../integrations/integrationsUi.jsx";
 import { Field, SaveBar, SelectInput, TextArea, TextInput, Toggle } from "./controlCenterUi.jsx";
@@ -109,7 +110,7 @@ export default function AgentBehaviourPanel({ headers, tenantId }) {
     setMessage("");
     try {
       const next = {
-        ...settings,
+        ...Object.fromEntries(Object.entries(settings).filter(([key]) => !key.startsWith("ai_rules_"))),
         forbidden_phrases: linesToArray(draft.forbidden_phrases),
         preferred_phrases: linesToArray(draft.preferred_phrases),
         allowed_phrases: linesToArray(draft.preferred_phrases),
@@ -145,6 +146,7 @@ export default function AgentBehaviourPanel({ headers, tenantId }) {
 
   return (
     <div className="space-y-4">
+      <AiReplyRules headers={headers} tenantId={tenantId} />
       <PanelSection icon={MessageSquareText} title={t("aiSupport.agentSettings.tone.title")}>
         <div className="grid gap-4">
           <Field label={t("aiSupport.agentSettings.tone.agentName")}>
