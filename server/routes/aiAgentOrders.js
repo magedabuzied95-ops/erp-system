@@ -6585,6 +6585,57 @@ router.get("/conversations/:conversationId/linked-channels", protect, inboxView(
   }
 });
 
+// What the sales agent remembers about this customer (customerMemory.js). Staff read it on the
+// customer panel and can correct it: add a line, or forget a wrong one. Forgetting keeps the row.
+const customerMemoryFor = async (req) => {
+  const memory = await import("../modules/customerMemory/customerMemory.js");
+  const tenantId = toTenantId(req);
+  const sessionId = envText(req.params.conversationId);
+  const phones = await memory.conversationMemoryPhones({ tenantId, sessionId, phones: [envText(req.query?.phone || req.body?.phone)] });
+  return { memory, tenantId, sessionId, phones };
+};
+
+router.get("/conversations/:conversationId/customer-memory", protect, inboxView(), async (req, res) => {
+  try {
+    const { memory, tenantId, sessionId, phones } = await customerMemoryFor(req);
+    const facts = await memory.loadCustomerMemoryFacts({ tenantId, sessionId, phones });
+    return res.json({ success: true, facts });
+  } catch (error) {
+    return sendError(res, error, "Failed to load what the agent remembers");
+  }
+});
+
+router.post("/conversations/:conversationId/customer-memory", protect, inboxReply(), async (req, res) => {
+  try {
+    const { memory, tenantId, sessionId, phones } = await customerMemoryFor(req);
+    const saved = await memory.rememberCustomerFact({
+      tenantId,
+      sessionId,
+      phones,
+      channel: envText(req.body?.channel),
+      fact: req.body?.fact,
+      category: req.body?.category,
+      source: "staff",
+      userId: req.user?.id || null,
+    });
+    if (!saved.ok) return res.status(400).json({ success: false, message: saved.reason });
+    return res.json({ success: true, id: saved.id, already_known: Boolean(saved.already_known) });
+  } catch (error) {
+    return sendError(res, error, "Failed to save the note");
+  }
+});
+
+router.delete("/conversations/:conversationId/customer-memory/:factId", protect, inboxReply(), async (req, res) => {
+  try {
+    const { memory, tenantId, sessionId, phones } = await customerMemoryFor(req);
+    const forgot = await memory.forgetCustomerFact({ tenantId, sessionId, phones, factId: req.params.factId, reason: "staff", userId: req.user?.id || null });
+    if (!forgot.ok) return res.status(404).json({ success: false, message: forgot.reason });
+    return res.json({ success: true });
+  } catch (error) {
+    return sendError(res, error, "Failed to forget the note");
+  }
+});
+
 // Every order this customer has, so the confirmation message and the payment review happen
 // where the conversation is instead of sending staff to the orders page.
 router.get("/conversations/:conversationId/orders", protect, inboxView(), async (req, res) => {

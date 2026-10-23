@@ -64,7 +64,7 @@ test("a model shown in one grade brings its other grades along, unless the custo
       decision: { intent: "general", detected_intent: "general", text: "x", product_cards: [] },
       inbound: { channel: "whatsapp", text: message, originalText: message, customerName: "Maged", externalConversationId: "", metadata: {} },
       helpers: { safeProductFacts, searchCards: async () => pool },
-      loaders: { persona: async () => ({}), knowledgeBase: async () => ({}), history: async () => [], customerCard: async () => "" },
+      loaders: { persona: async () => ({}), knowledgeBase: async () => ({}), history: async () => [], customerCard: async () => "", customerFacts: async () => [] },
     });
   };
   try {
@@ -114,7 +114,7 @@ test("«فيه نيوبالانس 530 ميرور؟» searches the mirror grade a
       decision: { intent: "catalog_navigation", detected_intent: "catalog_navigation", text: "x", product_cards: [] },
       inbound: { channel: "whatsapp", text: "فيه نيوبالانس 530 ميرور؟", originalText: "فيه نيوبالانس 530 ميرور؟", customerName: "Maged", externalConversationId: "", metadata: {} },
       helpers: { safeProductFacts, searchCards },
-      loaders: { persona: async () => ({}), knowledgeBase: async () => ({}), history: async () => [], customerCard: async () => "" },
+      loaders: { persona: async () => ({}), knowledgeBase: async () => ({}), history: async () => [], customerCard: async () => "", customerFacts: async () => [] },
     });
     assert.ok(queries.some((query) => /ميرور/.test(query)), "the named grade is searched by name");
     assert.deepEqual(out.product_cards.map((c) => c.product_id), ["140"], "the mirror pair replaces the Egyptian pick");
@@ -142,7 +142,7 @@ test("«الاسود» sends the black card, even when the model picked the rang
       decision: { intent: "general", detected_intent: "general", text: "x", product_cards: [] },
       inbound: { channel: "whatsapp", text: "الاسود", originalText: "الاسود", customerName: "Maged", externalConversationId: "", metadata: {} },
       helpers: { safeProductFacts, searchCards: async () => pool },
-      loaders: { persona: async () => ({}), knowledgeBase: async () => ({}), history: async () => [], customerCard: async () => "" },
+      loaders: { persona: async () => ({}), knowledgeBase: async () => ({}), history: async () => [], customerCard: async () => "", customerFacts: async () => [] },
     });
   };
   try {

@@ -768,6 +768,7 @@ const { ensureProductVariantImagesSchema } = await import("./services/productVar
 const { ensureStorefrontSchema } = await import("./controllers/storefrontController.js");
 const { ensureShippingSchema } = await import("./modules/shipping/shipping.service.js");
 const { ensureWalletTransfersSchema } = await import("./modules/walletTransfers/walletTransfers.service.js");
+const { ensureCustomerMemorySchema } = await import("./modules/customerMemory/customerMemory.js");
 const { ensureVariantsInventorySchema } = await import("./routes/variantsInventory.js");
 const { warmDashboardMetadataCache } = await import("./services/dashboardAnalyticsService.js");
 const { ensureAttendanceSchema } = await import("./utils/attendanceSchema.js");
@@ -2847,6 +2848,11 @@ const bootstrapStartup = async () => {
     // A new table and its indexes only — nothing touches orders.
     await ensureWalletTransfersSchema(db);
     console.log("[server] wallet transfers schema ensured");
+    // A new table and one partial index (the sales agent's customer memory) — nothing existing touched.
+    // Not worth a crash loop: on failure the agent just runs without memory and retries on first use.
+    await ensureCustomerMemorySchema(db)
+      .then(() => console.log("[server] customer memory schema ensured"))
+      .catch((error) => console.error("[server] customer memory schema skipped", error?.message || error));
     await ensureStorefrontCustomerSessionSchema(db);
     console.log("[server] storefront customer session schema ensured");
     await ensureMarketingSchema();

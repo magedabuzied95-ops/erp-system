@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
-import { ArrowLeftRight, Banknote, CheckCircle2, Loader2, MessageCircle, Printer, RefreshCw, Send, ShoppingBag, Truck, XCircle } from "lucide-react";
+import { ArrowLeftRight, Banknote, Brain, CheckCircle2, Loader2, MessageCircle, Plus, Printer, RefreshCw, Send, ShoppingBag, Truck, X, XCircle } from "lucide-react";
 
 import { api } from "../../api/api";
 import { formatCurrency } from "../../lib/currency";
@@ -79,6 +79,11 @@ const LABELS = {
   exchangeDone: "تم إنشاء الاستبدال",
   exchangeBadge: "أوردر استبدال",
   linkedTitle: "حسابات العميل التانية",
+  memoryTitle: "الـ AI فاكر عن العميل",
+  memoryPlaceholder: "ضيف معلومة (مثلا: مقاسه 43 ورجله عريضة)",
+  memoryAdd: "حفظ",
+  memoryForget: "امسح",
+  memoryByStaff: "موظف",
   whatsapp: "واتساب",
   messenger: "ماسنجر",
   instagram: "انستجرام",
@@ -170,6 +175,82 @@ function LinkedChannels({ sessionId, phone, headers, skin, onOpenConversation })
   );
 }
 
+// What the sales agent wrote down about this customer in earlier chats (server:
+// modules/customerMemory). Staff can correct it: a wrong line is forgotten, a missing one added.
+function CustomerMemory({ sessionId, phone, headers, skin }) {
+  const [facts, setFacts] = useState([]);
+  const [draft, setDraft] = useState("");
+  const [busy, setBusy] = useState(false);
+  const base = `/ai-agent/conversations/${encodeURIComponent(sessionId)}/customer-memory`;
+  const params = useMemo(() => (phone ? { phone } : {}), [phone]);
+
+  const load = useCallback(() => {
+    if (!sessionId) return Promise.resolve();
+    return api.get(base, { params, headers, suppressErrorStatuses: [403, 404, 500] })
+      .then((response) => setFacts(Array.isArray(response?.facts) ? response.facts : []))
+      .catch(() => setFacts([]));
+  }, [base, headers, params, sessionId]);
+
+  useEffect(() => {
+    setFacts([]);
+    load();
+  }, [load]);
+
+  const add = async (event) => {
+    event.preventDefault();
+    if (!text(draft) || busy) return;
+    setBusy(true);
+    try {
+      await api.post(base, { fact: text(draft), phone }, { headers });
+      setDraft("");
+      await load();
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  const forget = async (id) => {
+    setFacts((current) => current.filter((fact) => fact.id !== id));
+    await api.delete(`${base}/${encodeURIComponent(id)}`, { params, headers }).catch(() => load());
+  };
+
+  if (!sessionId) return null;
+  return (
+    <div className="mt-3">
+      <div className={`${skin.tileLabel} inline-flex items-center gap-1.5`}>
+        <Brain className="h-3.5 w-3.5" />
+        {LABELS.memoryTitle}
+      </div>
+      {facts.length ? (
+        <ul className="mt-1.5 space-y-1.5">
+          {facts.map((fact) => (
+            <li key={fact.id} className={`flex items-start gap-2 rounded-xl p-2 text-xs font-bold ${skin.secondary}`}>
+              <span className="min-w-0 flex-1 break-words" dir="auto">{fact.fact}</span>
+              {fact.source === "staff" ? <span className="shrink-0 text-[10px] opacity-60">{LABELS.memoryByStaff}</span> : null}
+              <button type="button" onClick={() => forget(fact.id)} className="shrink-0 opacity-60 hover:opacity-100" aria-label={LABELS.memoryForget} title={LABELS.memoryForget}>
+                <X className="h-3.5 w-3.5" />
+              </button>
+            </li>
+          ))}
+        </ul>
+      ) : null}
+      <form onSubmit={add} className="mt-1.5 flex gap-1.5">
+        <input
+          value={draft}
+          onChange={(event) => setDraft(event.target.value)}
+          maxLength={200}
+          placeholder={LABELS.memoryPlaceholder}
+          className={`h-9 min-w-0 flex-1 rounded-xl px-2.5 text-xs font-bold outline-none ${skin.input}`}
+          dir="auto"
+        />
+        <button type="submit" disabled={busy || !text(draft)} className={`inline-flex h-9 shrink-0 items-center gap-1 rounded-xl px-2.5 text-[11px] font-black disabled:opacity-50 ${skin.secondary}`}>
+          {busy ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Plus className="h-3.5 w-3.5" />}
+          {LABELS.memoryAdd}
+        </button>
+      </form>
+    </div>
+  );
+}
 
 // Customer360Drawer is a white surface; the inbox rail is a dark one. Same panel, two skins —
 // a dark card dropped on the white drawer reads as ink on ink.
@@ -523,6 +604,7 @@ export default function InboxCustomerOrdersPanel({ conversation = null, headers 
         </button>
       </div>
       <LinkedChannels sessionId={sessionId} phone={phone} headers={headers} skin={skin} onOpenConversation={onOpenConversation} />
+      <CustomerMemory sessionId={sessionId} phone={phone} headers={headers} skin={skin} />
       {error ? <div className={skin.error}>{error}</div> : null}
       <div className="mt-3 space-y-3">{body}</div>
       <InboxExchangeSheet

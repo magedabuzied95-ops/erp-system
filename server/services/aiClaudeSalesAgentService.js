@@ -31,6 +31,14 @@ import { loadPersona, DEFAULT_PERSONA } from "./aiPersonaService.js";
 import { loadSupportKnowledgeBase } from "./aiSupportKnowledgeBaseService.js";
 import { markAiSupportConversationEscalated } from "./aiSupportLogService.js";
 import {
+  FACT_CATEGORIES,
+  conversationMemoryPhones,
+  customerMemoryPromptLines,
+  forgetCustomerFact,
+  loadCustomerMemoryFacts,
+  rememberCustomerFact,
+} from "../modules/customerMemory/customerMemory.js";
+import {
   getSharedOpenAiClient,
   isTextGenerationAvailable,
   noteOpenAiFailure,
@@ -256,6 +264,20 @@ ${forbidden.length ? `<forbidden_phrases>\nممنوع نهائيًا: ${forbidde
 </tone_and_style>
 
 ${objections ? `<objection_replies>\nإزاي صاحب المحل بيرد على الاعتراضات — الفكرة مش الكلام حرفيًا:\n${objections}\n</objection_replies>\n` : ""}
+<customer_memory_rules>
+customer_memory (لو موجودة في dynamic_context) هي حاجات العميل قالهالنا في محادثات قبل كده. استخدمها بطبيعية: لو عارف مقاسه متسألهوش تاني، ولو قال إنه مش بيحب الأبيض متعرضش عليه أبيض. متسردهاش عليه ومتقولش «أنا فاكر إنك…» إلا لو ده يفرق في الرد.
+استدعي remember_fact لما العميل يقول حاجة عن نفسه هتفضل صحيحة وهتفرق في بيعة جاية:
+- مقاسه أو إن مقاس معين بيضيق/بيوسع عليه أو رجله عريضة
+- ستايل أو ألوان أو براندات بيحبها أو مش بيحبها
+- ميزانيته
+- بيشتري لمين (ابنه، مراته، هدية)
+- طلب يتابع: «بلغني لما الموديل ده ينزل» أو «لما مقاسي يتوفر»
+- اعتراض مهم قاله (مثلا السعر غالي عليه، أو مش واثق في الميرور)
+متحفظش: رقم موبايل أو عنوان أو اسم (دول متسجلين في مكانهم)، تفاصيل الأوردر الحالي، ولا حاجة مؤقتة زي «مستعجل النهارده». متحفظش حاجة موجودة في customer_memory بنفس المعنى.
+لو العميل قال حاجة عكس سطر في customer_memory: forget_fact بالرقم بتاعه، وبعدين remember_fact بالجديد.
+الحفظ بيحصل في الخلفية — متقولش للعميل إنك حفظت حاجة.
+</customer_memory_rules>
+
 <handing_over_to_a_person>
 استدعي escalate_to_human لما العميل يطلب يكلم حد، أو يكون زعلان أو بيشتكي بجد، أو فيه خلاف على فلوس أو استرجاع، أو يطلب حاجة مش في إيدك.${handoffRules ? `\nقواعد صاحب المحل للتحويل: ${handoffRules}` : ""}
 بعد ما تستدعيها اكتب جملة واحدة قصيرة إن زميل هيكمل معاه دلوقتي — وخلاص. متستدعيهاش علشان مجرد سؤال عادي أو علشان بيدوّر على منتج.
@@ -322,8 +344,9 @@ const memoryLines = (memory = {}) => {
   ].filter(Boolean);
 };
 
-export const buildDynamicContext = ({ customerName = "", customerPhone = "", channel = "", gender = "unknown", customerCard = "", memory = {}, campaignInstructions = "" } = {}) => {
+export const buildDynamicContext = ({ customerName = "", customerPhone = "", channel = "", gender = "unknown", customerCard = "", memory = {}, campaignInstructions = "", customerFacts = [] } = {}) => {
   const state = memoryLines(memory);
+  const facts = customerMemoryPromptLines(asArray(customerFacts));
   return [
     "<dynamic_context>",
     `اسم العميل: <client_name verbatim="true">${text(customerName) || "مش معروف"}</client_name>`,
@@ -334,6 +357,8 @@ export const buildDynamicContext = ({ customerName = "", customerPhone = "", cha
     ...addressRulesFor(gender),
     "</gender_and_address>",
     text(customerCard) ? `<customer_history>\n${text(customerCard)}\n</customer_history>` : "",
+    // What the customer told us in earlier conversations (remember_fact), newest first.
+    facts.length ? `<customer_memory>\n${facts.join("\n")}\n</customer_memory>` : "",
     state.length ? `<conversation_state>\n${state.join("\n")}\n</conversation_state>` : "",
     // The Meta ad / WhatsApp campaign this chat came from may carry the owner's own instructions
     // (meta_ads_ai_instructions, marketing_broadcasts.ai_instructions) — campaignAttribution/attribution.js.
@@ -482,6 +507,32 @@ const AGENT_TOOLS = [
     name: "get_customer_history",
     description: "أوردرات العميل اللي فاتت والمقاسات اللي احتفظ بيها وأي شحنة شغالة. مرة واحدة بالكتير، ولما تفرق في الإجابة (مثلا قبل ما تسأله على المقاس).",
     input_schema: { type: "object", additionalProperties: false, properties: {} },
+  },
+  {
+    name: "remember_fact",
+    description: "احفظ حاجة مهمة العميل قالها عن نفسه وهتفرق في أي محادثة جاية معاه — هتظهرلك في customer_memory المرة الجاية، على أي قناة. جملة واحدة قصيرة بالعامية. شوف customer_memory_rules.",
+    input_schema: {
+      type: "object",
+      additionalProperties: false,
+      required: ["fact", "category"],
+      properties: {
+        fact: { type: "string", description: "الحقيقة في جملة قصيرة، مثلا «مقاسه 43 بس بيحب نص مقاس أكبر لأن رجله عريضة»." },
+        category: { type: "string", enum: [...FACT_CATEGORIES], description: "size_fit مقاس/قياس، style ستايل وألوان، budget ميزانية، for_whom بيشتري لمين، request طلب يتابع (زي يتبلغ لما موديل ينزل)، objection اعتراض، other." },
+      },
+    },
+  },
+  {
+    name: "forget_fact",
+    description: "امسح حقيقة من customer_memory بقت غلط أو العميل غيّرها (مثلا مقاسه اتغير). ابعت الرقم اللي بين [ ] قدامها. لو فيه معلومة جديدة مكانها احفظها بـ remember_fact بعدها.",
+    input_schema: {
+      type: "object",
+      additionalProperties: false,
+      required: ["fact_id"],
+      properties: {
+        fact_id: { type: "string" },
+        reason: { type: "string", description: "ليه اتمسحت، في كلمتين." },
+      },
+    },
   },
   {
     name: "escalate_to_human",
@@ -738,9 +789,11 @@ export const runClaudeSalesAgent = async ({
   const deadline = startedAt + agentDeadlineMs();
   const sessionId = text(inbound.externalConversationId);
   const customerPhone = text(inbound.metadata?.customer_phone || inbound.externalCustomerId);
+  // Whose memory this is: the thread and every mobile known for it (customerMemory.js).
+  let memoryPhones = [customerPhone];
 
   try {
-    const [persona, kb, history, customerCard, campaignInstructions] = await Promise.all([
+    const [persona, kb, history, customerCard, campaignInstructions, customerFacts] = await Promise.all([
       (loaders.persona || (() => loadPersona({ tenantId })))().catch(() => DEFAULT_PERSONA),
       (loaders.knowledgeBase || (() => loadSupportKnowledgeBase({ tenantId })))()
         .then((loaded) => ({ ...(loaded?.knowledge_base || {}), branches: asArray(loaded?.branches) }))
@@ -760,6 +813,13 @@ export const runClaudeSalesAgent = async ({
       (loaders.campaignInstructions || (() => (tenantId && sessionId
         ? import("../modules/campaignAttribution/attribution.js").then((m) => m.loadCampaignAiInstructions({ tenantId, sessionId }))
         : Promise.resolve(""))))().catch(() => ""),
+      (loaders.customerFacts || (async () => {
+        memoryPhones = await conversationMemoryPhones({ tenantId, sessionId, phones: [customerPhone] });
+        return loadCustomerMemoryFacts({ tenantId, sessionId, phones: memoryPhones });
+      }))().catch((error) => {
+        console.warn("[claude-agent] customer memory unavailable", { sessionId, message: error?.message });
+        return [];
+      }),
     ]);
 
     const preparedCards = asArray(decision.product_cards);
@@ -769,6 +829,8 @@ export const runClaudeSalesAgent = async ({
     let lastSearchQuery = "";
     let chosenCards = null; // null = the prepared cards
     let escalation = null;
+    const rememberedFacts = [];
+    const forgottenFacts = [];
 
     const registry = buildToolRegistry({
       tenantId,
@@ -887,6 +949,30 @@ export const runClaudeSalesAgent = async ({
             other_grades_added: gradesAdded.length ? gradesAdded.map((grade) => chosenCards.map((card) => safeProductFacts(card)).find((facts) => text(facts.grade).toLowerCase() === grade)?.grade_label || grade) : undefined,
           };
         }
+        case "remember_fact": {
+          const saved = await (loaders.rememberFact || rememberCustomerFact)({
+            tenantId,
+            sessionId,
+            phones: memoryPhones,
+            channel: inbound.channel,
+            fact: input.fact,
+            category: input.category,
+            source: "agent",
+          });
+          if (saved?.ok) rememberedFacts.push({ id: saved.id, fact: text(input.fact), already_known: Boolean(saved.already_known) });
+          return saved?.ok ? { ok: true, id: saved.id, already_known: saved.already_known || undefined } : { error: saved?.reason || "not_saved" };
+        }
+        case "forget_fact": {
+          const forgot = await (loaders.forgetFact || forgetCustomerFact)({
+            tenantId,
+            sessionId,
+            phones: memoryPhones,
+            factId: text(input.fact_id).replace(/\D/g, ""),
+            reason: input.reason,
+          });
+          if (forgot?.ok) forgottenFacts.push(forgot.id);
+          return forgot?.ok ? { ok: true } : { error: forgot?.reason || "not_found" };
+        }
         case "escalate_to_human":
           escalation = { reason: text(input.reason) || "agent_escalation" };
           return { ok: true, next: "اكتب للعميل جملة واحدة إن زميل هيكمل معاه دلوقتي." };
@@ -920,6 +1006,7 @@ export const runClaudeSalesAgent = async ({
       customerCard,
       memory,
       campaignInstructions,
+      customerFacts,
     });
     const findings = findingsFor({ decision, preparedCards, safeProductFacts, mustKeepFacts });
     const toolTrace = [];
@@ -1041,7 +1128,17 @@ export const runClaudeSalesAgent = async ({
       reply_parts: undefined,
       debug: {
         ...(decision.debug || {}),
-        claude_agent: { applied: true, provider: agentProvider(), model, ms: Date.now() - startedAt, tools: toolTrace, escalated: Boolean(escalation), usage },
+        claude_agent: {
+          applied: true,
+          provider: agentProvider(),
+          model,
+          ms: Date.now() - startedAt,
+          tools: toolTrace,
+          escalated: Boolean(escalation),
+          usage,
+          // The playground shows what the agent knew coming in and what it wrote down or dropped.
+          memory: { known: asArray(customerFacts).length, remembered: rememberedFacts, forgotten: forgottenFacts },
+        },
       },
     };
   } catch (error) {
@@ -1070,12 +1167,18 @@ export const writeFollowUpMessage = async ({
   if (!isClaudeAgentEnabled() || !text(instruction)) return "";
   const startedAt = Date.now();
   try {
-    const [persona, kb, history] = await Promise.all([
+    const [persona, kb, history, customerFacts] = await Promise.all([
       (loaders.persona || (() => loadPersona({ tenantId })))().catch(() => DEFAULT_PERSONA),
       (loaders.knowledgeBase || (() => loadSupportKnowledgeBase({ tenantId })))()
         .then((loaded) => ({ ...(loaded?.knowledge_base || {}), branches: asArray(loaded?.branches) }))
         .catch(() => ({})),
       (loaders.history || (() => loadHistory({ tenantId, sessionId, currentMessage: "" })))().catch(() => []),
+      // «بلغني لما الموديل ده ينزل» is exactly what a follow-up should pick up.
+      (loaders.customerFacts || (async () => loadCustomerMemoryFacts({
+        tenantId,
+        sessionId,
+        phones: await conversationMemoryPhones({ tenantId, sessionId }),
+      })))().catch(() => []),
     ]);
     const task = [
       "<follow_up_task>",
@@ -1088,7 +1191,7 @@ export const writeFollowUpMessage = async ({
       "</follow_up_task>",
     ].join("\n");
     const stablePrompt = buildStablePrompt({ kb, persona });
-    const dynamicContext = buildDynamicContext({ customerName, channel: "", gender: inferCustomerGender(customerName).gender });
+    const dynamicContext = buildDynamicContext({ customerName, channel: "", gender: inferCustomerGender(customerName).gender, customerFacts });
     let raw = "";
     if (agentProvider() === "openai") {
       const model = agentModel();

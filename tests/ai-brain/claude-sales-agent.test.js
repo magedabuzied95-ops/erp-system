@@ -28,6 +28,7 @@ const loaders = {
   knowledgeBase: async () => ({ knowledge_base: { store_name: "M1 Store", payment_methods: "كاش عند الاستلام" }, branches: [] }),
   history: async () => [{ role: "user", content: "السلام عليكم" }, { role: "assistant", content: "وعليكم السلام ورحمة الله\nتحت أمر حضرتك؟" }],
   customerCard: async () => "",
+  customerFacts: async () => [],
 };
 
 const withEnv = async (fn) => {
