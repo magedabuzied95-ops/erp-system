@@ -1132,6 +1132,11 @@ const loadFullProductForPresentation = async ({ tenantId = null, productId = nul
       sale_price: column("pv", variantColumns, ["sale_price"], "0"),
       selling_price: column("pv", variantColumns, ["selling_price", "price"], "0"),
       price: column("pv", variantColumns, ["price", "regular_price"], "0"),
+      // The tiers the canonical price reads before the legacy columns. Without them a colour priced
+      // by manual override (Air Force 1 Black: 1200) printed the product row's 1850 (2026-10-23).
+      manual_selling_price: column("pv", variantColumns, ["manual_selling_price"], "NULL"),
+      manual_price_override_active: column("pv", variantColumns, ["manual_price_override_active"], "FALSE"),
+      purchase_selling_price: column("pv", variantColumns, ["purchase_selling_price"], "NULL"),
       sale_active: column("pv", variantColumns, ["sale_price_enabled", "sale_prices_enabled", "global_sale_enabled", "sale_mode_enabled", "sale_active", "is_sale_active", "on_sale", "sale_enabled", "discount_enabled"], "FALSE"),
       sku: column("pv", variantColumns, ["sku"], "''"),
       barcode: column("pv", variantColumns, ["barcode"], "''"),
@@ -1172,6 +1177,9 @@ const loadFullProductForPresentation = async ({ tenantId = null, productId = nul
               'sale_price', ${variantSelect.sale_price},
               'selling_price', ${variantSelect.selling_price},
               'price', ${variantSelect.price},
+              'manual_selling_price', ${variantSelect.manual_selling_price},
+              'manual_price_override_active', ${variantSelect.manual_price_override_active},
+              'purchase_selling_price', ${variantSelect.purchase_selling_price},
               'sale_active', ${variantSelect.sale_active},
               'sku', ${variantSelect.sku},
               'barcode', ${variantSelect.barcode},
