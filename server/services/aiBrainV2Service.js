@@ -1302,6 +1302,83 @@ export const withShelfStock = (product = {}, fullProduct = null) => {
   };
 };
 
+const sameNameKey = (value = "") => text(value).toLowerCase().replace(/\s+/g, " ");
+
+// Other live products sold under the same name: "New Balance 530" is two products (144 and 180).
+const loadSameNameProductIds = async ({ tenantId = null, names = [] } = {}) => {
+  const wanted = unique(asArray(names).map(sameNameKey));
+  if (!wanted.length) return [];
+  const productColumns = await tableColumns("products");
+  const nameColumn = column("p", productColumns, ["name", "title", "product_name"], "");
+  if (!nameColumn) return [];
+  const tenantFilter = productColumns.has("tenant_id") ? "AND ($1::bigint IS NULL OR p.tenant_id = $1::bigint OR p.tenant_id IS NULL)" : "";
+  const deletedFilter = productColumns.has("deleted_at") ? "AND p.deleted_at IS NULL" : "";
+  const activeFilter = productColumns.has("is_active") ? "AND COALESCE(p.is_active, TRUE) = TRUE" : "";
+  const statusFilter = productColumns.has("status") ? "AND COALESCE(NULLIF(LOWER(p.status), ''), 'active') NOT IN ('deleted', 'archived', 'draft')" : "";
+  const result = await db.query(`
+    SELECT p.id AS same_name_product_id
+    FROM products p
+    WHERE REGEXP_REPLACE(LOWER(BTRIM(${nameColumn})), '\\s+', ' ', 'g') = ANY($2::text[])
+      ${tenantFilter}
+      ${deletedFilter}
+      ${activeFilter}
+      ${statusFilter}
+    ORDER BY p.id DESC
+    LIMIT 6
+  `, [numberOrNull(tenantId), wanted]);
+  return asArray(result.rows).map((row) => text(row.same_name_product_id)).filter(Boolean);
+};
+
+/*
+ * "Not available" in the size step is checked against the shelf before it is said. The step reads
+ * the sizes off the cards remembered from an earlier turn: a snapshot, and of one product only. Live
+ * on 2026-10-23 it told a customer «مقاس 47 مش متوفر حاليًا في New Balance 530 - Navy» while
+ * product 180 "New Balance 530" had Navy 47 in stock — the card was the other "New Balance 530"
+ * (144, no 47 at all) — and the agent's get_inventory said "available" a minute later. The
+ * remembered products are reloaded with their in-stock variants, and a product under the same name
+ * that has the size is offered too.
+ */
+const confirmSizeOnShelf = async ({ decision = null, tenantId = null, memory = {} } = {}) => {
+  if (!decision || text(decision.intent) !== "post_product_size_selected" || Number(decision.debug?.matching_card_count) > 0) return decision;
+  const requestedSize = normalizeSizeToken(decision.debug?.requested_size);
+  const rememberedCards = memoryCardsFromContext(memory);
+  if (!requestedSize || !rememberedCards.length) return decision;
+  try {
+    const rememberedIds = unique(rememberedCards.map((card) => card.product_id || card.id));
+    const siblingIds = (await loadSameNameProductIds({
+      tenantId,
+      // A remembered card re-normalized from memory has "New Balance 530 - Navy" as its base name too.
+      names: rememberedCards.flatMap((card) => [card.base_name, card.product_name, card.name].map((name) => {
+        const color = text(card.color);
+        return color && text(name).toLowerCase().endsWith(` - ${color.toLowerCase()}`) ? text(name).slice(0, -(color.length + 3)) : text(name);
+      })),
+    })).filter((id) => !rememberedIds.includes(id));
+    const shelfCardsFor = async (productId) => {
+      const fullProduct = await loadFullProductForPresentation({ tenantId, productId });
+      return fullProduct ? normalizeProductCards([withShelfStock(fullProduct, fullProduct)], { limit: 24 }) : [];
+    };
+    const refreshed = (await Promise.all(rememberedIds.slice(0, 6).map(async (productId) => {
+      const cards = await shelfCardsFor(productId);
+      return cards.length ? cards : rememberedCards.filter((card) => text(card.product_id || card.id) === productId);
+    }))).flat();
+    const siblings = (await Promise.all(siblingIds.map(shelfCardsFor))).flat()
+      .filter((card) => cardHasRequestedSize(card, requestedSize));
+    const liveCards = [...refreshed, ...siblings];
+    if (!liveCards.some((card) => cardHasRequestedSize(card, requestedSize))) return decision;
+    const confirmed = buildSizeFollowupFromMemoryCards({ message: `مقاس ${requestedSize}`, memory: { last_product_cards: liveCards } });
+    if (!confirmed) return decision;
+    console.info("AI_BRAIN_V2_SIZE_FOUND_ON_SHELF", {
+      requested_size: requestedSize,
+      remembered_product_ids: rememberedIds,
+      found_product_id: confirmed.active_product_id,
+    });
+    return { ...confirmed, debug: { ...confirmed.debug, shelf_checked: true, remembered_product_ids: rememberedIds } };
+  } catch (error) {
+    console.warn("AI_BRAIN_V2_SIZE_SHELF_CHECK_FAILED", { requested_size: requestedSize, message: error?.message || "shelf check failed" });
+    return decision;
+  }
+};
+
 /*
  * A model sold in more than one grade (محلي / مستورد فيتنامي / ميرور اوريجينال) is shown grade by
  * grade, local first, and every grade gets its share of the slots. Taken in score order, the
@@ -1695,7 +1772,11 @@ export const generateAiBrainV2Decision = async (normalizedInbound = {}, options 
     activeSize,
     activeColor,
   });
-  const followupDecision = buildFollowupDecisionFromMemoryV2({ message: originalMessage, memory: memoryForTurn, followupContext: followupContextV2 });
+  const followupDecision = await confirmSizeOnShelf({
+    decision: buildFollowupDecisionFromMemoryV2({ message: originalMessage, memory: memoryForTurn, followupContext: followupContextV2 }),
+    tenantId,
+    memory: memoryForTurn,
+  });
   if (followupDecision) {
     console.info("AI_BRAIN_V2_DECISION", {
       channel,
@@ -1717,7 +1798,11 @@ export const generateAiBrainV2Decision = async (normalizedInbound = {}, options 
     });
     return followupDecision;
   }
-  const postProductFsmDecision = buildPostProductFsmDecision({ message, memory: memoryForTurn, intent });
+  const postProductFsmDecision = await confirmSizeOnShelf({
+    decision: buildPostProductFsmDecision({ message, memory: memoryForTurn, intent }),
+    tenantId,
+    memory: memoryForTurn,
+  });
   if (postProductFsmDecision) {
     console.info("AI_BRAIN_V2_DECISION", {
       channel,
