@@ -1986,7 +1986,7 @@ export const generateAiBrainV2Decision = async (normalizedInbound = {}, options 
   // 2026-10-23: «عايز ايرماكس ٩٧» got the Egyptian pairs only — "المفروض يسأل موجود ميرور ومصري
   // حضرتك محتاج ايه؟"). Every grade is searched on its own, so a mirror pair cut by the local
   // ones still counts. The agent's own searches always get cards.
-  const askGradeFirst = intent === "product_search" && namedMatches.length > 0 && !requestedGrade && !askedColorway
+  const askGradeFirst = intent === "product_search" && (namedMatches.length > 0 || Boolean(explicitModel)) && !requestedGrade && !askedColorway
     && normalizedInbound.metadata?.source !== "claude_agent_search" && !options.noGradeQuestion && !normalizedInbound.metadata?.no_grade_question;
   if (askGradeFirst) {
     const gradesSelling = (await Promise.all(PRODUCT_GRADES.map(async (grade) => {
@@ -2001,6 +2001,12 @@ export const generateAiBrainV2Decision = async (normalizedInbound = {}, options 
       }).catch(() => []);
       const rankedRows = rankProducts({ products: rows, message, explicitModel, namingTerms: namedProductTerms, aliasResult, searchHints, intentPayload: normalizedPayload })
         .filter((product) => Number(product.ai_brain_v2_score || 0) > 0 && text(product.grade).toLowerCase() === grade.key);
+      // «فيه جوردن فور ؟» is read as the Jordan 4 model, not as words: a row naming one of its aliases.
+      if (explicitModel) {
+        const aliases = asArray(explicitModel.aliases).map((alias) => text(alias).toLowerCase());
+        const modelRow = rankedRows.find((product) => aliases.some((alias) => text(product.name || product.title).toLowerCase().includes(alias)));
+        return modelRow ? { ...grade, modelName: text(modelRow.name || modelRow.title).split(" - ")[0] } : null;
+      }
       const named = namedProductMatches(rankedRows, namedProductTerms);
       const matched = named.length ? namedProductTermsMatched(named[0], namedProductTerms) : null;
       // Named as fully as the best match overall: a mirror «Skechers Ultra» is not «Ultra Boost».
@@ -2010,7 +2016,7 @@ export const generateAiBrainV2Decision = async (normalizedInbound = {}, options 
       return gradeQuestionDecision({
         channel,
         grades: gradesSelling,
-        modelName: text(namedMatches[0]?.name || namedMatches[0]?.title || "").split(" - ")[0],
+        modelName: explicitModel ? text(explicitModel.display) : text(namedMatches[0]?.name || namedMatches[0]?.title || "").split(" - ")[0],
         query: originalMessage || message,
         intentBefore: intent,
       });

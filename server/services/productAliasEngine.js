@@ -35,6 +35,10 @@ const ARABIC_WORD_ALIASES = [
   ["فورس", "force"],
   ["اير", "air"],
   ["ايرفورس", "air force"],
+  // «عايز ايرماكس ٩٧» named nothing, so it browsed the catalog instead of searching the model
+  // (owner's WhatsApp test, 2026-10-23).
+  ["ايرماكس", "air max"],
+  ["ماكس", "max"],
   ["شوك", "shox"],
   ["شوكس", "shox"],
   ["دانك", "dunk"],

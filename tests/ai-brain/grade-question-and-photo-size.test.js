@@ -24,7 +24,7 @@ test("a model in two grades asks which one, in the owner's words", () => {
 test("the brain asks before any card, never for the agent's own searches", () => {
   const brain = read("../../server/services/aiBrainV2Service.js");
   const ask = brain.slice(brain.indexOf("const askGradeFirst"), brain.indexOf("const productCards = await buildPresentationProductCards({"));
-  assert.match(ask, /intent === "product_search" && namedMatches\.length > 0 && !requestedGrade && !askedColorway/);
+  assert.match(ask, /intent === "product_search" && \(namedMatches\.length > 0 \|\| Boolean\(explicitModel\)\) && !requestedGrade && !askedColorway/);
   assert.match(ask, /normalizedInbound\.metadata\?\.source !== "claude_agent_search"/);
   assert.match(ask, /if \(gradesSelling\.length >= 2\) \{\s*return gradeQuestionDecision\(/);
   const unified = read("../../server/services/aiUnifiedDecisionService.js");
