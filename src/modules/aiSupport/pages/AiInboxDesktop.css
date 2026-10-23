@@ -428,12 +428,20 @@ html.dark .ai-inbox-desktop .ai-omni-chat-panel [class*="bg-[#eefaf8]"] {
     display: grid !important;
   }
 
-  .ai-inbox-desktop [data-composer-voice] {
+  /* Share post stays in the row too (the owner looks for its 🎬 there), after the
+     camera; like the camera it steps aside while there is text. */
+  .ai-inbox-desktop [data-ai-inbox-share-post] {
     order: 1;
   }
 
+  .ai-inbox-desktop [data-composer-voice] {
+    order: 2;
+  }
+
+  .ai-inbox-desktop [data-has-draft="true"] [data-ai-inbox-share-post],
   .ai-inbox-desktop [data-has-draft="true"] [data-composer-voice],
   .ai-inbox-desktop [data-has-draft="true"] [data-composer-camera],
+  .ai-inbox-desktop [data-composer-mode="note"] [data-ai-inbox-share-post],
   .ai-inbox-desktop [data-composer-mode="note"] [data-composer-voice],
   .ai-inbox-desktop [data-composer-mode="note"] [data-composer-camera] {
     display: none !important;

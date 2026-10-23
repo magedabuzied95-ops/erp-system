@@ -3322,7 +3322,6 @@ function ManualReplyComposer({
               title={t("aiSupport.inbox.sharePost.button")}
               aria-label={t("aiSupport.inbox.sharePost.button")}
               data-ai-inbox-share-post="true"
-              data-composer-desktop-only="true"
               className="mb-1 grid h-8 w-8 shrink-0 place-items-center rounded-lg text-slate-500 transition hover:bg-slate-200/70 hover:text-slate-800 disabled:opacity-40 dark:text-slate-400 dark:hover:bg-white/10 dark:hover:text-slate-100"
             >
               <Clapperboard className="h-5 w-5" />
