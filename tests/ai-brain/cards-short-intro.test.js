@@ -20,9 +20,10 @@ test("product cards go out under one short line, no list and no link", async () 
   assert.equal(out.product_cards.length, 2, "the cards themselves are untouched");
 });
 
-test("a colour just picked keeps the booking question", async () => {
+// 2026-10-23, owner: «شيل اللينك وتحب احجزهولك دى» — the card's own button is the booking step.
+test("a colour just picked gets the same one line, no booking question", async () => {
   const out = await rewriteStructuredDecision({ decision: { intent: "post_product_color_selected", text: "long", product_cards: cards.slice(0, 1) }, inbound: { text: "الاسود" } });
-  assert.equal(out.text, `${CARDS_INTRO_TEXT}\nتحب أحجزهولك؟`);
+  assert.equal(out.text, CARDS_INTRO_TEXT);
 });
 
 test("a gender miss keeps its own honest sentence", async () => {

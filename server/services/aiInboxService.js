@@ -1928,7 +1928,12 @@ export const generateWhatsappAiAutoReply = async ({ tenantId, phone, sessionId, 
 
   const reply = aiPayload.channel_reply || normalizeOutgoingChannelReply({ channel: AI_AGENT_CHANNELS.WHATSAPP, response: aiPayload });
   const productContext = buildProductContext(firstProductFromPayload(aiPayload));
-  let replyText = ensureProductLinkInReply(reply.text || aiPayload.answer || "", productContext);
+  // Over product cards the words are the card's lead line: the card is the product, so no
+  // «شوفه من هنا: <link>» under it (owner, 2026-10-23, on a one-card answer).
+  const repliesWithCards = asArray(aiPayload.product_cards).length > 0 || asArray(aiPayload.image_cards).length > 0;
+  let replyText = repliesWithCards
+    ? text(reply.text || aiPayload.answer || "")
+    : ensureProductLinkInReply(reply.text || aiPayload.answer || "", productContext);
   replyText = sanitizeWhatsappLiveReply({ replyText, payload: aiPayload, messageText: body });
   if (reply && typeof reply === "object") reply.text = replyText;
   if (aiPayload && typeof aiPayload === "object") aiPayload.answer = replyText;

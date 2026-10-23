@@ -130,11 +130,11 @@ export const gradesNamedOutsideGuide = (replyText = "", guide = []) => {
   return named.filter((key) => !allowed.has(key));
 };
 
-// The one line that goes above product cards, in the owner's words. A single colour just picked
-// keeps the next step — the booking question — under it.
+// The one line that goes above product cards, in the owner's words — for a colour just picked too:
+// the card's own «اطلب اللون ده» button is the booking step, and «تحب أحجزهولك؟» under the line
+// was the owner's second complaint about that card (2026-10-23).
 export const CARDS_INTRO_TEXT = "أيوه متاح إن شاء الله 👇";
-export const cardsIntroText = (intent = "") =>
-  text(intent) === "post_product_color_selected" ? `${CARDS_INTRO_TEXT}\nتحب أحجزهولك؟` : CARDS_INTRO_TEXT;
+export const cardsIntroText = () => CARDS_INTRO_TEXT;
 
 const withReplyText = (decision = {}, replyText = "", debugPatch = {}) => ({
   ...decision,

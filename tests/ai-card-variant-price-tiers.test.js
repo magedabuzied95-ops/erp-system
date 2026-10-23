@@ -45,3 +45,36 @@ for (const [path, loader] of [
     }
   });
 }
+
+// 2026-10-23, the follow-up: «عايز ايرفورس اسود ساده» picked the Black card out of memory and sent the
+// 1,850 it was stored with an hour earlier. Remembered cards take their colour's price off the shelf.
+test("remembered cards take today's price for their colour, wherever memory keeps them", async () => {
+  const { withLiveMemoryCardPrices } = await import("../server/services/aiBrainV2Service.js");
+  const stale = { id: "61", product_id: "61", color: "Black", variant_id: "1792", price: 1850, price_text: "1,850 جنيه", display_price: 1850 };
+  const memory = { last_product_cards: [stale], preferences: { lastProductCards: [stale], aiConversationMemoryV2: { lastShownProductCards: [stale] } } };
+  const loadProduct = async ({ productId }) => (productId === "61" ? {
+    id: 61, name: "Nike Air Force 1", price: 1850, selling_price: 1850,
+    variants: [variant(1792, "Black", { manual_selling_price: 1200, manual_price_override_active: true }), variant(1800, "White")],
+  } : null);
+  const fresh = await withLiveMemoryCardPrices({ memory, tenantId: 1, loadProduct });
+  for (const card of [fresh.last_product_cards[0], fresh.preferences.lastProductCards[0], fresh.preferences.aiConversationMemoryV2.lastShownProductCards[0]]) {
+    assert.equal(card.price, 1200);
+    assert.equal(card.display_price, 1200, "a stale display_price would still win in resolveCardDisplayPrice");
+    assert.equal(card.price_text, "1,200 جنيه");
+  }
+  assert.equal(memory.last_product_cards[0].price, 1850, "the caller's memory object is not mutated");
+
+  const unloadable = await withLiveMemoryCardPrices({ memory, tenantId: 1, loadProduct: async () => null });
+  assert.equal(unloadable.last_product_cards[0].price, 1850, "a product that cannot be loaded keeps what memory had");
+});
+
+test("brain V2 reads its memory through the shelf-price refresh, before any follow-up uses it", () => {
+  const source = read("server/services/aiBrainV2Service.js");
+  const generate = source.slice(source.indexOf("export const generateAiBrainV2Decision"));
+  assert.match(generate, /const memory = await withLiveMemoryCardPrices\(\{ memory: options\.memory/);
+});
+
+test("WhatsApp: words over product cards carry no «شوفه من هنا» link", () => {
+  const source = read("server/services/aiInboxService.js");
+  assert.match(source, /let replyText = repliesWithCards\s*\? text\(reply\.text \|\| aiPayload\.answer \|\| ""\)\s*: ensureProductLinkInReply\(/);
+});

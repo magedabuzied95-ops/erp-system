@@ -1234,6 +1234,67 @@ const loadFullProductForPresentation = async ({ tenantId = null, productId = nul
   }
 };
 
+// Every place a conversation keeps the cards it was shown (memoryCardsFromContext reads them all).
+const MEMORY_CARD_PATHS = [
+  ["last_product_cards"],
+  ["lastProductCards"],
+  ["preferences", "last_product_cards"],
+  ["preferences", "lastProductCards"],
+  ["aiConversationMemoryV2", "lastShownProductCards"],
+  ["preferences", "aiConversationMemoryV2", "lastShownProductCards"],
+];
+const MEMORY_CARD_PRICE_KEYS = ["display_price", "final_price", "selected_display_price", "sale_price", "selling_price"];
+
+const readPath = (object, path) => path.reduce((value, key) => (value && typeof value === "object" ? value[key] : undefined), object);
+const writePath = (object, [key, ...rest], value) =>
+  rest.length ? { ...(object || {}), [key]: writePath(object?.[key], rest, value) } : { ...(object || {}), [key]: value };
+
+/*
+ * The cards in memory are a snapshot of the turn that showed them. «عايز ايرفورس اسود ساده» picked
+ * the Black card from memory and sent the 1,850 it was stored with, after the price had been fixed
+ * to 1,200 (owner's test, 2026-10-23). Each remembered card takes its colour's price off the shelf
+ * now; a product that cannot be loaded keeps what memory had.
+ */
+export const withLiveMemoryCardPrices = async ({ memory = {}, tenantId = null, loadProduct = loadFullProductForPresentation } = {}) => {
+  const paths = MEMORY_CARD_PATHS.filter((path) => asArray(readPath(memory, path)).length);
+  if (!paths.length) return memory;
+  try {
+    const cardProductId = (card = {}) => text(card.product_id || card.id || card.product?.id || "");
+    const colorKey = (value = "") => text(value).toLowerCase();
+    const productIds = unique(paths.flatMap((path) => asArray(readPath(memory, path)).map(cardProductId))).filter(Boolean).slice(0, 6);
+    const liveByProduct = new Map();
+    await Promise.all(productIds.map(async (productId) => {
+      const fullProduct = await loadProduct({ tenantId, productId });
+      if (fullProduct) liveByProduct.set(productId, normalizeProductCards([fullProduct], { limit: 24, preserveUnavailableCards: true }));
+    }));
+    if (!liveByProduct.size) return memory;
+    const livePriceFor = (card = {}) => {
+      const liveCards = liveByProduct.get(cardProductId(card)) || [];
+      const variantId = text(card.variant_id || card.selected_variant_id || "");
+      const live = liveCards.find((other) => colorKey(other.color) && colorKey(other.color) === colorKey(card.color || card.matched_variant_color))
+        || (variantId ? liveCards.find((other) => text(other.variant_id || other.selected_variant_id) === variantId) : null);
+      const price = Number(live?.price || 0);
+      return price > 0 ? { price, price_text: text(live.price_text) } : null;
+    };
+    const reprice = (card = {}) => {
+      const live = card && typeof card === "object" ? livePriceFor(card) : null;
+      if (!live) return card;
+      const stale = Object.fromEntries(MEMORY_CARD_PRICE_KEYS.filter((key) => key in card).map((key) => [key, live.price]));
+      return {
+        ...card,
+        ...stale,
+        price: live.price,
+        price_text: live.price_text || card.price_text,
+        ...(card.product && typeof card.product === "object" ? { product: { ...card.product, price: live.price, price_text: live.price_text || card.product.price_text } } : {}),
+      };
+    };
+    return paths.reduce((next, path) => writePath(next, path, asArray(readPath(memory, path)).map(reprice)), memory);
+  } catch (error) {
+    console.warn("AI_BRAIN_V2_MEMORY_PRICE_REFRESH_FAILED", { message: error?.message || "refresh failed" });
+    return memory;
+  }
+};
+
 const withActiveDisplayPrice = (card = {}, fullProduct = {}) => {
   const selectedVariant =
     card.variant ||
@@ -1582,7 +1643,7 @@ export const generateAiBrainV2Decision = async (normalizedInbound = {}, options 
   const message = text(intentPayload.normalizedForIntent || normalizeArabicForIntent(originalMessage));
   const productAlias = resolveProductAlias(originalMessage || message);
   const tenantId = options.tenantId || normalizedInbound.metadata?.tenant_id || normalizedInbound.metadata?.tenantId || 1;
-  const memory = options.memory || normalizedInbound.metadata?.ai_memory || {};
+  const memory = await withLiveMemoryCardPrices({ memory: options.memory || normalizedInbound.metadata?.ai_memory || {}, tenantId });
   const memoryActiveProductId = activeProductFromMemory(memory);
   const memoryV2 = memory?.preferences?.aiConversationMemoryV2 || memory?.aiConversationMemoryV2 || null;
   const explicitModel = detectExplicitModel(message);
