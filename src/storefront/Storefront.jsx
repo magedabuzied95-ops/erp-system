@@ -189,6 +189,7 @@ import {
   trackGa4ShippingInfo,
   trackGa4ViewCart,
 } from "./lib/ga4Events";
+import { touchTrafficSession, trackTrafficAddToCart, trafficCheckoutPayload } from "./lib/trafficSession";
 import {
   captureTikTokIdentity,
   initTikTokPixel,
@@ -9505,6 +9506,8 @@ function CheckoutPage({ cart, clearCart, profile, setProfile, themeMode, reprice
         source_url: typeof window !== "undefined" ? window.location.href : "",
       };
       const tiktokIdentityPayload = captureTikTokIdentity();
+      // The visit this order belongs to, so the sales channels report can credit its source.
+      const trafficPayload = trafficCheckoutPayload();
       const requestBody = shippingPaymentFile
         ? (() => {
             const formData = new FormData();
@@ -9514,6 +9517,7 @@ function CheckoutPage({ cart, clearCart, profile, setProfile, themeMode, reprice
             formData.append("discount", "0");
             formData.append("meta_identity", JSON.stringify(metaIdentityPayload));
             formData.append("tiktok_identity", JSON.stringify(tiktokIdentityPayload));
+            formData.append("traffic", JSON.stringify(trafficPayload));
             if (paymentMode !== "cod") formData.append("shipping_payment_screenshot", shippingPaymentFile);
             return formData;
           })()
@@ -9524,6 +9528,7 @@ function CheckoutPage({ cart, clearCart, profile, setProfile, themeMode, reprice
             discount: 0,
             meta_identity: metaIdentityPayload,
             tiktok_identity: tiktokIdentityPayload,
+            traffic: trafficPayload,
       };
       const data = await api.post("/storefront/checkout", requestBody);
       const successPayload = {
@@ -11587,6 +11592,7 @@ function Storefront() {
       path: `${location.pathname || "/"}${location.search || ""}`,
     });
     trackTikTokPageView(`${location.pathname || "/"}${location.search || ""}`);
+    touchTrafficSession({ search: location.search || "", path: location.pathname || "/" });
   }, [location.pathname, location.search]);
 
   useEffect(() => {
@@ -11895,6 +11901,7 @@ function Storefront() {
     trackMetaAddToCart({ product, variant, line: nextLine, quantity, customer: profile });
     trackGa4AddToCart({ product, variant, line: nextLine, quantity });
     trackTikTokAddToCart({ product, variant, line: nextLine, quantity });
+    trackTrafficAddToCart(quantity);
     if (openDrawer) setCartDrawerOpen(true);
     return "added";
   }, [profile]);

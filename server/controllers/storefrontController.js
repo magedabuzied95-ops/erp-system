@@ -74,6 +74,7 @@ import { enqueueOrderCreatedEmails } from "../services/transactionalEmail/orderE
 import { sendStorefrontPurchaseEvent } from "../services/metaConversionsApiService.js";
 import { drainTikTokOutbox, recordTikTokPlaceAnOrder, tiktokEventsConfig } from "../modules/tiktok/tiktokEventsApi.js";
 import { attachMetaContentIds, ensureMetaDuplicateSkuKeys, metaContentIdFor } from "../services/metaCatalogContentIdService.js";
+import { ensureTrafficSchema, resolveOrderTraffic } from "../modules/channelAnalytics/channelAnalytics.js";
 
 export const DEFAULT_TENANT_ID = 1;
 const LOW_STOCK_LIMIT = 2;
@@ -833,6 +834,9 @@ const logCheckoutStep = (step, details = {}) => {
 
 const ensureStorefrontSchemaNow = async (clientOrPool = db) => {
   await clientOrPool.query(`ALTER TABLE IF EXISTS orders ADD COLUMN IF NOT EXISTS tenant_id INTEGER`);
+  // The traffic_* order columns must exist before the orders column cache is warmed below,
+  // or checkout would drop them from every insert until the next restart.
+  await ensureTrafficSchema();
   await clientOrPool.query(`ALTER TABLE IF EXISTS order_items ADD COLUMN IF NOT EXISTS tenant_id INTEGER`);
   await clientOrPool.query(`ALTER TABLE IF EXISTS order_items ADD COLUMN IF NOT EXISTS returned_quantity INTEGER NOT NULL DEFAULT 0`);
   await clientOrPool.query(`ALTER TABLE IF EXISTS products ADD COLUMN IF NOT EXISTS tenant_id INTEGER`);
@@ -5912,6 +5916,10 @@ export const createWebsiteOrder = async (req, res) => {
     // The seller is the one exception: it is a choice the cashier makes on screen, so it
     // arrives in the payload, bounded to numeric ids.
     const staffAttribution = posOnlineOrder ? buildPosStaffAttribution(req, checkoutRaw) : null;
+    // A till-raised online order was not a storefront visit, so it carries no traffic source.
+    const trafficAttribution = posOnlineOrder
+      ? null
+      : await resolveOrderTraffic({ tenantId, traffic: parseJsonField(req.body?.traffic, {}) || {} });
     receivedPayload = {
       tenant_id: tenantId,
       checkout: { ...checkout, email: checkout.email ? "[redacted]" : "" },
@@ -6336,6 +6344,8 @@ export const createWebsiteOrder = async (req, res) => {
       shipping_address_line: shippingAddressLine || checkout.detailed_address,
       shipping_status: "pending",
       shipment_status: "pending",
+      // The visit's traffic source (sales channels report); disjoint from the staff keys below.
+      ...(trafficAttribution || {}),
       // Null for a real web order; insertReturning drops keys the table does not have, so a
       // database that predates origin_surface still takes the insert.
       ...(staffAttribution || {}),

@@ -168,6 +168,7 @@ const ExecutiveOverview = lazy(() => import("./modules/reports/pages/ExecutiveOv
 const SalesIntelligence = lazy(() => import("./modules/reports/pages/SalesIntelligence"));
 const InventoryIntelligence = lazy(() => import("./modules/reports/pages/InventoryIntelligence"));
 const CouponsPerformance = lazy(() => import("./modules/reports/pages/CouponsPerformance"));
+const SalesChannels = lazy(() => import("./modules/reports/pages/SalesChannels"));
 const PurchasingIntelligence = lazy(() => import("./modules/reports/pages/PurchasingIntelligence"));
 const CustomerIntelligence = lazy(() => import("./modules/reports/pages/CustomerIntelligence"));
 const EmployeeIntelligence = lazy(() => import("./modules/reports/pages/EmployeeIntelligence"));
@@ -1830,6 +1831,15 @@ function App() {
           element={
             <ProtectedRoute requiredPermissions={["reports.view"]}>
               <ReconciliationReport />
+            </ProtectedRoute>
+          }
+        />
+
+        <Route
+          path="reports/channels"
+          element={
+            <ProtectedRoute requiredPermissions={["reports.view"]}>
+              <SalesChannels />
             </ProtectedRoute>
           }
         />

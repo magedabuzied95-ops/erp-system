@@ -45,6 +45,7 @@ import {
   resetStorefrontCustomerPassword,
 } from "../services/storefrontCustomerEmailAuthService.js";
 import paymentProofUpload from "../config/paymentProofUpload.js";
+import { recordTrafficEvent } from "../modules/channelAnalytics/channelAnalytics.js";
 import { getWebsiteSettings } from "../services/liveActivityService.js";
 import { getSetting } from "../services/settingsService.js";
 import {
@@ -247,6 +248,10 @@ const checkoutPlacedOrderPhoneRateLimit = createSuccessRateLimit({
 // Browsing fires a ViewContent per product, so the relay's ceiling is generous; it exists to stop
 // a loop from spending the shop's Graph budget.
 const metaRelayRateLimit = createRequestRateLimit({ windowMs: MINUTE_MS, max: 120, keysOf: (req) => [clientKeyWithTenant(req)] });
+// One session start per visit plus one call per add to cart. The key is the client IP, and
+// mobile carriers put many shoppers behind one address, so the ceiling is generous; a row
+// costs one indexed insert or update.
+const trafficEventRateLimit = createRequestRateLimit({ windowMs: MINUTE_MS, max: 600, keysOf: (req) => [clientKeyWithTenant(req)] });
 
 const storefrontCustomerTransitionAuth = (req, res, next) => {
   if (!hasStorefrontCustomerToken(req)) {
@@ -765,6 +770,16 @@ router.post("/cart/reprice", async (req, res) => {
     console.error("[storefront] cart reprice", { requestId: req.id, message: error?.message || String(error) });
     return res.status(500).json({ success: false, message: "Failed to re-price the cart" });
   }
+});
+// Sales channel analytics: a visit's source and its add-to-cart. Always answers 204, so a
+// browser's beacon never retries or logs an error over a row the server chose to ignore.
+router.post("/traffic/events", trafficEventRateLimit, async (req, res) => {
+  try {
+    await recordTrafficEvent({ tenantId: publicTenantId(req), req, body: req.body || {} });
+  } catch (error) {
+    console.warn("[storefront] traffic event", { requestId: req.id, message: error?.message || String(error) });
+  }
+  return res.status(204).end();
 });
 router.post("/meta/events", metaRelayRateLimit, storefrontCustomerTransitionAuth, async (req, res) => {
   const eventName = toText(req.body?.event_name);

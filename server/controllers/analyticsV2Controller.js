@@ -37,6 +37,7 @@ import {
   getEmployeesSummary,
 } from "../services/analytics/analyticsEmployeesService.js";
 import { runReconciliation } from "../services/analytics/analyticsReconciliationService.js";
+import { getSalesChannelsReport } from "../modules/channelAnalytics/channelAnalytics.js";
 import { getFilterOptions } from "../services/analytics/analyticsFilterOptionsService.js";
 import {
   createPreset,
@@ -128,6 +129,7 @@ const inventoryHandler = (name, run) => analyticsHandler("inventory", name, "INV
 
 export const getSalesSummaryController   = salesHandler("summary", getSalesSummary);
 export const getSalesBreakdownController = salesHandler("breakdown", getSalesBreakdown);
+export const getSalesChannelsController  = salesHandler("channels", getSalesChannelsReport);
 export const getSalesProductsController  = salesHandler("products", getSalesProducts);
 export const getSalesSizesController     = salesHandler("sizes", getSalesSizes);
 
