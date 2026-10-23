@@ -2209,6 +2209,7 @@ app.use("/api/tiktok-business", tiktokBusinessRoutes);
 app.use("/api/webhooks/tiktok-business", tiktokBusinessWebhookRoutes);
 app.use("/api/ai-agent", aiAgentOrderRoutes);
 app.use("/api/ai-inbox", aiAgentOrderRoutes);
+app.use("/api/crm", (await import("./routes/crm.js")).default);
 app.use("/api/ai-studio", aiWorkflowRoutes);
 app.use("/api/surveillance", surveillanceRoutes);
 app.use("/api/social-comments", socialCommentsRoutes);

@@ -273,6 +273,7 @@ const NotificationsCenter = lazy(() => import("./modules/notifications/pages/Not
 const AiSupportConsole = lazy(() => import("./modules/aiSupport/pages/AiSupportConsole"));
 const AiSupportKnowledgeBase = lazy(() => import("./modules/aiSupport/pages/AiSupportKnowledgeBase"));
 const AiInbox = lazy(() => import("./modules/aiSupport/pages/AiInbox"));
+const Crm = lazy(() => import("./modules/crm/pages/Crm"));
 const AiInboxPwa = lazy(() => import("./modules/aiSupport/pages/AiInboxPwa"));
 const AiStudio = lazy(() => import("./modules/aiStudio/pages/AiStudio"));
 const AiStudioWorkflows = lazy(() => import("./modules/aiStudio/pages/AiStudioWorkflows"));
@@ -1075,6 +1076,8 @@ function App() {
             </ProtectedRoute>
           }
         />
+
+        <Route path="crm" element={<ProtectedRoute requiredPermissions={["crm.view"]}><Crm /></ProtectedRoute>} />
 
         <Route
           path="admin/ai-followups"

@@ -21,6 +21,7 @@ const SECTION_TITLE_KEYS = {
 };
 
 const ITEM_LABEL_KEYS = {
+  CRM: "aiSupport.crm.title",
   "Meta Ads": "sidebar.metaAds",
   "TikTok Ads": "sidebar.tiktokAds",
   Amazon: "sidebar.amazon",

@@ -1,8 +1,11 @@
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { useTranslation } from "react-i18next";
 import { GitBranch, Loader2, Pencil, UserRound } from "lucide-react";
 import ConversationLabelsModal from "./ConversationLabelsModal";
 import { aiInboxLabelsFromConversation } from "../../../../shared/aiInboxConversationLabels.js";
+import { api } from "../../../shared/api/api";
+import ThemedSelect from "../../../shared/ui/ThemedSelect";
+import usePermission from "../../permissions/hooks/usePermission";
 
 /*
  * Customer 360's conversation card: the three things the inbox filter panel
@@ -24,6 +27,30 @@ export default function ConversationCrmCard({
 }) {
   const { t } = useTranslation();
   const [labelsOpen, setLabelsOpen] = useState(false);
+  const canViewCrm = usePermission('crm.view');
+  const canEditCrm = usePermission('crm.edit');
+  const [crm, setCrm] = useState(null);
+  const [crmStages, setCrmStages] = useState([]);
+  const [crmBusy, setCrmBusy] = useState(false);
+  const [crmError, setCrmError] = useState('');
+  const conversationKey = conversation?.session_id || conversation?.conversation_key || '';
+  useEffect(() => {
+    let active = true;
+    setCrm(null);setCrmError('');
+    if (!canViewCrm || !conversationKey) return undefined;
+    Promise.all([api.get(`/crm/opportunities?conversation_id=${encodeURIComponent(conversationKey)}&limit=1`),api.get('/crm/config')])
+      .then(([result,config])=>{if(active){setCrm(result.opportunities[0]||null);setCrmStages(config.stages);}})
+      .catch(()=>{if(active)setCrm(null);});
+    return ()=>{active=false;};
+  },[canViewCrm,conversationKey,currentStage]);
+  const setCrmStage = async stageId => {
+    setCrmBusy(true);setCrmError('');
+    try {
+      const result=await api.patch(`/crm/opportunities/${crm.id}`,{version:crm.version,stage_id:stageId});
+      setCrm(result.opportunity);
+    } catch(error) { setCrmError(error.message); }
+    finally {setCrmBusy(false);}
+  };
   if (!conversation) return null;
   const labels = aiInboxLabelsFromConversation(conversation);
   const assignedName = String(conversation.assigned_user_name || conversation.assigned_user?.name || "").trim();
@@ -41,7 +68,7 @@ export default function ConversationCrmCard({
         <div>
           <div className={sectionTitle}>{t("aiSupport.inbox.crmCard.stage")}</div>
           {!currentStage ? <p className="mb-1.5 text-[11px] text-slate-500">{t("aiSupport.inbox.crmCard.notLead")}</p> : null}
-          <div role="radiogroup" aria-label={t("aiSupport.inbox.crmCard.stage")} className="flex flex-wrap gap-1.5">
+          {crm ? <ThemedSelect ariaLabel={t('aiSupport.inbox.crmCard.stage')} value={String(crm.stage_id)} disabled={!canEditCrm||crmBusy||Boolean(busy)} options={crmStages.filter(stage=>String(stage.pipeline_id)===String(crm.pipeline_id)&&!stage.is_archived).map(stage=>({value:String(stage.id),label:stage.legacy_key&&stage.name===({new:'New',contacted:'Contacted',interested:'Interested',negotiation:'Negotiation',won:'Won',lost:'Lost'})[stage.legacy_key]?t(`aiSupport.crm.stages.${stage.legacy_key}`):stage.name}))} onChange={setCrmStage} /> : <div role="radiogroup" aria-label={t("aiSupport.inbox.crmCard.stage")} className="flex flex-wrap gap-1.5">
             {stageOptions.map((stage) => {
               const on = stage.id === currentStage;
               return (
@@ -58,7 +85,8 @@ export default function ConversationCrmCard({
                 </button>
               );
             })}
-          </div>
+          </div>}
+          {crmError&&<p role="alert" className="text-xs text-red-600">{crmError}</p>}
         </div>
 
         <div>

@@ -1,6 +1,7 @@
 const EXACT_ROUTE_TITLES = Object.freeze({
   "/": "Dashboard",
   "/dashboard": "Dashboard",
+  "/crm": "CRM",
   "/notifications": "Notifications",
   "/workspace": "Workspace",
   "/billing": "Billing",

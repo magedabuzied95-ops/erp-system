@@ -1,0 +1,93 @@
+import test from 'node:test';
+import assert from 'node:assert/strict';
+import 'dotenv/config';
+
+test('CRM persisted writes, tenant scope, ownership, stale updates and stage history', {skip:process.env.CRM_DB_TESTS!=='1'},async()=>{
+  const {default:db}=await import('../server/database/db.js');
+  const service=await import('../server/services/crmService.js');
+  const ids=[];
+  let channelId=null;
+  let profileId=null;
+  let pipelineId=null;
+  try {
+    const location=(await db.query('SELECT inet_server_addr()::text AS host')).rows[0].host;
+    assert.ok(['::1/128','127.0.0.1/32'].includes(location),'Tests require a local database');
+    const tenantId=(await db.query('SELECT id FROM tenants ORDER BY id LIMIT 1')).rows[0].id;
+    const scope={tenantId,userId:999991,isAdmin:true,hiddenKeys:{}};
+    const {stages}=await service.crmConfig(tenantId);
+    const initial=stages.find(s=>s.legacy_key==='new');
+    const next=stages.find(s=>s.legacy_key==='interested');
+    const opportunity=await service.createCrm(scope,{title:'CRM INTEGRATION FIXTURE',stage_id:initial.id,expected_revenue:250,expected_closing:'2026-12-01'});
+    ids.push(opportunity.id);
+    assert.equal(opportunity.title,'CRM INTEGRATION FIXTURE');
+    const own=await service.listCrm({...scope,isAdmin:false},{q:'CRM INTEGRATION FIXTURE'});
+    assert.ok(own.opportunities.some(o=>o.id===opportunity.id));
+    const others=await service.listCrm({...scope,isAdmin:false,userId:999992},{q:'CRM INTEGRATION FIXTURE'});
+    assert.equal(others.total,0);
+    await assert.rejects(()=>service.getCrm({...scope,tenantId:999999},opportunity.id),e=>e.status===404);
+    const moved=await service.updateCrm(scope,opportunity.id,{version:opportunity.version,stage_id:next.id});
+    assert.equal(moved.stage_id,next.id);
+    await assert.rejects(()=>service.updateCrm(scope,opportunity.id,{version:opportunity.version,stage_id:initial.id}),e=>e.status===409);
+    const detail=await service.getCrm(scope,opportunity.id);
+    assert.equal(detail.history.length,2);
+    assert.equal(detail.history[0].to_stage_id,next.id);
+    await assert.rejects(()=>service.createCrm(scope,{title:'Bad customer',stage_id:initial.id,customer_id:99999999}),e=>e.status===400);
+    const wonStage=stages.find(s=>s.legacy_key==='won');
+    const won=await service.createCrm(scope,{title:'CRM TERMINAL FIXTURE',stage_id:wonStage.id});
+    ids.push(won.id);
+    assert.equal(won.status,'won');
+    await assert.rejects(()=>service.saveCrmStage(scope,wonStage.id,{...wonStage,is_won:false}),e=>e.status===400);
+    const fixture=`crm-test-${Date.now()}`;
+    profileId=(await db.query(`INSERT INTO ai_customer_profiles(tenant_id,phone,first_name) VALUES($1,$2,'CRM fixture') RETURNING id`,[tenantId,fixture])).rows[0].id;
+    channelId=(await db.query(`INSERT INTO ai_channel_conversations(tenant_id,channel,external_conversation_id,customer_profile_id,customer_name,lead_status,metadata)
+      VALUES($1,'web_chat',$2,$3,'CRM fixture','new','{"crm_lead":{"source":"test"}}') RETURNING id`,[tenantId,fixture,profileId])).rows[0].id;
+    const linked=(await db.query('SELECT * FROM ai_lead_opportunities WHERE tenant_id=$1 AND channel_conversation_id=$2',[tenantId,channelId])).rows[0];
+    ids.push(linked.id);
+    assert.equal(linked.stage_id,initial.id);
+    const {createOrUpdateLeadOpportunity}=await import('../server/services/aiInboxLeadActionsService.js');
+    const registered=await createOrUpdateLeadOpportunity({tenantId,profile:{id:profileId},conversation:{channel:'web_chat',session_id:`web_chat:${fixture}`,customer_name:'CRM fixture'}});
+    assert.equal(registered.id,linked.id,'Lead registration reuses the canonical opportunity');
+    const registeredAgain=await createOrUpdateLeadOpportunity({tenantId,profile:{id:profileId},conversation:{channel:'web_chat',session_id:`web_chat:${fixture}`,customer_name:'CRM fixture'}});
+    assert.equal(registeredAgain.id,linked.id,'Repeated registration is idempotent');
+    await db.query("UPDATE ai_channel_conversations SET lead_status='interested' WHERE id=$1",[channelId]);
+    const inboxMoved=await service.getCrm(scope,linked.id);
+    assert.equal(inboxMoved.opportunity.stage_id,next.id,'Inbox changes update the canonical opportunity');
+    const returned=await service.updateCrm(scope,linked.id,{version:inboxMoved.opportunity.version,stage_id:initial.id,title:'CRM fixture updated',expected_revenue:500});
+    assert.equal(returned.stage_id,initial.id);
+    const conversation=(await db.query('SELECT lead_status,metadata FROM ai_channel_conversations WHERE id=$1',[channelId])).rows[0];
+    assert.equal(conversation.lead_status,'new');
+    assert.equal(conversation.metadata.crm_lead_details.expected_revenue,500);
+    assert.equal(conversation.metadata.crm_lead_details.lead_name,'CRM fixture updated');
+    const pipeline=await service.createCrmPipeline(scope,{name:'CRM INTEGRATION PIPELINE'});
+    pipelineId=pipeline.id;
+    const configured=await service.crmConfig(tenantId);
+    const customNew=configured.stages.find(s=>s.pipeline_id===pipelineId&&s.legacy_key==='new');
+    const customInterested=configured.stages.find(s=>s.pipeline_id===pipelineId&&s.legacy_key==='interested');
+    await service.updateCrm(scope,linked.id,{version:returned.version,stage_id:customNew.id});
+    await db.query("UPDATE ai_channel_conversations SET lead_status='interested' WHERE id=$1",[channelId]);
+    const multi=await service.getCrm(scope,linked.id);
+    assert.equal(multi.opportunity.pipeline_id,pipelineId);
+    assert.equal(multi.opportunity.stage_id,customInterested.id,'Inbox movement retains the selected pipeline');
+    const customStage=await service.saveCrmStage(scope,null,{pipeline_id:pipelineId,name:'Custom open',sequence:35,color:'#123456'});
+    const customWon=configured.stages.find(s=>s.pipeline_id===pipelineId&&s.legacy_key==='won');
+    const terminal=await service.updateCrm(scope,linked.id,{version:multi.opportunity.version,stage_id:customWon.id});
+    const reopened=await service.updateCrm(scope,linked.id,{version:terminal.version,stage_id:customStage.id});
+    assert.equal(reopened.status,'open');
+    await db.query("UPDATE ai_channel_conversations SET metadata=metadata || '{\"unrelated\":true}'::jsonb WHERE id=$1",[channelId]);
+    const customPreserved=await service.getCrm(scope,linked.id);
+    assert.equal(customPreserved.opportunity.stage_id,customStage.id,'Metadata updates preserve the custom stage');
+    assert.equal(customPreserved.opportunity.status,'open');
+    const exact=await service.listCrm(scope,{conversation_id:linked.conversation_id});
+    assert.equal(exact.total,1);
+    const privateResult=await service.listCrm({...scope,hiddenKeys:{sessions:[linked.conversation_id]}},{q:'CRM fixture'});
+    assert.equal(privateResult.total,0);
+    const manualVisible=await service.getCrm({...scope,hiddenKeys:{sessions:[linked.conversation_id]}},opportunity.id);
+    assert.equal(manualVisible.opportunity.id,opportunity.id,'Hidden conversations do not hide unrelated manual deals');
+  }finally{
+    if(ids.length){await db.query('DELETE FROM crm_stage_history WHERE opportunity_id=ANY($1::bigint[])',[ids]);await db.query('DELETE FROM ai_lead_opportunities WHERE id=ANY($1::bigint[])',[ids]);}
+    if(channelId)await db.query('DELETE FROM ai_channel_conversations WHERE id=$1',[channelId]);
+    if(profileId)await db.query('DELETE FROM ai_customer_profiles WHERE id=$1',[profileId]);
+    if(pipelineId){await db.query('DELETE FROM crm_stages WHERE pipeline_id=$1',[pipelineId]);await db.query('DELETE FROM crm_pipelines WHERE id=$1',[pipelineId]);}
+    await db.end();
+  }
+});

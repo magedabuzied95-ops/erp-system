@@ -265,6 +265,7 @@ server/data/backfill/
 !server/services/aiInboxRemindersService.js
 !server/services/messageSequencesService.js
 !server/services/customerTagsService.js
+!server/services/crmService.js
 # Photo search by look (CLIP vectors): server/lib/clipImageEmbedder.js + clipImageIndexWriter.js.
 !server/services/visualEmbeddingSearchService.js
 

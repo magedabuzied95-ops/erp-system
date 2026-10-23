@@ -101,6 +101,7 @@ export const MODULES = [
   // Both used to be `settings`, which meant every settings administrator could
   // message customers — see the gate comment in server/routes/aiAgentOrders.js.
   { key: "ai_inbox_messenger", label: "AI Inbox" },
+  { key: "crm", label: "CRM" },
   { key: "staff_tasks", label: "Staff Tasks" },
   { key: "website", label: "Website" },
   { key: "employees", label: "Employees" },
@@ -153,6 +154,7 @@ export const MODULE_ACTIONS = Object.freeze({
   marketing: ["view", "create", "update", "delete", "publish", "settings"],
   notifications: ["view", "manage"],
   ai_inbox_messenger: ["view", "reply"],
+  crm: ["view", "create", "edit", "manage"],
   staff_tasks: ["view", "create", "update", "manage"],
   website: ["view", "orders", "settings"],
   employees: ["view", "edit", "delete", "export", "print"],
@@ -570,6 +572,7 @@ const RAW_SIDEBAR_SECTIONS = [
       { label: "Shipping", to: "/settings/shipping", permission: "settings.view", icon: Settings2 },
       { label: "Payments", to: "/settings/payments", permission: "settings.view", icon: CircleDollarSign },
       { label: "AI Inbox", to: "/admin/ai-inbox", permission: "settings.view", icon: Bot, adminOnly: true },
+      { label: "CRM", to: "/crm", permission: "crm.view", icon: UsersRound },
       { label: "AI Follow Ups", to: "/admin/ai-followups", permission: "settings.view", icon: CalendarClock, adminOnly: true },
       { label: "AI Agent Analytics", to: "/admin/ai-agent-analytics", permission: "settings.view", icon: LineChart, adminOnly: true },
       { label: "AI Agent Settings", to: "/admin/ai-agent-settings", permission: "settings.view", icon: Settings2, adminOnly: true },
