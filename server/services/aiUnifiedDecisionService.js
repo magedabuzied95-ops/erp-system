@@ -1213,7 +1213,12 @@ export const generateUnifiedConversationDecision = async (normalizedInbound = {}
   });
   // The Claude sales agent writes the reply when it is switched on (AI_CLAUDE_AGENT_ENABLED); any
   // failure returns null and the old grounded rewrite runs exactly as before.
-  const agentDecision = await runClaudeSalesAgent({
+  // Turning the grade question off promises every grade's cards. Keep that
+  // deterministic presentation intact instead of letting the agent pick a subset.
+  const preserveAllGrades = rules.ai_rules_grade_question === false
+    && text(decision.detected_intent || decision.intent) === "product_search"
+    && gradeGuideFor(asArray(decision.product_cards)).length > 1;
+  const agentDecision = preserveAllGrades ? null : await runClaudeSalesAgent({
     decision,
     rules,
     inbound,

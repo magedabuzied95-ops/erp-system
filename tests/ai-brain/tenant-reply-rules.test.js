@@ -1,7 +1,7 @@
 import test from "node:test";
 import assert from "node:assert/strict";
 import pool from "../../server/database/db.js";
-import { AI_REPLY_RULE_DEFAULTS, normalizeAiReplyRules, classifyAiRuleLesson } from "../../shared/aiReplyRules.js";
+import { AI_REPLY_RULE_DEFAULTS, normalizeAiReplyRules, classifyAiRuleLesson, appendAiBookingQuestion } from "../../shared/aiReplyRules.js";
 import { loadTenantAiReplyRules, saveTenantAiReplyRules, invalidateAiReplyRules } from "../../server/modules/aiReplyRules.js";
 
 const stored = new Map();
@@ -116,4 +116,9 @@ test("lessons propose exact rules without saving; unrelated lessons stay agent-o
   assert.equal(JSON.stringify([...stored]), before);
   await saveTenantAiReplyRules({ tenantId: 901, rules: lesson.rule_change });
   assert.equal((await loadTenantAiReplyRules({ tenantId: 901 })).ai_rules_booking_question, false);
+});
+
+test("agent booking variants become one exact booking question", () => {
+  assert.equal(appendAiBookingQuestion("أهلا 👇\nأحجزهولك؟", { ai_rules_booking_question: true }), "أهلا 👇\nتحب أحجزهولك؟");
+  assert.equal(appendAiBookingQuestion("أهلا 👇\nتحب أحجزهولك؟", { ai_rules_booking_question: true }), "أهلا 👇\nتحب أحجزهولك؟");
 });

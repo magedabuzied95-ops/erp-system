@@ -20,8 +20,9 @@ export const aiCardsIntro = (rules = {}) => {
 
 export const appendAiBookingQuestion = (answer, rules = {}) => {
   const line = "تحب أحجزهولك؟";
-  return normalizeAiReplyRules(rules).ai_rules_booking_question && !String(answer).includes(line)
-    ? answer + "\n" + line : answer;
+  if (!normalizeAiReplyRules(rules).ai_rules_booking_question) return answer;
+  const withoutQuestion = String(answer).replace(/(?:تحب\s+)?[أا]حجزهولك[؟?]/gu, "").trim();
+  return withoutQuestion + "\n" + line;
 };
 
 // Only explicit, bounded setting changes reach deterministic templates; other lessons

@@ -178,9 +178,9 @@ test("history rows become chat turns, the current message is not doubled", () =>
   ]);
 });
 
-test("the unified decision hands every channel's reply to the agent first", () => {
+test("the unified decision uses the agent unless all-grade cards must stay intact", () => {
   const unified = read("../../server/services/aiUnifiedDecisionService.js");
-  assert.match(unified, /const agentDecision = await runClaudeSalesAgent\(\{/);
+  assert.match(unified, /const agentDecision = preserveAllGrades \? null : await runClaudeSalesAgent\(\{/);
   assert.match(unified, /decision = agentDecision\s*\|\| await rewriteStructuredDecision\(/);
   const ignore = read("../../.gitignore");
   assert.match(ignore, /^!server\/services\/aiClaudeSalesAgentService\.js$/m, "a gitignored service never deploys");
