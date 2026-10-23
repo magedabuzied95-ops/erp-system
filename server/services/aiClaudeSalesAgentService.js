@@ -876,8 +876,23 @@ export const runClaudeSalesAgent = async ({
             searchCards(text(input.query)),
             namedGrade && !text(input.query).includes(namedGrade.label) ? searchCards(`${text(input.query)} ${namedGrade.label}`).catch(() => []) : [],
           ]);
-          const cards = [...asArray(graded), ...asArray(plain).filter((card) => !asArray(graded).some((other) => cardKey(other) === cardKey(card)))];
+          let cards = [...asArray(graded), ...asArray(plain).filter((card) => !asArray(graded).some((other) => cardKey(other) === cardKey(card)))];
           for (const card of cards) cardPool.set(cardKey(card), card);
+          // The colour the customer named, for every model found that sells it: the search caps cards
+          // per grade and cut the Black Skechers Slip-Ins, so the model saw Grey and Beige only and
+          // said «الأسود مش ظاهر» (owner's test, 2026-10-23).
+          const askedColours = coloursNamedIn(`${customerMessage} ${text(input.query)}`);
+          if (askedColours.length) {
+            const inColour = (card) => askedColours.some((colour) => cardColourText(card).includes(colour));
+            const sellsColour = (card) => asArray(safeProductFacts(card).colors).some((colour) => askedColours.some((asked) => text(colour).toLowerCase().includes(asked)));
+            const productIds = [...new Set(cards.map(cardId))].slice(0, 8);
+            for (const productId of productIds) {
+              const ofProduct = cards.filter((card) => cardId(card) === productId);
+              if (!ofProduct.some(inColour) && ofProduct.some(sellsColour)) await addProductColoursToPool(productId);
+            }
+            const coloured = [...cardPool.values()].filter((card) => productIds.includes(cardId(card)) && inColour(card));
+            cards = [...coloured, ...cards.filter((card) => !coloured.includes(card))];
+          }
           return { query: text(input.query), count: cards.length, products: cards.slice(0, 8).map((card) => cardSummary(card, safeProductFacts)) };
         }
         case "show_products": {

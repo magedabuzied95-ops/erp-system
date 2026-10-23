@@ -319,3 +319,25 @@ test("a colour the search cut, or a size row id, is fetched off the shelf as tha
   const byProduct = await run(["562"]);
   assert.deepEqual(byProduct.out.product_cards.map((card) => card.color), ["Black"], "«اسود» keeps the Black card out of the whole range");
 });
+
+test("search_products brings the named colour of a model it found, off the shelf if the search cut it", async () => {
+  const card = (variant, color) => ({
+    product_id: "562", id: "562", variant_id: String(variant), title: `SKECHERS SLIP INS - ${color}`, name: `SKECHERS SLIP INS - ${color}`, color,
+    price: 1550, available_colors: ["Grey", "Beige", "Black"], available_sizes: ["44"], total_stock: 3, image_url: `https://x/${color}.jpg`,
+  });
+  const seen = [];
+  await withEnv(async () => {
+    __setAgentClientForTests(fakeClient([
+      { stop_reason: "tool_use", content: [{ type: "tool_use", id: "t1", name: "search_products", input: { query: "Skechers" } }], usage: {} },
+      { stop_reason: "end_turn", content: [{ type: "text", text: "أيوه متاح 👇" }], usage: {} },
+    ], seen));
+    await runClaudeSalesAgent({
+      decision: { ...decision, product_cards: [] },
+      inbound: { ...inbound, text: "عايز اسكتشر اسود", originalText: "عايز اسكتشر اسود" },
+      loaders,
+      helpers: { safeProductFacts, searchCards: async () => [card(7913, "Grey"), card(7918, "Beige")], productColourCards: async () => [card(7913, "Grey"), card(7918, "Beige"), card(7923, "Black")] },
+    });
+  });
+  const result = JSON.parse(seen[1].messages.at(-1).content[0].content);
+  assert.equal(result.products[0].card_id, "562:7923", "the Black card leads what the model sees");
+});
