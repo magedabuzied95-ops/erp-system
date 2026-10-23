@@ -154,7 +154,7 @@ export const MODULE_ACTIONS = Object.freeze({
   marketing: ["view", "create", "update", "delete", "publish", "settings"],
   notifications: ["view", "manage"],
   ai_inbox_messenger: ["view", "reply"],
-  crm: ["view", "create", "edit", "manage"],
+  crm: ["view", "create", "edit", "manage", "reports", "export"],
   staff_tasks: ["view", "create", "update", "manage"],
   website: ["view", "orders", "settings"],
   employees: ["view", "edit", "delete", "export", "print"],

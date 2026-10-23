@@ -4,7 +4,7 @@ import permit from '../middleware/permissionMiddleware.js';
 import { getTenantId } from '../utils/requestScope.js';
 import { resolveInboxViewer } from '../modules/aiInboxPrivacy/inboxViewer.js';
 import { loadHiddenKeysForViewer } from '../modules/aiInboxPrivacy/conversationPrivacy.js';
-import { listCrm, getCrm, crmConfig, createCrm, updateCrm, saveCrmStage,crmOrders,createCrmPipeline,crmActivities,createCrmActivity } from '../services/crmService.js';
+import { listCrm, getCrm, crmConfig, createCrm, updateCrm, saveCrmStage,crmOrders,createCrmPipeline,crmActivities,createCrmActivity,crmReport } from '../services/crmService.js';
 
 const router = express.Router();
 router.use(protect);
@@ -21,6 +21,8 @@ const run = fn => async (req,res,next) => {
   } catch(error) { if(error.status) res.status(error.status).json({success:false,message:error.message}); else next(error); }
 };
 router.get('/config',action('view'),run(async(req,s)=>crmConfig(s.tenantId)));
+router.get('/reports',action('view'),action('reports'),run(async(req,s)=>({report:await crmReport(s,req.query)})));
+router.get('/reports/export',action('view'),action('reports'),action('export'),run(async(req,s)=>({report:await crmReport(s,req.query)})));
 router.post('/pipelines',action('manage'),run(async(req,s)=>({pipeline:await createCrmPipeline(s,req.body)})));
 router.get('/opportunities',action('view'),run(async(req,s)=>listCrm(s,req.query)));
 router.get('/opportunities/:id',action('view'),run(async(req,s)=>getCrm(s,req.params.id)));

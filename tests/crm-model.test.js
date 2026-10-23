@@ -1,6 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { crmDealInput, crmStageInput, crmPositiveId,crmStageReference } from '../shared/crmModel.js';
+import { crmDealInput, crmStageInput, crmPositiveId,crmStageReference, crmCsvCell } from '../shared/crmModel.js';
 
 test('Sequence stage references support legacy keys and precise CRM identifiers',()=>{
   assert.equal(crmStageReference('interested'),'interested');
@@ -24,4 +24,10 @@ test('CRM rejects impossible dates and non-finite financial values', () => {
   }
   assert.equal(crmDealInput({ title: 'Test', expected_closing: '2028-02-29' }).expected_closing, '2028-02-29');
   assert.equal(crmDealInput({ title: 'Test', expected_revenue: 12.345 }).expected_revenue, 12.35);
+});
+
+test('CRM CSV escapes delimiters and neutralizes spreadsheet formulas',()=>{
+  assert.equal(crmCsvCell('=1+2'), '"\'=1+2"');
+  assert.equal(crmCsvCell('a,"b"'), '"a,""b"""');
+  assert.ok(crmCsvCell('  +1').startsWith('"\''));
 });

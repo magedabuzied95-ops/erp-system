@@ -7,6 +7,7 @@ import usePermission from '../../permissions/hooks/usePermission';
 import { subscribeRealtime } from '../../../shared/realtime/socketStore';
 import SequencesPanel from '../../aiSupport/components/controlCenter/SequencesPanel';
 import { wallClockToInstant } from '../../../shared/lib/appTimezone';
+import CrmReports from './CrmReports';
 
 const blank = { title: '', expected_revenue: '', probability: '', priority: 0, expected_closing: '', notes: '', customer_id: '' };
 export default function Crm() {
@@ -17,6 +18,7 @@ export default function Crm() {
   const canManage = usePermission('crm.manage');
   const canCustomers = usePermission('customers.view');
   const canOrders = usePermission('orders.view');
+  const canReports = usePermission('crm.reports');
   const canSettings = usePermission('settings.edit');
   const canInboxView = usePermission('ai_inbox_messenger.view');
   const canInboxReply = usePermission('ai_inbox_messenger.reply');
@@ -98,22 +100,22 @@ export default function Crm() {
   const stageOptions=stages.map(s=>({value:String(s.id),label:stageLabel(s)}));
   return <main className="space-y-5 p-4 text-slate-900 dark:text-slate-100" dir={i18n.dir()}>
     <header className="flex flex-wrap items-center justify-between gap-3"><div><h1 className="text-2xl font-bold">{tr('title')}</h1><p className="text-sm text-slate-500">{tr('subtitle')}</p></div>
-      <div className="flex gap-2"><button className={button} onClick={load} disabled={busy}>{tr('refresh')}</button>{canCreate&&<button className={button} disabled={!stages.length||busy} onClick={()=>{setEditor({...blank,stage_id:stages[0].id});setHistory([]);setNotice('');setOrders([]);setCustomerSearch('');setError('');}}>{tr('new')}</button>}
+      <div className="flex gap-2">{view!=='reports'&&<button className={button} onClick={load} disabled={busy}>{tr('refresh')}</button>}{canCreate&&<button className={button} disabled={!stages.length||busy} onClick={()=>{setEditor({...blank,stage_id:stages[0].id});setHistory([]);setNotice('');setOrders([]);setCustomerSearch('');setError('');}}>{tr('new')}</button>}
       {canManage&&<><button className={button} disabled={!pipeline} onClick={()=>setStageEditor({name:'',sequence:10,color:'#64748b',pipeline_id:pipeline})}>{tr('newStage')}</button><button className={button} onClick={()=>setPipelineEditor({name:''})}>{tr('newPipeline')}</button>{canSettings&&canInboxView&&<button className={button} onClick={()=>setRulesOpen(true)}>{tr('automation')}</button>}</>}</div></header>
     {error&&<div role="alert" className="rounded-xl bg-red-50 p-3 text-red-800">{error}</div>}
     <section className="grid gap-3 md:grid-cols-4" aria-label={tr('filters')}>
-      <input className={control} aria-label={tr('search')} placeholder={tr('search')} value={search} onChange={e=>{setSearch(e.target.value);setPage(0);}} />
+      {view!=='reports'&&<input className={control} aria-label={tr('search')} placeholder={tr('search')} value={search} onChange={e=>{setSearch(e.target.value);setPage(0);}} />}
       <ThemedSelect ariaLabel={tr('pipeline')} value={pipeline} options={config.pipelines.map(p=>({value:String(p.id),label:p.is_default&&p.name==='Sales'?tr('salesPipeline'):p.name}))} onChange={value=>{setPipeline(value);setStageFilter('');setPage(0);}} />
-      <ThemedSelect ariaLabel={tr('stage')} value={stageFilter} options={[{value:'',label:tr('allStages')},...stageOptions]} onChange={value=>{setStageFilter(value);setPage(0);}} />
-      <ThemedSelect ariaLabel={tr('view')} value={view} options={[{value:'board',label:tr('board')},{value:'list',label:tr('list')}]} onChange={value=>setView(value)} />
+      {view!=='reports'&&<ThemedSelect ariaLabel={tr('stage')} value={stageFilter} options={[{value:'',label:tr('allStages')},...stageOptions]} onChange={value=>{setStageFilter(value);setPage(0);}} />}
+      <ThemedSelect ariaLabel={tr('view')} value={view} options={[{value:'board',label:tr('board')},{value:'list',label:tr('list')},...(canReports?[{value:'reports',label:tr('reports.title')}]:[])]} onChange={value=>setView(value)} />
     </section>
-    <p aria-live="polite">{tr('count')}: {data.total} · {tr('pageValue')}: {currency(data.total_value)}</p>
-    {view==='board'?<div className="flex gap-3 overflow-x-auto pb-4" aria-busy={busy}>{stages.filter(s=>!stageFilter||String(s.id)===stageFilter).map(stage=><section key={stage.id} className="min-w-64 flex-1 rounded-2xl border border-slate-200 bg-slate-50 p-3 dark:border-slate-700 dark:bg-slate-900" onDragOver={e=>{if(canEdit)e.preventDefault();}} onDrop={e=>{e.preventDefault();const deal=data.opportunities.find(o=>String(o.id)===e.dataTransfer.getData('text/plain'));if(deal)move(deal,stage.id);}}>
+    {view!=='reports'&&<p aria-live="polite">{tr('count')}: {data.total} · {tr('pageValue')}: {currency(data.total_value)}</p>}
+    {view==='reports'&&canReports?<CrmReports pipeline={pipeline} />:view==='board'?<div className="flex gap-3 overflow-x-auto pb-4" aria-busy={busy}>{stages.filter(s=>!stageFilter||String(s.id)===stageFilter).map(stage=><section key={stage.id} className="min-w-64 flex-1 rounded-2xl border border-slate-200 bg-slate-50 p-3 dark:border-slate-700 dark:bg-slate-900" onDragOver={e=>{if(canEdit)e.preventDefault();}} onDrop={e=>{e.preventDefault();const deal=data.opportunities.find(o=>String(o.id)===e.dataTransfer.getData('text/plain'));if(deal)move(deal,stage.id);}}>
       <header className="mb-3 flex items-center justify-between border-t-4 pt-2" style={{borderColor:stage.color}}><div><h2 className="font-bold">{stageLabel(stage)}</h2><p className="text-xs text-slate-500">{tr('count')}: {data.stage_totals?.find(item=>String(item.stage_id)===String(stage.id))?.count||0} · {currency(data.stage_totals?.find(item=>String(item.stage_id)===String(stage.id))?.value)}</p></div>{canManage&&<button className={button} onClick={()=>setStageEditor(stage)}>{tr('edit')}</button>}</header>
       <div className="space-y-3">{data.opportunities.filter(o=>String(o.stage_id)===String(stage.id)).map(deal=><article key={deal.id} draggable={canEdit&&!busy} onDragStart={e=>e.dataTransfer.setData('text/plain',String(deal.id))} className="rounded-xl border border-slate-200 bg-white p-3 shadow-sm dark:border-slate-700 dark:bg-slate-800"><button className="w-full text-start font-semibold" onClick={()=>open(deal.id)}>{deal.title}</button><p className="text-sm text-slate-500">{deal.customer_name||deal.phone||'—'}</p><p className="my-2 font-bold">{currency(deal.expected_revenue)}</p>{canEdit&&<ThemedSelect ariaLabel={`${tr('stage')} ${deal.title}`} value={String(deal.stage_id)} options={stageOptions} disabled={busy} onChange={value=>move(deal,value)} />}</article>)}</div>
     </section>)}</div>:<div className="overflow-x-auto"><table className="w-full text-start"><thead><tr>{['name','customer','value','stage','closing'].map(k=><th key={k} className="p-3 text-start">{tr(k)}</th>)}</tr></thead><tbody>{data.opportunities.map(deal=><tr key={deal.id} className="border-t border-slate-200 dark:border-slate-700"><td className="p-3"><button onClick={()=>open(deal.id)}>{deal.title}</button></td><td>{deal.customer_name||deal.phone||'—'}</td><td>{currency(deal.expected_revenue)}</td><td>{stageLabel(config.stages.find(s=>String(s.id)===String(deal.stage_id))||{name:deal.stage_name})}</td><td>{deal.expected_closing||'—'}</td></tr>)}</tbody></table></div>}
-    {!busy&&!data.opportunities.length&&<p className="p-8 text-center text-slate-500">{tr('empty')}</p>}
-    <footer className="flex items-center gap-3"><button className={button} disabled={busy||page===0} onClick={()=>setPage(v=>v-1)}>{tr('previous')}</button><span>{page+1}</span><button className={button} disabled={busy||(page+1)*50>=data.total} onClick={()=>setPage(v=>v+1)}>{tr('next')}</button><span className="text-sm text-slate-500">{tr('paginationHint')}</span></footer>
+    {view!=='reports'&&!busy&&!data.opportunities.length&&<p className="p-8 text-center text-slate-500">{tr('empty')}</p>}
+    {view!=='reports'&&<footer className="flex items-center gap-3"><button className={button} disabled={busy||page===0} onClick={()=>setPage(v=>v-1)}>{tr('previous')}</button><span>{page+1}</span><button className={button} disabled={busy||(page+1)*50>=data.total} onClick={()=>setPage(v=>v+1)}>{tr('next')}</button><span className="text-sm text-slate-500">{tr('paginationHint')}</span></footer>}
     {editor&&<div className="fixed inset-0 z-50 overflow-y-auto bg-black/40 p-4" role="dialog" aria-modal="true" aria-label={tr('opportunity')}><form onSubmit={save} className="mx-auto max-w-2xl space-y-4 rounded-2xl bg-white p-5 dark:bg-slate-800"><h2 className="text-xl font-bold">{tr('opportunity')}</h2>
       {error&&<p role="alert" className="text-red-600">{error}</p>}
       {notice&&<p role="status">{notice}</p>}

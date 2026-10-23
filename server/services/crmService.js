@@ -220,6 +220,68 @@ export async function createCrmActivity(scope,id,input,actor) {
   return task;
 }
 
+export async function crmReport(scope,query={}) {
+  const params=[];
+  const where=scopeSql(scope,params);
+  const from=query.from?crmDealInput({title:'Report',expected_closing:String(query.from)}).expected_closing:null;
+  const to=query.to?crmDealInput({title:'Report',expected_closing:String(query.to)}).expected_closing:null;
+  if(from&&to&&from>to)fail(400,'Invalid report date range');
+  let catalogPipeline='';
+  if(query.pipeline_id){params.push(crmPositiveId(query.pipeline_id));where.push(`o.pipeline_id=$${params.length}`);catalogPipeline=`AND s.pipeline_id=$${params.length}`;}
+  if(from){params.push(from);where.push(`o.created_at>=($${params.length}::date::timestamp AT TIME ZONE 'Africa/Cairo')`);}
+  if(to){params.push(to);where.push(`o.created_at<(($${params.length}::date+1)::timestamp AT TIME ZONE 'Africa/Cairo')`);}
+  const visible=`WITH visible AS (SELECT o.id,o.tenant_id,o.pipeline_id,o.stage_id,o.expected_revenue,o.probability,o.expected_closing,
+    stage.is_won,stage.is_lost,COALESCE(sess.assigned_user_id,o.assigned_user_id) AS owner_id,
+    COALESCE(NULLIF(c.channel,''),NULLIF(o.source_key,''),'manual') AS source
+    ${joins} WHERE ${where.join(' AND ')})`;
+  const metrics=`count(*)::int AS count,(count(*) FILTER(WHERE is_won))::int AS won,
+    (count(*) FILTER(WHERE is_lost))::int AS lost,
+    COALESCE(sum(expected_revenue),0)::text AS value,
+    round(COALESCE(sum(COALESCE(expected_revenue,0)*COALESCE(probability,0)/100) FILTER(WHERE NOT is_won AND NOT is_lost),0),2)::text AS forecast`;
+  const client=await db.connect();
+  try{
+    await client.query('BEGIN ISOLATION LEVEL REPEATABLE READ READ ONLY');
+    const summary=(await client.query(`${visible} SELECT ${metrics},
+      (count(*) FILTER(WHERE NOT is_won AND NOT is_lost))::int AS open,
+      (SELECT min(h.occurred_at) FROM crm_stage_history h JOIN visible v ON v.id=h.opportunity_id AND v.tenant_id=h.tenant_id) AS history_started_at
+      FROM visible`,params)).rows[0];
+    const stages=(await client.query(`${visible}, catalog AS (
+      SELECT s.*,p.name AS pipeline_name,(SELECT predecessor.id FROM crm_stages predecessor
+        WHERE predecessor.tenant_id=s.tenant_id AND predecessor.pipeline_id=s.pipeline_id AND NOT predecessor.is_archived
+        AND NOT predecessor.is_won AND NOT predecessor.is_lost
+        AND ((s.is_won OR s.is_lost) OR (predecessor.sequence,predecessor.id)<(s.sequence,s.id))
+        ORDER BY predecessor.sequence DESC,predecessor.id DESC LIMIT 1) AS previous_id
+      FROM crm_stages s JOIN crm_pipelines p ON p.id=s.pipeline_id AND p.tenant_id=s.tenant_id
+      WHERE s.tenant_id=$1 AND NOT s.is_archived ${catalogPipeline}
+    ), entries AS (
+      SELECT h.opportunity_id,h.to_stage_id,min(h.occurred_at) AS entered_at FROM crm_stage_history h
+      JOIN visible v ON v.id=h.opportunity_id AND v.tenant_id=h.tenant_id GROUP BY h.opportunity_id,h.to_stage_id
+    ) SELECT s.id,s.name,s.legacy_key,s.pipeline_id,s.pipeline_name,s.previous_id,s.color,
+      predecessor.name AS previous_name,predecessor.legacy_key AS previous_legacy_key,
+      (SELECT count(*)::int FROM visible v WHERE v.stage_id=s.id) AS current_count,
+      (SELECT COALESCE(sum(v.expected_revenue),0)::text FROM visible v WHERE v.stage_id=s.id) AS current_value,
+      (SELECT count(*)::int FROM entries e WHERE e.to_stage_id=s.id) AS entered,
+      (SELECT count(*)::int FROM entries e WHERE e.to_stage_id=s.previous_id) AS previous_count,
+      (SELECT count(*)::int FROM entries e WHERE e.to_stage_id=s.previous_id AND EXISTS(
+        SELECT 1 FROM crm_stage_history h WHERE h.tenant_id=$1 AND h.opportunity_id=e.opportunity_id
+        AND h.to_stage_id=s.id AND h.occurred_at>=e.entered_at)) AS converted
+      FROM catalog s LEFT JOIN crm_stages predecessor ON predecessor.id=s.previous_id AND predecessor.tenant_id=s.tenant_id
+      ORDER BY s.pipeline_id,s.sequence,s.id`,params)).rows;
+    const owners=(await client.query(`${visible} SELECT v.owner_id,COALESCE(u.name,'') AS name,${metrics}
+      FROM visible v LEFT JOIN users u ON u.id=v.owner_id AND u.tenant_id=v.tenant_id GROUP BY v.owner_id,u.name ORDER BY count DESC,v.owner_id`,params)).rows;
+    const sources=(await client.query(`${visible} SELECT source,${metrics} FROM visible GROUP BY source ORDER BY count DESC,source`,params)).rows;
+    const forecast=(await client.query(`${visible} SELECT to_char(expected_closing,'YYYY-MM') AS month,
+      count(*)::int AS count,COALESCE(sum(expected_revenue),0)::text AS value,
+      round(COALESCE(sum(COALESCE(expected_revenue,0)*COALESCE(probability,0)/100),0),2)::text AS forecast
+      FROM visible WHERE NOT is_won AND NOT is_lost GROUP BY to_char(expected_closing,'YYYY-MM') ORDER BY month NULLS LAST`,params)).rows;
+    await client.query('COMMIT');
+    const closed=summary.won+summary.lost;
+    return {from,to,summary:{...summary,win_rate:closed?Math.round(summary.won/closed*10000)/100:null},
+      stages:stages.map(stage=>({...stage,conversion:stage.previous_count?Math.round(stage.converted/stage.previous_count*10000)/100:null})),owners,sources,forecast};
+  }catch(error){await client.query('ROLLBACK');throw error;}
+  finally{client.release();}
+}
+
 export async function saveCrmStage(scope, id, input) {
   return transaction(scope, async client => {
     if (id) {

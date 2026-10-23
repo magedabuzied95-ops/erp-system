@@ -1,6 +1,12 @@
 // Stable compatibility keys remain the inbox and follow-up vocabulary.
 export const CRM_LEGACY_STAGES = Object.freeze(['new', 'contacted', 'interested', 'negotiation', 'won', 'lost']);
 
+export function crmCsvCell(value) {
+  let text=String(value??'');
+  if(/^[\s]*[=+@-]/.test(text)||/^[\t\r\n]/.test(text))text=`'${text}`;
+  return `"${text.replace(/"/g,'""')}"`;
+}
+
 export function crmStageReference(value) {
   if(value!=null&&typeof value!=='string')throw Object.assign(new Error('Invalid stage reference'),{status:400});
   const key=String(value??'').trim().toLowerCase();
