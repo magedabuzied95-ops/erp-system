@@ -4,7 +4,7 @@ import permit from '../middleware/permissionMiddleware.js';
 import { getTenantId } from '../utils/requestScope.js';
 import { resolveInboxViewer } from '../modules/aiInboxPrivacy/inboxViewer.js';
 import { loadHiddenKeysForViewer } from '../modules/aiInboxPrivacy/conversationPrivacy.js';
-import { listCrm, getCrm, crmConfig, createCrm, updateCrm, saveCrmStage,crmOrders,createCrmPipeline } from '../services/crmService.js';
+import { listCrm, getCrm, crmConfig, createCrm, updateCrm, saveCrmStage,crmOrders,createCrmPipeline,crmActivities,createCrmActivity } from '../services/crmService.js';
 
 const router = express.Router();
 router.use(protect);
@@ -25,6 +25,15 @@ router.post('/pipelines',action('manage'),run(async(req,s)=>({pipeline:await cre
 router.get('/opportunities',action('view'),run(async(req,s)=>listCrm(s,req.query)));
 router.get('/opportunities/:id',action('view'),run(async(req,s)=>getCrm(s,req.params.id)));
 router.get('/opportunities/:id/orders',action('view'),permit('orders','view',{strict:true}),run(async(req,s)=>({orders:await crmOrders(s,req.params.id)})));
+router.get('/opportunities/:id/activities',action('view'),permit('staff_tasks','view',{strict:true}),run(async(req,s)=>({activities:await crmActivities(s,req.params.id)})));
+router.post('/opportunities/:id/activities',action('edit'),permit('staff_tasks','create',{strict:true}),run(async(req,s)=>({activity:await createCrmActivity(s,req.params.id,req.body,req.user)})));
+router.post('/opportunities/:id/followups',action('edit'),permit('ai_inbox_messenger','reply',{strict:true}),run(async(req,s)=>{
+  const {opportunity}=await getCrm(s,req.params.id);
+  if(Number(req.body.version)!==opportunity.version)throw Object.assign(new Error('Opportunity changed; refresh and retry'),{status:409});
+  if(!opportunity.channel_conversation_id)throw Object.assign(new Error('A linked conversation is required'),{status:400});
+  const {onLeadStageChanged}=await import('../services/messageSequencesService.js');
+  return {enrolled:await onLeadStageChanged({tenantId:s.tenantId,sessionId:opportunity.conversation_id,stage:`crm:${opportunity.stage_id}`,channel:opportunity.channel})};
+}));
 router.post('/opportunities',action('create'),run(async(req,s)=>({opportunity:await createCrm(s,req.body)})));
 router.patch('/opportunities/:id',action('edit'),run(async(req,s)=>({opportunity:await updateCrm(s,req.params.id,req.body)})));
 router.post('/stages',action('manage'),run(async(req,s)=>({stage:await saveCrmStage(s,null,req.body)})));

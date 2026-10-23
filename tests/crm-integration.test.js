@@ -1,6 +1,7 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import 'dotenv/config';
+import {randomUUID} from 'node:crypto';
 
 test('CRM persisted writes, tenant scope, ownership, stale updates and stage history', {skip:process.env.CRM_DB_TESTS!=='1'},async()=>{
   const {default:db}=await import('../server/database/db.js');
@@ -11,6 +12,9 @@ test('CRM persisted writes, tenant scope, ownership, stale updates and stage his
   let profileId=null;
   let pipelineId=null;
   let sequenceId=null;
+  const extraSequenceIds=[];
+  const activityIds=[];
+  let actorId=null;
   try {
     const location=(await db.query('SELECT inet_server_addr()::text AS host')).rows[0].host;
     assert.ok(['::1/128','127.0.0.1/32'].includes(location),'Tests require a local database');
@@ -104,6 +108,38 @@ test('CRM persisted writes, tenant scope, ownership, stale updates and stage his
     ]);
     assert.equal(concurrent.filter(result=>result.status==='fulfilled').length,1);
     assert.equal(concurrent.find(result=>result.status==='rejected')?.reason.status,409,'Concurrent moves reject a stale version without deadlocking');
+    const sequenceService=await import('../server/services/messageSequencesService.js');
+    const ruleInput={name:'CRM CUSTOM STAGE TEST PAUSED',trigger_type:'lead_stage',trigger_stage:`crm:${customStage.id}`,
+      move_to_if_replied:`crm:${customInterested.id}`,is_active:false,steps:[{delay_minutes:120,mode:'text',body:'LOCAL TEST NEVER SEND'}]};
+    const rule=await sequenceService.createMessageSequence({tenantId,input:ruleInput});
+    extraSequenceIds.push(rule.id);
+    assert.equal(rule.trigger_stage,`crm:${customStage.id}`);
+    await assert.rejects(()=>sequenceService.updateMessageSequence({tenantId,id:rule.id,input:{move_to_if_no_reply:'crm:999999999'}}),error=>error.status===400);
+    await assert.rejects(()=>sequenceService.createMessageSequence({tenantId:999999,input:ruleInput}),error=>error.status===400);
+    assert.equal((await sequenceService.getMessageSequence({tenantId,id:rule.id})).move_to_if_no_reply,'');
+    assert.equal(await sequenceService.setConversationLeadStage({tenantId,sessionId:linked.conversation_id,stage:`crm:${customStage.id}`}),true);
+    const outcome=await service.getCrm(scope,linked.id);
+    assert.equal(outcome.opportunity.stage_id,customStage.id);
+    assert.equal(outcome.history[0].source,'sequence');
+    assert.equal(outcome.history[0].actor_user_id,null);
+    assert.equal((await db.query('SELECT count(*)::int AS count FROM message_sequence_enrollments WHERE sequence_id=$1',[rule.id])).rows[0].count,0,'Paused test rules never enroll or send');
+    await sequenceService.updateMessageSequence({tenantId,id:rule.id,input:{move_to_if_replied:''}});
+    const waiting=(await db.query("INSERT INTO message_sequence_enrollments(tenant_id,sequence_id,session_id,current_step,next_run_at) VALUES($1,$2,$3,0,'2099-01-01') RETURNING id",[tenantId,rule.id,linked.conversation_id])).rows[0];
+    await sequenceService.onInboundCustomerMessage({tenantId,sessionId:linked.conversation_id,channel:'web_chat'});
+    assert.equal((await db.query('SELECT stopped_reason FROM message_sequence_enrollments WHERE id=$1',[waiting.id])).rows[0].stopped_reason,'customer_replied','A stage follow-up stops on a reply even before its first step');
+    actorId=(await db.query("INSERT INTO users(tenant_id,name,email,password,role,is_active) VALUES($1,'CRM inactive test actor',$2,'!disabled-test','cashier',false) RETURNING id",[tenantId,`crm-activity-${Date.now()}@example.invalid`])).rows[0].id;
+    const dueAt=new Date(Date.now()+7*86400000).toISOString();
+    const activityInput={kind:'call',title:'CRM LOCAL CALL FIXTURE',due_at:dueAt,request_id:randomUUID()};
+    const actor={id:actorId,tenant_id:tenantId,role:'cashier'};
+    const activity=await service.createCrmActivity(scope,opportunity.id,activityInput,actor);
+    activityIds.push(activity.id);
+    const duplicate=await service.createCrmActivity(scope,opportunity.id,activityInput,actor);
+    assert.equal(String(duplicate.id),String(activity.id),'Activity retries reuse the existing staff task');
+    assert.equal((await service.crmActivities(scope,opportunity.id)).length,1);
+    const storedDue=(await db.query('SELECT due_at::timestamptz AS instant FROM staff_task_assignments WHERE id=$1',[activity.id])).rows[0].instant;
+    assert.equal(storedDue.toISOString(),dueAt,'Activity time preserves the Cairo instant through the existing task service');
+    await assert.rejects(()=>service.crmActivities({...scope,tenantId:999999},opportunity.id),error=>error.status===404);
+    await assert.rejects(()=>service.createCrmActivity(scope,opportunity.id,{...activityInput,kind:'unknown'},actor),error=>error.status===400);
     const exact=await service.listCrm(scope,{conversation_id:linked.conversation_id});
     assert.equal(exact.total,1);
     const privateResult=await service.listCrm({...scope,hiddenKeys:{sessions:[linked.conversation_id]}},{q:'CRM fixture'});
@@ -112,6 +148,9 @@ test('CRM persisted writes, tenant scope, ownership, stale updates and stage his
     const manualVisible=await service.getCrm({...scope,hiddenKeys:{sessions:[linked.conversation_id]}},opportunity.id);
     assert.equal(manualVisible.opportunity.id,opportunity.id,'Hidden conversations do not hide unrelated manual deals');
   }finally{
+    if(activityIds.length){await db.query("DELETE FROM audit_logs WHERE entity_type='staff_task' AND entity_id::text=ANY($1::text[])",[activityIds.map(String)]);await db.query('DELETE FROM staff_task_assignments WHERE id=ANY($1::bigint[])',[activityIds]);}
+    if(actorId)await db.query('DELETE FROM users WHERE id=$1',[actorId]);
+    if(extraSequenceIds.length)await db.query('DELETE FROM message_sequences WHERE id=ANY($1::bigint[])',[extraSequenceIds]);
     if(sequenceId)await db.query('DELETE FROM message_sequences WHERE id=$1',[sequenceId]);
     if(ids.length){await db.query('DELETE FROM crm_stage_history WHERE opportunity_id=ANY($1::bigint[])',[ids]);await db.query('DELETE FROM ai_lead_opportunities WHERE id=ANY($1::bigint[])',[ids]);}
     if(channelId)await db.query('DELETE FROM ai_channel_conversations WHERE id=$1',[channelId]);

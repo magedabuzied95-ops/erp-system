@@ -1,4 +1,5 @@
 import db from "../database/db.js";
+import { crmStageReference } from '../../shared/crmModel.js';
 import {
   conversationCustomerPhone,
   normalizeInboxSendChannel,
@@ -183,9 +184,7 @@ const normalizeSequenceInput = (input = {}, { partial = false } = {}) => {
   if (has("stop_on_reply")) normalized.stop_on_reply = input.stop_on_reply !== false;
   if (has("stop_on_purchase")) normalized.stop_on_purchase = input.stop_on_purchase !== false;
   const stage = (key) => {
-    const value = text(input[key]).toLowerCase();
-    if (value && !SEQUENCE_STAGES.includes(value)) throw Object.assign(new Error(`Unknown stage for ${key}`), { status: 400 });
-    return value;
+    return crmStageReference(input[key]);
   };
   if (!partial || has("trigger_stage")) normalized.trigger_stage = stage("trigger_stage");
   if (!partial || has("move_to_if_replied")) normalized.move_to_if_replied = stage("move_to_if_replied");
@@ -195,6 +194,14 @@ const normalizeSequenceInput = (input = {}, { partial = false } = {}) => {
     throw Object.assign(new Error("A stage sequence needs the stage that starts it"), { status: 400 });
   }
   return normalized;
+};
+
+const validateCrmStageReferences = async (tenantId,input) => {
+  const ids=[...new Set(['trigger_stage','move_to_if_replied','move_to_if_no_reply']
+    .map(key=>input[key]).filter(value=>value?.startsWith('crm:')).map(value=>value.slice(4)))];
+  if (!ids.length) return;
+  const result=await db.query('SELECT id FROM crm_stages WHERE tenant_id=$1 AND id=ANY($2::bigint[]) AND NOT is_archived',[tenantId,ids]);
+  if(result.rowCount!==ids.length)throw Object.assign(new Error('Invalid CRM stage for this tenant'),{status:400});
 };
 
 const mapSequence = (row = {}) => ({
@@ -242,6 +249,7 @@ export const createMessageSequence = async ({ tenantId, input = {}, userId = nul
   await ensureMessageSequencesSchema();
   const safeTenantId = tenant(tenantId);
   const normalized = normalizeSequenceInput(input);
+  await validateCrmStageReferences(safeTenantId,normalized);
   const result = await db.query(
     `
     INSERT INTO message_sequences (tenant_id, name, trigger_type, is_active, channels, cooldown_days, stop_on_reply, stop_on_purchase, steps, created_by,
@@ -275,6 +283,7 @@ export const updateMessageSequence = async ({ tenantId, id, input = {} } = {}) =
   const safeTenantId = tenant(tenantId);
   const safeId = rowId(id, "sequence id");
   const normalized = normalizeSequenceInput(input, { partial: true });
+  await validateCrmStageReferences(safeTenantId,normalized);
   if (!Object.keys(normalized).length) throw Object.assign(new Error("No sequence changes were supplied"), { status: 400 });
   const fields = [];
   const values = [safeTenantId, safeId];
@@ -496,8 +505,18 @@ const enrollAutomatically = async ({ tenantId, sessionId, channel = "", sequence
  * the new stage start its own sequence — so one stage's "no reply" can hand over to the next.
  */
 export const setConversationLeadStage = async ({ tenantId, sessionId, stage } = {}) => {
-  const safeStage = text(stage).toLowerCase();
-  if (!SEQUENCE_STAGES.includes(safeStage)) return false;
+  let safeStage;
+  try {safeStage=crmStageReference(stage);} catch {return false;}
+  if(!safeStage)return false;
+  if(safeStage.startsWith('crm:')){
+    const current=(await db.query('SELECT id,version FROM ai_lead_opportunities WHERE tenant_id=$1 AND conversation_id=$2 AND channel_conversation_id IS NOT NULL LIMIT 1',[tenantId,text(sessionId)])).rows[0];
+    if(!current)return false;
+    const {updateCrm}=await import('./crmService.js');
+    try {await updateCrm({tenantId,userId:0,isAdmin:true,hiddenKeys:{},source:'sequence'},current.id,{version:current.version,stage_id:safeStage.slice(4)});}
+    catch(error){if(error.status===409)return false;throw error;}
+    await onLeadStageChanged({tenantId,sessionId,stage:safeStage});
+    return true;
+  }
   const conversationId = text(sessionId);
   const rawId = conversationId.includes(":") ? conversationId.split(":").slice(1).join(":") : conversationId;
   const lookupIds = [...new Set([conversationId, rawId].filter(Boolean))];
@@ -533,20 +552,25 @@ export const setConversationLeadStage = async ({ tenantId, sessionId, stage } = 
 export const onLeadStageChanged = async ({ tenantId, sessionId, stage = "", channel = "" } = {}) => {
   const safeTenantId = Number(tenantId);
   const safeSessionId = text(sessionId);
-  const safeStage = text(stage).toLowerCase();
-  if (!safeTenantId || !safeSessionId || !SEQUENCE_STAGES.includes(safeStage)) return 0;
+  let safeStage;
+  try {safeStage=crmStageReference(stage);} catch {return 0;}
+  if (!safeTenantId || !safeSessionId || !safeStage) return 0;
   await ensureMessageSequencesSchema();
   const rawId = safeSessionId.includes(":") ? safeSessionId.split(":").slice(1).join(":") : safeSessionId;
+  const actual=(await db.query(`SELECT o.stage_id,s.legacy_key FROM ai_lead_opportunities o JOIN crm_stages s
+    ON s.tenant_id=o.tenant_id AND s.id=o.stage_id WHERE o.tenant_id=$1 AND o.conversation_id=$2 LIMIT 1`,[safeTenantId,safeSessionId])).rows[0];
+  const matching=actual?[`crm:${actual.stage_id}`,actual.legacy_key].filter(Boolean):[safeStage];
+  if(!matching.includes(safeStage))return 0;
   await db.query(
     `UPDATE message_sequence_enrollments e
         SET status = 'stopped', stopped_reason = 'stage_changed', finished_at = NOW(), locked_at = NULL, updated_at = NOW()
        FROM message_sequences s
       WHERE s.id = e.sequence_id AND e.tenant_id = $1 AND e.status = 'active'
-        AND s.trigger_type = 'lead_stage' AND s.trigger_stage <> $3
-        AND (e.session_id = $2 OR e.session_id LIKE '%:' || $4)`,
-    [safeTenantId, safeSessionId, safeStage, rawId]
+        AND s.trigger_type = 'lead_stage' AND NOT(s.trigger_stage=ANY($3::text[]))
+        AND e.session_id=ANY($2::text[])`,
+    [safeTenantId, [...new Set([safeSessionId,rawId])], matching]
   );
-  const sequences = (await autoSequencesFor(safeTenantId, "lead_stage")).filter((sequence) => sequence.trigger_stage === safeStage);
+  const sequences = (await autoSequencesFor(safeTenantId, "lead_stage")).filter((sequence) => matching.includes(sequence.trigger_stage));
   if (!sequences.length) return 0;
   return enrollAutomatically({ tenantId: safeTenantId, sessionId: safeSessionId, channel, sequences });
 };
@@ -583,7 +607,7 @@ export const onInboundCustomerMessage = async ({ tenantId, sessionId, channel = 
   );
   for (const row of active.rows) {
     const steps = Array.isArray(row.steps) ? row.steps : [];
-    if (int(row.current_step, 0) > 0) {
+    if (int(row.current_step, 0) > 0 || row.trigger_type==='lead_stage') {
       if (row.stop_on_reply === false) continue;
       const stopped = await db.query(
         `UPDATE message_sequence_enrollments SET status = 'stopped', stopped_reason = 'customer_replied', finished_at = NOW(), updated_at = NOW() WHERE id = $1 AND status = 'active' RETURNING id`,
@@ -659,18 +683,6 @@ const processEnrollment = async (row) => {
     return "paused";
   }
   const hasStageResult = Boolean(text(row.move_to_if_replied) || text(row.move_to_if_no_reply));
-  if (!step) {
-    // Every step went out and the grace period is over: the lead moves on its result.
-    if (hasStageResult) {
-      const replied = await customerRepliedSince({ tenantId, sessionId: row.session_id, since: row.last_sent_at });
-      const nextStage = text(replied ? row.move_to_if_replied : row.move_to_if_no_reply);
-      const finished = await finish(row.id, "completed", replied ? "customer_replied" : "no_reply");
-      if (nextStage && finished.rowCount) await setConversationLeadStage({ tenantId, sessionId: row.session_id, stage: nextStage });
-      return replied ? "completed_replied" : "completed_no_reply";
-    }
-    await finish(row.id, "completed", "");
-    return "completed";
-  }
   const conversation = await resolveInboxConversation({ tenantId, conversationId: row.session_id }).catch(() => null);
   if (!conversation) {
     await finish(row.id, "stopped", "conversation_missing");
@@ -680,7 +692,7 @@ const processEnrollment = async (row) => {
     await finish(row.id, "stopped", "conversation_closed");
     return "conversation_closed";
   }
-  if (row.stop_on_reply !== false && stepIndex > 0 && (await customerRepliedSince({ tenantId, sessionId: row.session_id, since: row.last_sent_at }))) {
+  if (step && row.stop_on_reply !== false && (stepIndex > 0 || row.trigger_type==='lead_stage') && (await customerRepliedSince({ tenantId, sessionId: row.session_id, since: row.last_sent_at||row.enrolled_at }))) {
     const finished = await finish(row.id, "stopped", "customer_replied");
     if (text(row.move_to_if_replied) && finished.rowCount) await setConversationLeadStage({ tenantId, sessionId: row.session_id, stage: row.move_to_if_replied });
     return "customer_replied";
@@ -691,6 +703,18 @@ const processEnrollment = async (row) => {
       await finish(row.id, "stopped", "customer_purchased");
       return "customer_purchased";
     }
+  }
+  if (!step) {
+    // Check closure and purchase before applying a delayed stage outcome too.
+    if (hasStageResult) {
+      const replied = await customerRepliedSince({ tenantId, sessionId: row.session_id, since: row.last_sent_at });
+      const nextStage = text(replied ? row.move_to_if_replied : row.move_to_if_no_reply);
+      const finished = await finish(row.id, "completed", replied ? "customer_replied" : "no_reply");
+      if (nextStage && finished.rowCount) await setConversationLeadStage({ tenantId, sessionId: row.session_id, stage: nextStage });
+      return replied ? "completed_replied" : "completed_no_reply";
+    }
+    await finish(row.id, "completed", "");
+    return "completed";
   }
   // An automatic follow-up re-checks its audience at send time too: a number taken off the test
   // list stops getting them, even mid-sequence.
@@ -829,7 +853,7 @@ export const runMessageSequencesTick = async () => {
   if (!claimed.rows.length) return { claimed: 0, outcomes: {} };
   const ids = claimed.rows.map((row) => Number(row.id));
   const rows = await db.query(
-    `SELECT e.*, s.steps, s.is_active, s.stop_on_reply, s.stop_on_purchase, s.move_to_if_replied, s.move_to_if_no_reply, s.finalize_after_minutes FROM message_sequence_enrollments e JOIN message_sequences s ON s.id = e.sequence_id WHERE e.id = ANY($1::bigint[])`,
+    `SELECT e.*, s.steps, s.is_active, s.trigger_type, s.trigger_stage, s.stop_on_reply, s.stop_on_purchase, s.move_to_if_replied, s.move_to_if_no_reply, s.finalize_after_minutes FROM message_sequence_enrollments e JOIN message_sequences s ON s.id = e.sequence_id WHERE e.id = ANY($1::bigint[])`,
     [ids]
   );
   const outcomes = {};

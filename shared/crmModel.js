@@ -1,6 +1,14 @@
 // Stable compatibility keys remain the inbox and follow-up vocabulary.
 export const CRM_LEGACY_STAGES = Object.freeze(['new', 'contacted', 'interested', 'negotiation', 'won', 'lost']);
 
+export function crmStageReference(value) {
+  if(value!=null&&typeof value!=='string')throw Object.assign(new Error('Invalid stage reference'),{status:400});
+  const key=String(value??'').trim().toLowerCase();
+  if (!key || CRM_LEGACY_STAGES.includes(key)) return key;
+  if (key.startsWith('crm:')) return `crm:${crmPositiveId(key.slice(4))}`;
+  throw Object.assign(new Error('Invalid stage reference'),{status:400});
+}
+
 export function crmPositiveId(value) {
   if ((typeof value !== 'number' && typeof value !== 'string')
       || (typeof value === 'string' && !/^[1-9][0-9]*$/.test(value))) {

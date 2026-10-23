@@ -3,6 +3,7 @@ import { useTranslation } from "react-i18next";
 import { ArrowDown, ArrowUp, ImagePlus, Loader2, Pencil, Plus, Power, Sparkles, Trash2, Workflow, X } from "lucide-react";
 
 import { api } from "../../../../shared/api/api";
+import ThemedSelect from '../../../../shared/ui/ThemedSelect';
 import { resolveChatMediaUrl } from "../../../../shared/lib/imageUrls.js";
 import { ActionButton, PanelSection } from "../integrations/integrationsUi.jsx";
 import { Field, SelectInput, TextArea, TextInput, Toggle } from "./controlCenterUi.jsx";
@@ -53,7 +54,7 @@ const describeDelay = (t, minutes) => {
   return t(`aiSupport.teamTools.sequencesPanel.after.${unit}`, { count: value });
 };
 
-function StepEditor({ step, index, total, onChange, onRemove, onMove, headers, light = false }) {
+function StepEditor({ step, index, total, onChange, onRemove, onMove, headers }) {
   const { t } = useTranslation();
   const fileRef = useRef(null);
   const [uploading, setUploading] = useState(false);
@@ -137,6 +138,7 @@ function StepEditor({ step, index, total, onChange, onRemove, onMove, headers, l
 export default function SequencesPanel({ headers, tenantId }) {
   const { t } = useTranslation();
   const [sequences, setSequences] = useState([]);
+  const [crmStages,setCrmStages]=useState([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
   const [editing, setEditing] = useState(null); // null | "new" | id
@@ -150,6 +152,7 @@ export default function SequencesPanel({ headers, tenantId }) {
     try {
       const payload = await api.get("/ai-inbox/sequences", { params: { tenant_id: tenantId }, headers });
       setSequences(asArray(payload?.sequences));
+      setCrmStages(asArray(payload?.crm_stages));
     } catch (err) {
       setError(err?.message || t("aiSupport.controlCenter.loadError"));
     } finally {
@@ -263,7 +266,16 @@ export default function SequencesPanel({ headers, tenantId }) {
     order_incomplete: t("aiSupport.teamTools.sequencesPanel.triggers.orderIncomplete"),
     back_in_stock: t("aiSupport.teamTools.sequencesPanel.triggers.backInStock"),
   }), [t]);
-  const stageLabel = (stage) => (stage ? t(`aiSupport.teamTools.sequencesPanel.stages.${stage}`) : t("aiSupport.teamTools.sequencesPanel.noMove"));
+  const stageLabel = (stage) => {
+    const custom=crmStages.find(item=>`crm:${item.id}`===stage);
+    if(custom){
+      const defaults={new:'New',contacted:'Contacted',interested:'Interested',negotiation:'Negotiation',won:'Won',lost:'Lost'};
+      const name=custom.legacy_key&&defaults[custom.legacy_key]===custom.name?t(`aiSupport.teamTools.sequencesPanel.stages.${custom.legacy_key}`):custom.name;
+      return `${custom.is_default&&custom.pipeline_name==='Sales'?t('aiSupport.crm.salesPipeline'):custom.pipeline_name} · ${name}`;
+    }
+    return stage ? t(`aiSupport.teamTools.sequencesPanel.stages.${stage}`) : t("aiSupport.teamTools.sequencesPanel.noMove");
+  };
+  const stageChoices=[...STAGES,...crmStages.map(stage=>`crm:${stage.id}`)].map(value=>({value,label:stageLabel(value)}));
   const triggerHint = {
     inquiry_no_purchase: t("aiSupport.teamTools.sequencesPanel.triggers.inquiryHint"),
     lead_stage: t("aiSupport.teamTools.sequencesPanel.triggers.leadStageHint"),
@@ -310,23 +322,15 @@ export default function SequencesPanel({ headers, tenantId }) {
             </div>
             {form.trigger_type === "lead_stage" ? (
               <Field label={t("aiSupport.teamTools.sequencesPanel.stage")}>
-                <SelectInput value={form.trigger_stage} onChange={(event) => setForm((c) => ({ ...c, trigger_stage: event.target.value }))}>
-                  {STAGES.map((stage) => <option key={stage} value={stage}>{stageLabel(stage)}</option>)}
-                </SelectInput>
+                <ThemedSelect ariaLabel={t('aiSupport.teamTools.sequencesPanel.stage')} value={form.trigger_stage} options={stageChoices} onChange={value=>setForm(c=>({...c,trigger_stage:value}))} />
               </Field>
             ) : null}
             <div className="grid gap-4 sm:grid-cols-3">
               <Field label={t("aiSupport.teamTools.sequencesPanel.moveIfReplied")}>
-                <SelectInput value={form.move_to_if_replied} onChange={(event) => setForm((c) => ({ ...c, move_to_if_replied: event.target.value }))}>
-                  <option value="">{stageLabel("")}</option>
-                  {STAGES.map((stage) => <option key={stage} value={stage}>{stageLabel(stage)}</option>)}
-                </SelectInput>
+                <ThemedSelect ariaLabel={t('aiSupport.teamTools.sequencesPanel.moveIfReplied')} value={form.move_to_if_replied} options={[{value:'',label:stageLabel('')},...stageChoices]} onChange={value=>setForm(c=>({...c,move_to_if_replied:value}))} />
               </Field>
               <Field label={t("aiSupport.teamTools.sequencesPanel.moveIfNoReply")}>
-                <SelectInput value={form.move_to_if_no_reply} onChange={(event) => setForm((c) => ({ ...c, move_to_if_no_reply: event.target.value }))}>
-                  <option value="">{stageLabel("")}</option>
-                  {STAGES.map((stage) => <option key={stage} value={stage}>{stageLabel(stage)}</option>)}
-                </SelectInput>
+                <ThemedSelect ariaLabel={t('aiSupport.teamTools.sequencesPanel.moveIfNoReply')} value={form.move_to_if_no_reply} options={[{value:'',label:stageLabel('')},...stageChoices]} onChange={value=>setForm(c=>({...c,move_to_if_no_reply:value}))} />
               </Field>
               <Field label={t("aiSupport.teamTools.sequencesPanel.finalizeAfter")} hint={t("aiSupport.teamTools.sequencesPanel.finalizeHint")}>
                 <div className="flex gap-2">
@@ -354,7 +358,8 @@ export default function SequencesPanel({ headers, tenantId }) {
               </div>
             </Field>
             <div className="grid gap-3 sm:grid-cols-3">
-              <Toggle label={t("aiSupport.teamTools.sequencesPanel.stopOnReply")} hint={t("aiSupport.teamTools.sequencesPanel.stopOnReplyHint")} checked={form.stop_on_reply} onChange={(next) => setForm((c) => ({ ...c, stop_on_reply: next }))} />
+              <Toggle label={t('aiSupport.crm.ruleEnabled')} checked={form.is_active} onChange={value=>setForm(current=>({...current,is_active:value}))} />
+              <Toggle label={t("aiSupport.teamTools.sequencesPanel.stopOnReply")} hint={form.trigger_type==="lead_stage"?t("aiSupport.crm.stageReplyHint"):t("aiSupport.teamTools.sequencesPanel.stopOnReplyHint")} checked={form.stop_on_reply} onChange={(next) => setForm((c) => ({ ...c, stop_on_reply: next }))} />
               <Toggle label={t("aiSupport.teamTools.sequencesPanel.stopOnPurchase")} hint={t("aiSupport.teamTools.sequencesPanel.stopOnPurchaseHint")} checked={form.stop_on_purchase} onChange={(next) => setForm((c) => ({ ...c, stop_on_purchase: next }))} />
               <Field label={t("aiSupport.teamTools.sequencesPanel.cooldown")} hint={t("aiSupport.teamTools.sequencesPanel.cooldownHint")}>
                 <TextInput inputMode="numeric" value={form.cooldown_days} onChange={(event) => setForm((c) => ({ ...c, cooldown_days: event.target.value.replace(/\D/g, "") }))} />

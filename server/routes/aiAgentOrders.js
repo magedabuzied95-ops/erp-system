@@ -9539,7 +9539,10 @@ router.get("/sequences", protect, inboxView(), async (req, res) => {
   try {
     const tenantId = toTenantId(req);
     const sequences = await listMessageSequences({ tenantId });
-    return res.json({ success: true, sequences, channels: SEQUENCE_CHANNELS, triggers: SEQUENCE_TRIGGERS, stages: SEQUENCE_STAGES, step_modes: STEP_MODES });
+    const crmStages=(await db.query(`SELECT s.id,s.name,s.legacy_key,p.name AS pipeline_name,p.is_default FROM crm_stages s
+      JOIN crm_pipelines p ON p.id=s.pipeline_id AND p.tenant_id=s.tenant_id
+      WHERE s.tenant_id=$1 AND NOT s.is_archived ORDER BY p.id,s.sequence,s.id`,[tenantId])).rows;
+    return res.json({ success: true, sequences, channels: SEQUENCE_CHANNELS, triggers: SEQUENCE_TRIGGERS, stages: SEQUENCE_STAGES, crm_stages:crmStages, step_modes: STEP_MODES });
   } catch (error) {
     return sendError(res, error, "Failed to load message sequences");
   }
@@ -9726,7 +9729,9 @@ router.post("/feedback/propose-lesson", protect, permit("settings", "edit"), asy
   try {
     const tenantId = toTenantId(req);
     const { proposeAgentLesson } = await import("../services/aiClaudeSalesAgentService.js");
-    const lesson = classifyAiRuleLesson(req.body?.feedback || req.body?.correct_reply) || await proposeAgentLesson({
+    // Only the owner's instruction maps to a rule switch: the corrected reply is customer-facing text,
+    // and «حط مقاسك وأحجزهولك» in it read as "turn the booking question on".
+    const lesson = classifyAiRuleLesson(req.body?.feedback) || await proposeAgentLesson({
       tenantId,
       customerQuestion: req.body?.customer_question,
       aiReply: req.body?.ai_reply,

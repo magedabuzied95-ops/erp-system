@@ -2,6 +2,7 @@ import db from '../database/db.js';
 import { crmPositiveId, crmDealInput, crmStageInput } from '../../shared/crmModel.js';
 import { canonicalPhoneSql } from '../utils/phoneSearch.js';
 import { emitToRooms } from '../utils/socket.js';
+import { randomUUID } from 'node:crypto';
 
 const fail = (status, message) => { throw Object.assign(new Error(message), { status }); };
 const joins = `FROM ai_lead_opportunities o
@@ -67,7 +68,7 @@ export async function getCrm(scope, id) {
   const params = [];
   const where = scopeSql(scope, params);
   params.push(crmPositiveId(id)); where.push(`o.id=$${params.length}`);
-  const result = await db.query(`SELECT o.*,COALESCE(o.customer_id,customer.id) AS customer_id,to_char(o.expected_closing,'YYYY-MM-DD') AS expected_closing,COALESCE(customer.name,p.first_name,c.customer_name,'') AS customer_name,
+  const result = await db.query(`SELECT o.*,COALESCE(sess.assigned_user_id,o.assigned_user_id) AS owner_id,COALESCE(o.customer_id,customer.id) AS customer_id,to_char(o.expected_closing,'YYYY-MM-DD') AS expected_closing,COALESCE(customer.name,p.first_name,c.customer_name,'') AS customer_name,
     COALESCE(customer.phone,p.phone,'') AS phone,c.channel ${joins} WHERE ${where.join(' AND ')}`, params);
   if (!result.rows[0]) fail(404, 'Opportunity not found');
   const opportunity = result.rows[0];
@@ -105,7 +106,7 @@ async function transaction(scope, fn) {
   const client = await db.connect();
   try {
     await client.query('BEGIN');
-    await client.query("SELECT set_config('m1.crm_actor',$1,true),set_config('m1.crm_source','manual',true)", [String(scope.userId)]);
+    await client.query("SELECT set_config('m1.crm_actor',$1,true),set_config('m1.crm_source',$2,true)", [scope.userId?String(scope.userId):'',scope.source||'manual']);
     const result = await fn(client);
     await client.query('COMMIT');
     emitToRooms([`tenant:${scope.tenantId}`], 'ai_inbox:refresh', { tenant_id: scope.tenantId, reason: 'crm_updated' });
@@ -184,6 +185,39 @@ export async function crmOrders(scope,id) {
     FROM orders WHERE tenant_id=$1 AND (
       ($2::bigint IS NOT NULL AND customer_id=$2) OR ($3<>'' AND ai_agent_conversation_id=$3))
     ORDER BY created_at DESC,id DESC LIMIT 50`,[scope.tenantId,opportunity.customer_id,opportunity.conversation_id||''])).rows;
+}
+
+export async function crmActivities(scope,id) {
+  await getCrm(scope,id);
+  return (await db.query(`SELECT id,title,description,task_type,status,due_at,created_by,metadata
+    FROM staff_task_assignments WHERE tenant_id=$1 AND source_module='crm'
+    AND metadata->>'crm_opportunity_id'=$2 ORDER BY id DESC LIMIT 100`,[scope.tenantId,String(id)])).rows;
+}
+
+export async function createCrmActivity(scope,id,input,actor) {
+  const {opportunity}=await getCrm(scope,id);
+  const title=String(input.title||'').trim();
+  const kind=String(input.kind||'task');
+  const due=new Date(input.due_at);
+  const requestId=String(input.request_id||randomUUID());
+  if(!title||title.length>200||!['call','task','meeting'].includes(kind)||!/(Z|[+-]\d{2}:\d{2})$/.test(String(input.due_at||''))
+    ||!Number.isFinite(due.getTime())||due.getTime()<Date.now()-60000||!/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(requestId))fail(400,'Invalid CRM activity');
+  const reference=`${opportunity.id}:${requestId}`;
+  const lookup=async()=> (await db.query(`SELECT * FROM staff_task_assignments WHERE tenant_id=$1
+    AND source_module='crm' AND source_ref_type='crm_opportunity_activity' AND source_ref_id=$2 LIMIT 1`,[scope.tenantId,reference])).rows[0];
+  const existing=await lookup();
+  if(existing)return existing;
+  const employee=(await db.query(`SELECT id FROM employees WHERE tenant_id=$1 AND user_id=$2
+    AND COALESCE(is_deleted,false)=false ORDER BY id LIMIT 1`,[scope.tenantId,opportunity.owner_id||scope.userId])).rows[0];
+  const {createStaffTask}=await import('./staffTasksService.js');
+  const result=await createStaffTask({tenant_id:scope.tenantId,title,description:String(input.description||'').slice(0,8000),
+    task_type:kind,source_module:'crm',source_ref_type:'crm_opportunity_activity',source_ref_id:reference,
+    metadata:{crm_opportunity_id:String(opportunity.id),crm_activity_type:kind},
+    current_assignee_id:employee?.id,allow_unassigned:true,frequency:'one_time',save_as_template:false,due_at:due},actor);
+  const task=await lookup()||result.task;
+  if(!task)fail(409,'Activity creation conflict; refresh and retry');
+  emitToRooms([`tenant:${scope.tenantId}`],'ai_inbox:refresh',{tenant_id:scope.tenantId,reason:'crm_activity_created'});
+  return task;
 }
 
 export async function saveCrmStage(scope, id, input) {

@@ -1427,6 +1427,9 @@
       "noTemplateText": "No template text yet."
     },
     "crm": {
+      "automation": "Follow-up rules",
+      "startFollowups": "Start stage follow-up",
+      "followupsStarted": "Started {{count}} follow-ups. Delivery follows active rules and channel eligibility.",
       "notEnoughData": "Not enough data",
       "vip": "VIP",
       "lost": "Lost",
@@ -3042,7 +3045,7 @@
         "inquiryNoPurchase": "Automatic: asked but did not buy",
         "inquiryHint": "Any customer who writes in on the selected channels is enrolled. The clock starts from their last message.",
         "leadStage": "Automatic: when the lead enters a stage",
-        "leadStageHint": "Moving a conversation into this stage starts the follow-up; moving it to another stage stops it.",
+        "leadStageHint": "In CRM, use Start stage follow-up to apply the rule. Automatic advances and dragging cards do not start messages; leaving the stage stops its follow-up.",
         "priceObjection": "Automatic: the customer said it is too expensive",
         "priceObjectionHint": "The assistant notices a price objection in the chat and starts this follow-up instead of \"asked but did not buy\".",
         "orderIncomplete": "Automatic: order not finished",
@@ -4093,6 +4096,9 @@
     "usageService": "Plain replies from the official number this month: {{count}} of {{cap}}"
   },
   "crm": {
+    "automation": "Follow-up rules",
+    "startFollowups": "Start stage follow-up",
+    "followupsStarted": "Started {{count}} stage follow-ups.",
     "title": "Sales CRM",
     "subtitle": "Opportunities connected to your customers and inbox",
     "refresh": "Refresh",
@@ -4142,6 +4148,32 @@
       "negotiation": "Negotiation",
       "won": "Won",
       "lost": "Lost"
-    }
+    },
+    "activities": "Activities",
+    "newActivity": "Log an activity",
+    "activityKind": "Activity type",
+    "activityTitle": "Activity title",
+    "activityDue": "Activity time (Cairo)",
+    "addActivity": "Add activity",
+    "activityCreated": "Activity added to staff tasks.",
+    "manageActivities": "Manage activities in staff tasks",
+    "activityKinds": {
+      "task": "Task",
+      "call": "Call",
+      "meeting": "Meeting"
+    },
+    "activityStatuses": {
+      "pending": "Pending",
+      "in_progress": "In progress",
+      "completed": "Completed",
+      "cancelled": "Cancelled",
+      "overdue": "Overdue",
+      "rejected": "Rejected",
+      "manager_review": "Manager review",
+      "reassigned": "Reassigned"
+    },
+    "followupsNone": "No eligible active follow-up matches this stage and channel.",
+    "ruleEnabled": "Rule enabled",
+    "stageReplyHint": "Any reply after enrollment stops a stage follow-up, including before its first message."
   }
 }
