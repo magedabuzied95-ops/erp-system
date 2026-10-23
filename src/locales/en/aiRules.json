@@ -1,0 +1,20 @@
+{
+  "title": "AI rules",
+  "hint": "How the AI answers this store's customers on WhatsApp, Messenger and Instagram.",
+  "loadError": "The rules could not be loaded, so they are locked to avoid saving over them. Reload the page.",
+  "intro": "Line above product cards",
+  "introHint": "Customers see this text above the product cards.",
+  "introRequired": "Write the line shown above the cards before saving.",
+  "ai_rules_grade_question": {
+    "label": "Ask for the grade first",
+    "hint": "When a model comes in more than one grade, the customer picks the grade before any cards."
+  },
+  "ai_rules_booking_question": {
+    "label": "Booking question under cards",
+    "hint": "Customers see «تحب أحجزهولك؟» (shall I reserve it?) under the product cards."
+  },
+  "ai_rules_product_link": {
+    "label": "Product link under cards",
+    "hint": "Customers see «شوفه من هنا» and the product link with the cards."
+  }
+}

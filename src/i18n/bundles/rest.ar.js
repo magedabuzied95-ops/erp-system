@@ -3,6 +3,7 @@
 // of a request per JSON file. Regenerate after adding a locale file.
 import access from "../../locales/ar/access.json";
 import accounting from "../../locales/ar/accounting.json";
+import aiRules from "../../locales/ar/aiRules.json";
 import aiStudio from "../../locales/ar/aiStudio.json";
 import aiSupport from "../../locales/ar/aiSupport.json";
 import amazon from "../../locales/ar/amazon.json";
@@ -49,6 +50,7 @@ import warehouses from "../../locales/ar/warehouses.json";
 export default {
   "access": access,
   "accounting": accounting,
+  "aiRules": aiRules,
   "aiStudio": aiStudio,
   "aiSupport": aiSupport,
   "amazon": amazon,

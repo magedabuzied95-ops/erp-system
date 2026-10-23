@@ -1,54 +1,84 @@
-import { useEffect, useState } from "react";
+// «قواعد الـ AI»: how the AI answers this store's customers on WhatsApp, Messenger and Instagram.
+//
+// The section has no save button of its own: the page it sits on saves the rules together with its
+// other settings, so the owner meets one «حفظ» (two buttons side by side read as two different
+// saves — owner, 2026-10-23). `useAiReplyRules` loads them and hands the page `save` / `dirty`.
+
+import { useCallback, useEffect, useState } from "react";
 import { useTranslation } from "react-i18next";
+import { ListChecks } from "lucide-react";
+
 import { api } from "../../../shared/api/api";
 import { AI_REPLY_RULE_DEFAULTS } from "../../../../shared/aiReplyRules.js";
+import { PanelSection } from "./integrations/integrationsUi.jsx";
+import { Field, TextArea, Toggle } from "./controlCenter/controlCenterUi.jsx";
 
-const labels = {
-  ai_rules_grade_question: ["السؤال عن درجة المنتج", "لو الموديل له أكتر من درجة، العميل يختار الدرجة قبل عرض الكروت."],
-  ai_rules_booking_question: ["سؤال الحجز تحت الكروت", "العميل يشوف «تحب أحجزهولك؟» تحت كروت المنتجات."],
-  ai_rules_product_link: ["رابط المنتج تحت الكروت", "العميل يشوف «شوفه من هنا» ورابط المنتج مع الكروت."],
-};
+const SWITCHES = ["ai_rules_grade_question", "ai_rules_booking_question", "ai_rules_product_link"];
 
-export default function AiReplyRules({ headers, tenantId }) {
-  const { t } = useTranslation("translation");
+export function useAiReplyRules({ headers, tenantId }) {
   const [rules, setRules] = useState(AI_REPLY_RULE_DEFAULTS);
   const [loading, setLoading] = useState(true);
-  const [saving, setSaving] = useState(false);
-  const [status, setStatus] = useState("");
+  const [loadFailed, setLoadFailed] = useState(false);
+  const [dirty, setDirty] = useState(false);
+
   useEffect(() => {
     let active = true;
     setLoading(true);
-    setStatus("");
-    api.get(`/ai-agent/settings/rules?tenant_id=${encodeURIComponent(tenantId)}`, { headers }).then((result) => {
-      if (active) setRules(result.rules);
-    }).catch(() => { if (active) setStatus("loadError"); }).finally(() => { if (active) setLoading(false); });
+    setLoadFailed(false);
+    api.get("/ai-agent/settings/rules", { params: { tenant_id: tenantId }, headers })
+      .then((result) => { if (active) { setRules({ ...AI_REPLY_RULE_DEFAULTS, ...(result?.rules || {}) }); setDirty(false); } })
+      .catch(() => { if (active) setLoadFailed(true); })
+      .finally(() => { if (active) setLoading(false); });
     return () => { active = false; };
   }, [headers, tenantId]);
-  const save = async () => {
-    setSaving(true);
-    setStatus("");
-    try {
-      const result = await api.put("/ai-agent/settings/rules", { tenant_id: tenantId, rules }, { headers });
-      setRules(result.rules);
-      setStatus("saved");
-    } catch { setStatus("saveError"); }
-    finally { setSaving(false); }
-  };
-  const statusText = { saved: "تم حفظ القواعد لهذا المتجر", loadError: "تعذر تحميل القواعد. أعد تحميل الصفحة.", saveError: "تعذر حفظ القواعد. حاول مرة أخرى." };
-  return <section className="min-w-0 rounded-2xl border border-white/10 bg-white/[0.055] p-4" aria-labelledby="ai-rules-title">
-    <h2 id="ai-rules-title" className="text-lg font-black text-white">{t("aiRules.title", { defaultValue: "قواعد الـ AI" })}</h2>
-    <p className="mt-1 text-sm leading-6 text-slate-400">{t("aiRules.hint", { defaultValue: "طريقة رد الذكاء على عملاء هذا المتجر في واتساب وماسنجر وإنستجرام." })}</p>
-    <fieldset disabled={loading || saving || status === "loadError"} className="mt-4 min-w-0 space-y-3 disabled:opacity-60">
-      {Object.entries(labels).map(([key, [label, hint]]) => <label key={key} className="flex min-h-16 items-center justify-between gap-3 rounded-xl border border-white/10 p-3">
-        <span className="min-w-0"><span className="block text-sm font-bold text-white">{t(`aiRules.${key}.label`, { defaultValue: label })}</span><span className="mt-1 block text-xs leading-6 text-slate-400">{t(`aiRules.${key}.hint`, { defaultValue: hint })}</span></span>
-        <input type="checkbox" role="switch" checked={rules[key]} onChange={(event) => setRules({ ...rules, [key]: event.target.checked })} className="h-5 w-5 shrink-0 accent-emerald-400" />
-      </label>)}
-      <label className="block text-sm font-bold text-white">{t("aiRules.intro", { defaultValue: "السطر فوق كروت المنتجات" })}
-        <span className="my-2 block text-xs font-normal leading-6 text-slate-400">{t("aiRules.introHint", { defaultValue: "العميل يشوف النص ده فوق كروت المنتجات المتاحة." })}</span>
-        <textarea maxLength={300} value={rules.ai_rules_cards_intro} onChange={(event) => setRules({ ...rules, ai_rules_cards_intro: event.target.value })} className="w-full min-w-0 rounded-xl border border-white/10 bg-slate-950/60 p-3 text-white" rows={2} />
-      </label>
-      <button type="button" disabled={!rules.ai_rules_cards_intro.trim()} onClick={save} className="min-h-11 rounded-xl bg-primary px-4 font-bold text-white disabled:opacity-50">{t("aiRules.save", { defaultValue: saving ? "جاري الحفظ…" : "حفظ قواعد الـ AI" })}</button>
-    </fieldset>
-    {status && <p role="status" className="mt-3 text-sm text-slate-200">{t(`aiRules.${status}`, { defaultValue: statusText[status] })}</p>}
-  </section>;
+
+  const setRule = useCallback((key, value) => {
+    setRules((current) => ({ ...current, [key]: value }));
+    setDirty(true);
+  }, []);
+
+  // Nothing to send when nothing changed, and never the defaults over rules that failed to load.
+  const save = useCallback(async () => {
+    if (!dirty || loadFailed) return;
+    const result = await api.put("/ai-agent/settings/rules", { tenant_id: tenantId, rules }, { headers });
+    setRules({ ...AI_REPLY_RULE_DEFAULTS, ...(result?.rules || rules) });
+    setDirty(false);
+  }, [dirty, headers, loadFailed, rules, tenantId]);
+
+  const introMissing = !String(rules.ai_rules_cards_intro || "").trim();
+  return { rules, setRule, save, dirty, loading, loadFailed, introMissing };
+}
+
+export default function AiReplyRules({ state }) {
+  const { t } = useTranslation();
+  const { rules, setRule, loading, loadFailed, introMissing } = state;
+  const locked = loading || loadFailed;
+  return (
+    <PanelSection icon={ListChecks} title={t("aiRules.title")} subtitle={t("aiRules.hint")}>
+      {loadFailed ? <p role="alert" className="mb-3 text-xs font-bold text-rose-200">{t("aiRules.loadError")}</p> : null}
+      <div className="grid gap-3">
+        {SWITCHES.map((key) => (
+          <Toggle
+            key={key}
+            label={t(`aiRules.${key}.label`)}
+            hint={t(`aiRules.${key}.hint`)}
+            checked={Boolean(rules[key])}
+            disabled={locked}
+            onChange={(value) => setRule(key, value)}
+          />
+        ))}
+        <Field label={t("aiRules.intro")} hint={introMissing ? t("aiRules.introRequired") : t("aiRules.introHint")}>
+          <TextArea
+            dir="auto"
+            rows={2}
+            maxLength={300}
+            disabled={locked}
+            value={rules.ai_rules_cards_intro}
+            onChange={(event) => setRule("ai_rules_cards_intro", event.target.value)}
+            className="min-h-0"
+          />
+        </Field>
+      </div>
+    </PanelSection>
+  );
 }

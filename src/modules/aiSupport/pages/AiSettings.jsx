@@ -6,7 +6,7 @@ import { api } from "../../../shared/api/api";
 import { getCurrentTenant, getCurrentUser } from "../../../shared/auth/authStorage";
 import { useTenant } from "../../saas/context/TenantContext";
 import "../../../theme/ai-surface.css";
-import AiReplyRules from "../components/AiReplyRules";
+import AiReplyRules, { useAiReplyRules } from "../components/AiReplyRules";
 
 const defaultSettings = {
   autoReplyMode: "suggest_only",
@@ -89,6 +89,7 @@ export default function AiSettings() {
   const tenantApi = useTenant();
   const tenantId = useMemo(() => tenantIdFrom(tenantApi), [tenantApi]);
   const headers = useMemo(() => ({ "x-tenant-id": tenantId }), [tenantId]);
+  const replyRules = useAiReplyRules({ headers, tenantId });
   const [settings, setSettings] = useState(defaultSettings);
   const [loading, setLoading] = useState(false);
   const [saving, setSaving] = useState(false);
@@ -127,10 +128,16 @@ export default function AiSettings() {
   }));
 
   const saveSettings = async () => {
+    if (replyRules.introMissing) {
+      setError(t("aiRules.introRequired"));
+      return;
+    }
     setSaving(true);
     setToast("");
     setError("");
     try {
+      // The reply rules are saved by this page's one «حفظ», with the rest of its settings.
+      await replyRules.save();
       const payload = await api.updateAISettings({ tenant_id: tenantId, settings: Object.fromEntries(Object.entries(settings).filter(([key]) => !key.startsWith("ai_rules_"))) }, { headers });
       setSettings(mergeSettings(payload.settings));
       setToast("AI settings saved.");
@@ -187,7 +194,7 @@ export default function AiSettings() {
           {error ? <div className="mt-4 rounded-xl border border-rose-300/20 bg-rose-400/10 p-3 text-sm font-bold text-rose-100">{error}</div> : null}
         </section>
 
-        <AiReplyRules headers={headers} tenantId={tenantId} />
+        <AiReplyRules state={replyRules} />
         <Section icon={SlidersHorizontal} title={t("aiSupport.aiSettings.mode.title")} subtitle={t("aiSupport.aiSettings.mode.subtitle")}>
           <div className="grid gap-3 md:grid-cols-3">
             <OptionCard active={settings.autoReplyMode === "off"} title={t("aiSupport.aiSettings.mode.off")} description={t("aiSupport.aiSettings.mode.offDesc")} onClick={() => patch({ autoReplyMode: "off" })} />

@@ -234,7 +234,11 @@ export default function InboxControlCenter({
   // A restricted reader (the Meta review account) passes the only sections it may open.
   allowedSections = null,
 }) {
-  const { t } = useTranslation();
+  const { t, i18n } = useTranslation();
+  // The inbox shell is pinned LTR (the Genie layout), and these pages inherited it: in Arabic the
+  // title sat on the left and every row read mirrored (owner, 2026-10-23). The pages take the
+  // language's own direction back — Arabic right-to-left, English left-to-right.
+  const pageDir = i18n.dir(i18n.resolvedLanguage || i18n.language);
   const permitted = useMemo(
     () => (Array.isArray(allowedSections) ? CONTROL_CENTER_SECTIONS.filter((key) => allowedSections.includes(key)) : CONTROL_CENTER_SECTIONS),
     [allowedSections]
@@ -328,7 +332,7 @@ export default function InboxControlCenter({
 
   if (variant === "page") {
     return (
-      <section className="ai-inbox-section-page flex min-h-0 flex-1 flex-col overflow-hidden rounded-[18px] border border-white/10 bg-[#0b1120] text-white">
+      <section dir={pageDir} className="ai-inbox-section-page flex min-h-0 flex-1 flex-col overflow-hidden rounded-[18px] border border-white/10 bg-[#0b1120] text-white">
         <header className="flex items-center justify-between gap-3 border-b border-white/10 bg-white/[0.03] px-4 py-2.5">
           <div className="flex min-w-0 items-center gap-2.5">
             {(() => { const Icon = SECTION_ICON[section] || LayoutGrid; return <Icon className="h-4 w-4 text-cyan-200" aria-hidden="true" />; })()}
@@ -353,7 +357,7 @@ export default function InboxControlCenter({
       className="fixed inset-0 z-[260] flex items-end justify-center bg-[#050810]/75 p-2 backdrop-blur-sm md:items-center md:p-4"
       onMouseDown={(event) => event.target === event.currentTarget && onClose?.()}
     >
-      <section className="flex h-[94dvh] w-full max-w-6xl flex-col overflow-hidden rounded-[26px] border border-white/10 bg-[#0b1120] text-white shadow-[0_30px_100px_rgba(0,0,0,0.55)]">
+      <section dir={pageDir} className="flex h-[94dvh] w-full max-w-6xl flex-col overflow-hidden rounded-[26px] border border-white/10 bg-[#0b1120] text-white shadow-[0_30px_100px_rgba(0,0,0,0.55)]">
         <header className="flex items-center justify-between gap-3 border-b border-white/10 bg-white/[0.03] px-4 py-3.5">
           <div className="flex min-w-0 items-center gap-3">
             <span className="grid h-11 w-11 shrink-0 place-items-center rounded-2xl border border-cyan-300/20 bg-cyan-400/10 text-cyan-200">

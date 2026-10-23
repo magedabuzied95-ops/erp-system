@@ -9,7 +9,7 @@ import { useCallback, useEffect, useMemo, useState } from "react";
 import { useTranslation } from "react-i18next";
 import { AlertTriangle, ClipboardList, MessageSquareText, RefreshCw, Settings2, Sparkles } from "lucide-react";
 
-import AiReplyRules from "../AiReplyRules.jsx";
+import AiReplyRules, { useAiReplyRules } from "../AiReplyRules.jsx";
 import { api } from "../../../../shared/api/api";
 import { PanelSection, PanelSkeleton } from "../integrations/integrationsUi.jsx";
 import { Field, SaveBar, SelectInput, TextArea, TextInput, Toggle } from "./controlCenterUi.jsx";
@@ -61,6 +61,7 @@ export default function AgentBehaviourPanel({ headers, tenantId }) {
   const [dirty, setDirty] = useState(false);
   const [message, setMessage] = useState("");
   const [error, setError] = useState("");
+  const replyRules = useAiReplyRules({ headers, tenantId });
 
   const patch = useCallback((updates) => {
     setSettings((current) => ({ ...current, ...updates }));
@@ -105,10 +106,16 @@ export default function AgentBehaviourPanel({ headers, tenantId }) {
   }, [load]);
 
   const save = useCallback(async () => {
+    if (replyRules.introMissing) {
+      setError(t("aiRules.introRequired"));
+      return;
+    }
     setSaving(true);
     setError("");
     setMessage("");
     try {
+      // The reply rules ride the same «حفظ»: one button for the whole panel.
+      await replyRules.save();
       const next = {
         ...Object.fromEntries(Object.entries(settings).filter(([key]) => !key.startsWith("ai_rules_"))),
         forbidden_phrases: linesToArray(draft.forbidden_phrases),
@@ -125,7 +132,7 @@ export default function AgentBehaviourPanel({ headers, tenantId }) {
     } finally {
       setSaving(false);
     }
-  }, [draft, headers, settings, t, tenantId]);
+  }, [draft, headers, replyRules, settings, t, tenantId]);
 
   const snapshot = useMemo(() => ({
     discounts: settings.allow_discount_promises
@@ -146,7 +153,7 @@ export default function AgentBehaviourPanel({ headers, tenantId }) {
 
   return (
     <div className="space-y-4">
-      <AiReplyRules headers={headers} tenantId={tenantId} />
+      <AiReplyRules state={replyRules} />
       <PanelSection icon={MessageSquareText} title={t("aiSupport.agentSettings.tone.title")}>
         <div className="grid gap-4">
           <Field label={t("aiSupport.agentSettings.tone.agentName")}>
@@ -270,7 +277,7 @@ export default function AgentBehaviourPanel({ headers, tenantId }) {
       <SaveBar
         onSave={save}
         saving={saving}
-        dirty={dirty}
+        dirty={dirty || replyRules.dirty}
         message={message}
         error={error}
         saveLabel={saving ? t("aiSupport.controlCenter.saving") : t("aiSupport.controlCenter.save")}
