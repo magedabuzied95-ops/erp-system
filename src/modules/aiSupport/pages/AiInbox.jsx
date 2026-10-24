@@ -172,6 +172,7 @@ import { AI_INBOX_DEFAULT_LABELS, aiInboxLabelsFromConversation, customAiInboxLa
 import { toast } from "react-hot-toast";
 import { prefetchSocialWorkspace, readSocialWorkspaceCache, socialWorkspaceCacheKey, primeSocialWorkspaceCache } from "../services/socialWorkspaceProgressiveLoad.js";
 import inboxCache from "../services/inboxCache/inboxCache";
+import { takePrefetchedInboxPage } from "../services/inboxPrefetch.js";
 import { loadCustomerProductCatalogWarm } from "../services/customerProductCatalog";
 import { WEAK_CONVERSATION_CHANNELS, backendChannelFilter, channelFromConversationSessionId, channelWindow, channelsForFilter, conversationAccountKey, mergeConversationPages } from "../services/inboxChannels";
 import { findDeepLinkedConversation, normalizeInboxDeepLinkChannel } from "../services/inboxDeepLink.js";
@@ -5124,7 +5125,21 @@ export default function AiInbox({ reviewerMode = false }) {
             params: { search: debouncedSearch || deepLinkConversationId, limit: channelWindow(backendChannel) },
             perfComponent: `AiInbox.reviewerConversations.${metaReviewerChannel(backendChannel)}`,
           }).then((payload) => asArray(payload?.conversations).map((row) => normalizeMetaReviewerConversation(row, backendChannel)))
-        : api.get("/ai-inbox/conversations", {
+        : ((!silent && !forceRefresh && listCacheEnabled && filter === "all" && !debouncedSearch && !deepLinkConversationId
+          ? takePrefetchedInboxPage(backendChannel) : null)?.catch(() => null).then((payload) => payload
+            ? readChannelPage(payload, backendChannel) : fetchLiveChannelPage(backendChannel)) || fetchLiveChannelPage(backendChannel))
+      ).then((rows) => {
+        if (!silent && seq === requestSeqRef.current && rows.length) {
+          setInbox((current) => asArray(current.conversations).length ? current : {
+            conversations: mergeConversationPages([rows], conversationKey),
+            followups: asArray(current.followups),
+          });
+          setLoading(false);
+        }
+        return rows;
+      });
+      function fetchLiveChannelPage(backendChannel) {
+        return api.get("/ai-inbox/conversations", {
         params: {
           tenant_id: tenantId,
           filter,
@@ -5144,24 +5159,14 @@ export default function AiInbox({ reviewerMode = false }) {
         },
         headers,
         perfComponent: `AiInbox.conversations.${backendChannel}`,
-      }).then((payload) => {
+      }).then((payload) => readChannelPage(payload, backendChannel));
+      }
+      function readChannelPage(payload, backendChannel) {
         // Remember where this channel's page ended so the list can continue past
         // it. Without this the window IS the inbox — see AI_INBOX_CHANNEL_WINDOW.
         setListCursors((current) => ({ ...current, [backendChannel]: payload?.has_more ? payload?.next_cursor || null : null }));
         return asArray(payload?.conversations);
-      })).then((rows) => {
-        // A cold open can display the first non-empty channel immediately.
-        // Keep an existing list/thread intact until the complete reconciliation
-        // below, which also handles failures, filters and loaded messages.
-        if (!silent && seq === requestSeqRef.current && rows.length) {
-          setInbox((current) => asArray(current.conversations).length ? current : {
-            conversations: mergeConversationPages([rows], conversationKey),
-            followups: asArray(current.followups),
-          });
-          setLoading(false);
-        }
-        return rows;
-      });
+      }
 
       const requestedChannels = warmChannels;
       const settled = await Promise.allSettled(requestedChannels.map(fetchChannelPage));

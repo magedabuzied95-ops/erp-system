@@ -12,6 +12,7 @@ import NotificationSoundProvider from "../../components/feedback/NotificationSou
 import AnimatedBadgeCounter from "../../components/feedback/AnimatedBadgeCounter";
 import SidebarPulseIndicator from "../../components/feedback/SidebarPulseIndicator";
 import usePageTitle from "../hooks/usePageTitle";
+import useInboxPrefetch from "../hooks/useInboxPrefetch";
 import useDismissableLayer from "../hooks/useDismissableLayer";
 import LanguageSwitcher from "../components/LanguageSwitcher";
 import { NotificationBoundary, NotificationsProvider, useNotifications } from "../notifications/index.js";
@@ -674,6 +675,11 @@ function MainLayout() {
   const sideChatOpen = Boolean(sideChat.open);
   // The bell belongs to whoever can open the inbox at all.
   const canSeeInbox = reviewerShell || paletteItems.some((item) => item.to === "/admin/ai-inbox");
+  useInboxPrefetch({
+    enabled: canSeeInbox && !reviewerShell,
+    pathname: location.pathname,
+    identityKey: `${user?.id || ''}:${currentTenant?.id || currentTenant?.tenant_id || user?.tenant_id || user?.tenantId || ''}`,
+  });
   const posLabel = t("sidebar.quickAccess.pos");
   const productsLabel = t("sidebar.quickAccess.products");
   const purchasesLabel = t("sidebar.quickAccess.purchases");

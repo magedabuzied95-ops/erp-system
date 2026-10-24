@@ -40,6 +40,13 @@ test("namespace resolves from authenticated identity (tenant + user)", () => {
   assert.ok(cache.resolveNamespace().length > 0);
 });
 
+test('switching the active tenant changes the cache namespace even when the user has a home tenant', () => {
+  globalThis.localStorage = makeLocalStorage({ user: JSON.stringify({ id: 'u1', tenant_id: 'home' }) });
+  const home = cache.resolveNamespace();
+  localStorage.setItem('erp.saas.currentTenant', JSON.stringify({ id: 'other' }));
+  assert.notEqual(cache.resolveNamespace(), home);
+});
+
 test("no cache namespace without a user id (never caches ambiguously)", () => {
   globalThis.localStorage = makeLocalStorage({ user: JSON.stringify({ tenant_id: "t1" }) }); // no id
   assert.equal(cache.resolveNamespace(), "");

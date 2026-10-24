@@ -41,7 +41,7 @@ export const resolveNamespace = () => {
   try {
     const user = getCurrentUser() || {};
     const tenant = getCurrentTenant() || {};
-    const tenantId = user.tenant_id || user.tenantId || tenant.id || tenant.tenant_id || "";
+    const tenantId = tenant.id || tenant.tenant_id || user.tenant_id || user.tenantId || "";
     const userId = user.id || user.user_id || user.uid || user.userId || "";
     return store.buildNamespace({ tenantId, userId });
   } catch {
