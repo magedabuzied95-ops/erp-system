@@ -4,12 +4,14 @@ export const createInboxPrefetch = ({ channels, fetchPage, savePage, isCurrent, 
   let startedAt = -Infinity;
   let controller = null;
   const pages = new Map();
+  const snapshots = new Map();
   const clear = () => {
     controller?.abort();
     controller = null;
     active = '';
     startedAt = -Infinity;
     pages.clear();
+    snapshots.clear();
   };
   const start = (identity) => {
     if (!identity || !isCurrent(identity)) return Promise.resolve();
@@ -29,6 +31,7 @@ export const createInboxPrefetch = ({ channels, fetchPage, savePage, isCurrent, 
           if (!valid()) throw new Error('Inbox identity changed');
           entry.at = now();
           entry.payload = payload;
+          snapshots.set(channel, { at: entry.at, payload });
           savePage(channel, payload);
           return payload;
         }).catch((error) => {
@@ -51,7 +54,7 @@ export const createInboxPrefetch = ({ channels, fetchPage, savePage, isCurrent, 
   };
   const peek = (identity, channel) => {
     if (identity !== active || !isCurrent(identity)) return null;
-    const entry = pages.get(channel);
+    const entry = snapshots.get(channel);
     return entry && now() - entry.at < ttlMs ? entry.payload || null : null;
   };
   return { start, take, peek, clear };

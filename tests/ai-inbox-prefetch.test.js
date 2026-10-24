@@ -39,7 +39,8 @@ test('a completed preload is available synchronously for the first React render'
   assert.equal(cache.peek('one', 'preview'), payload);
   assert.equal(cache.peek('one', 'preview').conversations.length, 30);
   assert.equal(await cache.take('one', 'preview'), payload);
-  assert.equal(cache.peek('one', 'preview'), null);
+  assert.equal(cache.peek('one', 'preview'), payload, 'return navigation still paints synchronously while live refresh revalidates');
+  assert.equal(cache.take('one', 'preview'), null, 'the network handoff remains one-use');
   current = false;
   assert.equal(cache.peek('one', 'preview'), null);
 });
