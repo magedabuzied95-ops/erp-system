@@ -1,5 +1,11 @@
 // Relays a consignee lookup from the ERP page (or the popup) to the Bosta
-// dashboard tab, opening one in the background if none is open.
+// dashboard, opening a Bosta tab in the background if none is open.
+//
+// Instead of a declarative content script + tab messaging (which is flaky when
+// Chrome discards background tabs), the lookup is injected fresh into the Bosta
+// tab with chrome.scripting on each request. The injected function reads the
+// dashboard's own session token from that tab's localStorage and calls Bosta's
+// API — the token never leaves that tab; only the counts are returned.
 
 const BOSTA_TAB_GLOB = "https://business.bosta.co/*";
 const BOSTA_OPEN_URL = "https://business.bosta.co/overview";
@@ -23,40 +29,97 @@ function waitForComplete(tabId, timeoutMs = 20000) {
 
 async function getBostaTab() {
   const open = await chrome.tabs.query({ url: BOSTA_TAB_GLOB });
-  if (open.length) return { tab: open[0], opened: false };
+  // Prefer a fully loaded tab if there is one.
+  const ready = open.find((t) => t.status === "complete");
+  if (ready) return ready;
+  if (open.length) {
+    await waitForComplete(open[0].id);
+    return open[0];
+  }
   const tab = await chrome.tabs.create({ url: BOSTA_OPEN_URL, active: false });
   await waitForComplete(tab.id);
-  // The SPA + content script need a breath after "complete".
-  await new Promise((r) => setTimeout(r, 1800));
-  return { tab, opened: true };
+  await new Promise((r) => setTimeout(r, 1200));
+  return tab;
+}
+
+// Runs INSIDE the Bosta tab (isolated world: shares localStorage, and the
+// extension's host permissions let it call app.bosta.co).
+async function fetchConsigneeInBostaTab(phoneInput) {
+  function readToken() {
+    try {
+      const u = JSON.parse(localStorage.getItem("userInfo") || "null");
+      if (u && u.token) return u.token;
+    } catch (e) { /* ignore */ }
+    return localStorage.getItem("newToken");
+  }
+  function toE164(p) {
+    const d = String(p || "").replace(/\D/g, "");
+    if (!d) return "";
+    if (d.startsWith("20")) return "+" + d;
+    if (d.startsWith("0")) return "+20" + d.slice(1);
+    if (d.startsWith("1") && d.length === 10) return "+20" + d;
+    return "+" + d;
+  }
+  const token = readToken();
+  if (!token) return { ok: false, error: "NO_BOSTA_LOGIN" };
+  const phone = toE164(phoneInput);
+  const base = "https://app.bosta.co/api/v2";
+  const headers = { Authorization: token, Accept: "application/json" };
+  const rankRes = await fetch(
+    `${base}/consignee/ranking?phone=${encodeURIComponent(phone)}&includeRejectedDeliveries=true`,
+    { headers }
+  );
+  if (rankRes.status === 401 || rankRes.status === 403) return { ok: false, error: "BOSTA_UNAUTHORIZED" };
+  const rankJson = await rankRes.json().catch(() => null);
+  if (!rankRes.ok || !rankJson || rankJson.success === false) return { ok: false, error: `BOSTA_HTTP_${rankRes.status}` };
+  let fullName = "";
+  try {
+    const relRes = await fetch(`${base}/consignee/relativeBusinessData`, {
+      method: "POST",
+      headers: { ...headers, "Content-Type": "application/json" },
+      body: JSON.stringify({ phone, isCompletePhoneNumber: true, countryCode: "EG" }),
+    });
+    const relJson = await relRes.json().catch(() => null);
+    fullName = (relJson && relJson.data && relJson.data[0] && relJson.data[0].fullName) || "";
+  } catch (e) { /* name optional */ }
+  const r = (rankJson.data && rankJson.data.consigneRanking) || {};
+  return {
+    ok: true,
+    data: {
+      phone,
+      full_name: fullName,
+      delivered: r.deliveredDeliveriesCount ?? null,
+      returned: r.returnedDeliveriesCount ?? null,
+      consecutive_returned: r.consecutiveReturnedDeliveriesCount ?? null,
+      success_rate: r.deliverySuccessRate ?? null,
+      high_unpaid_returns: r.hasHighUnpaidFlexshipReturns ?? null,
+      raw: rankJson.data ?? null,
+    },
+  };
 }
 
 async function askBosta(phone) {
-  const { tab, opened } = await getBostaTab();
+  const tab = await getBostaTab();
   if (!tab || !tab.id) return { ok: false, error: "NO_BOSTA_TAB" };
+  let results;
   try {
-    const res = await chrome.tabs.sendMessage(tab.id, { type: "BOSTA_RANKING", phone });
-    return res || { ok: false, error: "NO_RESPONSE" };
+    results = await chrome.scripting.executeScript({
+      target: { tabId: tab.id },
+      func: fetchConsigneeInBostaTab,
+      args: [phone],
+    });
   } catch (e) {
-    // Content script not injected yet (freshly opened tab). Retry once.
-    if (opened) {
-      await new Promise((r) => setTimeout(r, 1500));
-      try {
-        const res2 = await chrome.tabs.sendMessage(tab.id, { type: "BOSTA_RANKING", phone });
-        return res2 || { ok: false, error: "NO_RESPONSE" };
-      } catch (e2) {
-        return { ok: false, error: "BOSTA_TAB_NOT_READY" };
-      }
-    }
-    return { ok: false, error: "BOSTA_TAB_NOT_READY" };
+    return { ok: false, error: "BOSTA_INJECT_FAILED" };
   }
+  const out = results && results[0] && results[0].result;
+  return out || { ok: false, error: "NO_RESULT" };
 }
 
 chrome.runtime.onMessage.addListener((msg, _sender, sendResponse) => {
   if (!msg || msg.type !== "FETCH_BOSTA") return;
   if (!msg.phone) {
     sendResponse({ ok: false, error: "PHONE_REQUIRED" });
-    return; // sync response
+    return;
   }
   askBosta(msg.phone)
     .then(sendResponse)

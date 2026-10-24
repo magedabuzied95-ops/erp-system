@@ -17,26 +17,17 @@ ERP server.
 ## How it works
 
 ```
-ERP order page  --(window event: phone)-->  content-erp.js
-      ^                                            |
-      |                                   chrome.runtime message
-      |                                            v
-      |                                       background.js
-      |                                            |
-      |                            finds/opens a business.bosta.co tab
-      |                                            v
-      |                                      content-bosta.js
-      |                        (reads its own session token from that page,
-      |                         calls Bosta's consignee/ranking API)
-      |                                            |
-   content-erp.js  <----- record (counts only) ----+
-      |
-      +--> POST /api/shipping/bosta/consignee-history  (ERP page's own login)
-      +--> window event: result  -->  the card refreshes
+ERP order page --(event)--> content-erp.js --> background.js
+   -> finds/opens a business.bosta.co tab
+   -> chrome.scripting injects a reader into that tab
+      (reads its own session token, calls Bosta API; token stays in the tab)
+   -> record (counts only) comes back to content-erp.js
+   -> POST /api/shipping/bosta/consignee-history (ERP page login)
+   -> event: result --> the card refreshes
 ```
 
-- The **Bosta token stays inside the Bosta tab.** `content-bosta.js` reads it from
-  that origin's `localStorage` and uses it only to call Bosta's own API. Only the
+- The **Bosta token stays inside the Bosta tab.** the injected reader reads it from
+  that origin’s `localStorage` and uses it only to call Bosta's own API. Only the
   resulting counts travel onward.
 - The **ERP save** is authenticated with the ERP page's own login token, read on
   the ERP origin by `content-erp.js`.
