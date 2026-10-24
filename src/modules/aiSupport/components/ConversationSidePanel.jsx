@@ -12,6 +12,7 @@ import {
   Package,
   Pencil,
   Search,
+  Send,
   ShoppingBag,
   Sparkles,
   Star,
@@ -24,6 +25,7 @@ import { aiInboxConversationEndpoint } from "../lib/conversationHelpers";
 import { aiInboxLabelsFromConversation } from "../../../../shared/aiInboxConversationLabels.js";
 import { resolveChatMediaUrl } from "../../../shared/lib/imageUrls";
 import ConversationParticipants from "./ConversationParticipants.jsx";
+import OrderMessagesModal from "../../../shared/components/inboxCustomerOrders/OrderMessagesModal.jsx";
 
 /*
  * Genie's conversation side panel (opens from the customer's photo), shaped for
@@ -122,6 +124,8 @@ export default function ConversationSidePanel({
   onOpenOrders,
   onOpenLead,
   onOpenCustomer360,
+  // The order page's message picker (confirmation, invoice, shipping update, deposit card).
+  canSendOrderMessages = false,
   // Participants (ConversationParticipants): owner + added members.
   tenantId,
   canManageParticipants = false,
@@ -133,6 +137,7 @@ export default function ConversationSidePanel({
 }) {
   const { t, i18n } = useTranslation();
   const [tab, setTab] = useState("info");
+  const [orderMessagesOpen, setOrderMessagesOpen] = useState(false);
   const [mediaKind, setMediaKind] = useState("media");
   const [query, setQuery] = useState("");
   const [details, setDetails] = useState({});
@@ -204,6 +209,7 @@ export default function ConversationSidePanel({
     onSendProduct ? { key: "product", icon: Package, label: t("aiSupport.inbox.sidePanel.sendProduct"), run: onSendProduct } : null,
     onSendBySize ? { key: "size", icon: Footprints, label: t("aiSupport.inbox.sidePanel.sendBySize"), run: onSendBySize } : null,
     onOpenOrders ? { key: "orders", icon: FileText, label: t("aiSupport.inbox.sidePanel.orders"), run: onOpenOrders } : null,
+    canSendOrderMessages ? { key: "message", icon: Send, label: t("aiSupport.inbox.sidePanel.sendOrderMessage"), run: () => setOrderMessagesOpen(true) } : null,
     onOpenLead ? { key: "lead", icon: Sparkles, label: t("aiSupport.inbox.sidePanel.lead"), run: onOpenLead } : null,
     onOpenCustomer360 ? { key: "c360", icon: UserRound, label: t("aiSupport.inbox.sidePanel.customer360"), run: onOpenCustomer360 } : null,
   ].filter(Boolean);
@@ -356,6 +362,7 @@ export default function ConversationSidePanel({
           </>
         ) : null}
       </div>
+      <OrderMessagesModal open={orderMessagesOpen} conversation={conversation} onClose={() => setOrderMessagesOpen(false)} onNotice={onNotice} />
     </aside>
   );
   return inline ? panel : createPortal(panel, document.fullscreenElement || document.body);

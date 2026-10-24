@@ -13,10 +13,10 @@ import InboxExchangeSheet from "./InboxExchangeSheet";
 const text = (value = "") => String(value ?? "").trim();
 const money = (value) => formatCurrency(Number(value || 0));
 
-const conversationSessionId = (conversation = {}) =>
+export const conversationSessionId = (conversation = {}) =>
   text(conversation.session_id || conversation.external_conversation_id || conversation.conversation_key || conversation.id);
 
-const conversationPhone = (conversation = {}) =>
+export const conversationPhone = (conversation = {}) =>
   text(
     conversation.customer_phone ||
       conversation.phone ||

@@ -10850,6 +10850,7 @@ export default function AiInbox({ reviewerMode = false }) {
               onCreateOrder={canReply ? () => setOrderComposerOpen(true) : undefined}
               onSendProduct={canReply ? () => openProductCardPicker() : undefined}
               onSendBySize={canReply ? () => openProductCardPicker({ sizeMode: true, allowMultiple: true }) : undefined}
+              canSendOrderMessages={canReply}
               onOpenOrders={() => {
                 setCustomerDrawerTab("orders");
                 openCustomerDrawer(selectedConversation, { customerId: customer360Identifier(selectedConversation), source: "inbox_side_panel", platform: selectedConversation.channel || selectedConversation.source });

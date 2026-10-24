@@ -12,6 +12,7 @@ import {
   Handshake,
   MessageCircle,
   MessageSquareText,
+  Send,
   ShoppingBag,
   Sparkles,
   User,
@@ -23,6 +24,7 @@ import { api } from "../../../shared/api/api";
 import { resolveProductImageUrl } from "../../../shared/lib/imageUrls.js";
 import RestockRequestsPanel from "./RestockRequestsPanel.jsx";
 import InboxCustomerOrdersPanel from "../../../shared/components/inboxCustomerOrders/InboxCustomerOrdersPanel.jsx";
+import OrderMessagesModal from "../../../shared/components/inboxCustomerOrders/OrderMessagesModal.jsx";
 import CustomerAvatar from "./CustomerAvatar.jsx";
 import CustomerTagsEditor from "./CustomerTagsEditor.jsx";
 import WholesaleReminderCard from "../../wholesale/components/WholesaleReminderCard.jsx";
@@ -221,6 +223,7 @@ export default function Customer360Drawer({
   const { t } = useTranslation();
   const navigate = useNavigate();
   const [activeTab, setActiveTab] = useState(initialTab);
+  const [orderMessagesOpen, setOrderMessagesOpen] = useState(false);
   const [loading, setLoading] = useState(false);
   const [loadingTab, setLoadingTab] = useState("");
   const [profileData, setProfileData] = useState(() => fallbackCustomerProfile(customerProfile || customer || {}, { ...context, customerId }));
@@ -352,6 +355,9 @@ export default function Customer360Drawer({
     { labelKey: "createLead", Icon: Users2, action: () => openSystemPath(`/marketing/ai-center/leads${resolvedCustomerId ? `?customer_id=${encodeURIComponent(resolvedCustomerId)}` : ""}`) },
   ];
   const workflowActions = [
+    // The order page's message picker (confirmation, invoice, shipping update, deposit card),
+    // without leaving the conversation. Needs the conversation to find the customer's orders.
+    ...(conversation ? [{ labelKey: "sendOrderMessage", Icon: Send, action: () => setOrderMessagesOpen(true) }] : []),
     { labelKey: "createOrder", Icon: ShoppingBag, action: () => openSystemPath(`/create-order${resolvedCustomerId ? `?customer_id=${encodeURIComponent(resolvedCustomerId)}` : ""}`) },
     {
       labelKey: "assignAgent",
@@ -512,7 +518,7 @@ export default function Customer360Drawer({
                       key={labelKey}
                       type="button"
                       onClick={action}
-                      className={`inline-flex min-h-11 items-center justify-center gap-2 rounded-xl border border-[#E2E8F0] bg-white px-3 text-xs font-black text-slate-700 shadow-sm ${index === workflowActions.length - 1 ? "col-span-2" : ""}`}
+                      className={`inline-flex min-h-11 items-center justify-center gap-2 rounded-xl border border-[#E2E8F0] bg-white px-3 text-xs font-black text-slate-700 shadow-sm ${index === workflowActions.length - 1 && workflowActions.length % 2 === 1 ? "col-span-2" : ""}`}
                     >
                       <Icon className="h-4 w-4" />
                       {t(`aiSupport.inbox.customer360.${labelKey}`)}
@@ -716,6 +722,7 @@ export default function Customer360Drawer({
           </div>
         </div>
       </aside>
+      <OrderMessagesModal open={orderMessagesOpen} conversation={conversation} onClose={() => setOrderMessagesOpen(false)} onNotice={onOrderNotice} />
     </div>
   );
   return portalTarget && typeof document !== "undefined" ? createPortal(content, portalTarget) : content;
