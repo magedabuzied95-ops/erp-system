@@ -67,6 +67,7 @@ import { getManagerPortalEmployeePerformance } from "../services/managerPortalEm
 import { getManagerPortalInventoryCoverage } from "../services/managerPortalInventoryCoverageService.js";
 import { getLinkPreview } from "../services/linkPreviewService.js";
 import { getPortalOnlineOrder, listPortalOnlineOrders } from "../modules/shipping/shipping.portal.service.js";
+import { getBostaConsigneeHistory } from "../modules/shipping/bostaConsigneeHistory.js";
 import { runPortalBulkPrint, runPortalOrderAction } from "../modules/shipping/shipping.portal.actions.js";
 import { deletePortalOnlineOrder, editPortalOnlineOrder, searchPortalOrderItems } from "../modules/shipping/shipping.portal.manage.js";
 import { mountPortalPickupRoutes } from "../modules/shipping/shipping.portal.pickups.js";
@@ -366,6 +367,22 @@ router.get("/:token/online-orders/:orderId", async (req, res) => {
   } catch (error) {
     if (error.status !== 404) console.error("[manager-portal] online order error", error);
     return res.status(error.status || 500).json({ success: false, code: error.code, message: error.message || "Failed to load order" });
+  }
+});
+
+// Read-only Bosta consignee record (synced by the admin via the Chrome extension).
+router.get("/:token/bosta/consignee-history", async (req, res) => {
+  try {
+    res.set("Cache-Control", "no-store, private");
+    const manager = await loadVerifiedManager(req, res);
+    if (!manager) return;
+    const phone = String(req.query?.phone || "").trim();
+    if (!phone) return res.status(400).json({ success: false, code: "PHONE_REQUIRED", message: "A phone query parameter is required." });
+    const record = await getBostaConsigneeHistory({ tenantId: manager.tenant_id, phone });
+    return res.json({ success: true, data: record });
+  } catch (error) {
+    console.error("[manager-portal] consignee history error", error);
+    return res.status(error.status || 500).json({ success: false, code: error.code, message: error.message || "Failed to load the consignee record" });
   }
 });
 

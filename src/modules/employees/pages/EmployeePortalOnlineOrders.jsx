@@ -3,7 +3,7 @@ import { useNavigate, useParams } from "react-router-dom";
 import { useEmployeePortalArabic } from "../lib/employeePortalLanguage";
 import EmployeePortalNavControls, { buildEmployeePortalHomePath, canNavigateEmployeePortalBack } from "../components/EmployeePortalNavControls";
 import PortalOnlineOrdersBoard from "../../../shared/components/portalOnlineOrders/PortalOnlineOrdersBoard";
-import { employeePortalNewOrderApi, employeePortalPickupsApi, getEmployeePortalOnlineOrder, getEmployeePortalOnlineOrders, printEmployeePortalOnlineOrderLabels, runEmployeePortalOnlineOrderAction } from "../services/employeePortalOnlineOrdersApi";
+import { employeePortalNewOrderApi, employeePortalPickupsApi, getEmployeePortalConsigneeHistory, getEmployeePortalOnlineOrder, getEmployeePortalOnlineOrders, printEmployeePortalOnlineOrderLabels, runEmployeePortalOnlineOrderAction } from "../services/employeePortalOnlineOrdersApi";
 import usePageTitle from "../../../shared/hooks/usePageTitle";
 
 // أوردرات الشحن in the employee portal. Every employee sees it (owner decision,
@@ -63,6 +63,7 @@ export default function EmployeePortalOnlineOrders() {
           openConversation={openConversation}
           pickups={pickups}
           createOrder={createOrder}
+          consigneeHistory={(phone) => getEmployeePortalConsigneeHistory(token, phone)}
           title={t("orders.portalBoard.title")}
           headerClassName="rounded-[var(--radius-card)] border border-border bg-surface p-3 shadow-sm"
         />

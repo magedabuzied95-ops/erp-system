@@ -4850,6 +4850,7 @@ export default function ManagerPortal() {
                     pickups={onlineOrderPickups}
                     createOrder={newOnlineOrder}
                     openConversation={openOnlineOrderConversation}
+                    consigneeHistory={(phone) => managerPortalApi.consigneeHistory(token, phone)}
                     title={tt("orders.portalBoard.title")}
                     subtitle={tt("orders.portalBoard.subtitle")}
                     bulkBarOffset={isMobilePortal ? "calc(env(safe-area-inset-bottom) + 5.75rem)" : "1rem"}

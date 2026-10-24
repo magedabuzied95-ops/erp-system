@@ -37,7 +37,16 @@ function Stat({ value, label, tone = "" }) {
   );
 }
 
-export function BostaConsigneeHistoryCard({ phone }) {
+/*
+ * Props:
+ *  - phone: the customer's phone.
+ *  - fetchRecord: optional async (phone) => record|null. When given (the portals
+ *    pass a token-scoped fetcher), it replaces the admin `api.get` call.
+ *  - readOnly: hide the refresh button and all extension wiring. The portals use
+ *    this — their users have no Chrome extension and no Bosta login; they just
+ *    see whatever the admin synced from the main ERP.
+ */
+export function BostaConsigneeHistoryCard({ phone, fetchRecord = null, readOnly = false }) {
   const { t } = useTranslation();
   const normalizedPhone = String(phone || "").trim();
 
@@ -51,20 +60,26 @@ export function BostaConsigneeHistoryCard({ phone }) {
   const load = useCallback(async () => {
     if (!normalizedPhone) return;
     try {
-      const res = await api.get(`/shipping/bosta/consignee-history?phone=${encodeURIComponent(normalizedPhone)}`);
-      setRecord(res?.data || null);
+      if (fetchRecord) {
+        const rec = await fetchRecord(normalizedPhone);
+        setRecord(rec && rec.data !== undefined ? rec.data : rec || null);
+      } else {
+        const res = await api.get(`/shipping/bosta/consignee-history?phone=${encodeURIComponent(normalizedPhone)}`);
+        setRecord(res?.data || null);
+      }
     } catch {
       /* keep whatever we already showed */
     }
-  }, [normalizedPhone]);
+  }, [normalizedPhone, fetchRecord]);
 
   useEffect(() => {
     setRecord(null);
     load();
   }, [load]);
 
-  // Detect the extension: ping, wait for its "ready" reply.
+  // Detect the extension: ping, wait for its "ready" reply. (admin card only)
   useEffect(() => {
+    if (readOnly) return undefined;
     const onReady = () => {
       setExtReady(true);
       setExtChecked(true);
@@ -76,10 +91,11 @@ export function BostaConsigneeHistoryCard({ phone }) {
       window.removeEventListener("erp:bosta-extension-ready", onReady);
       clearTimeout(grace);
     };
-  }, []);
+  }, [readOnly]);
 
-  // Results from the extension (via content-erp.js).
+  // Results from the extension (via content-erp.js). (admin card only)
   useEffect(() => {
+    if (readOnly) return undefined;
     const onResult = (ev) => {
       if (!pendingRef.current) return;
       pendingRef.current = false;
@@ -96,7 +112,7 @@ export function BostaConsigneeHistoryCard({ phone }) {
     };
     window.addEventListener("erp:bosta-consignee-result", onResult);
     return () => window.removeEventListener("erp:bosta-consignee-result", onResult);
-  }, [t, load]);
+  }, [t, load, readOnly]);
 
   const refresh = useCallback(() => {
     if (!normalizedPhone || loading) return;
@@ -127,15 +143,17 @@ export function BostaConsigneeHistoryCard({ phone }) {
           <div className="text-sm font-black text-zinc-100">{t("orders.bostaConsignee.title")}</div>
           <div className="mt-0.5 text-[11px] text-zinc-400">{t("orders.bostaConsignee.hint")}</div>
         </div>
-        <button
-          type="button"
-          onClick={refresh}
-          disabled={loading}
-          className="inline-flex items-center gap-1.5 rounded-full border border-white/10 bg-white/5 px-3 py-1.5 text-xs font-black text-zinc-100 hover:bg-white/10 disabled:opacity-50"
-        >
-          {loading ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <RefreshCw className="h-3.5 w-3.5" />}
-          {loading ? t("orders.bostaConsignee.refreshing") : t("orders.bostaConsignee.refresh")}
-        </button>
+        {readOnly ? null : (
+          <button
+            type="button"
+            onClick={refresh}
+            disabled={loading}
+            className="inline-flex items-center gap-1.5 rounded-full border border-white/10 bg-white/5 px-3 py-1.5 text-xs font-black text-zinc-100 hover:bg-white/10 disabled:opacity-50"
+          >
+            {loading ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <RefreshCw className="h-3.5 w-3.5" />}
+            {loading ? t("orders.bostaConsignee.refreshing") : t("orders.bostaConsignee.refresh")}
+          </button>
+        )}
       </div>
 
       {record ? (
@@ -162,11 +180,11 @@ export function BostaConsigneeHistoryCard({ phone }) {
       ) : (
         <div className="mt-3 flex items-center gap-2 text-[11px] text-zinc-400">
           <PackageCheck className="h-4 w-4 opacity-60" />
-          <span>{t("orders.bostaConsignee.never")}</span>
+          <span>{t(readOnly ? "orders.bostaConsignee.neverReadonly" : "orders.bostaConsignee.never")}</span>
         </div>
       )}
 
-      {extChecked && !extReady ? (
+      {!readOnly && extChecked && !extReady ? (
         <div className="mt-3 flex items-start gap-2 rounded-[var(--radius-card)] border border-white/10 bg-white/5 px-3 py-2 text-[10px] text-zinc-400">
           <Undo2 className="mt-0.5 h-3.5 w-3.5 shrink-0 opacity-60" />
           <span>{t("orders.bostaConsignee.noExtension")}</span>

@@ -65,6 +65,7 @@ import {
 import { getSettingsByCategory } from "../services/settingsService.js";
 import { getSalesOpportunitiesForScope, loadEmployeeSalesBoard } from "../services/salesOpportunityService.js";
 import { getPortalOnlineOrder, listPortalOnlineOrders } from "../modules/shipping/shipping.portal.service.js";
+import { getBostaConsigneeHistory } from "../modules/shipping/bostaConsigneeHistory.js";
 import { PORTAL_SHIP_ACTIONS, runPortalBulkPrint, runPortalOrderAction } from "../modules/shipping/shipping.portal.actions.js";
 import { employeeCanActOnOnlineOrders } from "../modules/shipping/shipping.portal.access.js";
 import { mountPortalPickupRoutes } from "../modules/shipping/shipping.portal.pickups.js";
@@ -754,6 +755,22 @@ router.get("/:token/online-orders/:orderId", async (req, res) => {
   } catch (error) {
     if (error.status !== 404) console.error("[employee-portal] online order load error", error);
     return res.status(error.status || 500).json({ success: false, code: error.code, message: error.message || "Failed to load order" });
+  }
+});
+
+// Read-only Bosta consignee record (synced by the admin via the Chrome extension).
+router.get("/:token/bosta/consignee-history", async (req, res) => {
+  try {
+    res.set("Cache-Control", "no-store, private");
+    const employee = await loadVerifiedEmployee(req, res);
+    if (!employee) return;
+    const phone = String(req.query?.phone || "").trim();
+    if (!phone) return res.status(400).json({ success: false, code: "PHONE_REQUIRED", message: "A phone query parameter is required." });
+    const record = await getBostaConsigneeHistory({ tenantId: employee.tenant_id, phone });
+    return res.json({ success: true, data: record });
+  } catch (error) {
+    console.error("[employee-portal] consignee history error", error);
+    return res.status(error.status || 500).json({ success: false, code: error.code, message: error.message || "Failed to load the consignee record" });
   }
 });
 

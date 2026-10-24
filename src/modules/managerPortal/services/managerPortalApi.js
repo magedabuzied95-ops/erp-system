@@ -34,6 +34,8 @@ export const managerPortalApi = {
   operations: (token, params = {}, options = {}) => api.get(`${tokenPath(token)}/operations`, { ...options, params }),
   onlineOrders: (token, params = {}, options = {}) => api.get(`${tokenPath(token)}/online-orders`, { cache: "no-store", ...options, params }),
   onlineOrder: (token, orderId) => api.get(`${tokenPath(token)}/online-orders/${encodeURIComponent(orderId)}`, { cache: "no-store" }),
+  // Read-only Bosta consignee record for a customer phone (synced by the admin).
+  consigneeHistory: (token, phone) => api.get(`${tokenPath(token)}/bosta/consignee-history`, { cache: "no-store", params: { phone }, suppressErrorStatuses: [400, 404, 422] }),
   // { fields, items?, money? } — items is the whole new list of lines (see shipping.portal.manage.js).
   onlineOrderEdit: (token, orderId, { fields = {}, items, money } = {}) =>
     api.post(`${tokenPath(token)}/online-orders/${encodeURIComponent(orderId)}/edit`, { fields, ...(items ? { items } : {}), ...(money ? { money } : {}) }, { suppressErrorStatuses: [400, 403, 404, 409] }),

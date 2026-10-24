@@ -1737,6 +1737,7 @@
     "errNoLogin": "Not signed in to Bosta. Open business.bosta.co and sign in.",
     "errUnauthorized": "Bosta rejected the request. Sign in to the dashboard again.",
     "errSaveFailed": "We fetched the record but could not save it to the ERP.",
-    "errGeneric": "Could not fetch the record from Bosta."
+    "errGeneric": "Could not fetch the record from Bosta.",
+    "neverReadonly": "Not synced from Bosta yet."
   }
 }

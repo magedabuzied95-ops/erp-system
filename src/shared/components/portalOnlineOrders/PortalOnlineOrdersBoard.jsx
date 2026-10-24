@@ -38,6 +38,7 @@ import { buildStorefrontImageSrcSet } from "../../lib/storefrontImage";
 import { normalizeOrderLifecycleStatus, normalizeShippingLifecycleStatus } from "../../../../shared/orderStatus.js";
 import { bostaExceptionReason, bostaStateLabel } from "../../../../shared/bostaDeliveryInsights.js";
 import { getConfirmationState } from "../../../modules/orders/components/ConfirmationBadge";
+import { BostaConsigneeHistoryCard } from "../../../modules/orders/components/BostaConsigneeHistoryCard";
 import { PORTAL_ACTION_ERROR_CODES, pdfUrlFromBase64, portalOrderActionsFor, shippingFeeAdvanceState } from "./portalOrderActions";
 import { currentBuildId } from "../../lib/portalBuildUpdate";
 import { OrderDeleteSheet, OrderEditSheet, OrderManageMenu } from "./PortalOrderManage";
@@ -807,7 +808,7 @@ function OrderActionBar({ order, ui, state = {}, onAction, onCancelConfirm, canA
   );
 }
 
-function OrderDetailSheet({ selection, ui, onClose, onRetry, canAct = false, canShip = false, onAction, onCancelConfirm, onOpenChat = null }) {
+function OrderDetailSheet({ selection, ui, onClose, onRetry, canAct = false, canShip = false, onAction, onCancelConfirm, onOpenChat = null, consigneeHistory = null }) {
   const [imagePreview, setImagePreview] = useState("");
   const order = selection.order || {};
   useEffect(() => {
@@ -906,6 +907,10 @@ function OrderDetailSheet({ selection, ui, onClose, onRetry, canAct = false, can
               </div>
             </div>
           </Section>
+
+          {consigneeHistory && order.customer?.phone ? (
+            <BostaConsigneeHistoryCard phone={order.customer.phone} fetchRecord={consigneeHistory} readOnly />
+          ) : null}
 
           <Section
             icon={MapPin}
@@ -1109,6 +1114,10 @@ export default function PortalOnlineOrdersBoard({
   // whether this employee has messages access (permissions.can_open_inbox); without it,
   // or without a thread on the order, the واتساب button stays a wa.me link.
   openConversation = null,
+  // Read-only Bosta customer record: async (phone) => record|null, bound to the
+  // portal token. When given, the order detail sheet shows a "سجل العميل في بوسطة"
+  // card (delivered/returned/success across all merchants) that the admin synced.
+  consigneeHistory = null,
   // طلب بيك أب: { load, create, cancel } bound to the portal token. Shown to whoever may
   // book parcels (permissions.can_ship), like the desktop shipping center's button.
   pickups = null,
@@ -1741,6 +1750,7 @@ export default function PortalOnlineOrdersBoard({
           onAction={(action, input) => void handleAction(action, input)}
           onCancelConfirm={() => patchSelection(selection.id, { confirming: "" })}
           onOpenChat={onOpenChat}
+          consigneeHistory={consigneeHistory}
         />
       ) : null}
     </div>

@@ -25,6 +25,14 @@ export const getEmployeePortalOnlineOrder = (token, orderId) =>
     suppressErrorStatuses: [404, 422],
   });
 
+// Read-only Bosta consignee record for a customer phone (synced by the admin).
+export const getEmployeePortalConsigneeHistory = (token, phone) =>
+  api.get(`${tokenPath(token)}/bosta/consignee-history`, {
+    params: { phone },
+    cache: "no-store",
+    suppressErrorStatuses: [400, 404, 422],
+  });
+
 // "+" on أوردرات الشحن: search the catalogue, price the draft, write the order.
 export const employeePortalNewOrderApi = (token) => ({
   catalog: (query = "") => api.get(`${tokenPath(token)}/new-online-order/catalog`, { cache: "no-store", params: { q: query }, suppressErrorStatuses: [403, 404] }),
