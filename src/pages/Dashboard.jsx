@@ -26,8 +26,6 @@ import {
   Users,
   Warehouse,
   Globe,
-  Plus,
-  Store,
   TimerReset,
 } from "lucide-react";
 import {
@@ -234,13 +232,6 @@ const getDashboardCopy = (isArabic) => ({
   liveUpdate: isArabic ? "تحديث مباشر" : "Live update",
 });
 
-const getGreeting = (copy) => {
-  const hour = zonedParts(new Date()).hour;
-  if (hour < 12) return copy.greeting.morning;
-  if (hour < 18) return copy.greeting.afternoon;
-  return copy.greeting.evening;
-};
-
 const sparkPath = (values = [], width = 112, height = 34) => {
   const points = values.map((value) => Number(value || 0));
   if (!points.length) return "";
@@ -286,7 +277,6 @@ function Dashboard() {
   const [order, setOrder] = React.useState([]);
   const [sizes, setSizes] = React.useState({});
   const [branches, setBranches] = React.useState([]);
-  const [socketConnected, setSocketConnected] = React.useState(Boolean(socket?.connected));
   const [filters, setFilters] = React.useState({ range: "today", date_from: "", date_to: "", branch_id: "all" });
   const [focusMode, setFocusMode] = React.useState(() => localStorage.getItem("erp.dashboard.mode") === "focus");
   const [activeSection, setActiveSection] = React.useState("sales");
@@ -474,19 +464,13 @@ function Dashboard() {
       return () => window.clearTimeout(timer);
     }
 
-    const markConnected = () => setSocketConnected(true);
-    const markDisconnected = () => setSocketConnected(false);
     const updateOnlineUsers = (payload) => setOnlineUsers(Number(payload?.count || 0));
 
-    setSocketConnected(Boolean(socket.connected));
     socket.on("new_order", addActivity);
     socket.on("refresh_dashboard", scheduleRefresh);
     socket.on("dashboard:activity", addActivity);
     socket.on("dashboard:stock-alert", addActivity);
     socket.on("dashboard:online-users", updateOnlineUsers);
-    socket.on("connect", markConnected);
-    socket.on("disconnect", markDisconnected);
-    socket.on("connect_error", markDisconnected);
     return () => {
       window.clearTimeout(timer);
       socket.off("new_order", addActivity);
@@ -494,28 +478,15 @@ function Dashboard() {
       socket.off("dashboard:activity", addActivity);
       socket.off("dashboard:stock-alert", addActivity);
       socket.off("dashboard:online-users", updateOnlineUsers);
-      socket.off("connect", markConnected);
-      socket.off("disconnect", markDisconnected);
-      socket.off("connect_error", markDisconnected);
     };
   }, [copy.liveUpdate, loadDashboard]);
 
   const overview = data.overview || {};
   const openPosShifts = data.posLive?.openShifts || [];
   const hasPosActivity = openPosShifts.length > 0 || Number(data.posLive?.currentCartCounts || 0) > 0;
-  const socketStatus = hasSocketClient && socketConnected
-    ? { value: copy.connected, tone: "emerald", pulse: true }
-    : { value: copy.livePolling, tone: "slate", pulse: false };
   const posStatus = hasPosActivity
     ? { value: copy.active, tone: "emerald", pulse: true }
     : { value: copy.ready, tone: "slate", pulse: false };
-  const quickActions = [
-    { to: "/pos", icon: Store, label: "POS", primary: true },
-    { to: "/orders", icon: ReceiptText, label: copy.orders },
-    { to: "/products/add", icon: Plus, label: copy.product },
-    { to: "/products", icon: Boxes, label: copy.products },
-    { to: "/marketing/ai-center", icon: Brain, label: copy.aiCenter },
-  ];
   const latestAlert = React.useMemo(() => {
     const low = (data.lowStock || [])[0];
     if (low) return { tone: "amber", title: low.name || copy.lowStockProduct, detail: `${number(low.stock)} / ${number(low.threshold)} ${copy.remaining}` };
@@ -559,55 +530,40 @@ function Dashboard() {
 
   return (
     <div dir={isArabic ? "rtl" : "ltr"} className="dashboard-premium relative isolate min-h-screen w-full overflow-x-hidden rounded-[var(--radius-card)] px-0 pb-8 pt-0 text-text sm:px-5 sm:pt-3">
-      {/* Phone: the shell already gives the 12px gutter, so no second one here, and the command
-          bar scrolls away instead of pinning a third of the screen under the shell topbar. */}
-      <div className="dashboard-commandbar sticky top-0 z-20 mx-0 border-b border-border bg-surface px-3 py-3 backdrop-blur-xl max-md:static max-sm:rounded-[var(--radius-card)] max-sm:border sm:-mx-5 sm:px-5">
-        <div className="grid gap-3 xl:grid-cols-[minmax(240px,0.72fr)_minmax(0,1.8fr)] xl:items-center">
-          <div>
-            <div className="m1-page-eyebrow">{copy.executiveControlCenter}</div>
-            <h1 className="m1-page-title mt-1">
-              {getGreeting(copy)}, {user?.name || copy.admin}
-            </h1>
-            <div className="m1-page-meta">{tenant?.name || tenant?.companyName || copy.workspace}{lastUpdated ? ` · ${copy.updated} ${shortTime(lastUpdated)}` : ""}</div>
-          </div>
-          <div className="dashboard-toolbar flex flex-wrap items-center gap-2 text-xs font-bold text-text-muted xl:justify-end">
-            <div className="flex max-w-full flex-wrap items-center gap-1.5 rounded-[var(--radius-card)] border border-border bg-surface p-1 max-sm:w-full max-sm:flex-nowrap max-sm:justify-start max-sm:overflow-x-auto max-sm:[scrollbar-width:none] max-sm:[&>*]:shrink-0">
-              {quickActions.map((action) => (
-                <QuickAction key={action.to} {...action} />
-              ))}
-            </div>
-            {isCashier ? (
-              <span aria-label={copy.today} className="inline-flex h-[var(--control-height-md)] items-center rounded-[var(--radius-control)] border border-border bg-surface px-3 text-xs font-bold text-text">
-                {copy.today}
-              </span>
-            ) : (
-              <select value={filters.range} onChange={(event) => setFilters((current) => ({ ...current, range: event.target.value }))} className="h-[var(--control-height-md)] rounded-[var(--radius-control)] border border-border bg-surface px-3 text-xs font-bold text-text outline-none transition hover:border-border-strong max-sm:min-w-0 max-sm:flex-1">
-                <option value="today">{copy.today}</option>
-                <option value="yesterday">{copy.yesterday}</option>
-                <option value="7d">{copy.last7Days}</option>
-                <option value="month">{copy.thisMonth}</option>
-                <option value="custom">{copy.customRange}</option>
-              </select>
-            )}
-            {!isCashier && filters.range === "custom" ? (
-              <>
-                <input type="date" value={filters.date_from} onChange={(event) => setFilters((current) => ({ ...current, date_from: event.target.value }))} className="h-[var(--control-height-md)] rounded-[var(--radius-control)] border border-border bg-surface px-3 text-xs text-text outline-none max-sm:w-full max-sm:min-w-0 max-sm:basis-full" />
-                <input type="date" value={filters.date_to} onChange={(event) => setFilters((current) => ({ ...current, date_to: event.target.value }))} className="h-[var(--control-height-md)] rounded-[var(--radius-control)] border border-border bg-surface px-3 text-xs text-text outline-none max-sm:w-full max-sm:min-w-0 max-sm:basis-full" />
-              </>
-            ) : null}
-            {branches.length > 1 ? (
-              <select value={filters.branch_id} onChange={(event) => setFilters((current) => ({ ...current, branch_id: event.target.value }))} className="h-[var(--control-height-md)] rounded-[var(--radius-control)] border border-border bg-surface px-3 text-xs font-bold text-text outline-none max-sm:min-w-0 max-sm:flex-1">
-                <option value="all">{copy.allBranches}</option>
-                {branches.map((branch) => <option key={branch.id} value={branch.id}>{branch.name}</option>)}
-              </select>
-            ) : null}
-            <StatusPill label={copy.socket} value={socketStatus.value} tone={socketStatus.tone} pulse={socketStatus.pulse} />
-            <StatusPill label={copy.pos} value={posStatus.value} tone={posStatus.tone} pulse={posStatus.pulse} />
-            <button type="button" onClick={() => loadDashboard()} className="inline-flex h-[var(--control-height-md)] items-center gap-2 rounded-[var(--radius-control)] border border-border bg-surface px-3 text-text transition hover:border-border-strong hover:bg-surface-hover">
-              <RefreshCw className={`h-4 w-4 ${loading ? "animate-spin" : ""}`} />
-              {copy.refresh}
-            </button>
-          </div>
+      {/* What every number below is filtered by — period, branch — with the refresh and
+          when it last ran. The page's title sits in the shell's page bar above. */}
+      <div className="dashboard-filterbar flex flex-wrap items-center gap-2 text-xs font-bold text-text-muted">
+        {isCashier ? (
+          <span aria-label={copy.today} className="inline-flex h-[var(--control-height-md)] items-center rounded-[var(--radius-control)] border border-border bg-surface px-3 text-xs font-bold text-text">
+            {copy.today}
+          </span>
+        ) : (
+          <select value={filters.range} onChange={(event) => setFilters((current) => ({ ...current, range: event.target.value }))} className="h-[var(--control-height-md)] rounded-[var(--radius-control)] border border-border bg-surface px-3 text-xs font-bold text-text outline-none transition hover:border-border-strong max-sm:min-w-0 max-sm:flex-1">
+            <option value="today">{copy.today}</option>
+            <option value="yesterday">{copy.yesterday}</option>
+            <option value="7d">{copy.last7Days}</option>
+            <option value="month">{copy.thisMonth}</option>
+            <option value="custom">{copy.customRange}</option>
+          </select>
+        )}
+        {!isCashier && filters.range === "custom" ? (
+          <>
+            <input type="date" value={filters.date_from} onChange={(event) => setFilters((current) => ({ ...current, date_from: event.target.value }))} className="h-[var(--control-height-md)] rounded-[var(--radius-control)] border border-border bg-surface px-3 text-xs text-text outline-none max-sm:w-full max-sm:min-w-0 max-sm:basis-full" />
+            <input type="date" value={filters.date_to} onChange={(event) => setFilters((current) => ({ ...current, date_to: event.target.value }))} className="h-[var(--control-height-md)] rounded-[var(--radius-control)] border border-border bg-surface px-3 text-xs text-text outline-none max-sm:w-full max-sm:min-w-0 max-sm:basis-full" />
+          </>
+        ) : null}
+        {branches.length > 1 ? (
+          <select value={filters.branch_id} onChange={(event) => setFilters((current) => ({ ...current, branch_id: event.target.value }))} className="h-[var(--control-height-md)] rounded-[var(--radius-control)] border border-border bg-surface px-3 text-xs font-bold text-text outline-none max-sm:min-w-0 max-sm:flex-1">
+            <option value="all">{copy.allBranches}</option>
+            {branches.map((branch) => <option key={branch.id} value={branch.id}>{branch.name}</option>)}
+          </select>
+        ) : null}
+        <div className="ms-auto flex items-center gap-2">
+          {lastUpdated ? <span className="font-semibold">{copy.updated} {shortTime(lastUpdated)}</span> : null}
+          <button type="button" onClick={() => loadDashboard()} className="inline-flex h-[var(--control-height-md)] items-center gap-2 rounded-[var(--radius-control)] border border-border bg-surface px-3 text-text transition hover:border-border-strong hover:bg-surface-hover">
+            <RefreshCw className={`h-4 w-4 ${loading ? "animate-spin" : ""}`} />
+            {copy.refresh}
+          </button>
         </div>
       </div>
 
@@ -1034,21 +990,6 @@ function StaffActivity({ posLive }) {
   );
 }
 
-function StatusPill({ label, value, tone = "emerald", pulse = false }) {
-  const tones = {
-    emerald: "border-emerald-400/20 bg-emerald-500/10 text-emerald-100",
-    amber: "border-amber-400/20 bg-amber-500/10 text-amber-100",
-    rose: "border-red-400/20 bg-red-500/10 text-red-100",
-    slate: "border-border bg-surface text-text-muted",
-  };
-  return (
-    <span className={`inline-flex h-10 items-center gap-2 rounded-[var(--radius-control)] border px-3 ${tones[tone] || tones.slate}`}>
-      <LivePulse active={pulse} tone={tone} />
-      {label}: <strong>{value}</strong>
-    </span>
-  );
-}
-
 function LivePulse({ active = true, tone = "emerald" }) {
   const tones = { emerald: "bg-emerald-300", amber: "bg-amber-300", rose: "bg-red-300", slate: "bg-border-strong" };
   return <span className={`dashboard-pulse h-2 w-2 shrink-0 rounded-full ${tones[tone] || tones.emerald} ${active ? "" : "opacity-40"}`} />;
@@ -1067,18 +1008,6 @@ function SessionTimer() {
       <TimerReset className="h-3.5 w-3.5 text-emerald-200" />
       {String(minutes).padStart(2, "0")}:{String(remainder).padStart(2, "0")}
     </span>
-  );
-}
-
-function QuickAction({ to, icon: Icon, label, primary = false }) {
-  return (
-    <Link
-      to={to}
-      className={`group inline-flex h-8 items-center gap-1.5 rounded-[var(--radius-card)] border px-2.5 text-[11px] font-black uppercase tracking-[0.08em] shadow-sm shadow-black/10 transition duration-150 hover:-translate-y-0.5 sm:px-3 ${ primary ? "border-amber-700 bg-amber-700 text-text hover:border-amber-800 hover:bg-amber-800" : "border-border bg-surface-soft text-text-muted hover:border-border-strong hover:bg-surface-hover hover:text-text" }`}
-    >
-      <Icon className={`h-3.5 w-3.5 ${primary ? "text-text" : "text-text-muted transition group-hover:text-amber-700"}`} />
-      <span className="whitespace-nowrap">{label}</span>
-    </Link>
   );
 }
 

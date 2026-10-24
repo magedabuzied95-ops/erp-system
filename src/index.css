@@ -4793,16 +4793,6 @@
     min-height: 132px;
   }
 
-  .dashboard-commandbar {
-    border-radius: var(--radius-card) var(--radius-card) 0 0;
-  }
-
-  .dashboard-toolbar > :first-child {
-    order: 10;
-    flex-basis: 100%;
-    justify-content: flex-end;
-  }
-
   .dashboard-operations-grid > section {
     min-height: 250px;
   }
@@ -4843,22 +4833,9 @@
     .dashboard-premium > .sticky { position: relative; }
     .dashboard-premium article { min-height: 132px; }
     .dashboard-premium .recharts-responsive-container { min-height: 220px; }
-    .dashboard-toolbar > :first-child {
-      order: initial;
-      flex-basis: 100%;
-      justify-content: flex-start;
-      overflow-x: auto;
-      flex-wrap: nowrap;
-    }
     .dashboard-operations-grid > section { min-height: auto; }
   }
 
-  @media (min-width: 1536px) {
-    .dashboard-toolbar > :first-child {
-      order: initial;
-      flex-basis: auto;
-    }
-  }
   /* Dashboard route — STRUCTURE ONLY.
      This was the "Shopify Admin route treatment": 33 rules and 38 !important
      that redefined --bg/--surface/--card/--border/--primary and painted a
@@ -4879,17 +4856,6 @@
 
   body.dashboard-shopify-route .dashboard-premium {
     padding-top: 0.75rem;
-  }
-
-  body.dashboard-shopify-route .dashboard-commandbar {
-    position: relative;
-    top: auto;
-    margin-inline: 0;
-    padding-inline: 0;
-  }
-
-  body.dashboard-shopify-route .dashboard-toolbar > :first-child {
-    padding: 0;
   }
 
   /* The KPI cells were fused into one bordered slab with gap:0 and per-cell

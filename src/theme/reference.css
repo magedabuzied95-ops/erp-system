@@ -190,14 +190,6 @@
     line-height: var(--font-body-lh);
   }
 
-  /* The command bar was a fixed navy strip that belonged to a different app. */
-  .dashboard-premium .dashboard-commandbar {
-    border: 0;
-    border-block-end: 1px solid var(--border);
-    background: transparent;
-    backdrop-filter: none;
-  }
-
   /* ==========================================================================
      5. DASHBOARD — KPI CARDS
      The value is the hero. Label above it, supporting context below, icon in a
@@ -496,13 +488,7 @@
   }
 
   /* --- Dashboard: header rhythm ----------------------------------------- */
-  /* Refinement only — the header direction was accepted. It gets a little more
-     room beneath it so the eyebrow/title/meta stack reads as one block that
-     the KPI row then answers, rather than three lines floating above a grid. */
-  .dashboard-premium .dashboard-commandbar {
-    padding-block-end: var(--space-3);
-  }
-
+  /* The KPI row sits a step below the filter row (period, branch, refresh). */
   .dashboard-premium .dashboard-kpi-grid {
     margin-block-start: var(--space-4);
   }
