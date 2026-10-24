@@ -1,6 +1,13 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { createInboxPrefetch } from '../src/modules/aiSupport/services/inboxPrefetchState.js';
+import { shouldResetInboxPrefetch } from '../src/shared/hooks/useInboxPrefetch.js';
+
+test('routine auth hydration preserves ready data; logout and expiration clear it', () => {
+  assert.equal(shouldResetInboxPrefetch({ type: 'erp:auth-user-updated', detail: { user: { id: 1 } } }), false);
+  assert.equal(shouldResetInboxPrefetch({ type: 'erp:auth-user-updated', detail: { user: null } }), true);
+  assert.equal(shouldResetInboxPrefetch({ type: 'erp:auth-expired' }), true);
+});
 
 const deferred = () => {
   let resolve, reject;

@@ -1,17 +1,21 @@
 import { useEffect } from 'react';
 
+export const shouldResetInboxPrefetch = (event) => event.type === 'erp:auth-expired'
+  || (event.type === 'erp:auth-user-updated' && !event.detail?.user);
+
 export default function useInboxPrefetch({ enabled, pathname, identityKey }) {
   useEffect(() => {
     // Clear one-use results on logout, account/tenant changes and permission loss.
     const clear = () => {
       void import('../../modules/aiSupport/services/inboxPrefetch.js').then((m) => m.clearInboxPrefetch());
     };
-    window.addEventListener('erp:auth-user-updated', clear);
-    window.addEventListener('erp:auth-expired', clear);
+    const onAuth = (event) => { if (shouldResetInboxPrefetch(event)) clear(); };
+    window.addEventListener('erp:auth-user-updated', onAuth);
+    window.addEventListener('erp:auth-expired', onAuth);
     if (!enabled) clear();
     return () => {
-      window.removeEventListener('erp:auth-user-updated', clear);
-      window.removeEventListener('erp:auth-expired', clear);
+      window.removeEventListener('erp:auth-user-updated', onAuth);
+      window.removeEventListener('erp:auth-expired', onAuth);
       clear();
     };
   }, [enabled, identityKey]);
