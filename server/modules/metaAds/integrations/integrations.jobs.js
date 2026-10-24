@@ -73,9 +73,12 @@ const scanCompetitors = async () => {
   return { scanned: ok, due: rows.length };
 };
 
-// Daily, and only with APIFY_TOKEN set: every page Apify can find (saved link, page id or Instagram account).
+// Daily, only with APIFY_TOKEN set and APIFY_POSTS_AUTO_SCAN=true: every page Apify can find (saved link,
+// page id or Instagram account). Off by default — each Apify run costs money, so posts are pulled with
+// the "سحب المنشورات" button unless the auto scan is switched on.
 const scanCompetitorPostsJob = async () => {
   if (!text(process.env.APIFY_TOKEN)) return { skipped: "no APIFY_TOKEN" };
+  if (text(process.env.APIFY_POSTS_AUTO_SCAN).toLowerCase() !== "true") return { skipped: "APIFY_POSTS_AUTO_SCAN off" };
   const { rows } = await db.query(
     `SELECT id, tenant_id FROM meta_ads_competitors
       WHERE active = TRUE AND (COALESCE(facebook_url, '') <> '' OR COALESCE(page_id, '') <> '' OR COALESCE(instagram, '') <> '')
