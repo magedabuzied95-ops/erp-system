@@ -1,3 +1,4 @@
+import { peekAdResponse } from '../../../shared/lib/workspacePreload.js';
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { useTranslation } from "react-i18next";
 import { Link } from "react-router-dom";
@@ -51,14 +52,17 @@ export default function AdsManagerPage() {
   const { t, i18n } = useTranslation();
   const canManage = hasPermission("meta_ads.manage");
 
-  const [boot, setBoot] = useState({ loading: true, data: null, error: null });
-  const [accountId, setAccountId] = useState(() => readSelectedAccountId());
+  const [preparedBoot] = useState(() => peekAdResponse('/meta-ads/manager/bootstrap'));
+  const [preparedAccount] = useState(() => preparedBoot?.accounts?.find((item) => String(item.id) === String(readSelectedAccountId())) || preparedBoot?.accounts?.[0]);
+  const [preparedList] = useState(() => preparedAccount ? peekAdResponse('/meta-ads/manager/data?account_id=' + encodeURIComponent(preparedAccount.id) + '&level=campaign&days=all') : null);
+  const [boot, setBoot] = useState(() => ({ loading: !preparedBoot, data: preparedBoot, error: null }));
+  const [accountId, setAccountId] = useState(() => preparedAccount ? String(preparedAccount.id) : readSelectedAccountId());
   const [level, setLevel] = useState("campaign");
   const [days, setDays] = useState("all");
   const [search, setSearch] = useState("");
   const q = useDebounced(search.trim());
   const [drill, setDrill] = useState({ campaign: null, adset: null });
-  const [list, setList] = useState({ loading: false, rows: [], counts: EMPTY_COUNTS, error: "" });
+  const [list, setList] = useState(() => ({ loading: false, rows: preparedList?.rows || [], counts: preparedList?.counts || EMPTY_COUNTS, erp: preparedList?.erp || null, error: "" }));
   const [reloadKey, setReloadKey] = useState(0);
   const [columnChoice, setColumnChoice] = useState(() => ({
     campaign: readColumnChoice("campaign"),
@@ -119,7 +123,7 @@ export default function AdsManagerPage() {
   useEffect(() => {
     if (!params) return undefined;
     let alive = true;
-    setList((current) => ({ ...current, loading: true, error: "" }));
+    setList((current) => ({ ...current, loading: !peekAdResponse('/meta-ads/manager/data?' + new URLSearchParams(Object.entries(params).filter(([, value]) => value !== '' && value !== null && value !== undefined))), error: "" }));
     managerApi.data(params)
       .then((data) => {
         if (!alive) return;

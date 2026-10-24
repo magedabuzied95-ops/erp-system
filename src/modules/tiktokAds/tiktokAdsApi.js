@@ -1,3 +1,4 @@
+import { readAdResponse } from '../../shared/lib/workspacePreload.js';
 import { api } from "../../shared/api/api";
 
 // Endpoints of /api/tiktok-ads. 403/404/409/503 are expected states (no permission, no
@@ -16,9 +17,9 @@ const query = (params = {}) => {
 };
 
 export const tiktokAdsApi = {
-  setup: () => api.get(`${BASE}/setup`, quiet),
-  bootstrap: () => api.get(`${BASE}/bootstrap`, quiet),
-  data: (params) => api.get(`${BASE}/data${query(params)}`, quiet),
+  setup: () => readAdResponse(`${BASE}/setup`, quiet),
+  bootstrap: () => readAdResponse(`${BASE}/bootstrap`, quiet),
+  data: (params) => readAdResponse(`${BASE}/data${query(params)}`, quiet),
   startOAuth: () => api.post(`${BASE}/oauth/start`, {}, quiet),
   sync: (accountId, days = 30) => api.post(`${BASE}/accounts/${accountId}/sync`, { days }, quiet),
   disconnect: (accountId) => api.post(`${BASE}/accounts/${accountId}/disconnect`, {}, quiet),

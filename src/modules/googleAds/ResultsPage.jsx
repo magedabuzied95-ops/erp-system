@@ -1,3 +1,4 @@
+import { peekAdResponse } from '../../shared/lib/workspacePreload.js';
 import { useEffect, useMemo, useRef, useState } from "react";
 import { Link } from "react-router-dom";
 import { Pause, Pencil, Play, Plus, RefreshCw } from "lucide-react";
@@ -58,7 +59,7 @@ export default function ResultsPage() {
   const [level, setLevel] = useState("campaigns");
   const [days, setDays] = useState("30");
   const [campaign, setCampaign] = useState("");
-  const [list, setList] = useState({ loading: true, rows: [], error: null });
+  const [list, setList] = useState(() => { const data = peekAdResponse(`/google-ads/accounts/${accountId}/data?level=campaigns&days=30`); return { loading: !data, rows: data?.rows || [], error: null }; });
   const [reloadKey, setReloadKey] = useState(0);
   const [budget, setBudget] = useState(null);
   const sequence = useRef(0);
@@ -67,7 +68,7 @@ export default function ResultsPage() {
 
   useEffect(() => {
     const current = ++sequence.current;
-    setList((state) => ({ ...state, loading: true, error: null }));
+    setList((state) => ({ ...state, loading: !peekAdResponse(`/google-ads/accounts/${accountId}/data?level=${level}&days=${days}${campaign ? `&campaign=${campaign}` : ""}`), error: null }));
     googleAdsApi.get(accountId, `/data?level=${level}&days=${days}${campaign ? `&campaign=${campaign}` : ""}`)
       .then((data) => { if (current === sequence.current) setList({ loading: false, rows: data?.rows || [], error: null }); })
       .catch((error) => { if (current === sequence.current) setList({ loading: false, rows: [], error }); });

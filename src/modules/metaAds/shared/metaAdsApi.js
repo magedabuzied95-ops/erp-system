@@ -1,3 +1,4 @@
+import { readAdResponse } from '../../../shared/lib/workspacePreload.js';
 import { api } from "../../../shared/api/api";
 
 // Shared helpers for every Meta Ads screen. Each sub-area (manager/, records/,
@@ -20,7 +21,7 @@ export const query = (params = {}) => {
 export const quiet = { suppressErrorStatuses: [400, 403, 404, 409, 422, 503] };
 
 export const metaAdsRequest = {
-  get: (path, params) => api.get(`${META_ADS_BASE}${path}${query(params)}`, quiet),
+  get: (path, params) => readAdResponse(`${META_ADS_BASE}${path}${query(params)}`, quiet),
   post: (path, body = {}) => api.post(`${META_ADS_BASE}${path}`, body, quiet),
   put: (path, body = {}) => api.put(`${META_ADS_BASE}${path}`, body, quiet),
   patch: (path, body = {}) => api.patch(`${META_ADS_BASE}${path}`, body, quiet),

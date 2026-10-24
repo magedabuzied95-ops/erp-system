@@ -1,3 +1,4 @@
+import { peekAdResponse } from '../../shared/lib/workspacePreload.js';
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { useTranslation } from "react-i18next";
 import { Link } from "react-router-dom";
@@ -61,14 +62,17 @@ export default function AdsPage() {
   const lang = i18n.language;
   const canManage = hasPermission("tiktok_ads.manage");
 
-  const [boot, setBoot] = useState({ loading: true, accounts: [], error: null });
-  const [accountId, setAccountId] = useState(() => readSelectedAccountId());
+  const [preparedBoot] = useState(() => peekAdResponse('/tiktok-ads/bootstrap'));
+  const [preparedAccount] = useState(() => preparedBoot?.accounts?.find((item) => String(item.id) === String(readSelectedAccountId())) || preparedBoot?.accounts?.[0]);
+  const [preparedList] = useState(() => preparedAccount ? peekAdResponse('/tiktok-ads/data?account_id=' + encodeURIComponent(preparedAccount.id) + '&level=campaign&days=30') : null);
+  const [boot, setBoot] = useState(() => ({ loading: !preparedBoot, accounts: preparedBoot?.accounts || [], error: null }));
+  const [accountId, setAccountId] = useState(() => preparedAccount ? String(preparedAccount.id) : readSelectedAccountId());
   const [level, setLevel] = useState("campaign");
   const [days, setDays] = useState("30");
   const [search, setSearch] = useState("");
   const q = useDebounced(search.trim());
   const [drill, setDrill] = useState({ campaign: null, adgroup: null });
-  const [list, setList] = useState({ loading: false, rows: [], totals: null, counts: null, error: null });
+  const [list, setList] = useState(() => ({ loading: false, rows: preparedList?.rows || [], totals: preparedList?.totals || null, counts: preparedList?.counts || null, error: null }));
   const [syncing, setSyncing] = useState(false);
   const [reloadKey, setReloadKey] = useState(0);
 
@@ -106,7 +110,7 @@ export default function AdsPage() {
   useEffect(() => {
     if (!params) return undefined;
     let cancelled = false;
-    setList((current) => ({ ...current, loading: true, error: null }));
+    setList((current) => ({ ...current, loading: !peekAdResponse('/tiktok-ads/data?' + new URLSearchParams(Object.entries(params).filter(([, value]) => value !== '' && value !== null && value !== undefined))), error: null }));
     tiktokAdsApi.data(params)
       .then((data) => {
         if (!cancelled) setList({ loading: false, rows: data?.rows || [], totals: data?.totals || null, counts: data?.counts || null, error: null });

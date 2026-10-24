@@ -1,3 +1,4 @@
+import { readAdResponse } from '../../shared/lib/workspacePreload.js';
 import { api } from "../../shared/api/api";
 
 // Endpoints of /api/google-ads. 400/403/409/429/502/503 are expected states (bad input,
@@ -6,11 +7,11 @@ const BASE = "/google-ads";
 const quiet = { suppressErrorStatuses: [400, 403, 409, 429, 502, 503] };
 
 export const googleAdsApi = {
-  setup: () => api.get(`${BASE}/setup`, quiet),
-  accounts: () => api.get(`${BASE}/accounts`, quiet),
+  setup: () => readAdResponse(`${BASE}/setup`, quiet),
+  accounts: () => readAdResponse(`${BASE}/accounts`, quiet),
   startOAuth: () => api.post(`${BASE}/oauth/start`, {}, quiet),
   disconnect: () => api.post(`${BASE}/disconnect`, {}, quiet),
-  get: (account, path) => api.get(`${BASE}/accounts/${account}${path}`, quiet),
+  get: (account, path) => readAdResponse(`${BASE}/accounts/${account}${path}`, quiet),
   post: (account, path, body) => api.post(`${BASE}/accounts/${account}${path}`, body, quiet),
 };
 

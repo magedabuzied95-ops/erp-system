@@ -1,3 +1,4 @@
+import { peekAdResponse, invalidateWorkspace } from '../../shared/lib/workspacePreload.js';
 import { createContext, useCallback, useContext, useEffect, useMemo, useState } from "react";
 import { useTranslation } from "react-i18next";
 import { Link } from "react-router-dom";
@@ -22,8 +23,12 @@ export function GoogleAdsProvider({ children }) {
   const lang = ar ? "ar" : "en";
   const manage = hasPermission("google_ads.manage");
 
-  const [setup, setSetup] = useState({ loading: true, data: null, error: null });
-  const [accounts, setAccounts] = useState([]);
+  const [preparedSetup] = useState(() => {
+    if (new URLSearchParams(window.location.search).has('google_ads')) { invalidateWorkspace('google-ads'); return null; }
+    return peekAdResponse('/google-ads/setup');
+  });
+  const [setup, setSetup] = useState(() => ({ loading: !preparedSetup, data: preparedSetup, error: null }));
+  const [accounts, setAccounts] = useState(() => peekAdResponse('/google-ads/accounts')?.accounts || []);
   const [accountsError, setAccountsError] = useState(null);
   const [accountId, setAccountIdState] = useState(() => readSelectedAccountId());
   const [structure, setStructure] = useState({ campaigns: [], groups: [] });

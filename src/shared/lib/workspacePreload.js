@@ -2,6 +2,7 @@ import { api } from '../api/api.js';
 import { getCurrentTenant, getCurrentUser } from '../auth/authStorage.js';
 import { createPreparedWorkspaceCache } from './preparedWorkspaceCache.js';
 import { readProductListBootstrap } from '../../modules/products/lib/productListBootstrap.js';
+import { adRequestKey } from './adRequestKey.js';
 
 const scope = () => {
   const user = getCurrentUser() || {}, tenant = getCurrentTenant() || {};
@@ -21,12 +22,44 @@ export const peekWorkspace = (key) => cache.peek(workspaceKey(key));
 export const readPreparedWorkspace = (key, loader, options) => cache.read(workspaceKey(key), loader, options);
 export const invalidateWorkspace = (key) => cache.invalidate(key);
 export const clearWorkspacePreload = () => cache.clear();
+export const peekAdResponse = (path) => cache.peek(adRequestKey(path));
+export const readAdResponse = (path, options) => cache.read(adRequestKey(path), (signal) => api.get(path, { ...options, signal }));
+const prepareAdResponse = (path, signal) => cache.prepare(adRequestKey(path), (requestSignal) => api.get(path, {
+  signal: signal || requestSignal, timeoutMs: 10000, suppressErrorStatuses: [400, 403, 404, 409, 422, 429, 502, 503],
+}));
+const prepareAds = async (platform, signal) => {
+  const base = `/${platform}-ads`;
+  let accounts;
+  if (platform === 'google') {
+    const setup = await prepareAdResponse(`${base}/setup`, signal);
+    if (!setup?.connected) return;
+    accounts = (await prepareAdResponse(`${base}/accounts`, signal))?.accounts?.filter((item) => !item.manager) || [];
+  } else {
+    accounts = (await prepareAdResponse(`${base}/${platform === 'meta' ? 'manager/bootstrap' : 'bootstrap'}`, signal))?.accounts || [];
+  }
+  let selected = '';
+  try { selected = localStorage.getItem(`${platform}Ads.selectedAccountId`) || ''; } catch { /* Storage may be disabled. */ }
+  const account = accounts.find((item) => String(item.id) === selected) || accounts[0];
+  if (!account || signal?.aborted) return;
+  const id = encodeURIComponent(account.id);
+  if (platform === 'google') {
+    for (const path of ['/structure', '/tracking', '/data?level=campaigns&days=30']) {
+      if (signal?.aborted) return;
+      await prepareAdResponse(`${base}/accounts/${id}${path}`, signal).catch(() => {});
+    }
+  } else {
+    await prepareAdResponse(`${base}/${platform === 'meta' ? 'manager/data' : 'data'}?account_id=${id}&level=campaign&days=${platform === 'meta' ? 'all' : '30'}`, signal);
+  }
+};
 export const preparedOrderRows = (data) => Array.isArray(data) ? data : data?.orders || data?.data || [];
 export const preloadRecentOperations = () => cache.prepare('pos-recent', (signal) => api.get('/orders', {
   params: { mode: 'pos_recent', limit: 10, offset: 0, search: '' }, signal, timeoutMs: 10000,
 }));
 
 const loaders = {
+  'google-ads': (signal) => prepareAds('google', signal),
+  'meta-ads': (signal) => prepareAds('meta', signal),
+  'tiktok-ads': (signal) => prepareAds('tiktok', signal),
   dashboard: (signal) => api.get('/dashboard/overview?range=today', { signal, timeoutMs: 12000 }),
   orders: (signal) => api.get('/orders?page=1&limit=500&include_items=0', { signal, timeoutMs: 12000 }),
   purchases: (signal) => api.get('/purchases', { params: { limit: 25 }, signal, timeoutMs: 12000 }),
@@ -50,6 +83,9 @@ const loaders = {
   },
 };
 const screens = {
+  'google-ads': () => Promise.all([import('../../modules/googleAds/GoogleAdsModule.jsx'), import('../../modules/googleAds/ResultsPage.jsx')]),
+  'meta-ads': () => Promise.all([import('../../modules/metaAds/MetaAdsModule.jsx'), import('../../modules/metaAds/manager/AdsManagerPage.jsx')]),
+  'tiktok-ads': () => Promise.all([import('../../modules/tiktokAds/TikTokAdsModule.jsx'), import('../../modules/tiktokAds/AdsPage.jsx')]),
   dashboard: () => import('../../pages/Dashboard.jsx'),
   orders: () => import('../../modules/orders/pages/OrdersDashboard.jsx'),
   pos: () => import('../../modules/pos/pages/POSPro.jsx'),
@@ -58,7 +94,7 @@ const screens = {
 };
 
 export async function preloadWorkspaces({ routes, pathname, cancelled = () => false, intent }) {
-  const keys = ['pos', 'dashboard', 'orders', 'products', 'purchases'].filter((key) => routes.includes(`/${key}`) && pathname !== `/${key}`);
+  const keys = ['pos', 'dashboard', 'orders', 'products', 'purchases', 'google-ads', 'meta-ads', 'tiktok-ads'].filter((key) => routes.includes(`/${key}`) && pathname !== `/${key}` && !pathname.startsWith(`/${key}/`));
   if (intent) keys.sort((a, b) => Number(intent === `/${b}`) - Number(intent === `/${a}`));
   const identity = scope();
   for (const key of keys) {
