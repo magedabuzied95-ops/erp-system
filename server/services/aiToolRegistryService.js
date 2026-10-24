@@ -21,6 +21,7 @@
  *     and the caller can prove it.
  */
 import { getInventoryFacts, getOrderFacts, getPolicyFacts, getProductFacts, getShippingFacts } from "./aiBusinessToolsService.js";
+import { extraPiecesLine } from "../../shared/shippingExtraPieces.js";
 import { loadCustomer360 } from "./aiCustomer360Service.js";
 
 const text = (value = "") => String(value ?? "").trim();
@@ -194,6 +195,10 @@ export const buildToolRegistry = ({ tenantId, customerPhone = "", searchProducts
         estimated: facts.estimated_delivery,
         default_price: facts.shipping_rules?.default_shipping_price ?? null,
         cod_allowed: facts.shipping_rules?.cod_allowed ?? null,
+        // The price above is for one piece; tell the customer each extra piece adds this.
+        extra_piece_fee: facts.shipping_rules?.extra_piece_fee ?? 0,
+        extra_piece_max: facts.shipping_rules?.extra_piece_max ?? 0,
+        price_note: extraPiecesLine({ fee: facts.shipping_rules?.extra_piece_fee, max: facts.shipping_rules?.extra_piece_max }),
       };
     },
 

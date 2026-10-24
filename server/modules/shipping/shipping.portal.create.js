@@ -1,4 +1,5 @@
 import db from "../../database/db.js";
+import { countShippingPieces } from "../../../shared/shippingExtraPieces.js";
 
 // "+" on أوردرات الشحن: write a whole online order from the employee / manager portal —
 // products and sizes, the customer, the Bosta address, payment and shipping. It goes
@@ -205,7 +206,7 @@ export const previewPortalOrder = async ({ tenantId, body = {} } = {}) => {
   const discountValue = Math.max(0, Number(body.discount_value) || 0);
   const rawDiscount = discountType === "percent" ? (subtotal * discountValue) / 100 : discountValue;
   const discount = Math.min(subtotal, Math.max(0, Math.round(rawDiscount * 100) / 100));
-  const shipping = await resolveAiOrderShipping({ ...addressFields(body), shipping_cost: body.shipping_cost, net_subtotal: subtotal - discount });
+  const shipping = await resolveAiOrderShipping({ ...addressFields(body), shipping_cost: body.shipping_cost, net_subtotal: subtotal - discount, piece_count: countShippingPieces(priced) });
 
   let advance = { required: false, amount: 0 };
   try {

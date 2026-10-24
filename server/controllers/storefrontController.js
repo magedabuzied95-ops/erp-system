@@ -51,6 +51,7 @@ import { resolveCurrentSellingPrice } from "../services/currentSellingPriceResol
 import { isForcedOfferSale } from "../../src/shared/lib/effectiveCustomerPrice.js";
 import { crocsSizeAliases } from "../../src/shared/lib/crocsSizes.js";
 import { loadCodPolicySettings, resolveStorefrontShippingQuote } from "../services/storefrontShippingService.js";
+import { countShippingPieces } from "../../shared/shippingExtraPieces.js";
 import { resolveCodPolicy } from "../../shared/codPolicy.js";
 import {
   createStorefrontCustomerReviewData,
@@ -5432,6 +5433,7 @@ export const getShippingQuote = async (req, res) => {
       district_id: req.query?.district_id || req.query?.area_id || req.query?.location_id || "",
       zone_id: req.query?.zone_id || "",
       subtotal: req.query?.subtotal || req.query?.order_subtotal || req.query?.order_total || 0,
+      quantity: req.query?.quantity || 1,
     });
     return res.json({ success: true, quote });
   } catch (error) {
@@ -6100,6 +6102,8 @@ export const createWebsiteOrder = async (req, res) => {
       district_id: checkout.district_id,
       zone_id: checkout.zone_id,
       subtotal,
+      // Counted from the locked lines, not sent by the page: the zone price is for one piece.
+      quantity: countShippingPieces(normalizedItems),
     });
     const deliveryFee = roundMoney(shippingQuote.price);
     // No caller may set a discount of its own: the public route is unauthenticated, and both the

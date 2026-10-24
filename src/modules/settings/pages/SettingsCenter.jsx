@@ -233,7 +233,7 @@ const sectionMap = {
     ["Notifications", []],
   ],
   shipping: [
-    ["Shipping Overview", ["storefront.default_shipping_price"]],
+    ["Shipping Overview", ["storefront.default_shipping_price", "storefront.shipping_extra_piece_fee", "storefront.shipping_extra_piece_max"]],
     ["Shipping Locations", ["storefront.shipping_locations"]],
     ["Shipping Zones", ["storefront.shipping_zones"]],
     ["Governorates & Cities", ["storefront.shipping_zones"]],

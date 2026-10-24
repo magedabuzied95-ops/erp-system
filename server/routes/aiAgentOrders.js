@@ -5859,6 +5859,7 @@ router.get("/shipping-quote", protect, inboxReply(), async (req, res) => {
       shipping_zone_id: req.query?.shipping_zone_id || req.query?.zone_id || "",
       shipping_district_id: req.query?.shipping_district_id || req.query?.district_id || "",
       net_subtotal: req.query?.net_subtotal || req.query?.subtotal || 0,
+      piece_count: req.query?.piece_count || 1,
     });
     // Restricted closing system: tell the agent, while the order is being built, that this
     // customer transfers the shipping fee first — and hand them the sentence to send.

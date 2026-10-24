@@ -97,6 +97,7 @@ import { displayPublicOrderNumber } from "../shared/utils/publicOrderNumber";
 import { defaultEgyptShippingLocations } from "../../shared/egyptShippingLocations.js";
 import { governorateOptions, normalizeCodPolicy } from "../../shared/codPolicy.js";
 import { buildBundleId, computeBundleDiscount, normalizeBundleDiscountPercent } from "../../shared/bundleDiscount.js";
+import { countShippingPieces } from "../../shared/shippingExtraPieces.js";
 import { pickAutomaticPair } from "./lib/pairPicker.js";
 import { hasStorefrontHomeContent, keepHomeFilterRowWhenEmpty, nextHomeFilterRowAudience, persistedStorefrontHomeData } from "./lib/listingHomeState.js";
 import { getStorefrontResponsiveImageProps } from "../shared/lib/storefrontImage";
@@ -8252,6 +8253,8 @@ function CheckoutPage({ cart, clearCart, profile, setProfile, themeMode, reprice
   }, [publicStoreSettings]);
   const pricedCart = useMemo(() => cart.map((item) => ({ ...item, price: displayCartItemPrice(item) })), [cart]);
   const subtotal = pricedCart.reduce((sum, item) => sum + item.price * item.quantity, 0);
+  // The zone price is for one piece; the quote adds the per-piece fee for the rest.
+  const shippingPieces = countShippingPieces(cart);
   const couponDiscount = couponValidation?.valid ? Math.max(0, Number(couponValidation.discount_amount || 0)) : 0;
   // A free-shipping coupon's discount IS the shipping fee. The totals are already right; this flag
   // exists so the summary can say "شحن مجاني" instead of showing a fee and an equal discount beside it.
@@ -8526,6 +8529,7 @@ function CheckoutPage({ cart, clearCart, profile, setProfile, themeMode, reprice
       district_id: form.district_id || "",
       zone_id: form.zone_id || "",
       subtotal: String(subtotal),
+      quantity: String(shippingPieces),
     });
     api
       .get(`/storefront/shipping/quote?${params.toString()}`)
@@ -8557,7 +8561,7 @@ function CheckoutPage({ cart, clearCart, profile, setProfile, themeMode, reprice
     return () => {
       cancelled = true;
     };
-  }, [form.governorate, form.city_area, form.governorate_id, form.city_id, form.area_id, form.city, form.area, form.district_id, form.zone_id, subtotal, shippingRequoteToken]);
+  }, [form.governorate, form.city_area, form.governorate_id, form.city_id, form.area_id, form.city, form.area, form.district_id, form.zone_id, subtotal, shippingPieces, shippingRequoteToken]);
 
   // The delivery day is quoted on the Cairo clock; after the cut-off or midnight it names the wrong
   // day. Quote again when it goes stale, as the product page's countdown does.

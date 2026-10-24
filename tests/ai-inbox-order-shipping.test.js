@@ -80,7 +80,7 @@ test("the composer re-quotes when the address or the discounted subtotal changes
   // discount that crosses it has to re-price.
   assert.match(composer, /api\.get\(`\/ai-inbox\/shipping-quote\?/);
   assert.match(composer, /net_subtotal: String\(netSubtotal\)/);
-  assert.match(composer, /\}, \[cityArea, governorate, headers, netSubtotal, open, shippingCityId, shippingDistrictId, shippingLocations, shippingProvider, shippingZoneId\]\)/);
+  assert.match(composer, /\}, \[cityArea, governorate, headers, netSubtotal, open, pieceCount, shippingCityId, shippingDistrictId, shippingLocations, shippingProvider, shippingZoneId\]\)/);
 });
 
 test("the composer shows shipping and a grand total before saving", () => {

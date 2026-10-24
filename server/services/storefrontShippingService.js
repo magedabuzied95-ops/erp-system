@@ -2,6 +2,7 @@ import { getSetting } from "./settingsService.js";
 import { normalizeShippingProviderKey } from "./shippingProviders/index.js";
 import { resolveQuoteDeliveryEstimate } from "./storefrontDeliveryEstimateService.js";
 import { resolveCodPolicy } from "../../shared/codPolicy.js";
+import { extraPiecesShippingFee } from "../../shared/shippingExtraPieces.js";
 
 const text = (value = "") => String(value ?? "").trim();
 
@@ -141,7 +142,7 @@ export const loadCodPolicySettings = async () => {
 };
 
 export const loadShippingZones = async () => {
-  const [defaultPrice, zones, defaultProvider, locations, codAllowed, storeFreeShippingThreshold, codPolicy] = await Promise.all([
+  const [defaultPrice, zones, defaultProvider, locations, codAllowed, storeFreeShippingThreshold, codPolicy, extraPieceFee, extraPieceMax] = await Promise.all([
     getSetting("storefront.default_shipping_price", 60),
     getSetting("storefront.shipping_zones", []),
     getSetting("orders.shipping_provider", "in_store_delivery"),
@@ -149,6 +150,8 @@ export const loadShippingZones = async () => {
     getSetting("orders.allow_cod", true),
     getSetting("storefront.free_shipping_threshold", 0),
     loadCodPolicySettings(),
+    getSetting("storefront.shipping_extra_piece_fee", 10),
+    getSetting("storefront.shipping_extra_piece_max", 2),
   ]);
   // The store-wide threshold fills every zone that has none of its own, so the quote,
   // the order, the merchant feed and the AI all see one effective number per zone.
@@ -190,6 +193,8 @@ export const loadShippingZones = async () => {
     defaultProvider: normalizeShippingProviderKey(defaultProvider),
     codAllowed: bool(codAllowed, true),
     codPolicy,
+    extraPieceFee: number(extraPieceFee, 0),
+    extraPieceMax: Math.floor(number(extraPieceMax, 0)),
     zones: (Array.isArray(zones) ? zones : []).map(enrichZone).filter((zone) => zone.governorate && zone.active),
   };
 };
@@ -254,15 +259,18 @@ export const matchShippingZone = (zones = [], { governorate = "", city = "", are
   return match || null;
 };
 
-export const resolveStorefrontShippingQuote = async ({ governorate = "", city = "", area = "", governorate_id = "", city_id = "", area_id = "", district_id = "", zone_id = "", location_id = "", subtotal = 0, order_total = 0, now = new Date() } = {}) => {
-  const { defaultPrice, defaultProvider, zones, codAllowed, codPolicy, freeShippingThreshold: storeFreeShippingThreshold } = await loadShippingZones();
+export const resolveStorefrontShippingQuote = async ({ governorate = "", city = "", area = "", governorate_id = "", city_id = "", area_id = "", district_id = "", zone_id = "", location_id = "", subtotal = 0, order_total = 0, quantity = 1, now = new Date() } = {}) => {
+  const { defaultPrice, defaultProvider, zones, codAllowed, codPolicy, freeShippingThreshold: storeFreeShippingThreshold, extraPieceFee, extraPieceMax } = await loadShippingZones();
   const orderSubtotal = number(subtotal || order_total, 0);
   const match = matchShippingZone(zones, { governorate, city, area, governorate_id, city_id, area_id, district_id, zone_id, location_id });
   const zoneZone = (zone) => shippingKey(zone.zone || zone.area);
   const zoneDistrict = (zone) => shippingKey(zone.district || zone.area);
   const zoneCity = (zone) => shippingKey(zone.city);
   const freeShippingThreshold = match ? number(match.free_shipping_threshold, 0) : storeFreeShippingThreshold;
-  const matchedPrice = match ? number(match.price, defaultPrice) : defaultPrice;
+  const zonePrice = match ? number(match.price, defaultPrice) : defaultPrice;
+  // A caller that knows no basket (the AI's "how much is shipping?") passes nothing: one piece.
+  const extraPiecesFee = extraPiecesShippingFee({ basePrice: zonePrice, pieces: quantity, perPiece: extraPieceFee, maxExtraPieces: extraPieceMax });
+  const matchedPrice = zonePrice + extraPiecesFee;
   const price = freeShippingThreshold > 0 && orderSubtotal >= freeShippingThreshold ? 0 : matchedPrice;
   const deliveryEstimate = await resolveQuoteDeliveryEstimate({ zone: match || null, zones, now });
   // What the page shows first. Checkout re-resolves with the fee it actually
@@ -300,6 +308,10 @@ export const resolveStorefrontShippingQuote = async ({ governorate = "", city = 
     match_level: match ? (match.zone_id || zoneZone(match) ? "zone" : match.district_id || zoneDistrict(match) ? "district" : zoneCity(match) ? "city" : "governorate") : "default",
     zone: match || null,
     original_price: matchedPrice,
+    zone_price: zonePrice,
+    extra_pieces_fee: extraPiecesFee,
+    extra_piece_fee: extraPieceFee,
+    extra_piece_max: extraPieceMax,
     free_shipping_applied: freeShippingThreshold > 0 && orderSubtotal >= freeShippingThreshold,
     default_shipping_price: defaultPrice,
   };

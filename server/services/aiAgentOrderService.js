@@ -18,6 +18,7 @@ import { buildOrderItemInsertQuery, enrichOrderItemsInsertError } from "../utils
 import { resolveCustomerDisplayPrice } from "../utils/customerDisplayPrice.js";
 import { getWebsiteSettings } from "./liveActivityService.js";
 import { resolveStorefrontShippingQuote } from "./storefrontShippingService.js";
+import { countShippingPieces } from "../../shared/shippingExtraPieces.js";
 import { codFaqAnswer, shippingFeeAdvanceNoticeForOrder } from "./codPolicyReplyService.js";
 import {
   aiProductSqlExclusionClause,
@@ -873,6 +874,7 @@ export const createAiOrderDraft = async (payload = {}) => {
   const { cost: draftShippingCost, quote: draftShippingQuote, source: draftShippingSource } = await resolveAiOrderShipping({
     ...payload,
     net_subtotal: safeSubtotal,
+    piece_count: safeQuantity,
   });
   const safeShippingCost = numeric(draftShippingCost, 0);
   const safeOrderTotal = numeric(safeSubtotal + safeShippingCost, 0);
@@ -1259,6 +1261,8 @@ export const resolveAiOrderShipping = async (payload = {}) => {
       district_id: text(payload.shipping_district_id || payload.district_id),
       subtotal: netSubtotal,
       order_total: netSubtotal,
+      // The zone price is for one piece; each further piece adds the per-piece fee.
+      quantity: Math.max(1, integer(payload.piece_count, 1)),
     });
     return {
       cost: Math.max(0, numeric(quote?.price, 0)),
@@ -1425,6 +1429,7 @@ export const createAiOrderDraftLines = async (payload = {}) => {
   const { cost: shippingCost, quote: shippingQuote } = await resolveAiOrderShipping({
     ...payload,
     net_subtotal: subtotal - discountAmount,
+    piece_count: countShippingPieces(items),
   });
   const orderTotal = Math.max(0, subtotal - discountAmount + shippingCost);
   const idempotencyKey = text(payload.idempotency_key || payload.idempotencyKey || "");

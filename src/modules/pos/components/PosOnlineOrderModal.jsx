@@ -13,6 +13,7 @@ import {
 } from "../../../shared/lib/shippingCheckout";
 import ThemedSelect from "../../../shared/ui/ThemedSelect";
 import { formatCurrency } from "../lib/posUtils";
+import { countShippingPieces } from "../../../../shared/shippingExtraPieces.js";
 
 const text = (value = "") => String(value ?? "").trim();
 const EGYPT_MOBILE = /^01[0125][0-9]{8}$/;
@@ -238,6 +239,7 @@ export default function PosOnlineOrderModal({
   const cityOptions = useMemo(() => buildBostaPickerOptions(bosta.cities, "city", i18n.language), [bosta.cities, i18n.language]);
   const zoneOptions = useMemo(() => buildBostaPickerOptions(bosta.zones, "zone", i18n.language), [bosta.zones, i18n.language]);
   const districtOptions = useMemo(() => buildBostaPickerOptions(bosta.districts, "district", i18n.language), [bosta.districts, i18n.language]);
+  const shippingPieces = useMemo(() => countShippingPieces(items), [items]);
 
   // The shipping price is only ever advisory here — the server recomputes it from the same
   // quote endpoint at checkout — but the cashier has to be able to read it to the customer.
@@ -259,6 +261,8 @@ export default function PosOnlineOrderModal({
       district_id: form.district_id || "",
       zone_id: form.zone_id || "",
       subtotal: String(posSubtotal || 0),
+      // The server prices the order by its pieces; quoting one piece here would 409 at submit.
+      quantity: String(shippingPieces),
     });
     api
       .get(`/storefront/shipping/quote?${params.toString()}`, { suppressErrorStatuses: [404, 500] })
@@ -271,7 +275,7 @@ export default function PosOnlineOrderModal({
     return () => {
       cancelled = true;
     };
-  }, [open, created, form.governorate, form.city, form.city_area, form.area, form.governorate_id, form.city_id, form.area_id, form.district_id, form.zone_id, posSubtotal]);
+  }, [open, created, form.governorate, form.city, form.city_area, form.area, form.governorate_id, form.city_id, form.area_id, form.district_id, form.zone_id, posSubtotal, shippingPieces]);
 
   const validate = useCallback(() => {
     const next = {};

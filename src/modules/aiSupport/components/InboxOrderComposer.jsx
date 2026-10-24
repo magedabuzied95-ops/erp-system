@@ -30,6 +30,7 @@ import {
 
 import { api } from "../../../shared/api/api";
 import { formatCurrency } from "../../../shared/lib/currency";
+import { countShippingPieces } from "../../../../shared/shippingExtraPieces.js";
 import { aiInboxConversationEndpoint, asArray, clean, firstUsefulCustomerName } from "../lib/conversationHelpers";
 import "./AiInboxOrderComposer.m1.css";
 
@@ -374,6 +375,8 @@ function InboxOrderComposer({ open, conversation = {}, products = [], busy = fal
     return Math.max(0, Math.min(cartTotal, Math.round(raw * 100) / 100));
   }, [cartTotal, discountType, discountValue]);
   const netSubtotal = Math.max(0, cartTotal - discountAmount);
+  // The zone price is for one piece; the server adds the per-piece fee for the rest.
+  const pieceCount = useMemo(() => countShippingPieces(lines), [lines]);
 
   // The zone price list is re-quoted whenever the address or the amount it is
   // priced against changes, because a free-shipping threshold makes the price a
@@ -400,6 +403,7 @@ function InboxOrderComposer({ open, conversation = {}, products = [], busy = fal
         shipping_zone_id: shippingZoneId,
         shipping_district_id: shippingDistrictId,
         net_subtotal: String(netSubtotal),
+        piece_count: String(pieceCount),
       });
       api.get(`/ai-inbox/shipping-quote?${query.toString()}`, { headers, suppressErrorStatuses: [404, 500] })
         .then((data) => active && setQuotedShipping({
@@ -413,7 +417,7 @@ function InboxOrderComposer({ open, conversation = {}, products = [], busy = fal
         .catch(() => active && setQuotedShipping({ cost: null, source: "unavailable", freeShipping: false, loading: false }));
     }, 300);
     return () => { active = false; window.clearTimeout(timer); };
-  }, [cityArea, governorate, headers, netSubtotal, open, shippingCityId, shippingDistrictId, shippingLocations, shippingProvider, shippingZoneId]);
+  }, [cityArea, governorate, headers, netSubtotal, open, pieceCount, shippingCityId, shippingDistrictId, shippingLocations, shippingProvider, shippingZoneId]);
 
   if (!open) return null;
   const shippingIsOverridden = shippingOverride !== null;

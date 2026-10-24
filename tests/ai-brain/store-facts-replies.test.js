@@ -111,6 +111,8 @@ test("the live Alexandria answer: website fee, Arabic delivery time, free-shippi
   });
   assert.equal(live.text, [
     "الشحن للإسكندرية 100 جنيه 🚚",
+    // The registry default: +10 per extra piece, for two pieces at most.
+    "ده للقطعة الواحدة، وكل قطعة زيادة بـ 10 جنيه (أقصى زيادة 20 جنيه).",
     "التوصيل من 4 لـ 5 أيام عمل",
     "والشحن مجاني لو الأوردر 3,500 جنيه أو أكتر.",
     "💳 رسوم الشحن 100 جنيه تتحوّل مقدّم قبل الشحن.",
@@ -159,7 +161,7 @@ test("the unified decision answers all three, on every channel, with no rewrite"
     const run = (message) => generateUnifiedConversationDecision({ channel, message, external_conversation_id: `${channel}:t` }, { memory: {}, tenantId: 1 });
     const shipping = await run("بكام الشحن للاسكندرية ؟");
     assert.equal(shipping.intent, "shipping_fee");
-    assert.equal(shipping.text, "الشحن للإسكندرية 75 جنيه 🚚");
+    assert.equal(shipping.text, "الشحن للإسكندرية 75 جنيه 🚚\nده للقطعة الواحدة، وكل قطعة زيادة بـ 10 جنيه (أقصى زيادة 20 جنيه).");
     const inspect = await run("متاح معاينه قبل الاستلام ؟");
     assert.equal(inspect.intent, "open_package");
     assert.match(inspect.text, /تقدر تفتح الشحنة وتعاين الأوردر قدام المندوب/);

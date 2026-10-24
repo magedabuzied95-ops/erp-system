@@ -215,6 +215,9 @@ export const getShippingFacts = async ({ tenantId, governorate = "", city = "", 
       cod_policy: quote?.cod_policy || null,
       shipping_fee_advance_notice: quote && governorate ? await shippingFeeAdvanceNoticeFor({ governorate, shippingFee: quote.price, orderTotal: number(subtotal, 0) + number(quote.price, 0), compact: true }) : "",
       zones_count: asArray(shippingZones?.zones).length,
+      // Every price here is for ONE piece; each further piece adds this, for at most `max` pieces (0 = no cap).
+      extra_piece_fee: number(shippingZones?.extraPieceFee, 0),
+      extra_piece_max: number(shippingZones?.extraPieceMax, 0),
     },
     supported_areas: asArray(shippingZones?.zones).slice(0, 50).map((zone) => ({
       id: zone.id || "",
