@@ -29,6 +29,21 @@ test('opening the inbox joins the preload and consumes it only once', async () =
   assert.deepEqual(saved, [['wa', payload]]);
 });
 
+test('a completed preload is available synchronously for the first React render', async () => {
+  let current = true;
+  const payload = { conversations: Array.from({ length: 30 }, (_, i) => ({ session_id: `thread:${i}` })) };
+  const cache = createInboxPrefetch({ channels: ['preview'], isCurrent: () => current,
+    fetchPage: async () => payload, savePage: () => {} });
+  assert.equal(cache.peek('one', 'preview'), null);
+  await cache.start('one');
+  assert.equal(cache.peek('one', 'preview'), payload);
+  assert.equal(cache.peek('one', 'preview').conversations.length, 30);
+  assert.equal(await cache.take('one', 'preview'), payload);
+  assert.equal(cache.peek('one', 'preview'), null);
+  current = false;
+  assert.equal(cache.peek('one', 'preview'), null);
+});
+
 test('preloading is bounded to two simultaneous requests and a failed channel does not stop the rest', async () => {
   const requests = new Map();
   let active = 0, peak = 0;

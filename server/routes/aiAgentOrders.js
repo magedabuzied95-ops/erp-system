@@ -3338,6 +3338,7 @@ router.get("/conversations", protect, inboxView(), async (req, res) => {
       limit: req.query?.limit,
       messageLimit: req.query?.message_limit,
       summaryOnly: true,
+      recentFirst: req.query?.sort === 'recent',
       // all | unread | read. Applied in SQL: the row cap below would otherwise decide
       // the queue for us — see readFilterClauseSql.
       readFilter: String(req.query?.read_filter || ""),

@@ -2784,7 +2784,7 @@ const inboxCursorClauseSql = (activityExpression, activityIdx, sessionIdx) => `(
     OR (${activityExpression} = ${activityIdx}::timestamp AND s.session_id < ${sessionIdx}::text)
   )`;
 
-export const loadAiInbox = async ({ tenantId, filter = "all", channelFilter = "", limit = 200, search = "", messageLimit = 30, summaryOnly = false, readFilter = "", favoriteOnly = false, assignedUserId = null, beforeActivityAt = "", beforeSessionId = "", sessionKeys = [], hiddenKeys = null, accountKeys = [], labelIds = [], stages = [], memberIds = [], activity = "", activityFrom = "", activityTo = "", view = "", countsOnly = false } = {}) => {
+export const loadAiInbox = async ({ tenantId, filter = "all", channelFilter = "", limit = 200, search = "", messageLimit = 30, summaryOnly = false, readFilter = "", favoriteOnly = false, assignedUserId = null, beforeActivityAt = "", beforeSessionId = "", sessionKeys = [], hiddenKeys = null, accountKeys = [], labelIds = [], stages = [], memberIds = [], activity = "", activityFrom = "", activityTo = "", view = "", countsOnly = false, recentFirst = false } = {}) => {
   const loadAiInboxStartedAt = Date.now();
   await ensureAiSalesAgentSchema();
   await ensureAiConversationMemorySchema();
@@ -3218,9 +3218,9 @@ export const loadAiInbox = async ({ tenantId, filter = "all", channelFilter = ""
     ) op ON TRUE
     WHERE ${[...clauses, readFilterClauseSql(readFilter, "m.latest_message_created_at"), deletedConversationClauseSql("m.latest_message_created_at")].filter(Boolean).join(" AND ")}
     ORDER BY
-      CASE WHEN ${INBOX_RESOLVED_CHANNEL_SQL} IN ('facebook_messenger', 'instagram', 'whatsapp', 'telegram', 'tiktok') THEN 0 ELSE 1 END,
+      ${recentFirst ? '' : `CASE WHEN ${INBOX_RESOLVED_CHANNEL_SQL} IN ('facebook_messenger', 'instagram', 'whatsapp', 'telegram', 'tiktok') THEN 0 ELSE 1 END,`}
       COALESCE(m.latest_message_created_at, c.last_message_at, s.updated_at) DESC,
-      s.updated_at DESC,
+      ${recentFirst ? '' : 's.updated_at DESC,'}
       -- Stable tiebreak. Keyset pagination needs the sort to be a total order,
       -- or two rows with the same activity timestamp can straddle a page
       -- boundary and one of them is never returned.

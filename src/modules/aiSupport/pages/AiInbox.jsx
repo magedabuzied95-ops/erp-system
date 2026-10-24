@@ -172,7 +172,7 @@ import { AI_INBOX_DEFAULT_LABELS, aiInboxLabelsFromConversation, customAiInboxLa
 import { toast } from "react-hot-toast";
 import { prefetchSocialWorkspace, readSocialWorkspaceCache, socialWorkspaceCacheKey, primeSocialWorkspaceCache } from "../services/socialWorkspaceProgressiveLoad.js";
 import inboxCache from "../services/inboxCache/inboxCache";
-import { takePrefetchedInboxPage } from "../services/inboxPrefetch.js";
+import { takePrefetchedInboxPage, peekPrefetchedInbox } from "../services/inboxPrefetch.js";
 import { loadCustomerProductCatalogWarm } from "../services/customerProductCatalog";
 import { WEAK_CONVERSATION_CHANNELS, backendChannelFilter, channelFromConversationSessionId, channelWindow, channelsForFilter, conversationAccountKey, mergeConversationPages } from "../services/inboxChannels";
 import { findDeepLinkedConversation, normalizeInboxDeepLinkChannel } from "../services/inboxDeepLink.js";
@@ -4791,7 +4791,10 @@ export default function AiInbox({ reviewerMode = false }) {
   const [debouncedSearch, setDebouncedSearch] = useState("");
   const [selectedSessionId, setSelectedSessionId] = useState("");
   const [selectedSocialCommentId, setSelectedSocialCommentId] = useState("");
-  const [inbox, setInbox] = useState({ conversations: [], followups: [] });
+  const [inbox, setInbox] = useState(() => ({
+    conversations: reviewerMode ? [] : asArray(peekPrefetchedInbox()?.conversations),
+    followups: [],
+  }));
   const [drafts, setDrafts] = useState([]);
   const [analytics, setAnalytics] = useState({});
   const [channelStatus, setChannelStatus] = useState({});
@@ -5067,9 +5070,11 @@ export default function AiInbox({ reviewerMode = false }) {
     // "All" is one bounded request per message channel. Declared out here because
     // both the warm-cache read and the network round below need them.
     const deepLinkConversationId = clean(deepLinkConversationRef.current);
+    const listCacheEnabled = !reviewerMode && readFilter === "all" && assignedFilter === "all" && favoriteFilter === "all" && !panelActive && listView === "all";
+    const previewList = listCacheEnabled && channelFilter === "all" && filter === "all" && !debouncedSearch && !deepLinkConversationId;
     const warmChannels = reviewerMode
       ? (META_REVIEWER_CHANNELS.includes(clean(channelFilter).toLowerCase()) ? [clean(channelFilter).toLowerCase()] : META_REVIEWER_CHANNELS)
-      : channelsForFilter(channelFilter);
+      : previewList ? ['preview'] : channelsForFilter(channelFilter);
     // Cache entries are per-channel (keyed by the backend channel name), never one
     // giant unscoped "all" blob — a merged blob would re-introduce exactly the
     // starvation we are fixing as soon as it got clipped by the row cap. Also
@@ -5079,7 +5084,6 @@ export default function AiInbox({ reviewerMode = false }) {
     // served from that cache nor written back into it — either way the next warm "All"
     // open would render a filtered slice as if it were the whole channel.
     // Favourites and the filter panel narrow the set the same way.
-    const listCacheEnabled = !reviewerMode && readFilter === "all" && assignedFilter === "all" && favoriteFilter === "all" && !panelActive && listView === "all";
     const cachedPages = listCacheEnabled
       ? await Promise.all(warmChannels.map((ch) => inboxCache.primeList(ch).then((r) => asArray(r?.conversations)).catch(() => [])))
       : warmChannels.map(() => []);
@@ -5143,9 +5147,10 @@ export default function AiInbox({ reviewerMode = false }) {
         params: {
           tenant_id: tenantId,
           filter,
-          channel_filter: backendChannel,
+          channel_filter: backendChannel === 'preview' ? '' : backendChannel,
+          sort: backendChannel === 'preview' ? 'recent' : undefined,
           search: debouncedSearch || deepLinkConversationId,
-          limit: channelWindow(backendChannel),
+          limit: backendChannel === 'preview' ? 30 : channelWindow(backendChannel),
           // Read state is filtered in SQL, not over this page: the window below is the
           // newest N per channel, so a quiet unread conversation never arrives and the
           // client-side filter can only ever report "nothing unread".
@@ -5836,7 +5841,7 @@ export default function AiInbox({ reviewerMode = false }) {
   // loadMoreConversations below, because the empty-state message underneath is
   // its first reader and a const cannot be read before its own declaration runs.
   const pagedChannels = useMemo(
-    () => channelsForFilter(channelFilter).filter((backendChannel) => clean(listCursors?.[backendChannel]?.session_id)),
+    () => (listCursors.preview ? ['preview'] : channelsForFilter(channelFilter)).filter((backendChannel) => clean(listCursors?.[backendChannel]?.session_id)),
     [channelFilter, listCursors]
   );
   const hasMoreConversations = !reviewerMode && pagedChannels.length > 0;
@@ -8515,7 +8520,7 @@ export default function AiInbox({ reviewerMode = false }) {
    */
   const loadMoreConversations = useCallback(async () => {
     if (loadingMoreRef.current) return;
-    const channels = channelsForFilter(channelFilter).filter((backendChannel) => clean(listCursors?.[backendChannel]?.session_id));
+    const channels = (listCursors.preview ? ['preview'] : channelsForFilter(channelFilter)).filter((backendChannel) => clean(listCursors?.[backendChannel]?.session_id));
     if (!channels.length) return;
     loadingMoreRef.current = true;
     setLoadingMoreConversations(true);
@@ -8524,9 +8529,10 @@ export default function AiInbox({ reviewerMode = false }) {
         params: {
           tenant_id: tenantId,
           filter,
-          channel_filter: backendChannel,
+          channel_filter: backendChannel === 'preview' ? '' : backendChannel,
+          sort: backendChannel === 'preview' ? 'recent' : undefined,
           search: debouncedSearch,
-          limit: channelWindow(backendChannel),
+          limit: backendChannel === 'preview' ? 30 : channelWindow(backendChannel),
           read_filter: readFilter,
           view: listView,
           ...(favoriteFilter === "all" ? {} : { favorite_only: 1 }),

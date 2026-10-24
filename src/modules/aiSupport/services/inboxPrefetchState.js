@@ -28,6 +28,7 @@ export const createInboxPrefetch = ({ channels, fetchPage, savePage, isCurrent, 
         entry.promise = Promise.resolve().then(() => fetchPage(channel, batchController.signal)).then((payload) => {
           if (!valid()) throw new Error('Inbox identity changed');
           entry.at = now();
+          entry.payload = payload;
           savePage(channel, payload);
           return payload;
         }).catch((error) => {
@@ -48,5 +49,10 @@ export const createInboxPrefetch = ({ channels, fetchPage, savePage, isCurrent, 
     pages.delete(channel);
     return entry.promise;
   };
-  return { start, take, clear };
+  const peek = (identity, channel) => {
+    if (identity !== active || !isCurrent(identity)) return null;
+    const entry = pages.get(channel);
+    return entry && now() - entry.at < ttlMs ? entry.payload || null : null;
+  };
+  return { start, take, peek, clear };
 };

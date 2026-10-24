@@ -35,10 +35,19 @@ export default function useInboxPrefetch({ enabled, pathname, identityKey }) {
       if (window.requestIdleCallback) idleId = window.requestIdleCallback(run, { timeout: 3000 });
       else void run();
     }, 2000);
+    const onIntent = (event) => {
+      if (event.target.closest?.('a[href="/admin/ai-inbox"]')) void run();
+    };
+    document.addEventListener('pointerover', onIntent);
+    document.addEventListener('focusin', onIntent);
+    document.addEventListener('touchstart', onIntent, { passive: true });
     return () => {
       cancelled = true;
       window.clearTimeout(timer);
       if (idleId !== undefined) window.cancelIdleCallback?.(idleId);
+      document.removeEventListener('pointerover', onIntent);
+      document.removeEventListener('focusin', onIntent);
+      document.removeEventListener('touchstart', onIntent);
     };
   }, [enabled, pathname, identityKey]);
 }

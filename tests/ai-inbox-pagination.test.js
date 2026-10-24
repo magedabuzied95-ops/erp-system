@@ -70,7 +70,9 @@ test("paging is per channel and stops when a channel runs out", () => {
     desktop.indexOf("const sendAttachment = useCallback")
   );
   assert.ok(loadMore.length > 0, "loadMoreConversations must exist");
-  assert.match(loadMore, /channelsForFilter\(channelFilter\)\.filter\(\(backendChannel\) => clean\(listCursors\?\.\[backendChannel\]\?\.session_id\)\)/);
+  assert.match(loadMore, /listCursors\.preview \? \['preview'\] : channelsForFilter\(channelFilter\)/);
+  assert.match(loadMore, /\.filter\(\(backendChannel\) => clean\(listCursors\?\.\[backendChannel\]\?\.session_id\)\)/);
+  assert.match(loadMore, /sort: backendChannel === 'preview' \? 'recent'/);
   assert.match(loadMore, /before_activity_at: listCursors\[backendChannel\]\.activity_at/);
   // A channel whose next page fails must be dropped, not retried forever, and
   // must not stop the other channels from paging.
