@@ -69,6 +69,8 @@ import {
   updateProductStatus,
 } from "../services/productsApi";
 import { resolveProductImageUrl } from "../../../shared/lib/imageUrls";
+import { peekWorkspace, readPreparedWorkspace, invalidateWorkspace } from '../../../shared/lib/workspacePreload.js';
+import { readProductListBootstrap, productListSignature } from '../lib/productListBootstrap.js';
 import { isSchoolBagType } from "../lib/schoolBagSizes";
 import {
   DEFAULT_PRODUCTS_LIST_FILTERS,
@@ -2025,8 +2027,9 @@ function ProductsList({ portal = null } = {}) {
   const canViewCostPrice = canViewCostPrices();
   const navigate = useNavigate();
 
-  const [rows, setRows] = useState([]);
-  const [loading, setLoading] = useState(true);
+  const [preparedProducts] = useState(() => portal ? null : peekWorkspace('products')?.result);
+  const [rows, setRows] = useState(() => preparedProducts?.products || []);
+  const [loading, setLoading] = useState(() => !preparedProducts);
   const [error, setError] = useState("");
   const [search, setSearch] = useState("");
   const [debouncedSearch, setDebouncedSearch] = useState("");
@@ -2040,9 +2043,9 @@ function ProductsList({ portal = null } = {}) {
   const [manufacturerFilter, setManufacturerFilter] = useState(initialFilters.manufacturer);
   const [page, setPage] = useState(1);
   const [pageSize, setPageSize] = useState(getStoredProductsPageSize);
-  const [pagination, setPagination] = useState({ page: 1, limit: 8, offset: 0, total: 0, totalPages: 1 });
-  const [brandOptions, setBrandOptions] = useState(["all"]);
-  const [manufacturerOptions, setManufacturerOptions] = useState([]);
+  const [pagination, setPagination] = useState(() => preparedProducts?.pagination || { page: 1, limit: 8, offset: 0, total: 0, totalPages: 1 });
+  const [brandOptions, setBrandOptions] = useState(() => ['all', ...(preparedProducts?.raw?.filters?.brands || [])]);
+  const [manufacturerOptions, setManufacturerOptions] = useState(() => preparedProducts?.raw?.filters?.manufacturers || []);
   const [selectedIds, setSelectedIds] = useState([]);
   const [selectedProduct, setSelectedProduct] = useState(null);
   const [openActionId, setOpenActionId] = useState(null);
@@ -2161,6 +2164,8 @@ function ProductsList({ portal = null } = {}) {
   };
 
   const refreshProducts = () => {
+    invalidateWorkspace('products');
+    invalidateWorkspace('pos');
     setRows([]);
     setReloadNonce((prev) => prev + 1);
   };
@@ -2182,11 +2187,10 @@ function ProductsList({ portal = null } = {}) {
 
     const loadProducts = async () => {
       try {
-        setLoading(true);
         setError("");
 
         const refreshToken = Date.now();
-        const productsResult = await getProductsAdminList({
+        const requestOptions = {
           timeoutMs: REQUEST_TIMEOUT_MS,
           signal: controller.signal,
           params: {
@@ -2204,7 +2208,13 @@ function ProductsList({ portal = null } = {}) {
             productType: classificationFilters.productType,
             grade: classificationFilters.grade,
           },
-        });
+        };
+        const signature = productListSignature(requestOptions.params);
+        const canUsePrepared = !portal && page === 1 && reloadNonce === 0 && signature === readProductListBootstrap()?.signature;
+        setLoading(!(canUsePrepared && peekWorkspace('products')?.signature === signature));
+        const productsResult = canUsePrepared
+          ? (await readPreparedWorkspace('products', async () => ({ signature, result: await getProductsAdminList(requestOptions) }))).result
+          : await getProductsAdminList(requestOptions);
         if (cancelled || latestProductsRequestRef.current !== requestId) return;
         const baseProducts = Array.isArray(productsResult?.products) ? productsResult.products : [];
         const nextPagination = productsResult?.pagination || {};

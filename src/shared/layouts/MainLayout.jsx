@@ -675,7 +675,7 @@ function MainLayout() {
   const sideChatOpen = Boolean(sideChat.open);
   // The bell belongs to whoever can open the inbox at all.
   const canSeeInbox = reviewerShell || paletteItems.some((item) => item.to === "/admin/ai-inbox");
-  const workspacePreloadRoutes = reviewerShell ? '' : ['/pos', '/dashboard', '/orders'].filter((to) => paletteItems.some((item) => item.to === to)).join(',');
+  const workspacePreloadRoutes = reviewerShell ? '' : ['/pos', '/dashboard', '/orders', '/products', '/purchases'].filter((to) => paletteItems.some((item) => item.to === to)).join(',');
   useInboxPrefetch({
     enabled: !reviewerShell && (canSeeInbox || Boolean(workspacePreloadRoutes)),
     inboxEnabled: canSeeInbox && !reviewerShell,

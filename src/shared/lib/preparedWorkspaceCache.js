@@ -32,6 +32,11 @@ export function createPreparedWorkspaceCache({ scope, now = Date.now, ttlMs = 30
   };
   return {
     clear,
+    invalidate(prefix) {
+      for (const [key, entry] of entries) {
+        if (key === prefix || key.startsWith(`${prefix}:`)) { entry.controller?.abort(); entries.delete(key); }
+      }
+    },
     peek(key) { if (!scoped()) return null; const e = entries.get(key); return fresh(e) ? e.data ?? null : null; },
     prepare(key, loader) {
       if (!scoped()) return Promise.resolve(null);

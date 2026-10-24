@@ -3,7 +3,7 @@ import fs from "node:fs";
 import test from "node:test";
 
 const route = fs.readFileSync(new URL("../server/routes/purchases.js", import.meta.url), "utf8");
-const loadStart = route.indexOf("const loadPurchases = async (client, { tenantId }) =>");
+const loadStart = route.indexOf("const loadPurchases = async (client, { tenantId, limit = 500 }) =>");
 const loadEnd = route.indexOf("\nconst resolveSupplierForPurchaseUpdate", loadStart);
 const loadPurchases = route.slice(loadStart, loadEnd);
 

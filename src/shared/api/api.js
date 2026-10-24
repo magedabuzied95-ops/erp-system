@@ -1,4 +1,5 @@
 import { clearAuth, getCurrentTenant, getCurrentUser, getToken } from "../auth/authStorage";
+import { workspaceMutationKeys } from '../lib/workspaceMutationKeys.js';
 
 import { API_BASE_URL } from "../constants/app.js?m1PreviewApi=2";
 import { estimatePayloadSize, isErpPerfDebugEnabled } from "../lib/perfDebug";
@@ -371,6 +372,10 @@ const request = async (
     }
   }
 
+  const changedWorkspaces = workspaceMutationKeys(method, endpoint);
+  if (changedWorkspaces.length && typeof window !== 'undefined') {
+    window.dispatchEvent(new CustomEvent('erp:workspace-invalidated', { detail: { keys: changedWorkspaces } }));
+  }
   return data;
 };
 

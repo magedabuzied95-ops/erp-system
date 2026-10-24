@@ -2613,7 +2613,7 @@ const loadPurchaseById = async (client, { tenantId, purchaseId, branchId = null,
   return normalizePurchaseRow(purchase, itemsResult.rows, safety);
 };
 
-const loadPurchases = async (client, { tenantId }) => {
+const loadPurchases = async (client, { tenantId, limit = 500 }) => {
   // Verify schema once per process (memoized on the pool) instead of running
   // the full ALTER/CREATE INDEX + .sql-file DDL on every list request.
   await ensurePurchaseSchemaReady();
@@ -2621,6 +2621,7 @@ const loadPurchases = async (client, { tenantId }) => {
   const values = [];
   const purchaseTenant = tenantClause("p", purchaseColumns, tenantId, values);
   const activePurchaseFilter = purchaseColumns.has("deleted_at") ? "AND p.deleted_at IS NULL" : "";
+  values.push(Math.min(500, Math.max(1, Number.parseInt(limit, 10) || 500)));
   const result = await client.query(
     `
     SELECT
@@ -2640,7 +2641,7 @@ const loadPurchases = async (client, { tenantId }) => {
       ${purchaseTenant}
       ${activePurchaseFilter}
     ORDER BY p.created_at DESC, p.id DESC
-    LIMIT 500
+    LIMIT $${values.length}
     `,
     values
   );
@@ -4245,7 +4246,7 @@ router.get(
     const client = await pool.connect();
     try {
       const tenantId = isSuperAdminUser(req.user) ? null : getTenantId(req, req.user?.tenant_id);
-      const purchases = await loadPurchases(client, { tenantId });
+      const purchases = await loadPurchases(client, { tenantId, limit: req.query.limit });
       res.json({ success: true, data: purchases, purchases });
     } catch (error) {
       console.error("[purchases:list] error", error, error?.stack);

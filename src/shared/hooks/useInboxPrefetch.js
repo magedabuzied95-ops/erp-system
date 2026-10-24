@@ -11,12 +11,17 @@ export default function useInboxPrefetch({ enabled, inboxEnabled = enabled, path
       void import('../lib/workspacePreload.js').then((m) => m.clearWorkspacePreload());
     };
     const onAuth = (event) => { if (shouldResetInboxPrefetch(event)) clear(); };
+    const onProductsChanged = () => {
+      void import('../lib/workspacePreload.js').then((m) => { m.invalidateWorkspace('products'); m.invalidateWorkspace('pos'); });
+    };
+    window.addEventListener('products:refetch', onProductsChanged);
     window.addEventListener('erp:auth-user-updated', onAuth);
     window.addEventListener('erp:auth-expired', onAuth);
     if (!enabled) clear();
     return () => {
       window.removeEventListener('erp:auth-user-updated', onAuth);
       window.removeEventListener('erp:auth-expired', onAuth);
+      window.removeEventListener('products:refetch', onProductsChanged);
       clear();
     };
   }, [enabled, identityKey, workspaceRoutes]);

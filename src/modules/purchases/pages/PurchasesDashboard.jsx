@@ -1,4 +1,5 @@
 import { todayInAppTimezone } from "../../../shared/lib/appTimezone";
+import { peekWorkspace, invalidateWorkspace } from '../../../shared/lib/workspacePreload.js';
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { createPortal } from "react-dom";
 import { Link } from "react-router-dom";
@@ -76,7 +77,7 @@ const notifyProductsChanged = (source = "purchase-price-sync") => {
 
 function PurchasesDashboard() {
   const { t, i18n } = useTranslation();
-  const [purchases, setPurchases] = useState([]);
+  const [purchases, setPurchases] = useState(() => (peekWorkspace('purchases')?.purchases || peekWorkspace('purchases')?.data || []).map(normalizePurchase));
   const [suppliers, setSuppliers] = useState(seedSuppliers());
   const [, setWarehouses] = useState(seedWarehouses());
   const [branches, setBranches] = useState([]);
@@ -89,7 +90,7 @@ function PurchasesDashboard() {
   const [dateFilter, setDateFilter] = useState("");
   const [dateFromFilter, setDateFromFilter] = useState("");
   const [dateToFilter, setDateToFilter] = useState("");
-  const [loading, setLoading] = useState(true);
+  const [loading, setLoading] = useState(() => !peekWorkspace('purchases'));
   const [error, setError] = useState("");
   const [page, setPage] = useState(1);
   const [pageSize, setPageSize] = useState(25);
@@ -177,7 +178,7 @@ function PurchasesDashboard() {
 
   const loadData = async () => {
     try {
-      setLoading(true);
+      setLoading(!peekWorkspace('purchases'));
       setError("");
 
       const [suppliersRes, warehousesRes, branchesRes] = await Promise.allSettled([
@@ -303,6 +304,9 @@ function PurchasesDashboard() {
   const branchOptions = ["all", ...branches.map((branch) => ({ value: branch.id, label: branch.name || branch.code || `Branch ${branch.id}` }))];
   const paymentOptions = ["all", ...uniqueValues(purchases.map((purchase) => purchase.payment_status))];
   const refreshPurchases = async () => {
+    invalidateWorkspace('purchases');
+    invalidateWorkspace('products');
+    invalidateWorkspace('pos');
     const response = await api.get("/purchases");
     const rows = Array.isArray(response?.purchases) ? response.purchases : Array.isArray(response?.data) ? response.data : [];
     setPurchases(rows.map(normalizePurchase));
