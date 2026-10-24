@@ -89,7 +89,8 @@ test("social comments cannot hold the refresh state open", () => {
   // line-ending agnostically: the previous spelling used a literal "\n" and a
   // stale dep list, so on a CRLF checkout it sliced nothing and asserted nothing.
   const finallyStart = src.search(/\}\s*finally\s*\{\s*[\r\n]+\s*if \(seq === requestSeqRef\.current && !silent\) setLoading\(false\);/);
-  const finallyEnd = src.search(/\}, \[channelFilter, debouncedSearch, filter, headers, readFilter, reviewerMode, tenantId\]\);/);
+  const closingDeps = src.slice(finallyStart).search(/\}, \[[^\]]*\]\);/);
+  const finallyEnd = closingDeps < 0 ? -1 : finallyStart + closingDeps;
   assert.ok(finallyStart > 0, "loadAll's finally block not found");
   assert.ok(finallyEnd > finallyStart, "loadAll's closing dependency array not found");
   const finallyBlock = src.slice(finallyStart, finallyEnd);

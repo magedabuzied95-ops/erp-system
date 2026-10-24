@@ -3325,7 +3325,9 @@ router.get("/view-counts", protect, inboxView(), async (req, res) => {
 router.get("/conversations", protect, inboxView(), async (req, res) => {
   try {
     const tenantId = toTenantId(req);
-    await kickEvolutionInboxSync(tenantId);
+    // Recovery updates arrive through realtime; existing conversations must not
+    // wait for a remote provider before the local list can be read.
+    void kickEvolutionInboxSync(tenantId);
     kickMetaHistorySyncIfEmpty(tenantId);
     const { viewer, hiddenKeys } = await inboxPrivacyContext(req, tenantId);
     const inbox = await loadAiInbox({

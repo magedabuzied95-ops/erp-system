@@ -5119,7 +5119,7 @@ export default function AiInbox({ reviewerMode = false }) {
       // have changed, so a cursor taken against the previous set would page into
       // a list that no longer exists.
       setListCursors({});
-      const fetchChannelPage = (backendChannel) => reviewerMode
+      const fetchChannelPage = (backendChannel) => (reviewerMode
         ? api.get(metaReviewerConversationEndpoint(backendChannel), {
             params: { search: debouncedSearch || deepLinkConversationId, limit: channelWindow(backendChannel) },
             perfComponent: `AiInbox.reviewerConversations.${metaReviewerChannel(backendChannel)}`,
@@ -5149,6 +5149,18 @@ export default function AiInbox({ reviewerMode = false }) {
         // it. Without this the window IS the inbox — see AI_INBOX_CHANNEL_WINDOW.
         setListCursors((current) => ({ ...current, [backendChannel]: payload?.has_more ? payload?.next_cursor || null : null }));
         return asArray(payload?.conversations);
+      })).then((rows) => {
+        // A cold open can display the first non-empty channel immediately.
+        // Keep an existing list/thread intact until the complete reconciliation
+        // below, which also handles failures, filters and loaded messages.
+        if (!silent && seq === requestSeqRef.current && rows.length) {
+          setInbox((current) => asArray(current.conversations).length ? current : {
+            conversations: mergeConversationPages([rows], conversationKey),
+            followups: asArray(current.followups),
+          });
+          setLoading(false);
+        }
+        return rows;
       });
 
       const requestedChannels = warmChannels;

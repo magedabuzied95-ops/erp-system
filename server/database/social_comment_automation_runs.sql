@@ -39,3 +39,4 @@ CREATE TABLE IF NOT EXISTS social_comment_automation_runs (
 CREATE INDEX IF NOT EXISTS idx_social_comment_automation_runs_tenant_created ON social_comment_automation_runs (tenant_id, created_at DESC);
 CREATE INDEX IF NOT EXISTS idx_social_comment_automation_runs_tenant_platform ON social_comment_automation_runs (tenant_id, platform, created_at DESC);
 CREATE INDEX IF NOT EXISTS idx_social_comment_automation_runs_tenant_comment ON social_comment_automation_runs (tenant_id, comment_id);
+CREATE INDEX IF NOT EXISTS idx_social_comment_automation_runs_tenant_commenter ON social_comment_automation_runs (tenant_id, commenter_id, created_at DESC);
