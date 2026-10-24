@@ -124,7 +124,7 @@ export default function GoogleAdsModule() {
       })}</tbody></table></div>
       {account && !rows.length && <p>{label('لا توجد نتائج للفترة المحددة', 'No results for this reporting period')}</p>}
     </Card>}
-    {account && <CampaignManager key={account} label={label} request={request} busy={busy} structure={structure} manage={manage} refreshKey={refreshKey} />}
-    {manage && account && <CampaignBuilder key={account} label={label} request={request} busy={busy} account={account} />}
+    {account && <CampaignManager key={`manager-${account}`} label={label} request={request} busy={busy} structure={structure} manage={manage} refreshKey={refreshKey} />}
+    {manage && account && <CampaignBuilder key={`builder-${account}`} label={label} request={request} busy={busy} account={account} />}
   </div>;
 }
