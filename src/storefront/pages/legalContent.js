@@ -398,12 +398,37 @@ export const legalSections = {
       },
     },
     {
+      icon: "send",
+      ar: {
+        title: "إعلانات Google وقياس المشتريات",
+        items: [
+          "يُربط حساب Google Ads داخل M1 ERP بعد موافقة مستخدم مخوّل على شاشة تفويض Google. لا نطلب كلمة مرور حساب Google؛ ونحفظ رموز التفويض اللازمة مشفّرة لإتاحة الإدارة من داخل النظام.",
+          "نستخدم صلاحيات Google Ads لعرض حسابات الإعلانات وحملاتها ونتائجها، وإنشاء الحملات والمجموعات والإعلانات والكلمات المفتاحية، وتعديل الميزانيات والاستهداف والمزايدة وحالة التشغيل وفق إجراءات المستخدم المخوّل.",
+          "عند تفعيل قياس المشتريات، يرسل وسم Google معرّف الطلب وقيمته وعملته لقياس نتائج إعلانات المتجر ومنع تكرار التحويل. لا يتضمن حدث الشراء الذي يرسله هذا التكامل اسم العميل أو هاتفه أو بريده الإلكتروني أو عنوانه.",
+          "قد يستخدم وسم Google معرّفات النقرات وملفات تعريف الارتباط وبيانات المتصفح وفق إعدادات الموافقة المطبّقة. ويعني حدث الشراء تسجيل طلب بالموقع؛ ولا يثبت تحصيل قيمة طلب الدفع عند الاستلام أو توصيله.",
+          "تُستخدم بيانات تكامل Google فقط لتشغيل وظائف إدارة إعلانات المتجر وقياسها التي فعّلها المستخدم، ولا نبيع هذه البيانات. يمكن فصل الربط من شاشة إعلانات Google داخل النظام، أو إلغاء وصول التطبيق من إعدادات اتصالات حساب Google، وطلب حذف بيانات التكامل عبر بريد الدعم.",
+          "تعالج Google البيانات التي تستقبلها وفق سياساتها. يمكن مراجعة سياسة خصوصية Google على https://policies.google.com/privacy ومعلومات استخدام Google لبيانات المواقع على https://policies.google.com/technologies/partner-sites.",
+        ],
+      },
+      en: {
+        title: "Google Ads and purchase measurement",
+        items: [
+          "A Google Ads account is connected inside M1 ERP only after an authorised user approves Google's consent screen. We do not request the Google account password; the authorisation tokens needed to manage the connection are stored encrypted.",
+          "We use Google Ads permissions to display ad accounts, campaigns and results, create campaigns, groups, ads and keywords, and change budgets, targeting, bidding and serving status following actions by an authorised user.",
+          "When purchase measurement is enabled, the Google tag sends a transaction ID, order value and currency to measure the store's ads and prevent duplicate conversions. The purchase event sent by this integration does not contain the customer's name, phone number, email address or postal address.",
+          "The Google tag may use click identifiers, cookies and browser data according to the consent settings applied. A purchase event measures an order placed on the website; it does not confirm collection of cash-on-delivery payment or delivery.",
+          "Google integration data is used only for the store's advertising management and measurement functions enabled by the user and is not sold. Users can disconnect in the system's Google Ads screen, revoke access in their Google account connections, and request deletion of integration data through our support email.",
+          "Google processes data it receives under its own policies. See Google's privacy policy at https://policies.google.com/privacy and information about data from partner sites at https://policies.google.com/technologies/partner-sites.",
+        ],
+      },
+    },
+    {
       icon: "sparkles",
       ar: {
         title: "استخدام بيانات التكامل والاحتفاظ بها",
         items: [
           "تُستخدم البيانات المستلمة من المنصات الخارجية فقط للأغراض المرتبطة بالوظائف التي فعّلها المستخدم: ربط الحساب، عرض حالة الاتصال، النشر، متابعة حالة النشر، وإدارة التكامل.",
-          "لا نستخدم هذه البيانات في الإعلانات أو في بناء ملفات تعريفية للمستخدمين، فيما عدا قياس نتائج إعلانات المتجر على Meta كما هو موضّح في قسم «إعلانات Meta والعملاء المحتملون».",
+          "لا نستخدم هذه البيانات في الإعلانات أو في بناء ملفات تعريفية للمستخدمين خارج تشغيل إعلانات المتجر وقياس نتائجها على Meta وGoogle كما هو موضّح في قسمي «إعلانات Meta والعملاء المحتملون» و«إعلانات Google وقياس المشتريات».",
           "لا يتم الاحتفاظ ببيانات التكامل مدة أطول مما تقتضيه الحاجة التشغيلية أو الالتزامات القانونية.",
           "قد نضيف وظائف جديدة لهذه التكاملات مستقبلًا، ولن يتم ذلك إلا بعد الحصول على الصلاحيات اللازمة من المنصة المعنية ومن المستخدم.",
         ],
@@ -412,7 +437,7 @@ export const legalSections = {
         title: "Use and retention of integration data",
         items: [
           "Data received from third-party platforms is used only for purposes tied to the functions the user has enabled: connecting the account, showing connection status, publishing, tracking publishing status, and managing the integration.",
-          "We do not use this data for advertising or to build user profiles, except for measuring the store's own Meta ad results as described in \"Meta ads and leads\".",
+          "We do not use this data for advertising or to build user profiles outside operating and measuring the store's own Meta and Google ads as described in \"Meta ads and leads\" and \"Google Ads and purchase measurement\".",
           "Integration data is not retained for longer than operational need or legal obligations require.",
             "We may add further functionality to these integrations in future; that will only happen after obtaining the necessary permissions from the platform concerned and from the user.",
         ],
@@ -775,6 +800,7 @@ export const legalUiStrings = {
 // Bumped whenever the substance of a policy changes, so a reviewer (and a user)
 // can see the page is current rather than guessing.
 export const LEGAL_LAST_UPDATED = "2026-10-21";
+export const LEGAL_UPDATED_BY_PAGE = { privacy: '2026-10-24' };
 
 export const legalMetaFor = (pageKey, language) => {
   const meta = legalPageMeta[pageKey];

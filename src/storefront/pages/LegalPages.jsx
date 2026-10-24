@@ -18,6 +18,7 @@ import { getLanguageDirection, normalizeLanguage, resolveInitialLanguage } from 
 import { releaseStorefrontColorScheme, setStorefrontColorScheme } from "../../theme/documentColorScheme";
 import {
   LEGAL_LAST_UPDATED,
+  LEGAL_UPDATED_BY_PAGE,
   SUPPORT_EMAIL,
   legalHeadLinks,
   legalMetaFor,
@@ -144,7 +145,7 @@ function LegalShell({ pageKey }) {
       tabs={<PolicyTabs label={ui.navLabel} links={tabs} />}
       title={meta.label}
       lead={meta.lead}
-      meta={`${ui.lastUpdatedLabel} ${LEGAL_LAST_UPDATED}`}
+      meta={`${ui.lastUpdatedLabel} ${LEGAL_UPDATED_BY_PAGE[pageKey] || LEGAL_LAST_UPDATED}`}
       actions={(
         <>
           {/* Language switch keeps the same URL and only adds ?lang=, so the
