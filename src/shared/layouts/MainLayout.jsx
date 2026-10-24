@@ -2,7 +2,7 @@ import { Suspense, lazy, useEffect, useMemo, useRef, useState } from "react";
 import { createPortal } from "react-dom";
 import { NavLink, Outlet, useLocation, useNavigate } from "react-router-dom";
 
-import { Bell, Boxes, ChevronDown, CircleDollarSign, LogOut, Menu, Moon, MoreVertical, Paintbrush, PanelLeftClose, PanelLeftOpen, PanelRightClose, PanelRightOpen, Plus, Search, Settings2, ShieldCheck, Store, Sun, User, X } from "lucide-react";
+import { Bell, Boxes, ChevronDown, CircleDollarSign, LogOut, Menu, Moon, MoreVertical, Paintbrush, PanelLeftClose, PanelLeftOpen, PanelRightClose, PanelRightOpen, Plus, Search, Settings2, ShieldCheck, ShoppingBag, Store, Sun, User, X } from "lucide-react";
 import { useTranslation } from "react-i18next";
 
 import { clearAuth, getCurrentTenant, getCurrentUser, getToken, isMetaReviewerUser } from "../auth/authStorage";
@@ -17,6 +17,7 @@ import useDismissableLayer from "../hooks/useDismissableLayer";
 import LanguageSwitcher from "../components/LanguageSwitcher";
 import { NotificationBoundary, NotificationsProvider, useNotifications } from "../notifications/index.js";
 import { useRealtimeConnection } from "../realtime/socketStore";
+import { publicStorefrontUrl } from "../lib/publicStorefront";
 import { resolveErpRoutePageTitle } from "../navigation/routePageTitles";
 import { useTheme } from "../../theme/useTheme";
 import CommandPalette, { CommandPaletteTrigger, openCommandPalette, publishCommandPaletteState } from "../components/CommandPalette";
@@ -1087,6 +1088,17 @@ function MainLayout() {
                 >
                   <Search className="h-[18px] w-[18px]" />
                 </button>
+                {/* The storefront, as its icon only. */}
+                <a
+                  href={publicStorefrontUrl("/")}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="m1-page-bar__btn m1-page-bar__store"
+                  aria-label={t("sidebar.openStore")}
+                  title={t("sidebar.openStore")}
+                >
+                  <ShoppingBag className="h-[18px] w-[18px]" />
+                </a>
                 <LanguageSwitcher compact className="m1-page-bar__wide shrink-0" />
                 <button
                   type="button"

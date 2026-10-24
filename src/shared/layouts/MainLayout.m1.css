@@ -21,6 +21,8 @@ html[data-theme="dark"] .m1-page-bar__inner{border-color:rgba(255,255,255,.1);ba
 .m1-page-bar__tools{display:flex;flex:none;align-items:center;gap:4px}
 .m1-page-bar__btn{display:inline-flex;flex:none;align-items:center;justify-content:center;width:36px;height:36px;border:0;border-radius:10px;background:transparent;color:#5c4a1f;transition:background .15s,color .15s}
 .m1-page-bar__btn:hover{background:#f5ead0;color:#3d2f0e}
+/* The storefront link keeps the old quick link's green so it reads as the shop at a glance. */
+.m1-page-bar .m1-page-bar__store{color:#059669}html[data-theme="dark"] .m1-page-bar .m1-page-bar__store{color:#6ee7b7}
 html[data-theme="dark"] .m1-page-bar__btn{color:rgba(255,255,255,.78)}html[data-theme="dark"] .m1-page-bar__btn:hover{background:rgba(255,255,255,.07);color:#fff}
 .m1-page-bar :is([data-message-bell],.m1-shell-theme-toggle){width:36px;height:36px;border-color:transparent!important;border-radius:10px;background:transparent!important;color:#5c4a1f}
 .m1-page-bar :is([data-message-bell],.m1-shell-theme-toggle):hover{background:#f5ead0!important}
