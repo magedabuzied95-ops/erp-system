@@ -732,11 +732,10 @@
     "activityLog": "Activity log",
     "moreActions": "More actions",
     "enterpriseOps": "Manage enterprise operations and subscriptions",
-    "confirmationSend": {
-      "action": "Send confirmation",
-      "title": "Send the order confirmation request",
-      "question": "Send this customer the order confirmation request on WhatsApp?",
-      "detail": "The customer gets buttons to confirm, request an edit, or cancel the order, plus a secure link. Sending it retires any earlier confirmation link for this order.",
+    "messageSend": {
+      "action": "Send message",
+      "title": "Send the customer a message",
+      "pick": "Choose the message",
       "invoice": "Invoice",
       "customer": "Customer",
       "phone": "WhatsApp number",
@@ -744,9 +743,31 @@
       "neverSent": "Never sent",
       "confirm": "Send",
       "sending": "Sending...",
-      "sent": "Confirmation request sent",
-      "failed": "Could not send the confirmation request",
-      "noPhone": "No WhatsApp number recorded for this customer"
+      "sent": "Message sent",
+      "failed": "Could not send the message",
+      "noPhone": "No WhatsApp number recorded for this customer",
+      "loading": "Loading messages...",
+      "none": "Your permissions allow no message for this order",
+      "amount": "Deposit amount",
+      "amountPlaceholder": "Leave empty to use the cash-on-delivery policy amount",
+      "messages": {
+        "order_confirmation": {
+          "label": "Order confirmation",
+          "detail": "The customer gets buttons to confirm, request an edit, or cancel the order, plus a secure link. Sending it retires any earlier confirmation link for this order."
+        },
+        "invoice_receipt": {
+          "label": "Invoice",
+          "detail": "The customer gets the invoice number and a link that opens it."
+        },
+        "shipping_update": {
+          "label": "Shipping update",
+          "detail": "The shipping message for where the parcel is now (created, shipped, out for delivery, delivered, or a failed attempt)."
+        },
+        "shipping_fee_payment_card": {
+          "label": "Shipping fee payment card",
+          "detail": "A card with the transfer number and a link where the customer uploads the transfer screenshot. An amount you type is recorded on the order."
+        }
+      }
     }
   },
   "channels": {

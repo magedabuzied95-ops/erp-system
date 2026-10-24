@@ -2,6 +2,7 @@ import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { ArrowLeftRight, Banknote, Brain, CheckCircle2, Loader2, MessageCircle, Plus, Printer, RefreshCw, Send, ShoppingBag, Truck, X, XCircle } from "lucide-react";
 
 import { api } from "../../api/api";
+import { sendOrderMessage } from "../../api/orderMessages";
 import { formatCurrency } from "../../lib/currency";
 import InboxExchangeSheet from "./InboxExchangeSheet";
 
@@ -341,7 +342,7 @@ export default function InboxCustomerOrdersPanel({ conversation = null, headers 
     setBusyOrderId(order.id);
     try {
       if (action === "send_confirmation") {
-        await api.post(`/orders/${order.id}/send-confirmation`, {}, { headers });
+        await sendOrderMessage(order.id, "order_confirmation", { headers });
         notify("success", LABELS.confirmationSent);
       } else if (action === "confirm_payment") {
         const typedAmount = Number(amount) || 0;
@@ -354,7 +355,7 @@ export default function InboxCustomerOrdersPanel({ conversation = null, headers 
         notify("success", LABELS.paymentConfirmed);
       } else if (action === "request_deposit") {
         const typed = Number(scope) || 0;
-        await api.post(`/orders/${order.id}/request-shipping-fee`, typed > 0 ? { amount: typed } : {}, { headers });
+        await sendOrderMessage(order.id, "shipping_fee_payment_card", { headers, body: typed > 0 ? { amount: typed } : {} });
         setDepositDraft((current) => ({ ...current, [order.id]: "" }));
         notify("success", LABELS.depositRequested);
       } else if (action === "reject_payment") {

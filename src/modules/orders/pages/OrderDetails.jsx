@@ -26,6 +26,8 @@ import {
 import toast from "react-hot-toast";
 
 import { api } from "../../../shared/api/api";
+import { listOrderMessages, sendOrderMessage } from "../../../shared/api/orderMessages";
+import { hasPermission } from "../../../shared/auth/authStorage";
 import {
   formatShippingPaymentMethodLabel,
   getShippingProofRawValue,
@@ -461,8 +463,13 @@ function OrderDetails() {
   const [paymentProofImageFailed, setPaymentProofImageFailed] = useState(false);
   const [invoicePreviewOpen, setInvoicePreviewOpen] = useState(false);
   const [statusTimelineOpen, setStatusTimelineOpen] = useState(false);
-  const [confirmationSendOpen, setConfirmationSendOpen] = useState(false);
-  const [sendingConfirmation, setSendingConfirmation] = useState(false);
+  const [messageSendOpen, setMessageSendOpen] = useState(false);
+  const [sendingMessage, setSendingMessage] = useState(false);
+  // null while the picker's list loads; the server's registry decides what is in it.
+  const [orderMessages, setOrderMessages] = useState(null);
+  const [messageKey, setMessageKey] = useState("");
+  // The payment card's deposit; empty lets the shop's COD policy pick the amount.
+  const [messageAmount, setMessageAmount] = useState("");
   const [packingChecklist, setPackingChecklist] = useState(emptyPackingChecklist);
   const [shippingSetupOpen, setShippingSetupOpen] = useState(false);
   const [bostaLocations, setBostaLocations] = useState({ cities: [], zones: [], districts: [], loadingCities: false, loadingZones: false, loadingDistricts: false });
@@ -870,21 +877,35 @@ function OrderDetails() {
     }
   };
 
-  const handleSendConfirmation = async () => {
-    if (sendingConfirmation) return;
+  // The click only opens the picker. Sending is a second, deliberate tap inside it.
+  const openMessagePicker = async () => {
+    setMessageSendOpen(true);
+    setOrderMessages(null);
+    setMessageAmount("");
     try {
-      setSendingConfirmation(true);
-      const response = await api.post(`/orders/${order.id}/send-confirmation`, {});
-      // The service declines by answering a body, not by failing. Reporting that as a
-      // success would tell the operator a customer was messaged when nobody was.
-      if (response?.sent === false) throw new Error(response?.message || t("orders.details.confirmationSend.failed"));
-      toast.success(response?.message || t("orders.details.confirmationSend.sent"));
-      setConfirmationSendOpen(false);
+      const messages = (await listOrderMessages(order.id)).filter((message) => hasPermission(message.permission));
+      setOrderMessages(messages);
+      setMessageKey((current) => (messages.some((message) => message.key === current) ? current : messages[0]?.key || ""));
+    } catch (err) {
+      setOrderMessages([]);
+      toast.error(err?.responseBody?.message || err.message || t("orders.details.messageSend.failed"));
+    }
+  };
+
+  const handleSendMessage = async () => {
+    if (sendingMessage || !messageKey) return;
+    try {
+      setSendingMessage(true);
+      const amount = Number(messageAmount) || 0;
+      const body = messageKey === "shipping_fee_payment_card" && amount > 0 ? { amount } : {};
+      const response = await sendOrderMessage(order.id, messageKey, { body });
+      toast.success(response?.message || t("orders.details.messageSend.sent"));
+      setMessageSendOpen(false);
       await loadOrder();
     } catch (err) {
-      toast.error(err?.responseBody?.message || err.message || t("orders.details.confirmationSend.failed"));
+      toast.error(err?.responseBody?.message || err.message || t("orders.details.messageSend.failed"));
     } finally {
-      setSendingConfirmation(false);
+      setSendingMessage(false);
     }
   };
 
@@ -1131,13 +1152,13 @@ function OrderDetails() {
                   </button>
                   <button
                     type="button"
-                    onClick={() => setConfirmationSendOpen(true)}
-                    disabled={!canContactCustomer || sendingConfirmation}
-                    title={canContactCustomer ? "" : t("orders.details.confirmationSend.noPhone")}
+                    onClick={openMessagePicker}
+                    disabled={!canContactCustomer || sendingMessage}
+                    title={canContactCustomer ? "" : t("orders.details.messageSend.noPhone")}
                     className="inline-flex items-center gap-1.5 rounded-full border border-amber-400/25 bg-amber-400/10 px-3 py-1.5 text-xs font-semibold text-amber-100 transition hover:bg-amber-400/15 disabled:cursor-not-allowed disabled:opacity-50"
                   >
-                    {sendingConfirmation ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Send className="h-3.5 w-3.5" />}
-                    {t("orders.details.confirmationSend.action")}
+                    {sendingMessage ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Send className="h-3.5 w-3.5" />}
+                    {t("orders.details.messageSend.action")}
                   </button>
                 </div>
               </div>
@@ -2095,37 +2116,82 @@ function OrderDetails() {
         </ModalShell>
       ) : null}
 
-      {confirmationSendOpen ? (
-        <ModalShell title={t("orders.details.confirmationSend.title")} onClose={() => setConfirmationSendOpen(false)} closeLabel={t("common.close")}>
+      {messageSendOpen ? (
+        <ModalShell title={t("orders.details.messageSend.title")} onClose={() => setMessageSendOpen(false)} closeLabel={t("common.close")}>
           <div className="max-w-2xl">
-            <p className="text-sm font-semibold leading-6 text-amber-100">{t("orders.details.confirmationSend.question")}</p>
-            <p className="mt-2 text-sm leading-6 text-zinc-400">{t("orders.details.confirmationSend.detail")}</p>
-            <div className="mt-4 grid gap-3 sm:grid-cols-2">
-              <Info label={t("orders.details.confirmationSend.invoice")} value={order.invoice_number} />
-              <Info label={t("orders.details.confirmationSend.customer")} value={order.customer_name || t("orders.fallback.customer")} />
-              <Info label={t("orders.details.confirmationSend.phone")} value={customerPhone || t("orders.fallback.noPhoneRecorded")} />
-              <Info
-                label={t("orders.details.confirmationSend.lastSent")}
-                value={order.whatsapp_confirmation_sent_at ? formatDateTime(order.whatsapp_confirmation_sent_at) : t("orders.details.confirmationSend.neverSent")}
-              />
+            <div className="grid gap-3 sm:grid-cols-3">
+              <Info label={t("orders.details.messageSend.invoice")} value={order.invoice_number} />
+              <Info label={t("orders.details.messageSend.customer")} value={order.customer_name || t("orders.fallback.customer")} />
+              <Info label={t("orders.details.messageSend.phone")} value={customerPhone || t("orders.fallback.noPhoneRecorded")} />
             </div>
+            <p className="mt-5 text-sm font-semibold text-amber-100">{t("orders.details.messageSend.pick")}</p>
+            {orderMessages === null ? (
+              <div className="mt-3 flex items-center gap-2 text-sm text-zinc-400">
+                <Loader2 className="h-4 w-4 animate-spin" />
+                {t("orders.details.messageSend.loading")}
+              </div>
+            ) : orderMessages.length === 0 ? (
+              <p className="mt-3 text-sm text-zinc-400">{t("orders.details.messageSend.none")}</p>
+            ) : (
+              <div role="radiogroup" className="mt-3 space-y-2">
+                {orderMessages.map((message) => {
+                  const picked = message.key === messageKey;
+                  return (
+                    <button
+                      key={message.key}
+                      type="button"
+                      role="radio"
+                      aria-checked={picked}
+                      onClick={() => setMessageKey(message.key)}
+                      disabled={sendingMessage}
+                      className={`block w-full rounded-[var(--radius-card)] border p-3 text-start transition ${picked ? "border-primary/60 bg-primary/10" : "border-white/10 bg-white/5 hover:bg-white/10"}`}
+                    >
+                      <div className="flex items-center justify-between gap-3">
+                        <span className="font-semibold text-white">{t(`orders.details.messageSend.messages.${message.key}.label`, { defaultValue: message.key })}</span>
+                        {message.tracks_last_sent ? (
+                          <span className="text-xs text-zinc-500">
+                            {t("orders.details.messageSend.lastSent")}: {message.last_sent_at ? formatDateTime(message.last_sent_at) : t("orders.details.messageSend.neverSent")}
+                          </span>
+                        ) : null}
+                      </div>
+                      <p className="mt-1 text-sm leading-6 text-zinc-400">{t(`orders.details.messageSend.messages.${message.key}.detail`, { defaultValue: "" })}</p>
+                    </button>
+                  );
+                })}
+              </div>
+            )}
+            {messageKey === "shipping_fee_payment_card" ? (
+              <label className="mt-4 block text-sm text-zinc-300">
+                {t("orders.details.messageSend.amount")}
+                <input
+                  type="number"
+                  min="0"
+                  inputMode="decimal"
+                  value={messageAmount}
+                  onChange={(event) => setMessageAmount(event.target.value)}
+                  disabled={sendingMessage}
+                  placeholder={t("orders.details.messageSend.amountPlaceholder")}
+                  className="mt-1 h-[var(--control-height-md)] w-full rounded-[var(--radius-control)] border border-white/10 bg-white/5 px-3 text-white"
+                />
+              </label>
+            ) : null}
             <div className="mt-5 flex flex-col-reverse gap-2 sm:flex-row sm:justify-end">
               <button
                 type="button"
-                onClick={() => setConfirmationSendOpen(false)}
-                disabled={sendingConfirmation}
+                onClick={() => setMessageSendOpen(false)}
+                disabled={sendingMessage}
                 className="inline-flex h-[var(--control-height-md)] items-center justify-center rounded-[var(--radius-control)] border border-white/10 bg-white/5 px-4 text-sm font-semibold text-white transition hover:bg-white/10 disabled:opacity-60"
               >
                 {t("orders.bulk.cancel")}
               </button>
               <button
                 type="button"
-                onClick={handleSendConfirmation}
-                disabled={sendingConfirmation}
+                onClick={handleSendMessage}
+                disabled={sendingMessage || !messageKey}
                 className="inline-flex h-[var(--control-height-md)] items-center justify-center gap-2 rounded-[var(--radius-control)] bg-primary px-4 text-sm font-black text-black transition hover:bg-primary disabled:cursor-wait disabled:opacity-60"
               >
-                {sendingConfirmation ? <Loader2 className="h-4 w-4 animate-spin" /> : <Send className="h-4 w-4" />}
-                {sendingConfirmation ? t("orders.details.confirmationSend.sending") : t("orders.details.confirmationSend.confirm")}
+                {sendingMessage ? <Loader2 className="h-4 w-4 animate-spin" /> : <Send className="h-4 w-4" />}
+                {sendingMessage ? t("orders.details.messageSend.sending") : t("orders.details.messageSend.confirm")}
               </button>
             </div>
           </div>

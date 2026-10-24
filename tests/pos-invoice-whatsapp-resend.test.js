@@ -8,6 +8,7 @@ const drawerSource = read("../src/modules/pos/components/RecentOperationsDrawer.
 const routesSource = read("../server/routes/orders.js");
 const controllerSource = read("../server/controllers/ordersController.js");
 const serviceSource = read("../server/services/whatsappOrderConfirmationService.js");
+const registrySource = read("../server/modules/orders/orderMessages.js");
 
 const between = (source, startMarker, endMarker) => {
   const start = source.indexOf(startMarker);
@@ -37,28 +38,22 @@ test("the WhatsApp action asks before it sends", () => {
 
 test("only a confirmed send reports success to the cashier", () => {
   const handler = between(drawerSource, "const handleWhatsappResend", "const handleViewDetails");
-  assert.match(handler, /api\.post\(`\/orders\/\$\{order\.id\}\/resend-invoice-whatsapp`/);
-  assert.match(handler, /if \(response\?\.sent === false\) throw new Error/);
-  const guardIndex = handler.indexOf("response?.sent === false");
+  // The shared sender throws on a body that says it did not send.
+  assert.match(handler, /await sendOrderMessage\(order\.id, "invoice_receipt"\)/);
+  const sendIndex = handler.indexOf("await sendOrderMessage(");
   const successIndex = handler.indexOf("toast.success");
-  assert.ok(guardIndex >= 0 && successIndex > guardIndex, "the success toast must sit behind the sent guard");
+  assert.ok(sendIndex >= 0 && successIndex > sendIndex, "the success toast must follow the send that can throw");
 });
 
-test("the resend route is mounted behind auth and the orders grant", () => {
+test("the receipt keeps the orders view grant, on the old route and the new one", () => {
   assert.match(
     routesSource,
     /router\.post\(\s*"\/:id\/resend-invoice-whatsapp",\s*protect,\s*permit\("orders", "view"\),\s*resendOrderInvoiceWhatsapp\s*\)/
   );
-});
-
-test("a refusal answers 4xx with a reason instead of a 5xx or a false success", () => {
-  const handler = between(controllerSource, "export const resendOrderInvoiceWhatsapp", "export const confirmShippingPayment");
-  assert.match(handler, /sendInvoiceWhatsapp\(order, \{ force: true \}\)/);
-  // A service that declined to send must not surface as a success.
-  assert.match(handler, /if \(!result\?\.sent\)[\s\S]{0,500}?res\.status\(400\)/);
-  assert.ok(!/res\.status\(200\)[\s\S]{0,240}?sent: false/.test(handler), "a skipped send must never answer 200");
-  // A 5xx reaches the browser as an opaque CORS error, so the gateway refusal is a 400.
-  assert.match(handler, /catch \(gatewayError\)[\s\S]{0,1200}?res\.status\(400\)[\s\S]{0,300}?reason: "gateway_error"/);
+  const entry = between(registrySource, "invoice_receipt: Object.freeze({", "export const orderMessageOf");
+  assert.match(entry, /permission: Object\.freeze\(\["orders", "view"\]\)/);
+  assert.match(entry, /sendInvoiceWhatsapp\(order, \{ force: true \}\)/);
+  assert.match(controllerSource, /export const resendOrderInvoiceWhatsapp = \(req, res\) => respondOrderMessage\(req, res, "invoice_receipt"\)/);
 });
 
 test("a manual resend clears the auto-send guards but keeps the ones it cannot talk past", () => {
@@ -78,9 +73,10 @@ test("a manual resend clears the auto-send guards but keeps the ones it cannot t
 });
 
 test("every refusal code the API can answer with has copy in both bundles", () => {
-  const table = between(controllerSource, "const INVOICE_RESEND_FAILURE_MESSAGES", "const invoiceResendFailureMessage");
-  const codes = [...table.matchAll(/^ {2}([a-z_]+):/gm)].map((match) => match[1]);
-  assert.ok(codes.length >= 6, `expected the failure table to name its codes, saw ${codes.length}`);
+  const shared = between(registrySource, "const SHARED_FAILURES", "export const ORDER_MESSAGES");
+  const own = between(between(registrySource, "invoice_receipt: Object.freeze({", "export const orderMessageOf"), "failures:", "fallbackFailure");
+  const codes = [...new Set([...`${shared}\n${own}`.matchAll(/^ +([a-z_]+):/gm)].map((match) => match[1]))];
+  assert.ok(codes.length >= 7, `expected the failure tables to name their codes, saw ${codes.length}`);
   for (const locale of ["en", "ar"]) {
     const reasons = localeBundle(locale)?.recentOps?.whatsappResend?.reasons || {};
     for (const code of codes) {

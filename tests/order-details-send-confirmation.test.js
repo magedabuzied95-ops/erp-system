@@ -8,6 +8,8 @@ const pageSource = read("../src/modules/orders/pages/OrderDetails.jsx");
 const routesSource = read("../server/routes/orders.js");
 const controllerSource = read("../server/controllers/ordersController.js");
 const serviceSource = read("../server/services/whatsappOrderConfirmationService.js");
+const registrySource = read("../server/modules/orders/orderMessages.js");
+const clientSource = read("../src/shared/api/orderMessages.js");
 
 const between = (source, startMarker, endMarker) => {
   const start = source.indexOf(startMarker);
@@ -20,39 +22,53 @@ const between = (source, startMarker, endMarker) => {
 const localeBundle = (locale) => JSON.parse(read(`../src/locales/${locale}/orders.json`));
 
 test("the button asks before a customer is messaged", () => {
-  // The click may only open the question. If the request ever moves into the button,
+  // The click may only open the picker. If the request ever moves into the button,
   // brushing it messages a customer with no way back.
-  const button = between(pageSource, `onClick={() => setConfirmationSendOpen(true)}`, `{t("orders.details.confirmationSend.action")}`);
-  assert.ok(!button.includes("send-confirmation"), "the button click must open the dialog, not send");
-  assert.match(pageSource, /onClick=\{handleSendConfirmation\}/);
+  const opener = between(pageSource, "const openMessagePicker", "const handleSendMessage");
+  assert.ok(!opener.includes("sendOrderMessage("), "the button click must open the picker, not send");
+  assert.match(pageSource, /onClick=\{openMessagePicker\}/);
+  assert.match(pageSource, /onClick=\{handleSendMessage\}/);
+});
+
+test("the picker lists the server's messages and sends the one picked", () => {
+  const opener = between(pageSource, "const openMessagePicker", "const handleSendMessage");
+  assert.match(opener, /listOrderMessages\(order\.id\)/);
+  // A message the operator may not send is not offered; the server refuses it anyway.
+  assert.match(opener, /hasPermission\(message\.permission\)/);
+  const handler = between(pageSource, "const handleSendMessage", "const handleCopyPhone");
+  assert.match(handler, /sendOrderMessage\(order\.id, messageKey, \{ body \}\)/);
 });
 
 test("only a confirmed send reports success to the operator", () => {
-  const handler = between(pageSource, "const handleSendConfirmation", "const handleCopyPhone");
-  assert.match(handler, /api\.post\(`\/orders\/\$\{order\.id\}\/send-confirmation`/);
-  assert.match(handler, /if \(response\?\.sent === false\) throw new Error/);
-  const guardIndex = handler.indexOf("response?.sent === false");
+  // The shared sender throws on a body that says it did not send.
+  const sender = between(clientSource, "export const sendOrderMessage", "\n};");
+  assert.match(sender, /if \(response\?\.sent === false\)[\s\S]{0,200}?throw error/);
+  const handler = between(pageSource, "const handleSendMessage", "const handleCopyPhone");
+  const sendIndex = handler.indexOf("await sendOrderMessage(");
   const successIndex = handler.indexOf("toast.success");
-  assert.ok(guardIndex >= 0 && successIndex > guardIndex, "the success toast must sit behind the sent guard");
+  assert.ok(sendIndex >= 0 && successIndex > sendIndex, "the success toast must follow the send that can throw");
 });
 
-test("the send route is mounted behind auth and the orders edit grant", () => {
+test("the confirmation keeps the orders edit grant, on the old route and the new one", () => {
   // A tap on what this sends can confirm, edit or cancel the order, so viewing is not enough.
   assert.match(
     routesSource,
     /router\.post\(\s*"\/:id\/send-confirmation",\s*protect,\s*permit\("orders", "edit"\),\s*sendOrderConfirmationWhatsapp\s*\)/
   );
+  const entry = between(registrySource, "order_confirmation: Object.freeze({", "invoice_receipt: Object.freeze({");
+  assert.match(entry, /permission: Object\.freeze\(\["orders", "edit"\]\)/);
+  assert.match(entry, /sendOrderConfirmation\(order, \{ force: true \}\)/);
+  assert.match(controllerSource, /export const sendOrderConfirmationWhatsapp = \(req, res\) => respondOrderMessage\(req, res, "order_confirmation"\)/);
 });
 
-test("the controller forces the send and never dresses a refusal as a success", () => {
-  const handler = between(controllerSource, "export const sendOrderConfirmationWhatsapp", "export const confirmShippingPayment");
-  assert.match(handler, /sendOrderConfirmation\(order, \{ force: true \}\)/);
+test("the shared send never dresses a refusal as a success", () => {
+  const send = between(registrySource, "export const sendOrderMessage", "\n};");
   // The outbound queue is the normal path, so a queued message is the success case.
-  assert.match(handler, /const queued = Boolean\(result\?\.queued\)/);
-  assert.match(handler, /if \(!result\?\.sent && !queued\)[\s\S]{0,500}?res\.status\(400\)/);
-  assert.ok(!/res\.status\(200\)[\s\S]{0,240}?sent: false/.test(handler), "a skipped send must never answer 200");
+  assert.match(send, /const queued = Boolean\(result\?\.queued\)/);
+  assert.match(send, /if \(!result\?\.sent && !queued\)[\s\S]{0,300}?refuse\(400, reason, \{\}, result\?\.message\)/);
   // A 5xx reaches the browser as an opaque CORS error, so a gateway refusal is a 400.
-  assert.match(handler, /catch \(gatewayError\)[\s\S]{0,700}?res\.status\(400\)/);
+  assert.match(send, /catch \(gatewayError\)[\s\S]{0,700}?refuse\(400, reason/);
+  assert.ok(!/status: 200[\s\S]{0,240}?sent: false/.test(send), "a skipped send must never answer 200");
 });
 
 test("a manual send clears only the guards that exist for the automatic one", () => {
@@ -99,13 +115,19 @@ test("the customer's tap lands on the statuses a manual send can reach", () => {
   assert.ok(apply.includes("isOrderConfirmationProtectedStatus(currentStatus)"), "the dispatch lock must stay");
 });
 
-test("both locales carry the dialog copy", () => {
-  const keys = ["action", "title", "question", "detail", "invoice", "customer", "phone", "lastSent", "neverSent", "confirm", "sending", "sent", "failed", "noPhone"];
+test("both locales carry the picker copy and a label for every message", () => {
+  const keys = ["action", "title", "pick", "invoice", "customer", "phone", "lastSent", "neverSent", "confirm", "sending", "sent", "failed", "noPhone", "loading", "none", "amount", "amountPlaceholder"];
+  const messageKeys = [...registrySource.matchAll(/^ {2}([a-z_]+): Object\.freeze\(\{$/gm)].map((match) => match[1]);
+  assert.deepEqual(messageKeys, ["order_confirmation", "invoice_receipt", "shipping_update", "shipping_fee_payment_card"]);
   for (const locale of ["ar", "en"]) {
-    const bundle = localeBundle(locale).details?.confirmationSend;
-    assert.ok(bundle, `${locale} is missing orders.details.confirmationSend`);
+    const bundle = localeBundle(locale).details?.messageSend;
+    assert.ok(bundle, `${locale} is missing orders.details.messageSend`);
     for (const key of keys) {
-      assert.ok(String(bundle[key] || "").trim(), `${locale} is missing orders.details.confirmationSend.${key}`);
+      assert.ok(String(bundle[key] || "").trim(), `${locale} is missing orders.details.messageSend.${key}`);
+    }
+    for (const key of messageKeys) {
+      assert.ok(String(bundle.messages?.[key]?.label || "").trim(), `${locale} has no label for the ${key} message`);
+      assert.ok(String(bundle.messages?.[key]?.detail || "").trim(), `${locale} has no detail for the ${key} message`);
     }
   }
 });

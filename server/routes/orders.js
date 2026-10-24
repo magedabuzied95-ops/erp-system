@@ -16,6 +16,7 @@ import { createOnlineExchangeController } from "../modules/orders/onlineExchange
 import { blockMarketplaceOrderMutations } from "../modules/amazon/amazonOrderGuards.js";
 import { getOrderJtStatus, createOrderJtShipment, queryOrderJtShipment, trackOrderJtShipment, printOrderJtLabel, cancelOrderJtShipment } from "../modules/shipping/jtAdmin.controller.js";
 import { createRequestRateLimit } from "../utils/requestRateLimit.js";
+import { orderMessageOf } from "../modules/orders/orderMessages.js";
 import {
   getOrderIdentityAlertLevelsController,
   getOrderIdentityAlertsController,
@@ -40,8 +41,10 @@ import {
   getSingleOrder,
   getOrdersCount,
   logOrderReprint,
+  listOrderMessagesWhatsapp,
   resendOrderInvoiceWhatsapp,
   sendOrderConfirmationWhatsapp,
+  sendOrderMessageWhatsapp,
   markPosEditTiming,
   permanentDeleteOrder,
   returnOrder,
@@ -166,6 +169,29 @@ router.post(
   protect,
   permit("orders", "view"),
   logOrderReprint
+);
+
+// "ابعت رسالة": every message staff send a customer about an order, picked from one list.
+// Each message carries its own grant (asking for a confirmation can change the order, a
+// receipt resend cannot), so the route checks the one the picked message names.
+const permitOrderMessage = (req, res, next) => {
+  const entry = orderMessageOf(req.params.key);
+  if (!entry) return res.status(404).json({ success: false, sent: false, reason: "unknown_message", message: "نوع الرسالة غير معروف" });
+  return permit(...entry.permission)(req, res, next);
+};
+
+router.get(
+  "/:id/messages",
+  protect,
+  permit("orders", "view"),
+  listOrderMessagesWhatsapp
+);
+
+router.post(
+  "/:id/messages/:key",
+  protect,
+  permitOrderMessage,
+  sendOrderMessageWhatsapp
 );
 
 // Re-sending a receipt is the digital twin of reprinting it, so it sits behind the same
