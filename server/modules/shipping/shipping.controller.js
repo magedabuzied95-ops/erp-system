@@ -14,6 +14,8 @@ import {
   syncBostaLocations,
   testBostaWebhookPayload,
 } from "./shipping.service.js";
+import { getBostaConsigneeHistory, saveBostaConsigneeHistory } from "./bostaConsigneeHistory.js";
+import { getTenantId } from "../../utils/requestScope.js";
 import { loadShipmentNotificationSettings } from "../../services/whatsappShippingService.js";
 import { setSetting } from "../../services/settingsService.js";
 import { normalizeShipmentNotificationConfig, SHIPMENT_NOTIFICATION_DEFAULTS, SHIPMENT_TEMPLATE_PLACEHOLDERS } from "../../../shared/shipmentNotificationTemplates.js";
@@ -277,5 +279,33 @@ export const getBostaUnpaidCodController = async (_req, res) => {
     return res.json({ success: true, ...(await getBostaUnpaidCod()) });
   } catch (error) {
     return sendError(res, error, "Failed to read the Bosta COD balance");
+  }
+};
+
+// --- Bosta consignee (cross-merchant) history, synced by the Chrome extension ---
+
+export const getBostaConsigneeHistoryController = async (req, res) => {
+  try {
+    const phone = String(req.query?.phone || "").trim();
+    if (!phone) {
+      return res.status(400).json({ success: false, message: "A phone query parameter is required.", code: "PHONE_REQUIRED" });
+    }
+    const record = await getBostaConsigneeHistory({ tenantId: getTenantId(req, req.user?.tenant_id ?? null), phone });
+    return res.json({ success: true, data: record });
+  } catch (error) {
+    return sendError(res, error, "Failed to read the Bosta consignee record");
+  }
+};
+
+export const saveBostaConsigneeHistoryController = async (req, res) => {
+  try {
+    const record = await saveBostaConsigneeHistory({
+      tenantId: getTenantId(req, req.user?.tenant_id ?? null),
+      syncedBy: actorNameOf(req) || String(req.user?.email || `user:${req.user?.id || ""}`),
+      payload: req.body || {},
+    });
+    return res.json({ success: true, data: record });
+  } catch (error) {
+    return sendError(res, error, "Failed to save the Bosta consignee record");
   }
 };

@@ -14,6 +14,8 @@ import {
   createBostaPickupController,
   getBostaPickupsController,
   getBostaUnpaidCodController,
+  getBostaConsigneeHistoryController,
+  saveBostaConsigneeHistoryController,
   getBostaProviderStatus,
   getShipmentNotificationSettings,
   getShippingCities,
@@ -88,6 +90,10 @@ router.get("/bosta/pickups", protect, permit("orders", "view"), getBostaPickupsC
 router.post("/bosta/pickups", protect, permit("orders", "edit"), createBostaPickupController);
 router.delete("/bosta/pickups/:pickupId", protect, permit("orders", "edit"), cancelBostaPickupController);
 router.get("/bosta/unpaid-cod", protect, permit("orders", "view"), getBostaUnpaidCodController);
+
+// Cross-merchant consignee record, synced from the Bosta dashboard by the Chrome extension.
+router.get("/bosta/consignee-history", protect, permit("orders", "view"), getBostaConsigneeHistoryController);
+router.post("/bosta/consignee-history", protect, permit("orders", "edit"), saveBostaConsigneeHistoryController);
 
 // Courier COD money: what the courier collected at the door (step one, automatic)
 // and the bank transfers that settle it (step two, an operator act). Creating a

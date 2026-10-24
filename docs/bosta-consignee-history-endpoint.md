@@ -142,6 +142,20 @@ Expected outcomes:
 - `200` with the JSON above → wire it into `server/modules/shipping/providers/bosta.client.js` as `getConsigneeRanking(phone)`.
 - `401` / `403` → the endpoint accepts only dashboard user tokens; don't build on it.
 
+## How the ERP consumes it (built 2026-10-24)
+
+Because the API key is refused, the record is fetched client-side by a small
+Chrome extension in `tools/bosta-erp-extension/` that reads it inside the
+logged-in Bosta dashboard tab and POSTs it to the ERP. No Bosta credentials
+reach the server.
+
+- Extension: `tools/bosta-erp-extension/` (MV3; see its README).
+- ERP storage + API: `server/modules/shipping/bostaConsigneeHistory.js`,
+  routes `GET`/`POST /api/shipping/bosta/consignee-history`
+  (`orders.view` / `orders.edit`).
+- ERP UI: `src/modules/orders/components/BostaConsigneeHistoryCard.jsx`,
+  shown on the order page under the identity-alert card.
+
 ## Side effects during capture
 
 No shipment was created, edited, or cancelled; the order form was never

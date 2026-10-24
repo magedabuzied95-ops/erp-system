@@ -828,58 +828,58 @@
   },
   "aiInboxLink": "AI Inbox",
   "portalBoard": {
-      "newOrder": {
-        "open": "New order",
-        "title": "New shipping order",
-        "products": "Products",
-        "pieces": "{{count}} pcs",
-        "size": "Size",
-        "customer": "Customer",
-        "address": "Shipping address",
-        "payment": "Payment & shipping",
-        "channel": "Order came from",
-        "channels": {
-          "whatsapp": "WhatsApp",
-          "facebook": "Facebook",
-          "instagram": "Instagram",
-          "web_chat": "Website"
-        },
-        "paymentMethod": "Payment method",
-        "payments": {
-          "cash_on_delivery": "Cash on delivery",
-          "cash": "Cash (paid)",
-          "visa": "Visa",
-          "instapay": "InstaPay",
-          "vodafone_cash": "Vodafone Cash"
-        },
-        "discountAmount": "Discount (EGP)",
-        "shippingFee": "Shipping fee",
-        "auto": "Auto",
-        "shippingHint": "Shipping is priced from the zone list — type a number only to override it (0 = free shipping).",
-        "subtotal": "Products ({{count}} pcs)",
-        "discount": "Discount",
-        "shipping": "Shipping",
-        "shippingPending": "Pick a governorate",
-        "freeShipping": "Free shipping",
-        "total": "Total",
-        "advanceRequired": "This governorate pays shipping in advance: {{amount}}",
-        "save": "Save order",
-        "fixFields": "Complete the marked fields: products, name, phone and governorate.",
-        "phoneInvalid": "Invalid phone — 11 digits starting with 01",
-        "outOfStock": "Not enough stock right now: {{items}}",
-        "created": "Order {{number}} saved and stock deducted",
-        "returning": "Returning customer — {{count}} earlier orders, last {{number}}. Filled from the last order; check it.",
-        "paidSwitch": "Deposit / shipping already paid",
-        "paidHint": "Recorded with the save; the customer gets a WhatsApp receipt",
-        "paidMethod": "Paid with",
-        "confirmSwitch": "Send the customer the WhatsApp confirmation",
-        "confirmHint": "The orders page message — with the deposit request when the governorate pays shipping first",
-        "paidDone": "Payment recorded",
-        "paidFailed": "Payment not recorded — record it from the order card",
-        "confirmSent": "Confirmation sent",
-        "confirmNoWhatsapp": "This number has no WhatsApp — nothing was sent",
-        "confirmFailed": "Confirmation not sent — send it from the orders page"
+    "newOrder": {
+      "open": "New order",
+      "title": "New shipping order",
+      "products": "Products",
+      "pieces": "{{count}} pcs",
+      "size": "Size",
+      "customer": "Customer",
+      "address": "Shipping address",
+      "payment": "Payment & shipping",
+      "channel": "Order came from",
+      "channels": {
+        "whatsapp": "WhatsApp",
+        "facebook": "Facebook",
+        "instagram": "Instagram",
+        "web_chat": "Website"
       },
+      "paymentMethod": "Payment method",
+      "payments": {
+        "cash_on_delivery": "Cash on delivery",
+        "cash": "Cash (paid)",
+        "visa": "Visa",
+        "instapay": "InstaPay",
+        "vodafone_cash": "Vodafone Cash"
+      },
+      "discountAmount": "Discount (EGP)",
+      "shippingFee": "Shipping fee",
+      "auto": "Auto",
+      "shippingHint": "Shipping is priced from the zone list — type a number only to override it (0 = free shipping).",
+      "subtotal": "Products ({{count}} pcs)",
+      "discount": "Discount",
+      "shipping": "Shipping",
+      "shippingPending": "Pick a governorate",
+      "freeShipping": "Free shipping",
+      "total": "Total",
+      "advanceRequired": "This governorate pays shipping in advance: {{amount}}",
+      "save": "Save order",
+      "fixFields": "Complete the marked fields: products, name, phone and governorate.",
+      "phoneInvalid": "Invalid phone — 11 digits starting with 01",
+      "outOfStock": "Not enough stock right now: {{items}}",
+      "created": "Order {{number}} saved and stock deducted",
+      "returning": "Returning customer — {{count}} earlier orders, last {{number}}. Filled from the last order; check it.",
+      "paidSwitch": "Deposit / shipping already paid",
+      "paidHint": "Recorded with the save; the customer gets a WhatsApp receipt",
+      "paidMethod": "Paid with",
+      "confirmSwitch": "Send the customer the WhatsApp confirmation",
+      "confirmHint": "The orders page message — with the deposit request when the governorate pays shipping first",
+      "paidDone": "Payment recorded",
+      "paidFailed": "Payment not recorded — record it from the order card",
+      "confirmSent": "Confirmation sent",
+      "confirmNoWhatsapp": "This number has no WhatsApp — nothing was sent",
+      "confirmFailed": "Confirmation not sent — send it from the orders page"
+    },
     "title": "Shipping orders",
     "subtitle": "Every website, inbox and courier order with all its details",
     "entry": "Shipping orders",
@@ -1484,7 +1484,12 @@
       "proof": "Transfer screenshot",
       "empty": "No movements yet",
       "print": "Download PDF",
-      "tabs": { "all": "All", "invoices": "Invoices", "payments": "Payments", "returns": "Returns" },
+      "tabs": {
+        "all": "All",
+        "invoices": "Invoices",
+        "payments": "Payments",
+        "returns": "Returns"
+      },
       "openInvoice": "Tap for invoice details",
       "piecesCount": "{{count}} pcs",
       "pricePerPiece": "{{price}} per piece",
@@ -1573,7 +1578,15 @@
       "lastSent": "Last sent",
       "never": "Not sent yet",
       "history": "Recent",
-      "weekdays": ["Sunday", "Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday"],
+      "weekdays": [
+        "Sunday",
+        "Monday",
+        "Tuesday",
+        "Wednesday",
+        "Thursday",
+        "Friday",
+        "Saturday"
+      ],
       "status": {
         "sent": "Sent",
         "skipped": "Skipped",
@@ -1583,11 +1596,31 @@
     "imports": {
       "title": "Import shipments",
       "subtitle": "Goods bought in dollars or yuan, the money sent for them, and the real cost per piece",
-      "tabs": { "shipments": "Shipments", "transfers": "Transfers", "reports": "Reports" },
-      "currency": { "USD": "Dollar", "CNY": "Yuan" },
-      "channel": { "agent": "Through an agent", "cash_usd": "Cash dollars" },
-      "status": { "open": "On the way", "arrived": "Arrived" },
-      "costKind": { "freight": "Freight", "customs": "Customs", "clearance": "Clearance", "local_transport": "Local transport", "agent_fee": "Agent fee", "other": "Other" },
+      "tabs": {
+        "shipments": "Shipments",
+        "transfers": "Transfers",
+        "reports": "Reports"
+      },
+      "currency": {
+        "USD": "Dollar",
+        "CNY": "Yuan"
+      },
+      "channel": {
+        "agent": "Through an agent",
+        "cash_usd": "Cash dollars"
+      },
+      "status": {
+        "open": "On the way",
+        "arrived": "Arrived"
+      },
+      "costKind": {
+        "freight": "Freight",
+        "customs": "Customs",
+        "clearance": "Clearance",
+        "local_transport": "Local transport",
+        "agent_fee": "Agent fee",
+        "other": "Other"
+      },
       "currencyLabel": "Currency",
       "newShipment": "New shipment",
       "empty": "No shipments yet",
@@ -1685,5 +1718,25 @@
       "save": "Save",
       "saved": "Number saved"
     }
+  },
+  "bostaConsignee": {
+    "title": "Bosta customer record",
+    "hint": "The customer’s delivery success across all Bosta merchants.",
+    "delivered": "Delivered",
+    "returned": "Returned",
+    "successRate": "Success rate",
+    "consecutive": "Returns in a row",
+    "refresh": "Refresh from Bosta",
+    "refreshing": "Fetching from Bosta…",
+    "never": "Not fetched from Bosta yet. Press refresh.",
+    "syncedAt": "Last updated: {{when}}",
+    "syncedBy": "by {{name}}",
+    "highReturns": "This customer has high unpaid returns",
+    "lowSuccess": "Low success rate — take care",
+    "noExtension": "The “Bosta ↔ ERP” extension is not connected. Load it from tools/bosta-erp-extension and sign in to Bosta.",
+    "errNoLogin": "Not signed in to Bosta. Open business.bosta.co and sign in.",
+    "errUnauthorized": "Bosta rejected the request. Sign in to the dashboard again.",
+    "errSaveFailed": "We fetched the record but could not save it to the ERP.",
+    "errGeneric": "Could not fetch the record from Bosta."
   }
 }

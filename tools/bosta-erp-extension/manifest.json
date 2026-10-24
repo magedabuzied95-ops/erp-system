@@ -1,0 +1,37 @@
+{
+  "manifest_version": 3,
+  "name": "M1 — Bosta ↔ ERP consignee sync",
+  "version": "1.0.0",
+  "description": "Pulls a customer's cross-merchant delivery record from the Bosta dashboard (using your own logged-in session) and saves it to the M1 ERP.",
+  "permissions": ["tabs", "storage"],
+  "host_permissions": [
+    "https://app.bosta.co/*",
+    "https://business.bosta.co/*",
+    "https://erp.m1store-egy.com/*",
+    "https://jomla.m1store-egy.com/*",
+    "https://api.m1store-egy.com/*",
+    "https://api-jomla.m1store-egy.com/*",
+    "http://localhost/*"
+  ],
+  "background": { "service_worker": "background.js" },
+  "content_scripts": [
+    {
+      "matches": ["https://business.bosta.co/*"],
+      "js": ["content-bosta.js"],
+      "run_at": "document_idle"
+    },
+    {
+      "matches": [
+        "https://erp.m1store-egy.com/*",
+        "https://jomla.m1store-egy.com/*",
+        "http://localhost/*"
+      ],
+      "js": ["content-erp.js"],
+      "run_at": "document_idle"
+    }
+  ],
+  "action": {
+    "default_popup": "popup.html",
+    "default_title": "Bosta ↔ ERP"
+  }
+}

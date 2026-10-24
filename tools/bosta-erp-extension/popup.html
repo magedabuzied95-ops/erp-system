@@ -1,0 +1,48 @@
+<!doctype html>
+<html lang="ar" dir="rtl">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <style>
+      :root { color-scheme: light dark; }
+      body {
+        width: 300px;
+        margin: 0;
+        padding: 14px;
+        font-family: "Segoe UI", Tahoma, system-ui, sans-serif;
+        font-size: 13px;
+        background: #0f172a;
+        color: #e2e8f0;
+      }
+      h1 { font-size: 13px; margin: 0 0 10px; font-weight: 800; }
+      .row { display: flex; gap: 6px; }
+      input {
+        flex: 1; padding: 8px; border-radius: 8px; border: 1px solid #334155;
+        background: #1e293b; color: #e2e8f0; font-size: 13px;
+      }
+      button {
+        padding: 8px 12px; border-radius: 8px; border: 0; cursor: pointer;
+        background: #e11d48; color: #fff; font-weight: 800; font-size: 13px;
+      }
+      button:disabled { opacity: .5; cursor: default; }
+      .out { margin-top: 12px; }
+      .card { background: #1e293b; border: 1px solid #334155; border-radius: 10px; padding: 10px; }
+      .big { font-size: 20px; font-weight: 900; }
+      .muted { color: #94a3b8; font-size: 11px; }
+      .grid { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; margin-top: 8px; }
+      .stat { background: #0f172a; border-radius: 8px; padding: 8px; text-align: center; }
+      .ok { color: #34d399; }
+      .bad { color: #fb7185; }
+      .err { color: #fca5a5; margin-top: 10px; }
+    </style>
+  </head>
+  <body>
+    <h1>سجل العميل من بوسطة</h1>
+    <div class="row">
+      <input id="phone" type="tel" inputmode="numeric" placeholder="01024960585" />
+      <button id="go">جلب</button>
+    </div>
+    <div id="out" class="out"></div>
+    <script src="popup.js"></script>
+  </body>
+</html>

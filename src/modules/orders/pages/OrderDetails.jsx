@@ -47,6 +47,7 @@ import StatusBadge from "../components/StatusBadge";
 import AiInboxOrderLink from "../components/AiInboxOrderLink.jsx";
 import JtShippingPanel from "../components/JtShippingPanel.jsx";
 import { IdentityAlertCard } from "../components/IdentityAlert.jsx";
+import { BostaConsigneeHistoryCard } from "../components/BostaConsigneeHistoryCard.jsx";
 import BostaShipmentInsights, { BostaFeeEstimate } from "../components/BostaShipmentInsights.jsx";
 import OrderInvoiceCard from "../../../shared/components/invoices/OrderInvoiceCard";
 import useOrderPrintSheet from "../../../shared/components/print/useOrderPrintSheet";
@@ -1208,6 +1209,8 @@ function OrderDetails() {
           </div>
 
           <IdentityAlertCard orderId={order.id} />
+
+          {customerPhone ? <BostaConsigneeHistoryCard phone={customerPhone} /> : null}
 
           {!requiresShipping ? (
             <div className="flex flex-col gap-3 rounded-2xl border border-emerald-400/20 bg-emerald-400/[0.07] p-4 sm:flex-row sm:items-center sm:justify-between">
