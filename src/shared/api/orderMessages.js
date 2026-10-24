@@ -15,8 +15,9 @@ export const listOrderMessages = async (orderId, { headers } = {}) => {
 
 // The service declines by answering a body, not by failing. Reporting that as a success would
 // tell the operator a customer was messaged when nobody was, so a refusal is thrown here.
-export const sendOrderMessage = async (orderId, key, { headers } = {}) => {
-  const response = await api.post(`${orderMessagesEndpoint(orderId)}/${encodeURIComponent(key)}`, {}, { headers });
+// body carries what one message needs from the operator (the payment card's typed amount).
+export const sendOrderMessage = async (orderId, key, { headers, body = {} } = {}) => {
+  const response = await api.post(`${orderMessagesEndpoint(orderId)}/${encodeURIComponent(key)}`, body, { headers });
   if (response?.sent === false) {
     const error = new Error(response?.message || "");
     error.responseBody = response;

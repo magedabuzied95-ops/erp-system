@@ -14,7 +14,7 @@ import { editPaymentMethodChangeColumnDeltas, planEditPaymentMethodChange } from
 import { applyTransferPaymentConfirmation } from "../modules/walletTransfers/transferPaymentConfirmation.js";
 import { claimWalletTransferForPosOrder, emitPosTransferSettled, sumPosTransferParts } from "../modules/walletTransfers/walletTransfers.service.js";
 import { describeShippingFeeAdvance, markShippingFeePaid, waiveShippingFeeAdvance } from "../modules/shipping/shippingFeeAdvance.js";
-import { notifyPaymentProofApproved, sendShippingFeePaymentRequest } from "../modules/shipping/paymentProofLink.js";
+import { notifyPaymentProofApproved } from "../modules/shipping/paymentProofLink.js";
 import { DELIVERED_CLOSES_CONFIRMATION_SQL } from "../modules/shipping/shipping.settlements.service.js";
 import { editedOnlineOrderPaymentMethod, isOnlineShippingOrder } from "../modules/shipping/onlineOrderSql.js";
 import { loadCodPolicySettings } from "../services/storefrontShippingService.js";
@@ -6447,7 +6447,13 @@ const requestTenantId = (req) => (isSuperAdminUser(req.user) ? null : getTenantI
 
 const respondOrderMessage = async (req, res, key) => {
   try {
-    const { status, body } = await sendOrderMessage({ key, orderId: String(req.params.id || "").trim(), tenantId: requestTenantId(req), user: req.user });
+    const { status, body } = await sendOrderMessage({
+      key,
+      orderId: String(req.params.id || "").trim(),
+      tenantId: requestTenantId(req),
+      user: req.user,
+      input: req.body || {},
+    });
     return res.status(status).json(body);
   } catch (error) {
     console.error("[whatsapp:order-message-error]", { key, order_id: req.params.id, message: error?.message || String(error) });
@@ -6518,21 +6524,8 @@ export const skipOrderShippingFeeAdvance = async (req, res) => {
 };
 
 // Staff ask the customer for the shipping deposit on demand (the AI Inbox's order card).
-export const requestOrderShippingFeePayment = async (req, res) => {
-  try {
-    const tenantId = isSuperAdminUser(req.user) ? null : getTenantId(req, req.user?.tenant_id);
-    const result = await sendShippingFeePaymentRequest({
-      orderId: req.params.id,
-      tenantId,
-      amount: Number(req.body?.amount) || 0,
-    });
-    return res.json({ success: true, ...result });
-  } catch (error) {
-    const status = error.status || 500;
-    if (status >= 500) console.error("[orders.request-shipping-fee] failed", { orderId: req.params.id, message: error?.message });
-    return res.status(status).json({ success: false, code: error.code, message: error.message || "Failed to send the payment request" });
-  }
-};
+// The payment card is one of the order messages now; the route stays for older clients.
+export const requestOrderShippingFeePayment = (req, res) => respondOrderMessage(req, res, "shipping_fee_payment_card");
 
 export const confirmShippingPayment = async (req, res) => {
   const client = await db.connect();

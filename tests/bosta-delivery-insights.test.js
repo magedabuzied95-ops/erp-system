@@ -137,7 +137,9 @@ test("the out-for-delivery message names the courier only when Bosta gave one", 
 // Each failed day is its own message: the claim is per attempt, not once per order.
 test("the failed-delivery claim is per attempt, with a per-attempt queue key", () => {
   assert.match(whatsappSource, /COALESCE\(whatsapp_delivery_failed_attempt, 0\) < \$2/);
-  assert.match(whatsappSource, /idempotencySuffix = type === "delivery_failed" \? `attempt_/);
+  assert.match(whatsappSource, /: type === "delivery_failed" \? `attempt_\$\{Number\(claimed\.whatsapp_delivery_failed_attempt \|\| 1\)\}`/);
+  // A manual resend replaces the per-attempt key with its own, so it is never a duplicate.
+  assert.match(whatsappSource, /const idempotencySuffix = isManualSend\s*\? `manual-\$\{Date\.now\(\)\}`/);
 });
 
 test("pickup dates without a year roll into next year rather than into the past", () => {

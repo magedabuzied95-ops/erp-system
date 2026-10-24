@@ -128,8 +128,15 @@ export const shipmentTemplateValues = async (order = {}) => {
   };
 };
 
-const sendShippingNotification = async (order = {}, type) => {
+/*
+ * options.force is a human sending it from the order: the shop's on/off switch and the
+ * once-only claim are for the automatic send, so they step aside. What a human cannot wave
+ * away stays - no phone, an empty template, and the type's own eligibility (a failed
+ * attempt the customer cannot act on is still not theirs to hear about).
+ */
+const sendShippingNotification = async (order = {}, type, options = {}) => {
   await ensureWhatsappShippingSchema();
+  const isManualSend = options.force === true;
   const config = NOTIFICATIONS[type];
   if (!config) return { sent: false, reason: "unsupported_notification" };
   const current = await loadOrder(order);
@@ -140,7 +147,7 @@ const sendShippingNotification = async (order = {}, type) => {
   const message = current?.id ? renderShipmentTemplate(settings.template, await shipmentTemplateValues(current)) : "";
   const reason = !current?.id
     ? "order_missing"
-    : !settings.enabled
+    : !settings.enabled && !isManualSend
       ? "disabled"
       : !phone
         ? "missing_phone"
@@ -153,6 +160,7 @@ const sendShippingNotification = async (order = {}, type) => {
 
   try {
     const custom = config.claim ? config.claim(current) : null;
+    // A manual send still writes its stamp, so the order shows when the customer was last told.
     const claim = await db.query(
       custom
         ? `
@@ -160,15 +168,15 @@ const sendShippingNotification = async (order = {}, type) => {
       SET ${custom.set},
           updated_at = NOW()
       WHERE id = $1
-        AND ${custom.where}
+        ${isManualSend ? "" : `AND ${custom.where}`}
       RETURNING *
       `
         : `
       UPDATE orders
-      SET ${config.column} = COALESCE(${config.column}, NOW()),
+      SET ${config.column} = ${isManualSend ? "NOW()" : `COALESCE(${config.column}, NOW())`},
           updated_at = NOW()
       WHERE id = $1
-        AND ${config.column} IS NULL
+        ${isManualSend ? "" : `AND ${config.column} IS NULL`}
       RETURNING *
       `,
       custom ? [current.id, ...custom.params] : [current.id]
@@ -201,7 +209,10 @@ const sendShippingNotification = async (order = {}, type) => {
      */
     // A per-attempt message needs a per-attempt idempotency key, or the queue would take
     // the second failed day for a duplicate of the first.
-    const idempotencySuffix = type === "delivery_failed" ? `attempt_${Number(claimed.whatsapp_delivery_failed_attempt || 1)}` : "";
+    // A manual resend is its own message: staff repeat it when the customer lost the first one.
+    const idempotencySuffix = isManualSend
+      ? `manual-${Date.now()}`
+      : type === "delivery_failed" ? `attempt_${Number(claimed.whatsapp_delivery_failed_attempt || 1)}` : "";
     const queued = await queueWhatsappAutomation({
       tenantId: claimed.tenant_id || order?.tenant_id || 0,
       automationType: type,
@@ -336,8 +347,31 @@ export const sendShipmentOutForDelivery = (order = {}) => sendShippingNotificati
 export const sendShipmentDelivered = (order = {}) => sendShippingNotification(order, "delivered");
 export const sendShipmentDeliveryFailed = (order = {}) => sendShippingNotification(order, "delivery_failed");
 
+// The one map from a shipping status to the message that tells the customer about it.
+const normalizeShipmentStatus = (status = "") => text(status).toLowerCase().replace(/[\s-]+/g, "_");
+export const shipmentNotificationTypeFor = (status = "") => {
+  const normalized = normalizeShipmentStatus(status);
+  if (["shipment_created", "created"].includes(normalized)) return "shipment_created";
+  if (["shipped", "in_transit", "picked_up", "picked"].includes(normalized)) return "shipped";
+  if (normalized === "out_for_delivery") return "out_for_delivery";
+  if (normalized === "delivered") return "delivered";
+  if (normalized === "failed_delivery") return "delivery_failed";
+  return "";
+};
+export const shipmentNotificationColumnFor = (type = "") => NOTIFICATIONS[type]?.column || "";
+
+/* "تحديث الشحن" from the order: the message for where the parcel is now, sent again on purpose. */
+export const resendShipmentNotification = async (order = {}) => {
+  await ensureWhatsappShippingSchema();
+  const current = await loadOrder(order);
+  if (!current?.id) return { sent: false, reason: "order_missing" };
+  const type = shipmentNotificationTypeFor(current.shipment_status || current.shipping_status);
+  if (!type) return { sent: false, reason: "no_shipping_update" };
+  return sendShippingNotification(current, type, { force: true });
+};
+
 export const sendShipmentNotificationForStatus = (order = {}, status = "") => {
-  const normalized = text(status || order.shipment_status || order.shipping_status).toLowerCase().replace(/[\s-]+/g, "_");
+  const normalized = normalizeShipmentStatus(status || order.shipment_status || order.shipping_status);
   /*
    * The chat gets the status too, not just the message.
    *
@@ -357,12 +391,9 @@ export const sendShipmentNotificationForStatus = (order = {}, status = "") => {
       orderId: order.id || null,
     }))
     .catch((error) => console.warn("[whatsapp-order-label] hook failed", { message: error?.message || String(error) }));
-  if (["shipment_created", "created"].includes(normalized)) return sendShipmentCreated(order);
-  if (["shipped", "in_transit", "picked_up", "picked"].includes(normalized)) return sendShipmentShipped(order);
-  if (normalized === "out_for_delivery") return sendShipmentOutForDelivery(order);
-  if (normalized === "delivered") return sendShipmentDelivered(order);
-  if (normalized === "failed_delivery") return sendShipmentDeliveryFailed(order);
-  return Promise.resolve({ sent: false, reason: "status_not_notifiable" });
+  const type = shipmentNotificationTypeFor(normalized);
+  if (!type) return Promise.resolve({ sent: false, reason: "status_not_notifiable" });
+  return sendShippingNotification(order, type);
 };
 
 export default {

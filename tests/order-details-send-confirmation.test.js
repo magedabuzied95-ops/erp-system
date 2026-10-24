@@ -36,7 +36,7 @@ test("the picker lists the server's messages and sends the one picked", () => {
   // A message the operator may not send is not offered; the server refuses it anyway.
   assert.match(opener, /hasPermission\(message\.permission\)/);
   const handler = between(pageSource, "const handleSendMessage", "const handleCopyPhone");
-  assert.match(handler, /sendOrderMessage\(order\.id, messageKey\)/);
+  assert.match(handler, /sendOrderMessage\(order\.id, messageKey, \{ body \}\)/);
 });
 
 test("only a confirmed send reports success to the operator", () => {
@@ -65,7 +65,7 @@ test("the shared send never dresses a refusal as a success", () => {
   const send = between(registrySource, "export const sendOrderMessage", "\n};");
   // The outbound queue is the normal path, so a queued message is the success case.
   assert.match(send, /const queued = Boolean\(result\?\.queued\)/);
-  assert.match(send, /if \(!result\?\.sent && !queued\)[\s\S]{0,300}?refuse\(400, reason\)/);
+  assert.match(send, /if \(!result\?\.sent && !queued\)[\s\S]{0,300}?refuse\(400, reason, \{\}, result\?\.message\)/);
   // A 5xx reaches the browser as an opaque CORS error, so a gateway refusal is a 400.
   assert.match(send, /catch \(gatewayError\)[\s\S]{0,700}?refuse\(400, reason/);
   assert.ok(!/status: 200[\s\S]{0,240}?sent: false/.test(send), "a skipped send must never answer 200");
@@ -116,9 +116,9 @@ test("the customer's tap lands on the statuses a manual send can reach", () => {
 });
 
 test("both locales carry the picker copy and a label for every message", () => {
-  const keys = ["action", "title", "pick", "invoice", "customer", "phone", "lastSent", "neverSent", "confirm", "sending", "sent", "failed", "noPhone", "loading", "none"];
+  const keys = ["action", "title", "pick", "invoice", "customer", "phone", "lastSent", "neverSent", "confirm", "sending", "sent", "failed", "noPhone", "loading", "none", "amount", "amountPlaceholder"];
   const messageKeys = [...registrySource.matchAll(/^ {2}([a-z_]+): Object\.freeze\(\{$/gm)].map((match) => match[1]);
-  assert.deepEqual(messageKeys, ["order_confirmation", "invoice_receipt"]);
+  assert.deepEqual(messageKeys, ["order_confirmation", "invoice_receipt", "shipping_update", "shipping_fee_payment_card"]);
   for (const locale of ["ar", "en"]) {
     const bundle = localeBundle(locale).details?.messageSend;
     assert.ok(bundle, `${locale} is missing orders.details.messageSend`);

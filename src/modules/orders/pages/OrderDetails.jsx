@@ -468,6 +468,8 @@ function OrderDetails() {
   // null while the picker's list loads; the server's registry decides what is in it.
   const [orderMessages, setOrderMessages] = useState(null);
   const [messageKey, setMessageKey] = useState("");
+  // The payment card's deposit; empty lets the shop's COD policy pick the amount.
+  const [messageAmount, setMessageAmount] = useState("");
   const [packingChecklist, setPackingChecklist] = useState(emptyPackingChecklist);
   const [shippingSetupOpen, setShippingSetupOpen] = useState(false);
   const [bostaLocations, setBostaLocations] = useState({ cities: [], zones: [], districts: [], loadingCities: false, loadingZones: false, loadingDistricts: false });
@@ -879,6 +881,7 @@ function OrderDetails() {
   const openMessagePicker = async () => {
     setMessageSendOpen(true);
     setOrderMessages(null);
+    setMessageAmount("");
     try {
       const messages = (await listOrderMessages(order.id)).filter((message) => hasPermission(message.permission));
       setOrderMessages(messages);
@@ -893,7 +896,9 @@ function OrderDetails() {
     if (sendingMessage || !messageKey) return;
     try {
       setSendingMessage(true);
-      const response = await sendOrderMessage(order.id, messageKey);
+      const amount = Number(messageAmount) || 0;
+      const body = messageKey === "shipping_fee_payment_card" && amount > 0 ? { amount } : {};
+      const response = await sendOrderMessage(order.id, messageKey, { body });
       toast.success(response?.message || t("orders.details.messageSend.sent"));
       setMessageSendOpen(false);
       await loadOrder();
@@ -2143,9 +2148,11 @@ function OrderDetails() {
                     >
                       <div className="flex items-center justify-between gap-3">
                         <span className="font-semibold text-white">{t(`orders.details.messageSend.messages.${message.key}.label`, { defaultValue: message.key })}</span>
-                        <span className="text-xs text-zinc-500">
-                          {t("orders.details.messageSend.lastSent")}: {message.last_sent_at ? formatDateTime(message.last_sent_at) : t("orders.details.messageSend.neverSent")}
-                        </span>
+                        {message.tracks_last_sent ? (
+                          <span className="text-xs text-zinc-500">
+                            {t("orders.details.messageSend.lastSent")}: {message.last_sent_at ? formatDateTime(message.last_sent_at) : t("orders.details.messageSend.neverSent")}
+                          </span>
+                        ) : null}
                       </div>
                       <p className="mt-1 text-sm leading-6 text-zinc-400">{t(`orders.details.messageSend.messages.${message.key}.detail`, { defaultValue: "" })}</p>
                     </button>
@@ -2153,6 +2160,21 @@ function OrderDetails() {
                 })}
               </div>
             )}
+            {messageKey === "shipping_fee_payment_card" ? (
+              <label className="mt-4 block text-sm text-zinc-300">
+                {t("orders.details.messageSend.amount")}
+                <input
+                  type="number"
+                  min="0"
+                  inputMode="decimal"
+                  value={messageAmount}
+                  onChange={(event) => setMessageAmount(event.target.value)}
+                  disabled={sendingMessage}
+                  placeholder={t("orders.details.messageSend.amountPlaceholder")}
+                  className="mt-1 h-[var(--control-height-md)] w-full rounded-[var(--radius-control)] border border-white/10 bg-white/5 px-3 text-white"
+                />
+              </label>
+            ) : null}
             <div className="mt-5 flex flex-col-reverse gap-2 sm:flex-row sm:justify-end">
               <button
                 type="button"

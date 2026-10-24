@@ -355,7 +355,7 @@ export default function InboxCustomerOrdersPanel({ conversation = null, headers 
         notify("success", LABELS.paymentConfirmed);
       } else if (action === "request_deposit") {
         const typed = Number(scope) || 0;
-        await api.post(`/orders/${order.id}/request-shipping-fee`, typed > 0 ? { amount: typed } : {}, { headers });
+        await sendOrderMessage(order.id, "shipping_fee_payment_card", { headers, body: typed > 0 ? { amount: typed } : {} });
         setDepositDraft((current) => ({ ...current, [order.id]: "" }));
         notify("success", LABELS.depositRequested);
       } else if (action === "reject_payment") {
