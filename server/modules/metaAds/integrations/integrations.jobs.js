@@ -73,12 +73,12 @@ const scanCompetitors = async () => {
   return { scanned: ok, due: rows.length };
 };
 
-// Daily, and only with APIFY_TOKEN set: every page Apify can find (saved link or page id).
+// Daily, and only with APIFY_TOKEN set: every page Apify can find (saved link, page id or Instagram account).
 const scanCompetitorPostsJob = async () => {
   if (!text(process.env.APIFY_TOKEN)) return { skipped: "no APIFY_TOKEN" };
   const { rows } = await db.query(
     `SELECT id, tenant_id FROM meta_ads_competitors
-      WHERE active = TRUE AND (COALESCE(facebook_url, '') <> '' OR COALESCE(page_id, '') <> '')
+      WHERE active = TRUE AND (COALESCE(facebook_url, '') <> '' OR COALESCE(page_id, '') <> '' OR COALESCE(instagram, '') <> '')
         AND (posts_scanned_at IS NULL OR posts_scanned_at < NOW() - INTERVAL '20 hours')
       ORDER BY posts_scanned_at NULLS FIRST, id LIMIT 50`,
   );

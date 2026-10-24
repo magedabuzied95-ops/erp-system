@@ -427,6 +427,7 @@ const STATEMENTS = [
     UNIQUE (tenant_id, competitor_id, post_id)
   )`,
   `CREATE INDEX IF NOT EXISTS meta_ads_competitor_posts_time_idx ON meta_ads_competitor_posts (tenant_id, posted_at DESC)`,
+  `ALTER TABLE meta_ads_competitor_posts ADD COLUMN IF NOT EXISTS platform TEXT NOT NULL DEFAULT 'facebook'`,
   `CREATE TABLE IF NOT EXISTS meta_ads_competitor_report_schedules (
     id BIGSERIAL PRIMARY KEY,
     tenant_id BIGINT NOT NULL,

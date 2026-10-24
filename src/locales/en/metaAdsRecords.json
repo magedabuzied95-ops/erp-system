@@ -267,6 +267,10 @@
       "link": "Link",
       "text": "Text"
     },
+    "postPlatform": {
+      "facebook": "Facebook",
+      "instagram": "Instagram"
+    },
     "reportStatus": {
       "ready": "Ready",
       "sent": "Sent",

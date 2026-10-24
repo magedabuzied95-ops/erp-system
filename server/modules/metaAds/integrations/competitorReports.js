@@ -53,6 +53,7 @@ export const summarizeCompetitor = (competitor, posts = [], days = 7) => {
     formats,
     top_posts: top.map((post) => ({
       url: text(post.url),
+      platform: text(post.platform) || "facebook",
       media_type: text(post.media_type),
       posted_at: post.posted_at ? new Date(post.posted_at).toISOString().slice(0, 10) : "",
       likes: num(post.likes),
@@ -231,7 +232,7 @@ export const buildCompetitorReport = async (tenantId, { scheduleId = null, days 
   );
   if (!competitors.length) throw httpError(409, "Add at least one active competitor first.", "META_ADS_NO_COMPETITORS");
   const { rows: posts } = await db.query(
-    `SELECT competitor_id, url, body, media_type, posted_at, likes, comments, shares, views, engagement
+    `SELECT competitor_id, platform, url, body, media_type, posted_at, likes, comments, shares, views, engagement
        FROM meta_ads_competitor_posts
       WHERE tenant_id = $1 AND COALESCE(posted_at, first_seen_at) >= $2 AND COALESCE(posted_at, first_seen_at) <= $3`,
     [tenantId, periodStart, periodEnd],

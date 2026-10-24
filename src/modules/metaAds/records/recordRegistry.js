@@ -721,6 +721,7 @@ export const RECORD_RESOURCES = {
     title: { key: "page_name", label: "l.pageName" },
     columns: [
       { key: "competitor_name", label: "l.competitor", type: "text" },
+      { key: "platform", label: "l.platform", type: "enum", enum: "postPlatform" },
       { key: "body", label: "l.postText", type: "text" },
       { key: "media_type", label: "l.format", type: "enum", enum: "postFormat" },
       { key: "posted_at", label: "l.postedAt", type: "datetime" },
@@ -739,6 +740,7 @@ export const RECORD_RESOURCES = {
         start: [
           { key: "competitor_id", label: "l.competitor", type: "lookup", display: "competitor_name", link: "competitors" },
           { key: "page_name", label: "l.pageName", type: "text" },
+          { key: "platform", label: "l.platform", type: "enum", enum: "postPlatform" },
           { key: "body", label: "l.postText", type: "textarea", rows: 8 },
           { key: "media_type", label: "l.format", type: "enum", enum: "postFormat" },
           { key: "url", label: "l.viewPost", type: "link", hideEmpty: true },

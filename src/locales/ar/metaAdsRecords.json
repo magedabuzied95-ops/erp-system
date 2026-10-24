@@ -267,6 +267,10 @@
       "link": "رابط",
       "text": "نص"
     },
+    "postPlatform": {
+      "facebook": "فيسبوك",
+      "instagram": "إنستجرام"
+    },
     "reportStatus": {
       "ready": "جاهز",
       "sent": "تم الإرسال",

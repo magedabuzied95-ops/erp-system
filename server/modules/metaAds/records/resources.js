@@ -716,6 +716,7 @@ export const RESOURCES = {
     display: { competitor_name: "co.name" },
     columns: {
       competitor_name: { sql: "co.name", type: "text" },
+      platform: { sql: "t.platform", type: "enum" },
       body: { sql: "t.body", type: "text" },
       media_type: { sql: "t.media_type", type: "enum" },
       posted_at: { sql: "t.posted_at", type: "datetime" },

@@ -1,7 +1,14 @@
 import test from "node:test";
 import assert from "node:assert/strict";
 
-import { competitorPageUrl, normalizeApifyPost, runApifyPostsScraper } from "../../server/modules/metaAds/integrations/competitorPosts.js";
+import {
+  competitorInstagramUsernames,
+  competitorPageUrl,
+  normalizeApifyPost,
+  normalizeInstagramPost,
+  runApifyInstagramScraper,
+  runApifyPostsScraper,
+} from "../../server/modules/metaAds/integrations/competitorPosts.js";
 import { isScheduleDue, renderReportText, splitForTelegram, summarizeCompetitor } from "../../server/modules/metaAds/integrations/competitorReports.js";
 
 test("the page to scrape comes from the saved link, else the page id or username", () => {
@@ -109,4 +116,54 @@ test("the report text works with and without the AI, and long text splits for Te
   const chunks = splitForTelegram(Array.from({ length: 300 }, (_, i) => `سطر رقم ${i} ${"x".repeat(30)}`).join("\n"), 1000);
   assert.ok(chunks.length > 1);
   assert.ok(chunks.every((chunk) => chunk.length <= 1000));
+});
+
+test("the Instagram accounts come from links or @handles, several allowed, non-Instagram links dropped", () => {
+  assert.deepEqual(
+    competitorInstagramUsernames({ instagram: "https://www.instagram.com/MiniManShoes/ @miniman_shoes, instagram.com/minimanshoes" }),
+    ["minimanshoes", "miniman_shoes"],
+  );
+  assert.deepEqual(competitorInstagramUsernames({ instagram: "https://www.instagram.com/p/De0g4A6iJyU/" }), []);
+  assert.deepEqual(competitorInstagramUsernames({ instagram: "https://evil.example.com/rival" }), []);
+  assert.deepEqual(competitorInstagramUsernames({}), []);
+});
+
+test("an Instagram item becomes one post row, kept apart from Facebook ids", () => {
+  const post = normalizeInstagramPost({
+    id: "4014359684339681772",
+    shortCode: "De13t0pt0ns",
+    type: "Video",
+    caption: "كولكشن جديد",
+    url: "https://www.instagram.com/p/De13t0pt0ns/",
+    displayUrl: "https://scontent.example/c.jpg",
+    likesCount: 50,
+    commentsCount: 2,
+    videoPlayCount: 900,
+    timestamp: "2026-10-23T10:00:00.000Z",
+    ownerUsername: "minimanshoes",
+  });
+  assert.equal(post.post_id, "ig:4014359684339681772");
+  assert.equal(post.media_type, "video");
+  assert.equal(post.page_name, "@minimanshoes");
+  assert.equal(post.engagement, 52);
+  assert.equal(post.views, 900);
+  assert.equal(post.posted_at.toISOString(), "2026-10-23T10:00:00.000Z");
+  assert.equal(normalizeInstagramPost({ type: "Sidecar", id: "1" }).media_type, "album");
+  assert.equal(normalizeInstagramPost({ error: "not_found" }), null);
+});
+
+test("the Instagram scraper is called with the usernames, a limit and a since-date", async () => {
+  let call;
+  await runApifyInstagramScraper(["minimanshoes"], {
+    token: "tok",
+    now: new Date("2026-10-24T10:00:00Z"),
+    fetchImpl: async (url, init) => {
+      call = { url, init };
+      return { ok: true, status: 200, json: async () => [] };
+    },
+  });
+  assert.match(call.url, /\/acts\/apify~instagram-post-scraper\/run-sync-get-dataset-items/);
+  const body = JSON.parse(call.init.body);
+  assert.deepEqual(body.username, ["minimanshoes"]);
+  assert.equal(body.onlyPostsNewerThan, "2026-10-10");
 });
