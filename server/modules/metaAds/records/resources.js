@@ -663,20 +663,26 @@ export const RESOURCES = {
     columns: {
       name: { sql: "t.name", type: "text" },
       page_id: { sql: "t.page_id", type: "text" },
+      facebook_url: { sql: "t.facebook_url", type: "text" },
       instagram: { sql: "t.instagram", type: "text" },
       country: { sql: "t.country", type: "text" },
+      is_own_page: { sql: "t.is_own_page", type: "bool" },
       ads_tracked: { sql: "t.ads_tracked", type: "number" },
+      posts_tracked: { sql: "t.posts_tracked", type: "number" },
       active: { sql: "t.active", type: "bool" },
       last_scanned_at: { sql: "t.last_scanned_at", type: "datetime" },
+      posts_scanned_at: { sql: "t.posts_scanned_at", type: "datetime" },
     },
-    search: ["t.name", "t.page_id", "t.instagram"],
+    search: ["t.name", "t.page_id", "t.facebook_url", "t.instagram"],
     order: "t.id DESC",
     relations: {},
     editable: {
       name: F.name,
       page_id: F.text,
+      facebook_url: F.text,
       instagram: F.text,
       country: { kind: "text", notNull: true, fallback: "ALL" },
+      is_own_page: F.bool,
       active: F.bool,
     },
     create: {
@@ -692,12 +698,118 @@ export const RESOURCES = {
         ads_tracked: "0",
         last_scanned_at: "NULL",
         last_scan_error: "NULL",
+        posts_tracked: "0",
+        posts_scanned_at: "NULL",
+        posts_scan_error: "NULL",
       }),
     },
     counts: async (tenantId, row) => ({
       competitor_ads: await count(`SELECT COUNT(*) AS n FROM meta_ads_competitor_ads WHERE tenant_id = $1 AND competitor_id = $2`, [tenantId, row.id]),
+      competitor_posts: await count(`SELECT COUNT(*) AS n FROM meta_ads_competitor_posts WHERE tenant_id = $1 AND competitor_id = $2`, [tenantId, row.id]),
     }),
-    actions: ["scan_now"],
+    actions: ["scan_now", "scan_posts"],
+  },
+
+  "competitor-posts": {
+    table: "meta_ads_competitor_posts",
+    joins: "LEFT JOIN meta_ads_competitors co ON co.id = t.competitor_id AND co.tenant_id = t.tenant_id",
+    display: { competitor_name: "co.name" },
+    columns: {
+      competitor_name: { sql: "co.name", type: "text" },
+      body: { sql: "t.body", type: "text" },
+      media_type: { sql: "t.media_type", type: "enum" },
+      posted_at: { sql: "t.posted_at", type: "datetime" },
+      likes: { sql: "t.likes", type: "number" },
+      comments: { sql: "t.comments", type: "number" },
+      shares: { sql: "t.shares", type: "number" },
+      views: { sql: "t.views", type: "number" },
+      engagement: { sql: "t.engagement", type: "number" },
+    },
+    extra: ["t.competitor_id"],
+    search: ["t.body", "t.page_name", "co.name"],
+    order: "t.engagement DESC, t.id DESC",
+    relations: { competitor_id: { sql: "t.competitor_id", type: "id" } },
+    editable: {},
+    create: false,
+    remove: true,
+    duplicate: false,
+    counts: null,
+    actions: [],
+  },
+
+  "competitor-report-schedules": {
+    table: "meta_ads_competitor_report_schedules",
+    joins: "",
+    display: {},
+    columns: {
+      name: { sql: "t.name", type: "text" },
+      weekday: { sql: "t.weekday", type: "enum" },
+      days_window: { sql: "t.days_window", type: "number" },
+      telegram_chat_id: { sql: "t.telegram_chat_id", type: "text" },
+      email_to: { sql: "t.email_to", type: "text" },
+      active: { sql: "t.active", type: "bool" },
+      last_report_at: { sql: "t.last_report_at", type: "datetime" },
+    },
+    search: ["t.name", "t.email_to", "t.telegram_chat_id"],
+    order: "t.id DESC",
+    relations: {},
+    editable: {
+      name: F.name,
+      weekday: { kind: "number", notNull: true, fallback: 6 },
+      days_window: { kind: "number", notNull: true, fallback: 7 },
+      telegram_chat_id: F.text,
+      email_to: F.text,
+      notes: F.text,
+      active: F.bool,
+    },
+    create: {
+      prepare: async (tenantId, body) => {
+        if (!text(body.name)) throw httpError(400, "Report name is required", "META_ADS_FIELD_REQUIRED");
+        const weekday = text(body.weekday) ? Number(body.weekday) : 6;
+        if (!Number.isInteger(weekday) || weekday < 0 || weekday > 6) throw httpError(400, "Invalid weekday", "META_ADS_FIELD_INVALID");
+        const days = text(body.days_window) ? Number(body.days_window) : 7;
+        if (!Number.isInteger(days) || days < 1 || days > 90) throw httpError(400, "Report period must be 1–90 days", "META_ADS_FIELD_INVALID");
+        return { weekday, days_window: days };
+      },
+    },
+    remove: true,
+    duplicate: {
+      overrides: (suffix) => ({
+        name: `t.name || ${literal(suffix)}`,
+        last_report_at: "NULL",
+        last_error: "NULL",
+      }),
+    },
+    counts: async (tenantId, row) => ({
+      competitor_reports: await count(`SELECT COUNT(*) AS n FROM meta_ads_competitor_reports WHERE tenant_id = $1 AND schedule_id = $2`, [tenantId, row.id]),
+    }),
+    actions: ["generate_report"],
+  },
+
+  "competitor-reports": {
+    table: "meta_ads_competitor_reports",
+    joins: "LEFT JOIN meta_ads_competitor_report_schedules sc ON sc.id = t.schedule_id AND sc.tenant_id = t.tenant_id",
+    display: { schedule_name: "sc.name" },
+    columns: {
+      title: { sql: "t.title", type: "text" },
+      schedule_name: { sql: "sc.name", type: "text" },
+      status: { sql: "t.status", type: "enum" },
+      competitors_count: { sql: "t.competitors_count", type: "number" },
+      posts_count: { sql: "t.posts_count", type: "number" },
+      created_at: { sql: "t.created_at", type: "datetime" },
+      sent_telegram_at: { sql: "t.sent_telegram_at", type: "datetime" },
+      sent_email_at: { sql: "t.sent_email_at", type: "datetime" },
+    },
+    extra: ["t.schedule_id"],
+    search: ["t.title", "t.summary", "sc.name"],
+    order: "t.id DESC",
+    relations: { schedule_id: { sql: "t.schedule_id", type: "id" } },
+    editable: {},
+    create: false,
+    remove: true,
+    duplicate: false,
+    counts: null,
+    actions: ["send_report"],
   },
 
   "competitor-ads": {
@@ -751,6 +863,7 @@ export const LOOKUPS = {
   adsets: { sql: "SELECT id, name, meta_id AS hint FROM meta_ads_adsets WHERE tenant_id = $1 AND ($2::bigint IS NULL OR account_id = $2) ORDER BY id DESC LIMIT 500", account: true },
   creatives: { sql: "SELECT id, name, meta_id AS hint FROM meta_ads_creatives WHERE tenant_id = $1 AND ($2::bigint IS NULL OR account_id = $2) ORDER BY id DESC LIMIT 500", account: true },
   competitors: { sql: "SELECT id, name, page_id AS hint FROM meta_ads_competitors WHERE tenant_id = $1 ORDER BY name, id" },
+  "report-schedules": { sql: "SELECT id, name, email_to AS hint FROM meta_ads_competitor_report_schedules WHERE tenant_id = $1 ORDER BY name, id" },
   datasets: { sql: "SELECT id, COALESCE(NULLIF(statement, ''), dataset_id) AS name, dataset_id AS hint FROM meta_ads_conversion_datasets WHERE tenant_id = $1 ORDER BY id DESC" },
   "lead-forms": { sql: "SELECT id, name, meta_id AS hint FROM meta_ads_lead_forms WHERE tenant_id = $1 AND ($2::bigint IS NULL OR account_id = $2) ORDER BY name, id", account: true },
 };

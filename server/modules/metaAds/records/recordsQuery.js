@@ -245,7 +245,7 @@ export const getRecord = async (tenantId, key, rawId, query = {}, { scope = null
 const sanitize = (key, spec, value) => {
   switch (spec.kind) {
     case "number":
-      if (isBlank(value)) return null;
+      if (isBlank(value)) return spec.notNull ? (spec.fallback ?? 0) : null;
       if (nullableNum(value) === null) throw httpError(400, `Invalid number: ${key}`, "META_ADS_FIELD_INVALID");
       return nullableNum(value);
     case "bool":

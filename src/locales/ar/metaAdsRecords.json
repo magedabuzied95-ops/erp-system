@@ -42,7 +42,8 @@
     "ad_meta_id": "الإعلان {{value}}",
     "page_id": "الصفحة {{value}}",
     "dataset_id": "مجموعة البيانات #{{value}}",
-    "competitor_id": "المنافس #{{value}}"
+    "competitor_id": "المنافس #{{value}}",
+    "schedule_id": "جدول التقرير #{{value}}"
   },
   "form": {
     "new": "جديد",
@@ -84,7 +85,10 @@
     "sync_leads": "Sync Leads",
     "scan_now": "فحص الآن",
     "analyze": "تحليل بالذكاء الاصطناعي",
-    "test_event": "إرسال حدث تجريبي"
+    "test_event": "إرسال حدث تجريبي",
+    "scan_posts": "سحب المنشورات",
+    "generate_report": "إنشاء التقرير وإرساله الآن",
+    "send_report": "إرسال التقرير"
   },
   "errors": {
     "notImplemented": "هذه الميزة غير متاحة بعد على الخادم.",
@@ -102,7 +106,14 @@
     "META_ADS_UNKNOWN_ACTION": "إجراء غير معروف.",
     "META_ADS_NOT_ON_META": "انشر هذا العنصر على Meta أولاً (Push to Meta).",
     "META_ADS_ALREADY_ON_META": "هذا العنصر منشور على Meta بالفعل. استخدم \"Update on Meta\".",
-    "META_ADS_UNKNOWN_RESOURCE": "نوع سجل غير معروف."
+    "META_ADS_UNKNOWN_RESOURCE": "نوع سجل غير معروف.",
+    "APIFY_NOT_CONFIGURED": "ضع APIFY_TOKEN في إعدادات السيرفر لسحب منشورات المنافسين.",
+    "APIFY_BAD_TOKEN": "مفتاح Apify غير صحيح أو انتهى رصيده.",
+    "APIFY_TIMEOUT": "Apify أخذ وقتًا طويلًا في سحب الصفحة — حاول مرة أخرى لاحقًا.",
+    "APIFY_UNREACHABLE": "تعذر الاتصال بـ Apify.",
+    "COMPETITOR_PAGE_URL_MISSING": "أضف رابط صفحة المنافس على فيسبوك (أو اسم المستخدم) أولًا.",
+    "REPORT_RECIPIENTS_MISSING": "أضف معرّف محادثة تليجرام أو بريدًا إلكترونيًا لجدول التقرير أولًا.",
+    "META_ADS_NO_COMPETITORS": "أضف منافسًا نشطًا واحدًا على الأقل أولًا."
   },
   "smart": {
     "insights": "الرؤى",
@@ -116,7 +127,9 @@
     "adClicks": "نقرات الإعلان",
     "leads": "العملاء المحتملون",
     "competitorAds": "إعلانات المنافسين",
-    "conversionEvents": "أحداث التحويل"
+    "conversionEvents": "أحداث التحويل",
+    "competitorPosts": "المنشورات",
+    "competitorReports": "التقارير"
   },
   "tabs": {
     "aiInstructions": "AI Instructions",
@@ -130,7 +143,8 @@
     "actions": "الإجراءات",
     "image": "صورة",
     "video": "فيديو",
-    "carousel": "بطاقات دائري"
+    "carousel": "بطاقات دائري",
+    "reportData": "بيانات التقرير"
   },
   "headings": {
     "linkedPage": "Linked Page / Instagram",
@@ -138,7 +152,9 @@
     "attribution": "الإسناد",
     "adContent": "Ad Content",
     "ad": "الإعلان",
-    "trackingAi": "Tracking & AI Analysis"
+    "trackingAi": "Tracking & AI Analysis",
+    "post": "المنشور",
+    "engagement": "التفاعل"
   },
   "help": {
     "chatTeam": "الفريق الذي تُسند إليه المحادثات القادمة من هذا الإعلان.",
@@ -151,7 +167,13 @@
     "videoId": "معرّف الفيديو بعد رفعه إلى Meta.",
     "datasetToken": "رمز وصول Conversions API لمجموعة البيانات. يُحفظ مشفرًا.",
     "competitorPage": "معرّف صفحة المنافس على فيسبوك المستخدم للبحث في مكتبة الإعلانات.",
-    "country": "رمز البلد (مثل EG) أو ALL لكل البلدان."
+    "country": "رمز البلد (مثل EG) أو ALL لكل البلدان.",
+    "facebookUrl": "رابط صفحة المنافس على فيسبوك، مثل https://www.facebook.com/PageName — يُستخدم لسحب منشوراته وتفاعلها عبر Apify.",
+    "isOwnPage": "فعّلها لو دي صفحة متجرك أنت، عشان التقرير يقارن أداءك بالمنافسين.",
+    "sendDay": "اليوم اللي يوصلك فيه التقرير (بعد الساعة 9 صباحًا بتوقيت القاهرة).",
+    "reportDays": "عدد الأيام اللي يغطيها التقرير (1–90).",
+    "telegramChatId": "معرّف المحادثة أو الجروب على تليجرام اللي يستقبل التقرير من بوت المتجر.",
+    "emailTo": "بريد أو أكثر مفصولين بفاصلة."
   },
   "json": {
     "tree": "Tree",
@@ -237,6 +259,27 @@
       "carousel": "دائري",
       "dco": "تصميم ديناميكي",
       "text": "نص"
+    },
+    "postFormat": {
+      "video": "فيديو",
+      "photo": "صورة",
+      "album": "ألبوم",
+      "link": "رابط",
+      "text": "نص"
+    },
+    "reportStatus": {
+      "ready": "جاهز",
+      "sent": "تم الإرسال",
+      "failed": "فشل الإرسال"
+    },
+    "weekday": {
+      "0": "الأحد",
+      "1": "الاثنين",
+      "2": "الثلاثاء",
+      "3": "الأربعاء",
+      "4": "الخميس",
+      "5": "الجمعة",
+      "6": "السبت"
     }
   },
   "l": {
@@ -409,6 +452,36 @@
     "webhookFields": "حقول الويب هوك المشترك بها",
     "webhookSubscribedAt": "تاريخ الاشتراك في الويب هوك",
     "webhookUpper": "WEBHOOK",
-    "webhookVerifyToken": "رمز التحقق من Webhook"
+    "webhookVerifyToken": "رمز التحقق من Webhook",
+    "facebookUrl": "رابط صفحة فيسبوك",
+    "isOwnPage": "صفحتي",
+    "postsTracked": "المنشورات المتتبعة",
+    "postsScanned": "آخر سحب للمنشورات",
+    "postsScanError": "خطأ سحب المنشورات",
+    "postText": "نص المنشور",
+    "postedAt": "تاريخ النشر",
+    "reactions": "التفاعلات",
+    "comments": "التعليقات",
+    "shares": "المشاركات",
+    "views": "المشاهدات",
+    "engagement": "إجمالي التفاعل",
+    "viewPost": "عرض المنشور",
+    "thumbnail": "الصورة المصغرة",
+    "reportName": "اسم التقرير",
+    "sendDay": "يوم الإرسال",
+    "reportDays": "مدة التقرير (أيام)",
+    "telegramChatId": "معرّف محادثة تليجرام",
+    "emailTo": "البريد الإلكتروني",
+    "lastReport": "آخر تقرير",
+    "notes": "ملاحظات",
+    "reportTitle": "التقرير",
+    "competitorsCount": "عدد الصفحات",
+    "postsCount": "عدد المنشورات",
+    "createdAt": "تاريخ الإنشاء",
+    "sentTelegram": "أُرسل على تليجرام",
+    "sentEmail": "أُرسل بالبريد",
+    "reportText": "نص التقرير",
+    "periodStart": "من",
+    "periodEnd": "إلى"
   }
 }

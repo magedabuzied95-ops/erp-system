@@ -7,6 +7,9 @@
 //   syncLeadsForForm(ctx, formId)            pull every lead of one lead form into meta_ads_leads (+ CRM link) → { leads }
 //   scanCompetitor(tenantId, competitorId)   Ad Library scan + AI analysis for one competitor → { ads, new_ads }
 //   analyzeCompetitorAd(tenantId, adId)      (re)run the AI analysis for one competitor ad → { ai_angle, ai_offer, ai_hook, ai_summary }
+//   scanCompetitorPosts(tenantId, competitorId)  Apify scrape of the page's organic posts + engagement → { posts, new_posts }
+//   runReportSchedule(tenantId, scheduleId)  build the weekly competitor report and send it → { id, posts, competitors, ai, delivery }
+//   deliverCompetitorReport(tenantId, reportId)  (re)send a saved report to Telegram / email → { telegram, email, errors }
 //   testConversionDataset(tenantId, datasetId)  send a test event → { ok, events_received }
 //   sendConversionEvent(tenantId, { datasetId, eventName, customerId, value, currency, eventId, channel })  → { id, status }
 //
@@ -17,5 +20,7 @@
 
 export { subscribeAccountWebhooks, subscribePageLeadgen, syncLeadsForForm, handleLeadgenChange } from "./webhooks.js";
 export { scanCompetitor, analyzeCompetitorAd } from "./competitors.js";
+export { scanCompetitorPosts } from "./competitorPosts.js";
+export { deliverCompetitorReport, runReportSchedule } from "./competitorReports.js";
 export { testConversionDataset, sendConversionEvent } from "./conversions.js";
 export { recordAdReferral, getAdContextForConversation } from "./adClicks.js";

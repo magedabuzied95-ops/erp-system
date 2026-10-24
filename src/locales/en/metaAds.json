@@ -29,7 +29,10 @@
       "competitors": "Competitors",
       "competitorAds": "Competitor Ads",
       "optimizationGoals": "Optimization Goals",
-      "billingEvents": "Billing Events"
+      "billingEvents": "Billing Events",
+      "competitorPosts": "Competitor posts",
+      "competitorReportSchedules": "Report schedules",
+      "competitorReports": "Competitor reports"
     },
     "menuAria": "Meta Ads sections"
   },

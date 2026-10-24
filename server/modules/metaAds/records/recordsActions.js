@@ -18,7 +18,10 @@ import {
 import { deleteObject, pushObject, setObjectStatus, updateObject } from "../manager/wizard/metaAdsPublisher.js";
 import {
   analyzeCompetitorAd,
+  deliverCompetitorReport,
+  runReportSchedule,
   scanCompetitor,
+  scanCompetitorPosts,
   subscribeAccountWebhooks,
   subscribePageLeadgen,
   syncLeadsForForm,
@@ -146,7 +149,16 @@ export const runAction = async (tenantId, key, rawId, action, { userId = null } 
     }
 
     case "competitors":
+      if (action === "scan_posts") return { result: await scanCompetitorPosts(tenantId, row.id) };
       return { result: await scanCompetitor(tenantId, row.id) };
+
+    case "competitor-report-schedules": {
+      const result = await runReportSchedule(tenantId, row.id);
+      return { result, created: { resource: "competitor-reports", id: result.id } };
+    }
+
+    case "competitor-reports":
+      return { result: await deliverCompetitorReport(tenantId, row.id) };
 
     case "competitor-ads":
       return { result: await analyzeCompetitorAd(tenantId, row.id) };
