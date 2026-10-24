@@ -231,6 +231,8 @@ export const sendInboxText = async ({
   // Automations pass true: a follow-up the shop scheduled must not pause the AI
   // the way an operator stepping in does.
   preserveSessionState = false,
+  // Operator-initiated sends only (never sequences): see sendMetaInboxOutboundMessage.
+  humanAgentFallback = false,
 } = {}) => {
   const body = text(messageText);
   if (!body) throw Object.assign(new Error("Message text is required"), { status: 400 });
@@ -273,6 +275,7 @@ export const sendInboxText = async ({
       recipientId,
       messageText: body,
       conversationId: sessionId,
+      humanAgentFallback,
       facebookPageId: channelMetadata.page_id || channelMetadata.facebook_page_id || "",
       instagramBusinessAccountId: channelMetadata.instagram_business_account_id || channelMetadata.instagram_account_id || "",
     }).catch((error) => ({
@@ -324,6 +327,7 @@ export const sendInboxMedia = async ({
   clientRequestId = "",
   source = "",
   preserveSessionState = false,
+  humanAgentFallback = false,
 } = {}) => {
   const url = text(relativeUrl);
   if (!url) throw Object.assign(new Error("A media url is required"), { status: 400 });
@@ -359,6 +363,7 @@ export const sendInboxMedia = async ({
       messageText: safeCaption,
       conversationId: sessionId,
       attachments: [{ type: attachmentKind, image_url: url, mime_type: mimeType || "" }],
+      humanAgentFallback,
       facebookPageId: channelMetadata.page_id || channelMetadata.facebook_page_id || "",
       instagramBusinessAccountId: channelMetadata.instagram_business_account_id || channelMetadata.instagram_account_id || "",
     }).catch((error) => ({ sent: false, delivery_status: "failed", delivery_error: error?.message || `Meta did not accept the ${attachmentKind}`, error_code: error?.code || "META_MEDIA_SEND_FAILED" }));
@@ -418,6 +423,7 @@ export const sendInboxSharedPost = async ({
   coverUrl = "",
   staff = {},
   clientRequestId = "",
+  humanAgentFallback = false,
 } = {}) => {
   const link = text(post.permalink);
   const cover = text(coverUrl) || text(post.thumbnail_url);
@@ -443,6 +449,7 @@ export const sendInboxSharedPost = async ({
       messageText: link,
       conversationId: sessionId,
       ...metaIds,
+      humanAgentFallback,
     }).catch((error) => failed(error, "Meta did not accept the link", "META_SEND_FAILED"));
 
   let sendResult = null;

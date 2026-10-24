@@ -7383,6 +7383,7 @@ router.post("/conversations/:conversationId/send", protect, inboxReply(), async 
         conversationId,
         facebookPageId: channelMetadata.page_id || channelMetadata.facebook_page_id || "",
         instagramBusinessAccountId: channelMetadata.instagram_business_account_id || channelMetadata.instagram_account_id || "",
+        humanAgentFallback: true,
       });
     }
     deliveryStatus = sendResult?.delivery_status || (sendResult?.sent ? "sent" : "failed");
@@ -7829,6 +7830,7 @@ router.post("/conversations/:conversationId/product-card/send", protect, inboxRe
           // which would silently drop every colour past the sixth — so hand it the real count.
           productCardLimit: Math.max(6, productCards.length),
           singleCardAsTemplate: pickedOneColor,
+          humanAgentFallback: true,
         });
         deliveryStatus = sendResult?.delivery_status || (sendResult.sent ? "sent" : "failed");
         if (deliveryStatus === "failed" && !deliveryError) {
@@ -8170,6 +8172,7 @@ router.post(
           messageText: caption,
           conversationId: sessionId,
           attachments: [{ type: attachmentKind, image_url: relativeUrl, mime_type: req.file.mimetype || "" }],
+          humanAgentFallback: true,
           facebookPageId: channelMetadata.page_id || channelMetadata.facebook_page_id || "",
           instagramBusinessAccountId: channelMetadata.instagram_business_account_id || channelMetadata.instagram_account_id || "",
         }).catch((error) => ({
@@ -8289,6 +8292,7 @@ router.post("/conversations/:conversationId/share-post", protect, inboxReply(), 
       coverUrl,
       staff: { id: req.user?.id || null, name: userDisplayName(req.user) },
       clientRequestId: requestClientRequestId(req),
+      humanAgentFallback: true,
     });
     return res.status(201).json({ success: true, ...result });
   } catch (error) {
@@ -9480,7 +9484,7 @@ router.post("/conversations/:conversationId/quick-reply", protect, inboxReply(),
     const requestKey = requestClientRequestId(req) || `qr-${Date.now()}`;
     const sent = [];
     if (messageText) {
-      sent.push(await sendInboxText({ tenantId, conversationId, messageText, staff, clientRequestId: `${requestKey}:text`, source: "quick_reply" }));
+      sent.push(await sendInboxText({ tenantId, conversationId, messageText, staff, clientRequestId: `${requestKey}:text`, source: "quick_reply", humanAgentFallback: true }));
     }
     for (const [index, media] of (reply.media || []).entries()) {
       sent.push(await sendInboxMedia({
@@ -9493,6 +9497,7 @@ router.post("/conversations/:conversationId/quick-reply", protect, inboxReply(),
         staff,
         clientRequestId: `${requestKey}:media:${index}`,
         source: "quick_reply",
+        humanAgentFallback: true,
       }));
     }
     const failed = sent.filter((item) => !item.sent);

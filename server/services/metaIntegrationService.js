@@ -13053,7 +13053,51 @@ const loadInstagramThreadOwnerPageSender = async (sendContext = {}) => {
   return pageToken && ownerPageId ? { pageToken, pageId: ownerPageId } : null;
 };
 
+// Messenger's "sent outside of allowed window" refusal (code 10 / subcode 2018278).
+export const isMessengerOutsideWindowError = (error = null) => {
+  const subcode = Number(error?.meta?.error_subcode || error?.metaResponse?.error?.error_subcode || error?.error_subcode || 0);
+  return subcode === 2018278;
+};
+
+// A reply a STAFF member typed may go out up to 7 days after the customer's last message under
+// Meta's HUMAN_AGENT tag; the plain RESPONSE type stops at 24 hours. Meta allows the tag for human
+// replies only, so callers opt in per send (sendContext.human_agent_fallback) and the AI never
+// does. It needs the app's Human Agent feature approved; until then Meta refuses the tagged send
+// too, and the original 24-hour error is what the operator sees.
+const resendAsHumanAgent = async ({ token, body = {}, sendContext = {}, error }) => {
+  const isMessenger = text(sendContext.channel || AI_AGENT_CHANNELS.FACEBOOK_MESSENGER) === AI_AGENT_CHANNELS.FACEBOOK_MESSENGER;
+  if (!isMessenger || sendContext.human_agent_fallback !== true || !isMessengerOutsideWindowError(error)) throw error;
+  try {
+    const payload = await callMetaPost({
+      endpoint: "/me/messages",
+      token,
+      body: { ...body, messaging_type: "MESSAGE_TAG", tag: "HUMAN_AGENT" },
+    });
+    console.log("[meta-send] sent with HUMAN_AGENT tag after 24h window refusal", {
+      pageId: maskIdForLog(sendContext.resolved_page_id || ""),
+      recipientId: maskIdForLog(body?.recipient?.id || ""),
+    });
+    return payload;
+  } catch (tagError) {
+    console.warn("[meta-send] HUMAN_AGENT resend refused", {
+      code: tagError?.code || tagError?.meta?.code || "",
+      subcode: tagError?.meta?.error_subcode || "",
+      message: tagError?.message || "",
+    });
+    error.humanAgentError = tagError?.message || "HUMAN_AGENT resend refused";
+    throw error;
+  }
+};
+
 const postMetaMessageWithThreadControl = async ({ token, recipientId, body = {}, sendContext = {} }) => {
+  try {
+    return await postMetaMessageOnce({ token, recipientId, body, sendContext });
+  } catch (error) {
+    return resendAsHumanAgent({ token, body, sendContext, error });
+  }
+};
+
+const postMetaMessageOnce = async ({ token, recipientId, body = {}, sendContext = {} }) => {
   const isInstagramBusinessLogin =
     text(sendContext.channel) === AI_AGENT_CHANNELS.INSTAGRAM && sendContext.instagram_business_login === true;
   const send = () => {
@@ -26883,6 +26927,8 @@ export const sendMetaInboxOutboundMessage = async ({
   resolvedQuestionType = "",
   // A greeting's later part ("تحت أمر حضرتك؟"): its "وعليكم السلام" already went in the first.
   skipGreetingGuard = false,
+  // Staff-typed sends only: a Messenger 24h-window refusal is retried under the HUMAN_AGENT tag.
+  humanAgentFallback = false,
 } = {}) => {
   await ensureMetaIntegrationSchema();
   const scopedTenantId = numberOrNull(tenantId);
@@ -27138,6 +27184,7 @@ export const sendMetaInboxOutboundMessage = async ({
     channel: normalizedChannel,
     instagram_business_login: instagramBusinessLogin,
     resolved_instagram_account_id: text(instagramBusinessAccountId || config.instagram_business_account_id),
+    human_agent_fallback: humanAgentFallback === true,
   };
   console.log("[meta-send] pageId", {
     tenant_id: scopedTenantId,
