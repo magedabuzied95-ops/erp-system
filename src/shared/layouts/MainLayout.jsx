@@ -2,10 +2,10 @@ import { Suspense, lazy, useEffect, useMemo, useRef, useState } from "react";
 import { createPortal } from "react-dom";
 import { NavLink, Outlet, useLocation, useNavigate } from "react-router-dom";
 
-import { Bell, Boxes, ChevronDown, CircleDollarSign, ClipboardList, LogOut, Menu, Moon, MoreVertical, Paintbrush, PanelLeftClose, PanelLeftOpen, PanelRightClose, PanelRightOpen, Plus, Search, Settings2, ShieldCheck, ShoppingBag, Store, Sun, User, X } from "lucide-react";
+import { Bell, Boxes, ChevronDown, CircleDollarSign, LogOut, Menu, Moon, MoreVertical, Paintbrush, PanelLeftClose, PanelLeftOpen, PanelRightClose, PanelRightOpen, Plus, Search, Settings2, ShieldCheck, Store, Sun, User, X } from "lucide-react";
 import { useTranslation } from "react-i18next";
 
-import { clearAuth, getCurrentTenant, getCurrentUser, getToken, isCashierUser, isMetaReviewerUser } from "../auth/authStorage";
+import { clearAuth, getCurrentTenant, getCurrentUser, getToken, isMetaReviewerUser } from "../auth/authStorage";
 import { getVisibleSidebarSections } from "../../modules/permissions/lib/rbacStore";
 import { translateSidebarSections } from "../../i18n/navigation";
 import NotificationSoundProvider from "../../components/feedback/NotificationSoundProvider";
@@ -17,7 +17,6 @@ import useDismissableLayer from "../hooks/useDismissableLayer";
 import LanguageSwitcher from "../components/LanguageSwitcher";
 import { NotificationBoundary, NotificationsProvider, useNotifications } from "../notifications/index.js";
 import { useRealtimeConnection } from "../realtime/socketStore";
-import { publicStorefrontUrl } from "../lib/publicStorefront";
 import { resolveErpRoutePageTitle } from "../navigation/routePageTitles";
 import { useTheme } from "../../theme/useTheme";
 import CommandPalette, { CommandPaletteTrigger, openCommandPalette, publishCommandPaletteState } from "../components/CommandPalette";
@@ -402,11 +401,9 @@ function HeaderQuickActionButton({ item, location, onNavigate }) {
   );
 }
 
-// Phone (<768px) topbar overflow: one 56px row keeps the menu button, the
-// workspace name, POS and the message bell; everything else the wide bar shows
-// (store, products, purchases, quick search, language, theme, logout) lives in
-// this sheet. Portaled to <body>: the tools rail is an overflow-x scroller and
-// iOS clips position:fixed descendants of one.
+// Phone (<768px) page-bar overflow: the bar keeps the menu button, the page
+// title, search and the message bell; theme, language and logout live in this
+// sheet. Portaled to <body>: iOS clips position:fixed descendants of a scroller.
 function PhoneTopbarMenu({ items = [], onLogout }) {
   const { t } = useTranslation();
   const [open, setOpen] = useState(false);
@@ -653,6 +650,11 @@ function MainLayout() {
   }, [sections]);
   const paletteUserId = String(user?.id || user?.email || "");
   const currentSidebarPath = useMemo(() => matchSidebarPath(location.pathname, paletteItems.map((item) => item.to)), [location.pathname, paletteItems]);
+  // The page bar's title: the sidebar entry this page belongs to (translated), else
+  // the route's own title, else the workspace.
+  const pageTitle = paletteItems.find((item) => item.to === currentSidebarPath)?.label
+    || resolveErpRoutePageTitle(location.pathname)
+    || workspaceName;
   useEffect(() => {
     if (currentSidebarPath) recordPageVisit(paletteUserId, currentSidebarPath);
   }, [currentSidebarPath, paletteUserId]);
@@ -664,11 +666,8 @@ function MainLayout() {
   const dir = (resolvedDir || documentDir) === "rtl" ? "rtl" : "ltr";
   const isRtl = dir === "rtl";
   const isPosActive = location.pathname === "/pos" || location.pathname.startsWith("/pos/");
-  const isProductsActive = location.pathname === "/products" || location.pathname.startsWith("/products/");
-  const isPurchasesActive = location.pathname === "/purchases" || location.pathname.startsWith("/purchases/");
   const isAiMarketingWorkspace = location.pathname.startsWith("/marketing") || location.pathname.startsWith("/admin/ai-");
   const isAiInboxWorkspace = location.pathname === "/admin/ai-inbox";
-  const isStoreActive = location.pathname === "/shop" || location.pathname.startsWith("/shop/");
   // Genie's chat-from-a-notification: the open conversation docks as a third
   // shell column and the page narrows to make room (MainLayout.m1.css).
   const sideChat = useSideChat();
@@ -683,9 +682,6 @@ function MainLayout() {
     pathname: location.pathname,
     identityKey: `${user?.id || ''}:${currentTenant?.id || currentTenant?.tenant_id || user?.tenant_id || user?.tenantId || ''}`,
   });
-  const posLabel = t("sidebar.quickAccess.pos");
-  const productsLabel = t("sidebar.quickAccess.products");
-  const purchasesLabel = t("sidebar.quickAccess.purchases");
   const searchQuery = normalizeSearchText(sidebarSearch);
   const activeGroupTitle = useMemo(() => {
     const activeGroup = groupedSections.find((group) => group.items.some((item) => sidebarItemActive(item, location)));
@@ -1064,134 +1060,47 @@ function MainLayout() {
         className="min-h-screen w-full min-w-0 overflow-x-hidden"
       >
         <div className="flex min-h-screen w-full min-w-0 max-w-none flex-col overflow-x-hidden">
-          {/* The inbox is a full-screen workspace on every width: no shell topbar
-              there. Its own top bar carries the menu button (erp:open-nav-drawer). */}
-          <div className={`m1-shell-topbar ${isAiInboxWorkspace ? "hidden" : ""} sticky top-0 z-30 border-b border-[var(--border)] bg-[var(--surface)]/90 backdrop-blur-2xl lg:top-0`} style={{ "--topbar-height": "64px" }}>
-            <div className="pointer-events-none absolute inset-0" aria-hidden="true" />
-            <div className="relative z-10 flex items-center justify-between gap-3 px-3 py-3 sm:px-4 lg:px-6 xl:px-8 lg:py-5">
-              <div className="flex min-w-0 items-center gap-3 lg:hidden">
+          {/* One slim bar, the inbox's look: the page's title, quick search with the
+              last pages, language, theme and the message bell. Getting around is the
+              search's job now (and the sidebar's), so the old quick links are gone.
+              The inbox keeps its own top bar and hides this one. */}
+          <header className={`m1-page-bar ${isAiInboxWorkspace ? "hidden" : ""}`}>
+            <div className="m1-page-bar__inner">
+              <button
+                type="button"
+                onClick={() => setMobileDrawerOpen(true)}
+                className="m1-page-bar__btn m1-page-bar__nav"
+                aria-label={t("common.openMenu", "فتح القائمة")}
+                title={t("common.openMenu", "فتح القائمة")}
+              >
+                <Menu className="h-5 w-5" />
+              </button>
+              <div className="m1-page-bar__title" title={pageTitle}>{pageTitle}</div>
+              <div className="m1-page-bar__tools">
+                <CommandPaletteTrigger items={paletteItems} userId={paletteUserId} currentPath={currentSidebarPath} className="hidden md:flex" />
                 <button
                   type="button"
-                  onClick={() => setMobileDrawerOpen(true)}
-                  className="inline-flex h-[var(--control-height-lg)] w-11 items-center justify-center rounded-[var(--radius-control)] border border-[var(--border)] bg-[var(--card)] text-[var(--text)]"
-                  aria-label={t("common.openMenu", "فتح القائمة")}
+                  onClick={openCommandPalette}
+                  className="m1-page-bar__btn m1-page-bar__search"
+                  aria-label={t("common.commandPalette.open")}
+                  title={t("common.commandPalette.open")}
                 >
-                  <Menu className="h-5 w-5" />
+                  <Search className="h-[18px] w-[18px]" />
                 </button>
-                <div className="min-w-0">
-                  <div className="truncate text-sm font-black text-[var(--topbar-text)]">{workspaceName}</div>
-                  <div className="truncate text-xs text-[var(--topbar-text)] opacity-75">{user?.name}</div>
-                </div>
-              </div>
-
-              <div className="hidden min-w-0 lg:block">
-                <div className="flex items-center gap-3">
-                  <WorkspaceBrandMark name={workspaceName} logoUrl={workspaceLogoUrl} className="h-12 w-12 rounded-2xl" />
-                  <div className="min-w-0">
-                    <h2 className="m1-section-title truncate text-[var(--text)]">{workspaceName}</h2>
-                    <p className="mt-1 text-sm text-[var(--muted)]">
-                      {t("common.welcomeBack")}, {user?.name}
-                    </p>
-                  </div>
-                </div>
-              </div>
-
-              <div className="m1-topbar-tools flex min-w-0 max-w-[calc(100vw-5rem)] items-center justify-end gap-2 overflow-x-auto pointer-events-auto sm:gap-2.5 lg:max-w-none lg:gap-3 lg:overflow-visible">
-                <CommandPaletteTrigger items={paletteItems} userId={paletteUserId} currentPath={currentSidebarPath} className="hidden md:flex" />
-                <a
-                  href={publicStorefrontUrl("/")}
-                  target="_blank"
-                  rel="noopener noreferrer"
-                  title={t("sidebar.storefront")}
-                  aria-label={t("sidebar.openStore")}
-                  className={[
-                    "m1-topbar-phone-hide group inline-flex h-11 items-center justify-center gap-2 rounded-full border px-3 text-sm font-black transition duration-200 sm:px-4",
-                    "bg-zinc-950/75 text-[var(--topbar-text)] shadow-[0_10px_30px_rgba(0,0,0,0.18)] backdrop-blur",
-                    isStoreActive
-                      ? "border-emerald-400/55 bg-emerald-500/15 text-emerald-100 shadow-[0_0_28px_rgba(16,185,129,0.24)]"
-                      : "border-emerald-400/25 hover:-translate-y-0.5 hover:border-emerald-300/50 hover:bg-emerald-500/10 hover:text-emerald-100 hover:shadow-[0_0_26px_rgba(16,185,129,0.2)]",
-                  ].join(" ")}
-                >
-                  <ShoppingBag className="h-4 w-4 text-emerald-300 transition group-hover:text-emerald-200" />
-                  <span className="hidden sm:inline">{t("sidebar.storefront")}</span>
-                </a>
-                {/* The Meta review account has no products / purchases / POS: inbox + Meta Ads only. */}
-                {reviewerShell ? null : (<>
-                <NavLink
-                  to="/products"
-                  title={productsLabel}
-                  aria-label={productsLabel}
-                  className={[
-                    "m1-topbar-phone-hide group inline-flex h-11 items-center justify-center gap-2 rounded-full border px-3 text-sm font-black transition duration-200 sm:px-4",
-                    "bg-zinc-950/75 text-[var(--topbar-text)] shadow-[0_10px_30px_rgba(0,0,0,0.18)] backdrop-blur",
-                    isProductsActive
-                      ? "border-primary/55 bg-primary/15 text-primary shadow-[0_0_28px_rgba(14,165,233,0.24)]"
-                      : "border-primary/25 hover:-translate-y-0.5 hover:border-primary/50 hover:bg-primary/10 hover:text-primary hover:shadow-[0_0_26px_rgba(14,165,233,0.2)]",
-                  ].join(" ")}
-                >
-                  <Boxes className="h-4 w-4 text-primary transition group-hover:text-primary" />
-                  <span className="hidden sm:inline">{productsLabel}</span>
-                </NavLink>
-                {!isCashierUser(user) ? (
-                  <NavLink
-                    to="/purchases"
-                    title={purchasesLabel}
-                    aria-label={purchasesLabel}
-                    className={[
-                      "m1-topbar-phone-hide group inline-flex h-11 items-center justify-center gap-2 rounded-full border px-3 text-sm font-black transition duration-200 sm:px-4",
-                      "bg-zinc-950/75 text-[var(--topbar-text)] shadow-[0_10px_30px_rgba(0,0,0,0.18)] backdrop-blur",
-                      isPurchasesActive
-                        ? "border-amber-300/55 bg-amber-500/15 text-amber-100 shadow-[0_0_28px_rgba(245,158,11,0.24)]"
-                        : "border-amber-400/25 hover:-translate-y-0.5 hover:border-amber-300/50 hover:bg-amber-500/10 hover:text-amber-100 hover:shadow-[0_0_26px_rgba(245,158,11,0.2)]",
-                    ].join(" ")}
-                  >
-                    <ClipboardList className="h-4 w-4 text-amber-300 transition group-hover:text-amber-200" />
-                    <span className="hidden sm:inline">{purchasesLabel}</span>
-                  </NavLink>
-                ) : null}
-                <NavLink
-                  to="/pos"
-                  title={`${posLabel} (Alt+P)`}
-                  aria-label={`${posLabel} (Alt+P)`}
-                  className={[
-                    "group inline-flex h-11 items-center justify-center gap-2 rounded-full border px-3 text-sm font-black transition duration-200 sm:px-4",
-                    "bg-zinc-950/75 text-[var(--topbar-text)] shadow-[0_10px_30px_rgba(0,0,0,0.18)] backdrop-blur",
-                    isPosActive
-                      ? "border-violet-300/55 bg-violet-500/15 text-violet-100 shadow-[0_0_28px_rgba(139,92,246,0.24)]"
-                      : "border-violet-400/25 hover:-translate-y-0.5 hover:border-violet-300/50 hover:bg-violet-500/10 hover:text-violet-100 hover:shadow-[0_0_26px_rgba(139,92,246,0.2)]",
-                  ].join(" ")}
-                >
-                  <Store className="h-4 w-4 text-violet-300 transition group-hover:text-violet-200" />
-                  <span className="hidden sm:inline">{posLabel}</span>
-                  <span className="sm:hidden">POS</span>
-                </NavLink>
-                </>)}
-                {canSeeInbox ? <MessageNotificationsBell /> : null}
-                <LanguageSwitcher compact className="shrink-0 m1-topbar-phone-hide" />
+                <LanguageSwitcher compact className="m1-page-bar__wide shrink-0" />
                 <button
                   type="button"
                   onClick={() => setTheme(theme.mode === "dark" ? "light" : "dark")}
-                  className="m1-topbar-phone-hide m1-shell-theme-toggle inline-flex h-[var(--control-height-md)] w-10 shrink-0 items-center justify-center border border-[var(--border)] text-[var(--topbar-text)]"
+                  className="m1-page-bar__btn m1-page-bar__wide"
                   aria-label={theme.mode === "dark" ? t("appearance.lightMode") : t("appearance.darkMode")}
                   title={theme.mode === "dark" ? t("appearance.lightMode") : t("appearance.darkMode")}
                 >
                   {theme.mode === "dark" ? <Sun className="h-4 w-4" /> : <Moon className="h-4 w-4" />}
                 </button>
-                <button
-                  type="button"
-                  onClick={handleLogout}
-                  className="m1-topbar-phone-hide inline-flex h-[var(--control-height-lg)] items-center justify-center rounded-full border border-[var(--border)] bg-[var(--card)] px-3 text-sm font-semibold text-[var(--text)] lg:hidden"
-                  aria-label={t("common.logout")}
-                >
-                  <LogOut className="h-4 w-4" />
-                </button>
+                {canSeeInbox ? <MessageNotificationsBell /> : null}
                 <PhoneTopbarMenu
                   onLogout={handleLogout}
                   items={[
-                    { key: "search", label: t("common.search"), icon: Search, onSelect: openCommandPalette },
-                    { key: "store", label: t("sidebar.storefront"), icon: ShoppingBag, href: publicStorefrontUrl("/") },
-                    ...(reviewerShell ? [] : [{ key: "products", label: productsLabel, icon: Boxes, to: "/products" }]),
-                    ...(reviewerShell || isCashierUser(user) ? [] : [{ key: "purchases", label: purchasesLabel, icon: ClipboardList, to: "/purchases" }]),
                     {
                       key: "theme",
                       label: theme.mode === "dark" ? t("appearance.lightMode") : t("appearance.darkMode"),
@@ -1202,7 +1111,7 @@ function MainLayout() {
                 />
               </div>
             </div>
-          </div>
+          </header>
 
           <div className={isAiInboxWorkspace
             ? "m1-shell-content m1-shell-content--flush w-full max-w-none flex-1 overflow-hidden p-0"
