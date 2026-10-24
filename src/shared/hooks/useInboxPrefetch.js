@@ -23,7 +23,12 @@ export default function useInboxPrefetch({ enabled, pathname, identityKey }) {
     const run = async () => {
       if (cancelled || document.hidden || navigator.onLine === false || navigator.connection?.saveData) return;
       const module = await import('../../modules/aiSupport/services/inboxPrefetch.js');
-      if (!cancelled) void module.prefetchInbox().catch(() => {});
+      if (!cancelled) {
+        void module.prefetchInbox().catch(() => {});
+        // Warm the lazy screen too: ready data alone cannot bypass downloading
+        // the inbox UI when the user opens this workspace for the first time.
+        void import('../../modules/aiSupport/pages/AiInbox.jsx').catch(() => {});
+      }
     };
     // Let the current screen finish its own startup before fetching summaries.
     const timer = window.setTimeout(() => {
