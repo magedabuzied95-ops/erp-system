@@ -21,6 +21,7 @@ import { createPortal } from "react-dom";
 import toast from "react-hot-toast";
 
 import { api } from "../../../shared/api/api";
+import { peekWorkspace, readPreparedWorkspace, invalidateWorkspace } from "../../../shared/lib/workspacePreload.js";
 import { sendOrderMessage } from "../../../shared/api/orderMessages";
 import { getCurrentUser, getUserRole, hasPermission } from "../../../shared/auth/authStorage";
 import { DEFAULT_PRODUCT_PLACEHOLDER, resolveInvoiceItemImageUrl } from "../../../shared/lib/invoiceItemImages";
@@ -270,20 +271,15 @@ const ORDER_SUMMARY_CACHE_TTL_MS = 45_000;
 const orderSummaryCache = new Map();
 const orderSummaryRequests = new Map();
 
-// The drawer unmounts on close, so every re-open used to repaint five skeleton cards
-// and wait a full round trip for a list the cashier had just been looking at. Holding
-// the unsearched first page at module scope lets a re-open paint real rows on the
-// first frame while the refresh runs behind it.
-const RECENT_ORDERS_CACHE_TTL_MS = 30_000;
-let recentOrdersPageCache = null;
-
+// Reuse the scoped first page prepared before the drawer opens.
 const readRecentOrdersCache = () => {
-  if (!recentOrdersPageCache) return null;
-  if (recentOrdersPageCache.expiresAt <= Date.now()) {
-    recentOrdersPageCache = null;
-    return null;
-  }
-  return recentOrdersPageCache;
+  const response = peekWorkspace('pos-recent');
+  if (!response) return null;
+  return {
+    orders: Array.isArray(response.data) ? response.data : response.orders || [],
+    total: response.pagination?.total ?? null,
+    hasMore: Boolean(response.pagination?.has_more),
+  };
 };
 
 const primeOrderImages = (order = {}) => {
@@ -400,7 +396,7 @@ function RecentOperationsDrawer({ open, openedAt = 0, requestedInvoiceNumber = "
     onPrefetchEditOrder?.(order);
   }, [loadOrderSummary, onPrefetchEditOrder]);
 
-  const loadOrders = useCallback(async ({ reset = false } = {}) => {
+  const loadOrders = useCallback(async ({ reset = false, prepared = false } = {}) => {
     const seq = requestSeqRef.current + 1;
     requestSeqRef.current = seq;
     const fetchStartedAt = performance.now();
@@ -412,7 +408,7 @@ function RecentOperationsDrawer({ open, openedAt = 0, requestedInvoiceNumber = "
         setTotalCount(null);
       } else setLoadingMore(true);
       setError("");
-      const response = await api.get("/orders", {
+      const fetchPage = () => api.get("/orders", {
         params: {
           mode: "pos_recent",
           limit: RECENT_ORDERS_PAGE_SIZE,
@@ -421,6 +417,9 @@ function RecentOperationsDrawer({ open, openedAt = 0, requestedInvoiceNumber = "
         },
         timeoutMs: 10000,
       });
+      const response = reset && !debouncedSearch
+        ? await readPreparedWorkspace('pos-recent', fetchPage, { force: !prepared })
+        : await fetchPage();
       if (seq !== requestSeqRef.current) return;
       const nextOrders = Array.isArray(response.data) ? response.data : Array.isArray(response.orders) ? response.orders : [];
       const pagination = response.pagination || {};
@@ -435,9 +434,6 @@ function RecentOperationsDrawer({ open, openedAt = 0, requestedInvoiceNumber = "
       setOrders((current) => (reset ? nextOrders : [...current, ...nextOrders]));
       if (nextTotal !== null || reset) setTotalCount(nextTotal);
       setHasMore(Boolean(pagination.has_more ?? (nextOrders.length === RECENT_ORDERS_PAGE_SIZE)));
-      if (reset && !debouncedSearch) {
-        recentOrdersPageCache = { orders: nextOrders, total: nextTotal, hasMore: Boolean(pagination.has_more), expiresAt: Date.now() + RECENT_ORDERS_CACHE_TTL_MS };
-      }
       if (POS_DEBUG) {
         console.log("[pos-recent-operations-timing]", {
           recent_orders_fetch_ms: Math.round(performance.now() - fetchStartedAt),
@@ -502,7 +498,7 @@ function RecentOperationsDrawer({ open, openedAt = 0, requestedInvoiceNumber = "
   useEffect(() => {
     if (!open) return undefined;
     const timer = window.setTimeout(() => {
-      void loadOrders({ reset: true });
+      void loadOrders({ reset: true, prepared: true });
     }, 0);
     return () => window.clearTimeout(timer);
   }, [debouncedSearch, loadOrders, open]);
@@ -722,7 +718,7 @@ function RecentOperationsDrawer({ open, openedAt = 0, requestedInvoiceNumber = "
         orderSummaryCache.delete(String(permanentDeleteOrder.id));
         // Drop the warm page too, otherwise the next open paints the deleted invoice
         // for the length of one refresh.
-        recentOrdersPageCache = null;
+        invalidateWorkspace('pos-recent');
         setOrders((current) => current.filter((order) => String(order.id) !== String(permanentDeleteOrder.id)));
         setSelectedOrder((current) => (String(current?.id) === String(permanentDeleteOrder.id) ? null : current));
         setReturnOrder((current) => (String(current?.id) === String(permanentDeleteOrder.id) ? null : current));

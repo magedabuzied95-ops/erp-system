@@ -35,7 +35,7 @@ test('reads never invalidate snapshots; writes invalidate only dependent workspa
   assert.deepEqual(workspaceMutationKeys('PATCH', '/products/123/prices'), ['products', 'pos']);
   assert.deepEqual(workspaceMutationKeys('POST', '/purchases/123/receive'), ['purchases', 'products', 'pos']);
   assert.deepEqual(workspaceMutationKeys('DELETE', 'https://api.example.com/api/purchases/123'), ['purchases', 'products', 'pos']);
-  assert.deepEqual(workspaceMutationKeys('POST', '/orders'), []);
+  assert.deepEqual(workspaceMutationKeys('POST', '/orders'), ['pos-recent', 'orders']);
 });
 
 test('invalidating products cancels old requests without dropping priority page snapshots', async () => {

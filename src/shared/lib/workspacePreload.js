@@ -22,6 +22,9 @@ export const readPreparedWorkspace = (key, loader, options) => cache.read(worksp
 export const invalidateWorkspace = (key) => cache.invalidate(key);
 export const clearWorkspacePreload = () => cache.clear();
 export const preparedOrderRows = (data) => Array.isArray(data) ? data : data?.orders || data?.data || [];
+export const preloadRecentOperations = () => cache.prepare('pos-recent', (signal) => api.get('/orders', {
+  params: { mode: 'pos_recent', limit: 10, offset: 0, search: '' }, signal, timeoutMs: 10000,
+}));
 
 const loaders = {
   dashboard: (signal) => api.get('/dashboard/overview?range=today', { signal, timeoutMs: 12000 }),
@@ -62,5 +65,8 @@ export async function preloadWorkspaces({ routes, pathname, cancelled = () => fa
     if (cancelled() || !identity || scope() !== identity) return;
     // POS first; lower-priority screens never fan out over it or the inbox.
     await Promise.all([cache.prepare(workspaceKey(key), loaders[key]), screens[key]()]).catch(() => {});
+    if (key === 'pos' && !cancelled() && scope() === identity) {
+      await Promise.all([preloadRecentOperations(), import('../../modules/pos/components/RecentOperationsDrawer.jsx')]).catch(() => {});
+    }
   }
 }

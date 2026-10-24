@@ -1,6 +1,6 @@
 import { shiftDateKey, todayInAppTimezone } from "../../../shared/lib/appTimezone";
 import { lazy, Suspense, useCallback, useDeferredValue, useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
-import { peekWorkspace } from '../../../shared/lib/workspacePreload.js';
+import { peekWorkspace, preloadRecentOperations } from '../../../shared/lib/workspacePreload.js';
 import { createPortal } from "react-dom";
 import { useLocation, useNavigate, useSearchParams } from "react-router-dom";
 import { useTranslation } from "react-i18next";
@@ -2031,11 +2031,15 @@ function POSPro() {
 
   useEffect(() => {
     if (typeof window === "undefined") return undefined;
+    const warm = () => {
+      prefetchRecentOperationsDrawer();
+      if (!document.hidden && navigator.onLine !== false && !navigator.connection?.saveData) void preloadRecentOperations().catch(() => {});
+    };
     if (typeof window.requestIdleCallback === "function") {
-      const idleId = window.requestIdleCallback(prefetchRecentOperationsDrawer, { timeout: 4000 });
+      const idleId = window.requestIdleCallback(warm, { timeout: 4000 });
       return () => window.cancelIdleCallback?.(idleId);
     }
-    const timer = window.setTimeout(prefetchRecentOperationsDrawer, 1500);
+    const timer = window.setTimeout(warm, 1500);
     return () => window.clearTimeout(timer);
   }, []);
 
