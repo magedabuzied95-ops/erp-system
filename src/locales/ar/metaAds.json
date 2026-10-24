@@ -29,7 +29,10 @@
       "competitors": "المنافسون",
       "competitorAds": "إعلانات المنافسين",
       "optimizationGoals": "أهداف التحسين",
-      "billingEvents": "أحداث الفوترة"
+      "billingEvents": "أحداث الفوترة",
+      "competitorPosts": "منشورات المنافسين",
+      "competitorReportSchedules": "جدولة التقارير",
+      "competitorReports": "تقارير المنافسين"
     },
     "menuAria": "أقسام إعلانات Meta"
   },

@@ -30,6 +30,9 @@ const ENUMS = {
   attribution: { base: "metaAdsRecords.values.attribution" },
   eventStatus: { base: "metaAdsRecords.values.eventStatus" },
   adFormat: { base: "metaAdsRecords.values.adFormat" },
+  postFormat: { base: "metaAdsRecords.values.postFormat" },
+  reportStatus: { base: "metaAdsRecords.values.reportStatus" },
+  weekday: { base: "metaAdsRecords.values.weekday", values: ["6", "0", "1", "2", "3", "4", "5"] },
 };
 
 export const enumLabel = (t, name, value) => {

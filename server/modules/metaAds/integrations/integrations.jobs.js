@@ -1,10 +1,12 @@
-// Integration background jobs (insights refresh, competitor scans, CAPI retries). See ../metaAdsScheduler.js.
+// Integration background jobs (insights refresh, competitor scans and reports, CAPI retries). See ../metaAdsScheduler.js.
 // One tenant / account failing never stops the others.
 
 import db from "../../../database/db.js";
 import { getAccountContext, syncInsights, syncStructure } from "../metaAdsCore.js";
 import { syncCatalogRejections } from "../metaAdsCatalogRejections.js";
 import { scanCompetitor } from "./competitors.js";
+import { scanCompetitorPosts } from "./competitorPosts.js";
+import { isScheduleDue, runReportSchedule } from "./competitorReports.js";
 import { enqueuePurchaseEvents, retryFailedEvents } from "./conversions.js";
 import { TOKEN_INVALID_RE, clip, log, text, warn } from "./integrationsCommon.js";
 
@@ -71,6 +73,43 @@ const scanCompetitors = async () => {
   return { scanned: ok, due: rows.length };
 };
 
+// Daily, and only with APIFY_TOKEN set: every page Apify can find (saved link or page id).
+const scanCompetitorPostsJob = async () => {
+  if (!text(process.env.APIFY_TOKEN)) return { skipped: "no APIFY_TOKEN" };
+  const { rows } = await db.query(
+    `SELECT id, tenant_id FROM meta_ads_competitors
+      WHERE active = TRUE AND (COALESCE(facebook_url, '') <> '' OR COALESCE(page_id, '') <> '')
+        AND (posts_scanned_at IS NULL OR posts_scanned_at < NOW() - INTERVAL '20 hours')
+      ORDER BY posts_scanned_at NULLS FIRST, id LIMIT 50`,
+  );
+  let ok = 0;
+  for (const row of rows) {
+    try {
+      await scanCompetitorPosts(row.tenant_id, row.id);
+      ok += 1;
+    } catch (error) {
+      warn("job-competitor-posts", error, { tenant_id: row.tenant_id, competitor: row.id });
+    }
+  }
+  return { scanned: ok, due: rows.length };
+};
+
+// Hourly check; each schedule sends once a week on its weekday (see isScheduleDue).
+const sendCompetitorReports = async () => {
+  const { rows } = await db.query(`SELECT * FROM meta_ads_competitor_report_schedules WHERE active = TRUE ORDER BY id`);
+  const now = new Date();
+  let sent = 0;
+  for (const schedule of rows.filter((row) => isScheduleDue(row, now))) {
+    try {
+      await runReportSchedule(schedule.tenant_id, schedule.id);
+      sent += 1;
+    } catch (error) {
+      warn("job-competitor-report", error, { tenant_id: schedule.tenant_id, schedule: schedule.id });
+    }
+  }
+  return { sent };
+};
+
 const runCapi = async () => {
   const retries = await retryFailedEvents().catch((error) => {
     warn("job-capi-retry", error);
@@ -87,5 +126,7 @@ export const jobs = [
   { name: "meta-ads-insights-refresh", everyMinutes: 60, run: refreshInsights },
   { name: "meta-ads-insights-backfill", everyMinutes: 1440, run: backfillInsights },
   { name: "meta-ads-competitor-scan", everyMinutes: 1440, run: scanCompetitors },
+  { name: "meta-ads-competitor-posts-scan", everyMinutes: 1440, run: scanCompetitorPostsJob },
+  { name: "meta-ads-competitor-reports", everyMinutes: 60, run: sendCompetitorReports },
   { name: "meta-ads-capi", everyMinutes: 10, run: runCapi },
 ];

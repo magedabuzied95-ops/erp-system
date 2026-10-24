@@ -42,7 +42,8 @@
     "ad_meta_id": "Ad {{value}}",
     "page_id": "Page {{value}}",
     "dataset_id": "Dataset #{{value}}",
-    "competitor_id": "Competitor #{{value}}"
+    "competitor_id": "Competitor #{{value}}",
+    "schedule_id": "Report schedule #{{value}}"
   },
   "form": {
     "new": "New",
@@ -84,7 +85,10 @@
     "sync_leads": "Sync Leads",
     "scan_now": "Scan now",
     "analyze": "Analyze with AI",
-    "test_event": "Send test event"
+    "test_event": "Send test event",
+    "scan_posts": "Fetch posts",
+    "generate_report": "Build and send report now",
+    "send_report": "Send report"
   },
   "errors": {
     "notImplemented": "This feature is not available on the server yet.",
@@ -102,7 +106,14 @@
     "META_ADS_UNKNOWN_ACTION": "Unknown action.",
     "META_ADS_NOT_ON_META": "Publish this object to Meta first (Push to Meta).",
     "META_ADS_ALREADY_ON_META": "This object is already on Meta. Use \"Update on Meta\".",
-    "META_ADS_UNKNOWN_RESOURCE": "Unknown record type."
+    "META_ADS_UNKNOWN_RESOURCE": "Unknown record type.",
+    "APIFY_NOT_CONFIGURED": "Set APIFY_TOKEN on the server to fetch competitor posts.",
+    "APIFY_BAD_TOKEN": "The Apify token is invalid or out of credit.",
+    "APIFY_TIMEOUT": "Apify took too long to scrape this page — try again later.",
+    "APIFY_UNREACHABLE": "Apify could not be reached.",
+    "COMPETITOR_PAGE_URL_MISSING": "Add the competitor's Facebook page link (or username) first.",
+    "REPORT_RECIPIENTS_MISSING": "Add a Telegram chat id or an email to the report schedule first.",
+    "META_ADS_NO_COMPETITORS": "Add at least one active competitor first."
   },
   "smart": {
     "insights": "Insights",
@@ -116,7 +127,9 @@
     "adClicks": "Ad clicks",
     "leads": "Leads",
     "competitorAds": "Competitor ads",
-    "conversionEvents": "Conversion events"
+    "conversionEvents": "Conversion events",
+    "competitorPosts": "Posts",
+    "competitorReports": "Reports"
   },
   "tabs": {
     "aiInstructions": "AI Instructions",
@@ -130,7 +143,8 @@
     "actions": "Actions",
     "image": "Image",
     "video": "Video",
-    "carousel": "Carousel cards"
+    "carousel": "Carousel cards",
+    "reportData": "Report data"
   },
   "headings": {
     "linkedPage": "Linked Page / Instagram",
@@ -138,7 +152,9 @@
     "attribution": "Attribution",
     "adContent": "Ad Content",
     "ad": "Ad",
-    "trackingAi": "Tracking & AI Analysis"
+    "trackingAi": "Tracking & AI Analysis",
+    "post": "Post",
+    "engagement": "Engagement"
   },
   "help": {
     "chatTeam": "The team that chats coming from this ad are assigned to.",
@@ -151,7 +167,13 @@
     "videoId": "The video ID after it was uploaded to Meta.",
     "datasetToken": "Conversions API access token for the dataset. Stored encrypted.",
     "competitorPage": "The competitor's Facebook Page ID used to search the Ad Library.",
-    "country": "Country code (e.g. EG) or ALL for every country."
+    "country": "Country code (e.g. EG) or ALL for every country.",
+    "facebookUrl": "The competitor's Facebook page link, e.g. https://www.facebook.com/PageName — used to fetch its posts and engagement through Apify.",
+    "isOwnPage": "Turn on for your own store page so the report compares you with the competitors.",
+    "sendDay": "The day the report is sent (after 9 AM Cairo time).",
+    "reportDays": "How many days the report covers (1–90).",
+    "telegramChatId": "The Telegram chat or group id that receives the report from the store bot.",
+    "emailTo": "One or more emails, separated by commas."
   },
   "json": {
     "tree": "Tree",
@@ -237,6 +259,27 @@
       "carousel": "Carousel",
       "dco": "Dynamic creative",
       "text": "Text"
+    },
+    "postFormat": {
+      "video": "Video",
+      "photo": "Photo",
+      "album": "Album",
+      "link": "Link",
+      "text": "Text"
+    },
+    "reportStatus": {
+      "ready": "Ready",
+      "sent": "Sent",
+      "failed": "Send failed"
+    },
+    "weekday": {
+      "0": "Sunday",
+      "1": "Monday",
+      "2": "Tuesday",
+      "3": "Wednesday",
+      "4": "Thursday",
+      "5": "Friday",
+      "6": "Saturday"
     }
   },
   "l": {
@@ -409,6 +452,36 @@
     "webhookFields": "Subscribed webhook fields",
     "webhookSubscribedAt": "Webhook subscribed at",
     "webhookUpper": "WEBHOOK",
-    "webhookVerifyToken": "Webhook verify token"
+    "webhookVerifyToken": "Webhook verify token",
+    "facebookUrl": "Facebook page link",
+    "isOwnPage": "My page",
+    "postsTracked": "Posts tracked",
+    "postsScanned": "Posts last fetched",
+    "postsScanError": "Posts fetch error",
+    "postText": "Post text",
+    "postedAt": "Posted",
+    "reactions": "Reactions",
+    "comments": "Comments",
+    "shares": "Shares",
+    "views": "Views",
+    "engagement": "Total engagement",
+    "viewPost": "View post",
+    "thumbnail": "Thumbnail",
+    "reportName": "Report name",
+    "sendDay": "Send day",
+    "reportDays": "Report period (days)",
+    "telegramChatId": "Telegram chat id",
+    "emailTo": "Email",
+    "lastReport": "Last report",
+    "notes": "Notes",
+    "reportTitle": "Report",
+    "competitorsCount": "Pages",
+    "postsCount": "Posts",
+    "createdAt": "Created",
+    "sentTelegram": "Sent on Telegram",
+    "sentEmail": "Sent by email",
+    "reportText": "Report text",
+    "periodStart": "From",
+    "periodEnd": "To"
   }
 }

@@ -48,6 +48,9 @@ export const META_ADS_SECTIONS = [
     pages: [
       { key: "competitors", resource: "competitors" },
       { key: "competitorAds", resource: "competitor-ads" },
+      { key: "competitorPosts", resource: "competitor-posts" },
+      { key: "competitorReportSchedules", resource: "competitor-report-schedules" },
+      { key: "competitorReports", resource: "competitor-reports" },
     ],
   },
   {
