@@ -2,7 +2,7 @@ import assert from "node:assert/strict";
 import fs from "node:fs";
 import test from "node:test";
 
-import { countShippingPieces, extraPiecesLine, extraPiecesShippingFee } from "../shared/shippingExtraPieces.js";
+import { countShippingPieces, extraPiecesShippingFee } from "../shared/shippingExtraPieces.js";
 import { buildShippingFeeReply } from "../server/services/aiStoreFactsReplyService.js";
 
 // Owner rule (2026-10-24): the zone price is for one piece, +10 for the second, +10 more for the
@@ -32,15 +32,14 @@ test("pieces are counted by quantity, not by lines", () => {
   assert.equal(countShippingPieces([]), 0);
 });
 
-test("the AI tells the customer the quote is for one piece", () => {
-  assert.equal(extraPiecesLine({ fee: 0, max: 2 }), "");
-  const reply = buildShippingFeeReply({
-    fee: { nameAr: "القاهرة", price: 70, min: null, max: null, threshold: 0, eta: "" },
-    extraPieces: { fee: 10, max: 2 },
-  });
-  assert.match(reply, /للقطعة الواحدة/);
-  assert.match(reply, /10 جنيه/);
-  assert.match(reply, /20 جنيه/);
+// Owner (2026-10-25): the AI answers "how much is shipping?" with the one-piece price only and
+// never explains the per-piece surcharge; the order total still carries it.
+test("the AI's shipping answer is the price alone, no per-piece talk", () => {
+  const reply = buildShippingFeeReply({ fee: { nameAr: "القاهرة", price: 70, min: null, max: null, threshold: 0, eta: "" } });
+  assert.equal(reply, "الشحن للقاهرة 70 جنيه 🚚");
+  for (const path of ["server/services/aiStoreFactsReplyService.js", "server/services/aiToolRegistryService.js", "server/services/aiBusinessToolsService.js"]) {
+    assert.doesNotMatch(fs.readFileSync(path, "utf8"), /extra_piece|extraPiece/, `${path} must not hand the AI the per-piece rule`);
+  }
 });
 
 test("every surface that prices an order sends its piece count", () => {

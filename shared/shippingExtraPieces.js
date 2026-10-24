@@ -19,12 +19,3 @@ export const extraPiecesShippingFee = ({ basePrice = 0, pieces = 1, perPiece = 0
   const cap = count(maxExtraPieces, 0);
   return (cap > 0 ? Math.min(extra, cap) : extra) * fee;
 };
-
-// What the AI says next to a one-piece quote; "" while the surcharge is off.
-export const extraPiecesLine = ({ fee = 0, max = 0 } = {}) => {
-  const perPiece = Math.max(0, Number(fee) || 0);
-  if (!(perPiece > 0)) return "";
-  const money = (value) => Math.round(value).toLocaleString("en-US");
-  const cap = count(max, 0);
-  return `ده للقطعة الواحدة، وكل قطعة زيادة بـ ${money(perPiece)} جنيه${cap > 0 ? ` (أقصى زيادة ${money(perPiece * cap)} جنيه)` : ""}.`;
-};

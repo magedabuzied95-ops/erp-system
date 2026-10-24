@@ -1,5 +1,4 @@
 import { governorateOptions, resolveGovernorateId } from "../../shared/codPolicy.js";
-import { extraPiecesLine } from "../../shared/shippingExtraPieces.js";
 import { normalizeChannel, normalizeOutgoingChannelReply } from "./aiChannelAdapterService.js";
 import { getSetting } from "./settingsService.js";
 import { loadShippingZones, resolveStorefrontShippingQuote } from "./storefrontShippingService.js";
@@ -79,12 +78,11 @@ export const deliveryTextAr = (value = "") => {
 
 const freeShippingLine = (threshold = 0) => (Number(threshold) > 0 ? `والشحن مجاني لو الأوردر ${money(threshold)} جنيه أو أكتر.` : "");
 
-export const buildShippingFeeReply = ({ fee = null, uniformFee = null, freeShippingThreshold = 0, advanceNotice = "", extraPieces = {} } = {}) => {
+export const buildShippingFeeReply = ({ fee = null, uniformFee = null, freeShippingThreshold = 0, advanceNotice = "" } = {}) => {
   if (!fee) {
     if (uniformFee !== null) {
       return [
         uniformFee > 0 ? `الشحن ${money(uniformFee)} جنيه لكل المحافظات 🚚` : "الشحن مجاني لكل المحافظات 🚚",
-        uniformFee > 0 ? extraPiecesLine(extraPieces) : "",
         freeShippingLine(freeShippingThreshold),
       ].filter(Boolean).join("\n");
     }
@@ -96,7 +94,6 @@ export const buildShippingFeeReply = ({ fee = null, uniformFee = null, freeShipp
     : fee.price > 0 ? `الشحن ${place} ${money(fee.price)} جنيه 🚚` : `الشحن ${place} مجاني 🚚`;
   return [
     headline,
-    fee.price === 0 ? "" : extraPiecesLine(extraPieces),
     deliveryTextAr(fee.eta) ? `التوصيل ${deliveryTextAr(fee.eta)}` : "",
     fee.price === 0 ? "" : freeShippingLine(fee.threshold),
     advanceNotice,
@@ -160,7 +157,7 @@ export const buildStoreFactsDecision = async ({ message = "", memory = {}, chann
       const advanceNotice = fee && fee.price !== null
         ? await Promise.resolve(load.advanceNotice({ governorate: fee.nameAr, shippingFee: fee.price })).catch(() => "")
         : "";
-      replyText = buildShippingFeeReply({ fee, uniformFee, freeShippingThreshold: shipping?.freeShippingThreshold, advanceNotice: text(advanceNotice), extraPieces: { fee: shipping?.extraPieceFee, max: shipping?.extraPieceMax } });
+      replyText = buildShippingFeeReply({ fee, uniformFee, freeShippingThreshold: shipping?.freeShippingThreshold, advanceNotice: text(advanceNotice) });
       if (!fee && uniformFee === null) lastIntent = "shipping_fee_ask_governorate";
       Object.assign(facts, { governorate_id: governorateId, fee });
     } else if (question === "open_package") {
