@@ -1,0 +1,49 @@
+/* Platform switch over the Meta / Google / TikTok ad modules. App tokens only. */
+
+.ad-platform-frame {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  min-width: 0;
+}
+
+.ad-platform-tabs {
+  display: flex;
+  align-self: flex-start;
+  gap: 2px;
+  max-width: 100%;
+  padding: 4px;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-card, 12px);
+  background: var(--surface-soft, var(--surface));
+  overflow-x: auto;
+  scrollbar-width: none;
+}
+
+.ad-platform-tabs::-webkit-scrollbar {
+  display: none;
+}
+
+.ad-platform-tabs__tab {
+  display: inline-flex;
+  align-items: center;
+  flex: 0 0 auto;
+  height: 34px;
+  padding: 0 18px;
+  border-radius: 8px;
+  color: var(--muted);
+  font-weight: 600;
+  font-size: 0.9rem;
+  text-decoration: none;
+  white-space: nowrap;
+}
+
+.ad-platform-tabs__tab:hover {
+  color: var(--text);
+}
+
+.ad-platform-tabs__tab.is-active {
+  background: var(--surface);
+  color: var(--text);
+  box-shadow: 0 1px 2px rgb(0 0 0 / 0.08), inset 0 0 0 1px var(--border);
+}

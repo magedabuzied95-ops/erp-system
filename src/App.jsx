@@ -228,6 +228,7 @@ const AmazonIntegrationSettings = lazy(() => import("./modules/amazon/AmazonCent
 const MetaAdsModule = lazy(() => import("./modules/metaAds/MetaAdsModule"));
 const GoogleAdsModule = lazy(() => import("./modules/googleAds/GoogleAdsModule"));
 const TikTokAdsModule = lazy(() => import("./modules/tiktokAds/TikTokAdsModule"));
+const AdPlatformFrame = lazy(() => import("./modules/adPlatforms/AdPlatformTabs").then((module) => ({ default: module.AdPlatformFrame })));
 
 import ProtectedRoute from "./shared/auth/ProtectedRoute";
 import DebugErrorBoundary from "./shared/components/DebugErrorBoundary";
@@ -2203,21 +2204,23 @@ function App() {
           path="meta-ads/*"
           element={
             <ProtectedRoute requiredPermissions={["meta_ads.view"]}>
-              <MetaAdsModule />
+              <AdPlatformFrame><MetaAdsModule /></AdPlatformFrame>
             </ProtectedRoute>
           }
         />
 
-        {/* TikTok Ads (Marketing API): connect the advertiser account, campaigns / ad groups / ads with insights. */}
+        {/* Google Ads: connect the account, Search / retail campaigns, reports and purchase tracking. */}
         <Route
           path="google-ads/*"
-          element={<ProtectedRoute requiredPermissions={["google_ads.view"]}><GoogleAdsModule /></ProtectedRoute>}
+          element={<ProtectedRoute requiredPermissions={["google_ads.view"]}><AdPlatformFrame><GoogleAdsModule /></AdPlatformFrame></ProtectedRoute>}
         />
+
+        {/* TikTok Ads (Marketing API): connect the advertiser account, campaigns / ad groups / ads with insights. */}
         <Route
           path="tiktok-ads/*"
           element={
             <ProtectedRoute requiredPermissions={["tiktok_ads.view"]}>
-              <TikTokAdsModule />
+              <AdPlatformFrame><TikTokAdsModule /></AdPlatformFrame>
             </ProtectedRoute>
           }
         />
