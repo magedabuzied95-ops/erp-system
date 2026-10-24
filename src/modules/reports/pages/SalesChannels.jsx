@@ -1,5 +1,21 @@
 import { useMemo, useState } from "react";
 import { useTranslation } from "react-i18next";
+import {
+  FaEnvelope,
+  FaFacebookF,
+  FaGlobe,
+  FaInstagram,
+  FaLink,
+  FaMicrosoft,
+  FaQuestion,
+  FaSnapchatGhost,
+  FaTelegramPlane,
+  FaTiktok,
+  FaTwitter,
+  FaWhatsapp,
+  FaYoutube,
+} from "react-icons/fa";
+import { FcGoogle } from "react-icons/fc";
 
 import useAnalyticsFilters from "../hooks/useAnalyticsFilters";
 import useAnalyticsResource from "../hooks/useAnalyticsResource";
@@ -38,6 +54,37 @@ const CHANNEL_LABELS = {
   other: ["أخرى", "Other"],
   unknown: ["غير معروف", "Unknown"],
 };
+
+// Brand marks in brand colours, so a channel reads at a glance as it does on the ad platforms.
+const CHANNEL_ICONS = {
+  direct: { Icon: FaLink, color: "var(--text-secondary)" },
+  google: { Icon: FcGoogle, color: undefined },
+  facebook: { Icon: FaFacebookF, color: "#1877F2" },
+  instagram: { Icon: FaInstagram, color: "#E4405F" },
+  tiktok: { Icon: FaTiktok, color: "var(--text)" },
+  youtube: { Icon: FaYoutube, color: "#FF0000" },
+  snapchat: { Icon: FaSnapchatGhost, color: "#F7C600" },
+  whatsapp: { Icon: FaWhatsapp, color: "#25D366" },
+  telegram: { Icon: FaTelegramPlane, color: "#229ED9" },
+  twitter: { Icon: FaTwitter, color: "#1DA1F2" },
+  bing: { Icon: FaMicrosoft, color: "#00A4EF" },
+  email: { Icon: FaEnvelope, color: "var(--text-secondary)" },
+  referral: { Icon: FaGlobe, color: "var(--text-secondary)" },
+  other: { Icon: FaGlobe, color: "var(--text-secondary)" },
+  unknown: { Icon: FaQuestion, color: "var(--text-tertiary)" },
+};
+
+function ChannelMark({ channel }) {
+  const { Icon, color } = CHANNEL_ICONS[channel] || CHANNEL_ICONS.other;
+  return (
+    <span
+      aria-hidden="true"
+      className="inline-flex h-7 w-7 shrink-0 items-center justify-center rounded-full border border-[var(--border)] bg-[var(--card)]"
+    >
+      <Icon size={14} style={color ? { color } : undefined} />
+    </span>
+  );
+}
 
 const MEDIUM_TONES = {
   paid: "bg-[var(--primary)]/10 text-[var(--primary)]",
@@ -271,7 +318,12 @@ export default function SalesChannels() {
                   ) : rows.length ? (
                     rows.map((row) => (
                       <tr key={`${row.channel}|${row.medium}`} className="border-b border-[var(--border)] last:border-0">
-                        <td className="px-4 py-2.5 font-semibold text-[var(--text)]">{channelLabel(row.channel)}</td>
+                        <td className="px-4 py-2.5 font-semibold text-[var(--text)]">
+                          <span className="inline-flex items-center gap-2.5">
+                            <ChannelMark channel={row.channel} />
+                            {channelLabel(row.channel)}
+                          </span>
+                        </td>
                         <td className="px-4 py-2.5">
                           <span className={`inline-flex rounded-full px-2 py-0.5 text-[11px] font-semibold ${MEDIUM_TONES[row.medium] || MEDIUM_TONES.direct}`}>
                             {mediumLabel(row.medium)}
