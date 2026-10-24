@@ -1,24 +1,217 @@
-.google-ads-form { border: 0; padding: 0; margin: 0; display: grid; gap: 16px; grid-template-columns: repeat(auto-fit, minmax(240px, 1fr)); min-width: 0; }
-.google-ads-field { display: flex; flex-direction: column; gap: 6px; }
-.google-ads-form input, .google-ads-form select, .google-ads-form textarea { color: var(--text); background: var(--surface); border: 1px solid var(--border); border-radius: 8px; padding: 10px; max-width: 100%; }
-.google-ads-form p, .google-ads-form small, .google-ads-actions { grid-column: 1 / -1; }
-.google-ads-actions { display: flex; flex-wrap: wrap; gap: 8px; }
-.google-ads-manager details { border-block-end: 1px solid var(--border); padding: 14px 0; }
-.google-ads-manager summary { cursor: pointer; font-weight: 600; margin-block-end: 14px; }
+/* Google Ads module — builds on the TikTok Ads chrome (tiktokAds.css) so the three
+   ad platforms read as one family. Forms, collapsible panels, item lists. App tokens only. */
 
-.google-ads-page select {
-  color-scheme: light;
-  color: var(--text);
-  background-color: var(--card);
-  border-color: var(--border);
+/* theme/foundation.css also defines .m1-control — as a bordered box for an older
+   control pattern — and it lands on the kit's label wrapper too. Here it is only
+   the wrapper. */
+.google-ads-page .m1-control {
+  min-height: 0;
+  border: 0;
+  border-radius: 0;
+  background: none;
 }
 
-html[data-theme="dark"] .google-ads-page select {
-  color-scheme: dark;
+/* A short field next to a tall one keeps its rows at the top of the grid cell. */
+.google-ads-form > .m1-control {
+  align-content: start;
 }
 
-.google-ads-page select option,
-.google-ads-page select optgroup {
+.google-ads-muted {
+  margin: 0;
+  color: var(--muted);
+  font-size: 0.875rem;
+  line-height: 1.7;
+}
+
+.google-ads-form {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(min(100%, 240px), 1fr));
+  gap: 16px;
+  min-width: 0;
+  margin: 0;
+  padding: 0;
+  border: 0;
+}
+
+.google-ads-form__wide {
+  grid-column: 1 / -1;
+}
+
+.google-ads-form__end {
+  align-self: end;
+  margin-top: 0;
+}
+
+.google-ads-builder,
+.google-ads-manager {
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+  min-width: 0;
+  margin: 0;
+  padding: 0;
+  border: 0;
+}
+
+.google-ads-builder .tiktok-ads-notice {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-top: 12px;
+}
+
+.google-ads-inline {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px 16px;
+  min-width: 0;
+}
+
+.google-ads-inline > .m1-control {
+  flex: 1 1 240px;
+  min-width: 0;
+}
+
+.google-ads-inline--end {
+  align-items: flex-end;
+}
+
+.google-ads-chips {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+
+.google-ads-chips .tiktok-ads-drill__chip:disabled {
+  opacity: 0.5;
+  cursor: default;
+}
+
+.google-ads-chips .tiktok-ads-drill__chip.is-selected {
+  border-color: var(--primary);
+  background: var(--primary-soft);
+  color: var(--primary);
+}
+
+.google-ads-panel {
+  border: 1px solid var(--border);
+  border-radius: var(--radius-card, 12px);
+  background: var(--surface);
+}
+
+.google-ads-panel > summary {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 14px 18px;
   color: var(--text);
-  background-color: var(--card);
+  font-weight: 700;
+  list-style: none;
+  cursor: pointer;
+}
+
+.google-ads-panel > summary::-webkit-details-marker {
+  display: none;
+}
+
+/* A chevron at the end of the row instead of the browser's triangle. */
+.google-ads-panel > summary::after {
+  content: "";
+  flex: 0 0 auto;
+  width: 8px;
+  height: 8px;
+  border-inline-end: 2px solid var(--muted);
+  border-block-end: 2px solid var(--muted);
+  transform: rotate(45deg);
+  transition: transform 0.15s ease;
+}
+
+.google-ads-panel[open] > summary::after {
+  transform: rotate(-135deg);
+}
+
+.google-ads-panel[open] > summary {
+  border-bottom: 1px solid var(--border);
+}
+
+.google-ads-panel__body {
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+  padding: 16px 18px;
+}
+
+.google-ads-panel__body .tiktok-ads-actions {
+  margin-top: 0;
+}
+
+.google-ads-list {
+  display: flex;
+  flex-direction: column;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.google-ads-list:empty::before {
+  content: "—";
+  color: var(--muted);
+}
+
+.google-ads-list__item {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px 12px;
+  padding: 10px 0;
+}
+
+.google-ads-list__item + .google-ads-list__item {
+  border-top: 1px solid var(--border);
+}
+
+.google-ads-list__text {
+  display: flex;
+  flex: 1 1 240px;
+  flex-direction: column;
+  gap: 2px;
+  min-width: 0;
+}
+
+.google-ads-list__text strong {
+  color: var(--text);
+  font-weight: 600;
+  overflow-wrap: anywhere;
+}
+
+.google-ads-list__text span {
+  color: var(--muted);
+  font-size: 0.8125rem;
+  overflow-wrap: anywhere;
+}
+
+.google-ads-accounts {
+  display: flex;
+  flex-direction: column;
+}
+
+.google-ads-account {
+  padding: 12px 0;
+}
+
+.google-ads-account + .google-ads-account {
+  border-top: 1px solid var(--border);
+}
+
+.google-ads-notes {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  margin: 14px 0 0;
+  padding-inline-start: 18px;
+  color: var(--muted);
+  font-size: 0.875rem;
+  line-height: 1.7;
 }

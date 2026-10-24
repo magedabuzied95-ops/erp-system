@@ -27,6 +27,7 @@
 .ad-platform-tabs__tab {
   display: inline-flex;
   align-items: center;
+  gap: 8px;
   flex: 0 0 auto;
   height: 34px;
   padding: 0 18px;
@@ -46,4 +47,19 @@
   background: var(--surface);
   color: var(--text);
   box-shadow: 0 1px 2px rgb(0 0 0 / 0.08), inset 0 0 0 1px var(--border);
+}
+
+.ad-platform-tabs__logo {
+  flex: 0 0 auto;
+  width: 18px;
+  height: 18px;
+}
+
+/* Brand marks keep their own colour; TikTok's is black, so it follows the text. */
+.ad-platform-tabs__tab--meta .ad-platform-tabs__logo {
+  color: #0866ff;
+}
+
+.ad-platform-tabs__tab--tiktok .ad-platform-tabs__logo {
+  color: var(--text);
 }

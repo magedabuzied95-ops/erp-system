@@ -1,5 +1,8 @@
 import { NavLink } from "react-router-dom";
 import { useTranslation } from "react-i18next";
+import { FaTiktok } from "react-icons/fa";
+import { FcGoogle } from "react-icons/fc";
+import { SiMeta } from "react-icons/si";
 
 import { hasPermission, isMetaReviewerUser } from "../../shared/auth/authStorage";
 import "./adPlatformTabs.css";
@@ -8,9 +11,9 @@ import "./adPlatformTabs.css";
 // keeps its own route and its own inner navigation; a tab shows only when the
 // user may open that module. The Meta app reviewer is held to /meta-ads.
 const PLATFORMS = [
-  { key: "meta", to: "/meta-ads", label: "Meta", permission: "meta_ads.view" },
-  { key: "google", to: "/google-ads", label: "Google", permission: "google_ads.view" },
-  { key: "tiktok", to: "/tiktok-ads", label: "TikTok", permission: "tiktok_ads.view" },
+  { key: "meta", to: "/meta-ads", label: "Meta", Logo: SiMeta, permission: "meta_ads.view" },
+  { key: "google", to: "/google-ads", label: "Google", Logo: FcGoogle, permission: "google_ads.view" },
+  { key: "tiktok", to: "/tiktok-ads", label: "TikTok", Logo: FaTiktok, permission: "tiktok_ads.view" },
 ];
 
 export default function AdPlatformTabs() {
@@ -21,7 +24,8 @@ export default function AdPlatformTabs() {
   return (
     <nav className="ad-platform-tabs" aria-label={i18n.language.startsWith("ar") ? "منصات الإعلانات" : "Ad platforms"}>
       {visible.map((p) => (
-        <NavLink key={p.key} to={p.to} className={({ isActive }) => `ad-platform-tabs__tab${isActive ? " is-active" : ""}`}>
+        <NavLink key={p.key} to={p.to} className={({ isActive }) => `ad-platform-tabs__tab ad-platform-tabs__tab--${p.key}${isActive ? " is-active" : ""}`}>
+          <p.Logo className="ad-platform-tabs__logo" aria-hidden="true" />
           {p.label}
         </NavLink>
       ))}
