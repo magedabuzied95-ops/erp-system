@@ -1,5 +1,6 @@
 import { shiftDateKey, todayInAppTimezone } from "../../../shared/lib/appTimezone";
 import { lazy, Suspense, useCallback, useDeferredValue, useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
+import { peekWorkspace } from '../../../shared/lib/workspacePreload.js';
 import { createPortal } from "react-dom";
 import { useLocation, useNavigate, useSearchParams } from "react-router-dom";
 import { useTranslation } from "react-i18next";
@@ -1803,8 +1804,10 @@ function POSPro() {
   const canManageSalePrices = useMemo(() => canManagePosSalePrices(currentUser), [currentUser]);
   const customerCacheTenantId = currentTenant?.id || currentTenant?.tenant_id || currentUser?.tenant_id || null;
 
-  const [products, setProducts] = useState([]);
-  const [saleModeSettings, setSaleModeSettings] = useState(() => normalizeSaleModeSettings({}));
+  const [preparedPos] = useState(() => peekWorkspace('pos'));
+  const preparedCatalogPendingRef = useRef(Boolean(preparedPos?.products?.length));
+  const [products, setProducts] = useState(() => preparedPos?.products || []);
+  const [saleModeSettings, setSaleModeSettings] = useState(() => preparedPos?.saleModeSettings || normalizeSaleModeSettings({}));
   const [saleModeSaving, setSaleModeSaving] = useState(false);
   const [manufacturers, setManufacturers] = useState([]);
   const [customers, setCustomers] = useState([]);
@@ -1926,7 +1929,7 @@ function POSPro() {
   const [couponCode, setCouponCode] = useState("");
   const [couponValidation, setCouponValidation] = useState(null);
   const [couponLoading, setCouponLoading] = useState(false);
-  const [loading, setLoading] = useState(true);
+  const [loading, setLoading] = useState(() => !preparedPos?.products?.length);
   const [posRefreshLoading, setPosRefreshLoading] = useState(false);
   const [error, setError] = useState("");
   const [checkoutLoading, setCheckoutLoading] = useState(false);
@@ -2804,7 +2807,7 @@ function POSPro() {
     const controller = new AbortController();
     (async () => {
       try {
-        setLoading(true);
+        setLoading(!peekWorkspace('pos')?.products?.length);
         setError("");
         const cachedCatalogSnapshot = await getPosCatalogSnapshot();
         const cachedCatalogVersion = cachedCatalogSnapshot?.catalog_version || "";
@@ -2898,8 +2901,7 @@ function POSPro() {
         }
 
         if (!active) return;
-
-        if (!active) return;
+        preparedCatalogPendingRef.current = false;
 
         if (manufacturersResult.status === "rejected") {
           console.error("[pos] failed to load manufacturers:", manufacturersResult.reason);
@@ -2981,6 +2983,9 @@ function POSPro() {
             console.debug("POS_OFFLINE_CATALOG_CACHE_META", await getPosCatalogCacheMeta());
           }
           setProducts(cachedSnapshot.products);
+          // The existing full offline catalog path remains authoritative for
+          // offline selling; the small preview is never an offline snapshot.
+          preparedCatalogPendingRef.current = false;
           setError("");
 
           const customerSnapshot = await getPosCustomerSnapshot({ tenantId: customerCacheTenantId });
@@ -7904,6 +7909,10 @@ function POSPro() {
   // else runs and released only when the attempt is over; the state still
   // drives the spinner.
   const handleCheckout = async (options = {}) => {
+    if (preparedCatalogPendingRef.current) {
+      toast.error(i18n.language.startsWith('ar') ? 'جاري تحديث الأسعار والمخزون، حاول بعد لحظة.' : 'Updating prices and stock. Please try again in a moment.');
+      return;
+    }
     if (checkoutLockRef.current) return null;
     checkoutLockRef.current = true;
     try {

@@ -3,11 +3,12 @@ import { useEffect } from 'react';
 export const shouldResetInboxPrefetch = (event) => event.type === 'erp:auth-expired'
   || (event.type === 'erp:auth-user-updated' && !event.detail?.user);
 
-export default function useInboxPrefetch({ enabled, pathname, identityKey }) {
+export default function useInboxPrefetch({ enabled, inboxEnabled = enabled, pathname, identityKey, workspaceRoutes = '' }) {
   useEffect(() => {
     // Clear one-use results on logout, account/tenant changes and permission loss.
     const clear = () => {
       void import('../../modules/aiSupport/services/inboxPrefetch.js').then((m) => m.clearInboxPrefetch());
+      void import('../lib/workspacePreload.js').then((m) => m.clearWorkspacePreload());
     };
     const onAuth = (event) => { if (shouldResetInboxPrefetch(event)) clear(); };
     window.addEventListener('erp:auth-user-updated', onAuth);
@@ -18,29 +19,35 @@ export default function useInboxPrefetch({ enabled, pathname, identityKey }) {
       window.removeEventListener('erp:auth-expired', onAuth);
       clear();
     };
-  }, [enabled, identityKey]);
+  }, [enabled, identityKey, workspaceRoutes]);
 
   useEffect(() => {
-    if (!enabled || pathname === '/admin/ai-inbox') return undefined;
+    if (!enabled) return undefined;
     let cancelled = false;
     let idleId;
-    const run = async () => {
+    const run = async (intent) => {
       if (cancelled || document.hidden || navigator.onLine === false || navigator.connection?.saveData) return;
-      const module = await import('../../modules/aiSupport/services/inboxPrefetch.js');
-      if (!cancelled) {
-        void module.prefetchInbox().catch(() => {});
+      if (inboxEnabled && pathname !== '/admin/ai-inbox') {
+        const module = await import('../../modules/aiSupport/services/inboxPrefetch.js');
+        if (cancelled) return;
+        const ready = module.prefetchInbox().catch(() => {});
         // Warm the lazy screen too: ready data alone cannot bypass downloading
         // the inbox UI when the user opens this workspace for the first time.
         void import('../../modules/aiSupport/pages/AiInbox.jsx').catch(() => {});
+        await ready;
       }
+      if (cancelled) return;
+      const workspace = await import('../lib/workspacePreload.js');
+      if (!cancelled) await workspace.preloadWorkspaces({ routes: workspaceRoutes.split(','), pathname, cancelled: () => cancelled, intent });
     };
     // Let the current screen finish its own startup before fetching summaries.
     const timer = window.setTimeout(() => {
-      if (window.requestIdleCallback) idleId = window.requestIdleCallback(run, { timeout: 3000 });
-      else void run();
+      if (window.requestIdleCallback) idleId = window.requestIdleCallback(() => { void run().catch(() => {}); }, { timeout: 3000 });
+      else void run().catch(() => {});
     }, 2000);
     const onIntent = (event) => {
-      if (event.target.closest?.('a[href="/admin/ai-inbox"]')) void run();
+      const href = event.target.closest?.('a[href]')?.getAttribute('href');
+      if (href === '/admin/ai-inbox' || workspaceRoutes.split(',').includes(href)) void run(href).catch(() => {});
     };
     document.addEventListener('pointerover', onIntent);
     document.addEventListener('focusin', onIntent);
@@ -53,5 +60,5 @@ export default function useInboxPrefetch({ enabled, pathname, identityKey }) {
       document.removeEventListener('focusin', onIntent);
       document.removeEventListener('touchstart', onIntent);
     };
-  }, [enabled, pathname, identityKey]);
+  }, [enabled, inboxEnabled, pathname, identityKey, workspaceRoutes]);
 }

@@ -43,6 +43,7 @@ import toast from "react-hot-toast";
 import { socket } from "../../../socket";
 import { api } from "../../../shared/api/api";
 import { fetchAllOrders, ORDERS_MAX_ROWS } from "../../../shared/api/ordersFetch";
+import { peekWorkspace, readPreparedWorkspace, preparedOrderRows } from '../../../shared/lib/workspacePreload.js';
 import useDismissableLayer from "../../../shared/hooks/useDismissableLayer";
 import { useInvoiceTemplate } from "../../../shared/hooks/useInvoiceTemplate";
 import useOrderPrintSheet from "../../../shared/components/print/useOrderPrintSheet";
@@ -751,14 +752,15 @@ function OrdersDashboard() {
   const { t, i18n } = useTranslation();
   const navigate = useNavigate();
   const [searchParams] = useSearchParams();
-  const [orders, setOrders] = useState([]);
-  const [loading, setLoading] = useState(true);
+  const [orders, setOrders] = useState(() => preparedOrderRows(peekWorkspace('orders')).map((order) => normalizeOrder(order, { items: [] })));
+  const [loading, setLoading] = useState(() => !peekWorkspace('orders'));
   const [error, setError] = useState("");
   const [ordersTruncated, setOrdersTruncated] = useState(false);
   const [loadingMore, setLoadingMore] = useState(false);
   // Only the newest walk may write rows: a refresh started while an older one is
   // still streaming pages must not have those pages land on top of it.
   const loadRequestRef = useRef(0);
+  const firstOrdersLoadRef = useRef(true);
   const [workspace] = useState("table");
   const [search, setSearch] = useState("");
   const [statusFilter, setStatusFilter] = useState("all");
@@ -789,8 +791,10 @@ function OrdersDashboard() {
     const requestId = loadRequestRef.current + 1;
     loadRequestRef.current = requestId;
     const isCurrent = () => loadRequestRef.current === requestId;
+    const firstLoad = firstOrdersLoadRef.current;
+    firstOrdersLoadRef.current = false;
     try {
-      setLoading(true);
+      setLoading(!(firstLoad && peekWorkspace('orders')));
       setLoadingMore(true);
       setError("");
 
@@ -803,6 +807,9 @@ function OrdersDashboard() {
       let received = 0;
       const { truncated } = await fetchAllOrders({
         includeItems: false,
+        get: (endpoint) => endpoint === '/orders?page=1&limit=500&include_items=0'
+          ? readPreparedWorkspace('orders', () => api.get(endpoint), { force: !firstLoad })
+          : api.get(endpoint),
         onPage: (rows) => {
           if (!isCurrent()) return;
           const enriched = rows.map((order) => normalizeOrder(order, {

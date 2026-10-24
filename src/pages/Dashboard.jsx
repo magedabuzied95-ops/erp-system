@@ -1,5 +1,6 @@
 import { zonedParts } from "../shared/lib/appTimezone";
 import React, { memo } from "react";
+import { peekWorkspace, readPreparedWorkspace } from '../shared/lib/workspacePreload.js';
 import { Link } from "react-router-dom";
 import {
   Activity,
@@ -277,8 +278,8 @@ function Dashboard() {
   // Marketing numbers follow the marketing permission, not the dashboard's: a cashier who can see
   // today's till total has no business reading which campaign brought in how much.
   const canViewMarketing = hasPermission("marketing.view", user);
-  const [data, setData] = React.useState(emptyDashboard);
-  const [loading, setLoading] = React.useState(true);
+  const [data, setData] = React.useState(() => ({ ...emptyDashboard, overview: normalizeObject(peekWorkspace('dashboard'), null) }));
+  const [loading, setLoading] = React.useState(() => !peekWorkspace('dashboard'));
   const [lastUpdated, setLastUpdated] = React.useState(null);
   const [onlineUsers, setOnlineUsers] = React.useState(0);
   const [hidden, setHidden] = React.useState([]);
@@ -290,6 +291,7 @@ function Dashboard() {
   const [focusMode, setFocusMode] = React.useState(() => localStorage.getItem("erp.dashboard.mode") === "focus");
   const [activeSection, setActiveSection] = React.useState("sales");
   const dashboardRequestRef = React.useRef(0);
+  const dashboardFirstLoadRef = React.useRef(true);
 
   React.useEffect(() => {
     document.body.classList.add("dashboard-shopify-route");
@@ -352,9 +354,13 @@ function Dashboard() {
     const requestId = dashboardRequestRef.current + 1;
     dashboardRequestRef.current = requestId;
     const isCurrentRequest = () => dashboardRequestRef.current === requestId;
-    if (!silent) setLoading(true);
+    const firstLoad = dashboardFirstLoadRef.current;
+    dashboardFirstLoadRef.current = false;
+    if (!silent) setLoading(!(firstLoad && queryString === '?range=today' && peekWorkspace('dashboard')));
     try {
-      const overview = await api.get(`/dashboard/overview${queryString}`);
+      const overview = queryString === '?range=today'
+        ? await readPreparedWorkspace('dashboard', () => api.get(`/dashboard/overview${queryString}`), { force: !firstLoad })
+        : await api.get(`/dashboard/overview${queryString}`);
       if (!isCurrentRequest()) return;
       setData((current) => ({
         ...current,
