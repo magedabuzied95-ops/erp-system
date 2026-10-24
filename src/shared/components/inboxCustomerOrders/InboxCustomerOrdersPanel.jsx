@@ -2,6 +2,7 @@ import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { ArrowLeftRight, Banknote, Brain, CheckCircle2, Loader2, MessageCircle, Plus, Printer, RefreshCw, Send, ShoppingBag, Truck, X, XCircle } from "lucide-react";
 
 import { api } from "../../api/api";
+import { sendOrderMessage } from "../../api/orderMessages";
 import { formatCurrency } from "../../lib/currency";
 import InboxExchangeSheet from "./InboxExchangeSheet";
 
@@ -341,7 +342,7 @@ export default function InboxCustomerOrdersPanel({ conversation = null, headers 
     setBusyOrderId(order.id);
     try {
       if (action === "send_confirmation") {
-        await api.post(`/orders/${order.id}/send-confirmation`, {}, { headers });
+        await sendOrderMessage(order.id, "order_confirmation", { headers });
         notify("success", LABELS.confirmationSent);
       } else if (action === "confirm_payment") {
         const typedAmount = Number(amount) || 0;

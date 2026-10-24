@@ -660,7 +660,8 @@
         "missing_invoice_number": "The invoice has no number, so it cannot be sent",
         "missing_invoice_url": "The invoice link could not be built",
         "cancelled_order": "A cancelled invoice cannot be resent",
-        "gateway_error": "WhatsApp could not send it. Check that the store number is connected."
+        "gateway_error": "WhatsApp could not send it. Check that the store number is connected.",
+        "not_on_whatsapp": "This number is not on WhatsApp, so nothing was sent. Check the customer's WhatsApp number and fix it on the order, or add it as a second number."
       }
     }
   },

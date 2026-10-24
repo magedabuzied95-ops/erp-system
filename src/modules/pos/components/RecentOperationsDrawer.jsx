@@ -21,6 +21,7 @@ import { createPortal } from "react-dom";
 import toast from "react-hot-toast";
 
 import { api } from "../../../shared/api/api";
+import { sendOrderMessage } from "../../../shared/api/orderMessages";
 import { getCurrentUser, getUserRole, hasPermission } from "../../../shared/auth/authStorage";
 import { DEFAULT_PRODUCT_PLACEHOLDER, resolveInvoiceItemImageUrl } from "../../../shared/lib/invoiceItemImages";
 import { formatCurrency } from "../lib/posUtils";
@@ -628,11 +629,9 @@ function RecentOperationsDrawer({ open, openedAt = 0, requestedInvoiceNumber = "
     if (!order?.id) return;
     await runOrderAction(order, "whatsapp-resend", async () => {
       try {
-        const response = await api.post(`/orders/${order.id}/resend-invoice-whatsapp`, {});
-        // The endpoint answers 4xx on a refusal, but a body that says it did not send is
-        // still a refusal - reporting a delivery that never happened is the one outcome
-        // the cashier cannot recover from.
-        if (response?.sent === false) throw new Error(resolveResendFailureMessage(response));
+        // sendOrderMessage throws on a body that says it did not send: reporting a delivery
+        // that never happened is the one outcome the cashier cannot recover from.
+        await sendOrderMessage(order.id, "invoice_receipt");
         setWhatsappResendOrder(null);
         toast.success(tt("pos.recentOps.toasts.whatsappResent", { invoice: getOrderInvoiceNumber(order) }));
       } catch (err) {
