@@ -128,18 +128,20 @@ export function CommandPaletteTrigger({ items = [], userId, currentPath = "", cl
           </>
         )}
       </button>
+      {/* The last pages as their icons only; the name shows on hover. */}
       {compact ? null : shortcuts.map((item) => {
         const Icon = item.icon;
+        const name = item.section ? `${item.section} / ${item.label}` : item.label;
         return (
           <button
             key={item.to}
             type="button"
             onClick={(event) => (event.ctrlKey || event.metaKey ? window.open(item.to, "_blank", "noopener") : navigate(item.to))}
-            title={item.section ? `${item.section} / ${item.label}` : item.label}
-            className="hidden h-9 max-w-[11rem] shrink-0 items-center gap-1.5 rounded-full px-2.5 text-sm font-semibold text-text-muted transition hover:bg-surface-hover hover:text-text lg:inline-flex"
+            title={name}
+            aria-label={name}
+            className="hidden h-9 w-9 shrink-0 items-center justify-center rounded-full text-text-muted transition hover:bg-surface-hover hover:text-text lg:inline-flex"
           >
-            {Icon ? <Icon className="h-4 w-4 shrink-0 text-primary" /> : <LayoutGrid className="h-4 w-4 shrink-0 text-primary" />}
-            <span className="truncate">{item.label}</span>
+            {Icon ? <Icon className="h-[18px] w-[18px] shrink-0 text-primary" /> : <LayoutGrid className="h-[18px] w-[18px] shrink-0 text-primary" />}
           </button>
         );
       })}
