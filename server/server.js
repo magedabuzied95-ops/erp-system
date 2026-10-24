@@ -684,7 +684,7 @@ const { startAmazonScheduler } = await import("./modules/amazon/amazonScheduler.
 const { default: metaAdsRoutes, metaAdsPublicRoutes } = await import("./modules/metaAds/metaAds.routes.js");
 const { ensureMetaAdsSchema } = await import("./modules/metaAds/metaAdsSchema.js");
 const { startMetaAdsScheduler } = await import("./modules/metaAds/metaAdsScheduler.js");
-const { default: googleAdsRoutes, ensureGoogleAdsSchema } = await import("./modules/googleAds/googleAds.routes.js");
+const { default: googleAdsRoutes, ensureGoogleAdsSchema, publicGoogleAdsTracking } = await import("./modules/googleAds/googleAds.routes.js");
 const { default: tiktokAdsRoutes } = await import("./modules/tiktokAds/tiktokAds.routes.js");
 const { ensureTikTokAdsSchema } = await import("./modules/tiktokAds/tiktokAdsSchema.js");
 const { startTikTokAdsScheduler } = await import("./modules/tiktokAds/tiktokAdsScheduler.js");
@@ -2034,6 +2034,7 @@ app.use("/api/meta-ads", metaAdsRoutes);
 // TikTok Ads (Marketing API, advertiser OAuth). Its OAuth callback rides the TikTok Business one.
 app.use("/api/tiktok-ads", tiktokAdsRoutes);
 app.use("/api/google-ads", googleAdsRoutes);
+app.get("/api/google-ads-public/tracking", publicGoogleAdsTracking);
 // Official WhatsApp (Cloud API) menu sections: accounts settings, connect, analytics, chatbot flows.
 app.use("/api/whatsapp-official-public", waOfficialPublicRoutes);
 app.use("/api/whatsapp-official", waOfficialRoutes);

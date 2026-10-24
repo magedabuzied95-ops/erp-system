@@ -5,6 +5,7 @@ import {
   ga4OrderId,
   isGa4PurchaseEligible,
 } from "./ga4EventPayload.js";
+import { loadGoogleAdsTracking, trackGoogleAdsPurchase } from './googleAdsPurchase.js';
 
 const env = import.meta.env || {};
 export const GA4_MEASUREMENT_ID = String(
@@ -67,6 +68,7 @@ export const ensureGoogleTag = () => {
     script.src = `https://www.googletagmanager.com/gtag/js?id=${encodeURIComponent(GA4_MEASUREMENT_ID)}`;
     document.head.appendChild(script);
   }
+  loadGoogleAdsTracking();
   return true;
 };
 
@@ -162,6 +164,7 @@ export const trackGa4Purchase = ({ order = {}, items = [], checkout = {}, value 
   const payload = buildGa4PurchasePayload({ order, items, checkout, value });
   if (!payload) return null;
   const sent = sendOnce("purchase", orderId, payload);
+  if (sent) trackGoogleAdsPurchase(payload);
   if (sent && typeof window !== "undefined") {
     try {
       window.localStorage?.setItem(storageKey, "1");

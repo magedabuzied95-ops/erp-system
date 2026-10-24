@@ -29,8 +29,10 @@ const line = {
   compare_at_price: 900,
   quantity: 2,
 };
+const originalFetch = global.fetch;
 
 const installBrowserMock = () => {
+  global.fetch = async () => ({ ok: true, json: async () => ({ enabled: false }) });
   const storage = new Map();
   const scripts = [];
   global.window = {
@@ -57,6 +59,7 @@ const installBrowserMock = () => {
 };
 
 const removeBrowserMock = () => {
+  global.fetch = originalFetch;
   delete global.window;
   delete global.document;
 };

@@ -18,6 +18,8 @@ export default function GoogleAdsModule() {
   const [state, setState] = useState(null);
   const [accounts, setAccounts] = useState([]);
   const [account, setAccount] = useState('');
+  const [section, setSection] = useState('reports');
+  const [tracking, setTracking] = useState(null);
   const [level, setLevel] = useState('campaigns');
   const [days, setDays] = useState('30');
   const [reportCampaign, setReportCampaign] = useState('');
@@ -37,6 +39,8 @@ export default function GoogleAdsModule() {
       if (data.connected) {
         const result = await api.get('/google-ads/accounts', quiet);
         setAccounts(result.accounts || []);
+        const selectable = (result.accounts || []).filter(a => !a.manager);
+        if (selectable.length === 1) setAccount(String(selectable[0].id));
       } else { setAccounts([]); setRows([]); setAccount(''); }
     } catch (e) { setError(e.responseBody?.message || e.message); }
   }, []);
@@ -65,6 +69,12 @@ export default function GoogleAdsModule() {
     }).catch(e => { if (active) setError(e.responseBody?.message || e.message); });
     return () => { active = false; };
   }, [account, refreshKey]);
+  useEffect(() => {
+    let active = true;
+    setTracking(null);
+    if (account) api.get(`/google-ads/accounts/${account}/tracking`, quiet).then(data => { if (active) setTracking(data.tracking); }).catch(e => { if (active) setError(e.responseBody?.message || e.message); });
+    return () => { active = false; };
+  }, [account, refreshKey]);
   const request = (path, body, done) => action(async () => {
     const result = body === null ? await api.get('/google-ads/accounts/' + account + path, quiet) : await api.post('/google-ads/accounts/' + account + path, body, quiet);
     done?.(result);
@@ -72,7 +82,7 @@ export default function GoogleAdsModule() {
   const selected = accounts.find(a => String(a.id) === account);
   const money = value => new Intl.NumberFormat(ar ? 'ar-EG' : 'en-US', { style: 'currency', currency: selected?.currencyCode || 'EGP' }).format(Number(value || 0));
   return <div className="tiktok-ads-page">
-    <PageHeader title={label('إعلانات جوجل', 'Google Ads')} description={label('إدارة حساباتك وحملاتك ونتائجها من السيستم', 'Manage your accounts, campaigns and performance')} />
+    <PageHeader title={label('إعلانات جوجل', 'Google Ads')} description={label('أنشئ حملات البحث وإعلانات منتجات المتجر وتابع نتائجها من هنا', 'Create Search and retail campaigns and track their performance here')} actions={manage && <Button variant="primary" disabled={!account || busy} onClick={() => setSection('create')}>{label('إنشاء حملة', 'Create campaign')}</Button>} />
     {outcome === 'connected' && <p role="status">{label('تم ربط جوجل بنجاح', 'Google connected successfully')}</p>}
     {outcome === 'error' && <p role="alert">{label('تعذر إكمال الربط. حاول مرة أخرى.', 'Authorization failed. Please reconnect.')}</p>}
     {error && <div role="alert" className="tiktok-ads-notice tiktok-ads-notice--danger">{error}</div>}
@@ -87,12 +97,20 @@ export default function GoogleAdsModule() {
       }}>{label('فصل الربط', 'Disconnect')}</Button>}
       <Button disabled={busy} onClick={load}>{label('تحديث الحسابات', 'Refresh accounts')}</Button>
     </Card>
-    {state?.connected && <Card title={label('الحملات والنتائج', 'Campaigns and performance')}>
+    {state?.connected && <>
       <div className="tiktok-ads-toolbar">
         <label>{label('الحساب', 'Account')} <select disabled={busy} value={account} onChange={e => { setBudgets({}); setReportCampaign(''); setAccount(e.target.value); }}>
           <option value="">{label('اختر حساب', 'Select account')}</option>
           {accounts.filter(a => !a.manager).map(a => <option key={a.id} value={a.id}>{a.descriptiveName || a.id} ({a.currencyCode})</option>)}
         </select></label>
+      </div>
+      {!account && <p>{label('اختر الحساب الإعلاني لعرض الحملات أو إنشاء حملة جديدة.', 'Choose an ad account to view or create campaigns.')}</p>}
+      <nav className="tiktok-ads-sections" aria-label={label('أقسام إعلانات جوجل', 'Google Ads sections')}>
+        {[['reports', label('الحملات والنتائج', 'Campaigns and results')], ['create', label('إنشاء حملة', 'Create campaign')], ['manage', label('إدارة الحملات', 'Manage campaigns')], ['tracking', label('تتبع المشتريات', 'Purchase tracking')]].filter(([key]) => manage || key !== 'create').map(([key, title]) => <button type="button" key={key} disabled={!account} className={`tiktok-ads-sections__link${section === key ? ' is-active' : ''}`} aria-current={section === key ? 'page' : undefined} onClick={() => setSection(key)}>{title}</button>)}
+      </nav>
+    </>}
+    {state?.connected && section === 'reports' && <Card title={label('الحملات والنتائج', 'Campaigns and performance')}>
+      <div className="tiktok-ads-toolbar">
         <label>{label('الحملة', 'Campaign')}<select value={reportCampaign} onChange={e => setReportCampaign(e.target.value)}><option value="">{label('كل الحملات', 'All campaigns')}</option>{structure.campaigns.map(c => <option key={c.id} value={c.id}>{c.name}</option>)}</select></label>
         <label>{label('المستوى', 'Level')} <select value={level} onChange={e => setLevel(e.target.value)}>
           <option value="campaigns">{label('الحملات', 'Campaigns')}</option><option value="groups">{label('المجموعات', 'Ad groups')}</option><option value="ads">{label('الإعلانات', 'Ads')}</option><option value="keywords">{label('الكلمات المفتاحية', 'Keywords')}</option><option value="assets">{label('مجموعات Performance Max', 'Performance Max asset groups')}</option><option value="products">{label('نتائج المنتجات', 'Product performance')}</option><option value="terms">{label('عبارات البحث', 'Search terms')}</option>
@@ -124,7 +142,14 @@ export default function GoogleAdsModule() {
       })}</tbody></table></div>
       {account && !rows.length && <p>{label('لا توجد نتائج للفترة المحددة', 'No results for this reporting period')}</p>}
     </Card>}
-    {account && <CampaignManager key={`manager-${account}`} label={label} request={request} busy={busy} structure={structure} manage={manage} refreshKey={refreshKey} />}
-    {manage && account && <CampaignBuilder key={`builder-${account}`} label={label} request={request} busy={busy} account={account} />}
+    {account && section === 'manage' && <CampaignManager key={`manager-${account}`} label={label} request={request} busy={busy} structure={structure} manage={manage} refreshKey={refreshKey} />}
+    {manage && account && <div hidden={section !== 'create'}><CampaignBuilder key={`builder-${account}`} label={label} request={request} busy={busy} account={account} /></div>}
+    {account && section === 'tracking' && <Card title={label('تتبع مشتريات المتجر', 'Store purchase tracking')}>
+      <p>{tracking ? label('تتبع المشتريات مجهز ومربوط بالحساب المحدد.', 'Purchase tracking is configured for this account.') : label('تتبع المشتريات غير مجهز لهذا الحساب.', 'Purchase tracking is not configured for this account.')}</p>
+      <p>{label('يسجل طلبات الموقع الجديدة بقيمة الطلب والجنيه المصري ورقم طلب يمنع التكرار. لا يرسل أسماء العملاء أو أرقامهم أو عناوينهم. ظهور تحويلات فعلية يحتاج طلبًا جديدًا مؤهلًا بعد زيارة إعلانية.', 'Records new website orders with order value, EGP and a transaction ID for deduplication. No customer names, phone numbers or addresses are sent. Actual attributed conversions require a qualifying new order after an ad visit.')}</p>
+      {tracking && <p>{label('رقم إجراء التحويل: ', 'Conversion action: ')}{tracking.action_id}</p>}
+      {manage && <Button variant="primary" disabled={busy} onClick={() => request('/tracking/setup', {}, data => setTracking(data.tracking))}>{tracking ? label('مراجعة إعداد التتبع', 'Review tracking setup') : label('تجهيز تتبع المشتريات', 'Set up purchase tracking')}</Button>}
+      <p>{label('المقياس هو الطلب المُسجل بالموقع؛ الطلبات عند الاستلام لا تعني تحصيل الدفع. إعداد التتبع لا يبدأ حملة أو إنفاقًا.', 'Measures website order placement; cash-on-delivery orders do not mean payment collected. Tracking setup does not start campaigns or spend.')}</p>
+    </Card>}
   </div>;
 }

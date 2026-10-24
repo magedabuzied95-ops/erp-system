@@ -6,6 +6,7 @@ import permit from '../../middleware/permissionMiddleware.js';
 import { getTenantId } from '../../utils/requestScope.js';
 import { fail, setup, encrypt, decrypt, tokenRequest, googleRequest, search, customerId, micros, campaignUpdate } from './googleAdsApi.js';
 import { buildCampaign, buildRetailGroup, numericId, keyword, responsiveAd, bidSettings } from './googleAdsCampaigns.js';
+import { purchaseAction, conversionDestination } from './googleAdsTracking.js';
 
 let ready = false;
 export async function ensureGoogleAdsSchema(database) {
@@ -13,6 +14,9 @@ export async function ensureGoogleAdsSchema(database) {
     tenant_id BIGINT PRIMARY KEY, refresh_token_encrypted TEXT NOT NULL, connected_at TIMESTAMPTZ NOT NULL DEFAULT NOW())`);
   await database.query(`CREATE TABLE IF NOT EXISTS google_ads_oauth_states (
     state TEXT PRIMARY KEY, tenant_id BIGINT NOT NULL, created_at TIMESTAMPTZ NOT NULL DEFAULT NOW())`);
+  await database.query(`CREATE TABLE IF NOT EXISTS google_ads_purchase_tracking (
+    tenant_id BIGINT PRIMARY KEY, customer_id TEXT NOT NULL, action_id TEXT NOT NULL,
+    send_to TEXT NOT NULL, enabled_at TIMESTAMPTZ NOT NULL DEFAULT NOW())`);
   ready = true;
 }
 const router = express.Router();
@@ -34,6 +38,16 @@ const context = async tenant => {
   return (await tokenRequest({ grant_type: 'refresh_token', refresh_token: decrypt(rows[0].refresh_token_encrypted) })).access_token;
 };
 const login = () => process.env.GOOGLE_ADS_LOGIN_CUSTOMER_ID || '';
+export const publicGoogleAdsTracking = async (_req, res) => {
+  // The public retail storefront and Merchant feed belong to tenant 1. Do not
+  // accept a client tenant parameter for the public shop's measurement destination.
+  try {
+    if (!ready) return res.json({ enabled: false });
+    const { rows } = await db.query('SELECT send_to FROM google_ads_purchase_tracking WHERE tenant_id=$1', [1]);
+    res.set('Cache-Control', 'public, max-age=60');
+    return res.json({ enabled: !!rows.length, sendTo: rows[0]?.send_to || '' });
+  } catch { return res.status(503).json({ enabled: false }); }
+};
 router.get('/setup', ...view, wrap(async (_, tenant) => {
   const { rows } = await db.query('SELECT connected_at FROM google_ads_connections WHERE tenant_id=$1', [tenant]);
   return { setup: setup(), connected: !!rows.length, connectedAt: rows[0]?.connected_at };
@@ -158,6 +172,25 @@ router.get('/accounts/:id/conversions', ...view, wrap(async (req, tenant) => {
   const { id, token, loginId } = await accountContext(tenant, req.params.id);
   const rows = await search(token, id, "SELECT conversion_action.id, conversion_action.name, conversion_action.status, conversion_action.type, conversion_action.category, conversion_action.primary_for_goal FROM conversion_action WHERE conversion_action.status != 'REMOVED'", loginId);
   return { rows };
+}));
+router.get('/accounts/:id/tracking', ...view, wrap(async (req, tenant) => {
+  const id = customerId(req.params.id);
+  const { rows } = await db.query('SELECT customer_id,action_id,send_to,enabled_at FROM google_ads_purchase_tracking WHERE tenant_id=$1 AND customer_id=$2', [tenant, id]);
+  return { tracking: rows[0] || null };
+}));
+router.post('/accounts/:id/tracking/setup', ...manage, wrap(async (req, tenant) => {
+  const { id, token, loginId } = await accountContext(tenant, req.params.id);
+  let rows = await search(token, id, "SELECT conversion_action.id, conversion_action.name, conversion_action.type, conversion_action.category, conversion_action.tag_snippets FROM conversion_action WHERE conversion_action.name = 'M1 Store - Website Purchase' AND conversion_action.status = 'ENABLED'", loginId);
+  if (!rows.length) {
+    await googleRequest(token, `customers/${id}/conversionActions:mutate`, { operations: [{ create: purchaseAction() }] }, loginId);
+    rows = await search(token, id, "SELECT conversion_action.id, conversion_action.name, conversion_action.type, conversion_action.category, conversion_action.tag_snippets FROM conversion_action WHERE conversion_action.name = 'M1 Store - Website Purchase' AND conversion_action.status = 'ENABLED'", loginId);
+  }
+  const action = rows[0]?.conversionAction;
+  if (!action || action.type !== 'WEBPAGE' || action.category !== 'PURCHASE') throw fail('A different conversion action uses this name. Review conversion settings in Google Ads.', 409);
+  const sendTo = conversionDestination(action.tagSnippets);
+  await db.query(`INSERT INTO google_ads_purchase_tracking (tenant_id,customer_id,action_id,send_to) VALUES ($1,$2,$3,$4)
+    ON CONFLICT (tenant_id) DO UPDATE SET customer_id=EXCLUDED.customer_id,action_id=EXCLUDED.action_id,send_to=EXCLUDED.send_to`, [tenant, id, action.id, sendTo]);
+  return { tracking: { customer_id: id, action_id: action.id, send_to: sendTo } };
 }));
 router.get('/accounts/:id/locations', ...view, wrap(async (req, tenant) => {
   const { id, token, loginId } = await accountContext(tenant, req.params.id);

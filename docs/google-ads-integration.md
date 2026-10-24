@@ -28,12 +28,14 @@ Enable Google Ads API and obtain production access for the Cloud project. Config
 - Add paused Search groups/ads and retail asset groups; add group keywords; pause/enable groups, ads, keywords and asset groups, including objects with no reporting activity.
 - Campaign renaming, bidding changes, geographic/language targeting additions/removal, and campaign negative keywords.
 - Read conversion action configuration. This does not verify that purchase events are received.
+- Purchase tracking setup creates/reuses `M1 Store - Website Purchase` (WEBPAGE/PURCHASE), stores its public AW destination per tenant, and exposes only the retail tenant's tag destination to the storefront. The existing Google tag consent initialization is reused. New eligible checkout/success events send a transaction ID, actual value and EGP, with persistent deduplication. No enhanced conversions or customer PII is sent. COD order placement is measured, not cash collection or delivery.
+- The UI selects a sole ad account automatically and has explicit Reports, Create campaign, Manage campaigns and Purchase tracking sections, plus a top-level Create campaign button.
 - A Google `validateOnly` step before campaign creation. New campaign and budget resources are created in one atomic mutation. Date fields use v26 account-local timestamps.
 - Server permission checks on all authenticated routes. Public callback authenticates through consumed OAuth state.
 
 ## Remaining scope
 
-This is not full Google Ads parity. Custom Performance Max image/video/text asset upload, audience signals, arbitrary multidimensional product partitions, standard Shopping campaign creation, conversion setup and event delivery, ad text editing in place, billing, change history, and scheduled automation are not implemented. Reports do not include zero-activity rows Google omits for the selected period; the settings view lists existing objects without metric filtering. Shared budgets are deliberately not edited through the campaign control. Retail product selection supports all products or one brand, with the remaining brands excluded.
+This is not full Google Ads parity. Custom Performance Max image/video/text asset upload, audience signals, arbitrary multidimensional product partitions, standard Shopping campaign creation, offline/delivered-order conversion uploads, ad text editing in place, billing, change history, and scheduled automation are not implemented. Reports do not include zero-activity rows Google omits for the selected period; the settings view lists existing objects without metric filtering. Shared budgets are deliberately not edited through the campaign control. Retail product selection supports all products or one brand, with the remaining brands excluded.
 
 Campaigns are created paused. Review destination URLs, products, targeting, creatives, bidding and budgets before enabling. Retail Performance Max requires a linked Merchant Center and conversion tracking configured at Google. No real account was authorized and no live campaign or budget was changed during implementation. Deploy and test against a Google Ads test account before enabling production management.
 
