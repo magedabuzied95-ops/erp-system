@@ -16,6 +16,8 @@ const CORE_PERMISSIONS = [
   ["meta_ads", "manage"],
   // TikTok Ads (Marketing API). view = every TikTok Ads screen; manage = connect, disconnect, sync.
   // Admin roles receive both automatically.
+  ["google_ads", "view"],
+  ["google_ads", "manage"],
   ["tiktok_ads", "view"],
   ["tiktok_ads", "manage"],
   ["ai_inbox_messenger", "view"],

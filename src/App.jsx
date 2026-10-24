@@ -226,6 +226,7 @@ const AccountSecurity = lazy(() => import("./modules/security/AccountSecurity"))
 const AmazonCenter = lazy(() => import("./modules/amazon/AmazonCenter"));
 const AmazonIntegrationSettings = lazy(() => import("./modules/amazon/AmazonCenter").then((module) => ({ default: module.AmazonIntegrationSettingsPage })));
 const MetaAdsModule = lazy(() => import("./modules/metaAds/MetaAdsModule"));
+const GoogleAdsModule = lazy(() => import("./modules/googleAds/GoogleAdsModule"));
 const TikTokAdsModule = lazy(() => import("./modules/tiktokAds/TikTokAdsModule"));
 
 import ProtectedRoute from "./shared/auth/ProtectedRoute";
@@ -2208,6 +2209,10 @@ function App() {
         />
 
         {/* TikTok Ads (Marketing API): connect the advertiser account, campaigns / ad groups / ads with insights. */}
+        <Route
+          path="google-ads/*"
+          element={<ProtectedRoute requiredPermissions={["google_ads.view"]}><GoogleAdsModule /></ProtectedRoute>}
+        />
         <Route
           path="tiktok-ads/*"
           element={

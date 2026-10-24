@@ -684,6 +684,7 @@ const { startAmazonScheduler } = await import("./modules/amazon/amazonScheduler.
 const { default: metaAdsRoutes, metaAdsPublicRoutes } = await import("./modules/metaAds/metaAds.routes.js");
 const { ensureMetaAdsSchema } = await import("./modules/metaAds/metaAdsSchema.js");
 const { startMetaAdsScheduler } = await import("./modules/metaAds/metaAdsScheduler.js");
+const { default: googleAdsRoutes, ensureGoogleAdsSchema } = await import("./modules/googleAds/googleAds.routes.js");
 const { default: tiktokAdsRoutes } = await import("./modules/tiktokAds/tiktokAds.routes.js");
 const { ensureTikTokAdsSchema } = await import("./modules/tiktokAds/tiktokAdsSchema.js");
 const { startTikTokAdsScheduler } = await import("./modules/tiktokAds/tiktokAdsScheduler.js");
@@ -2032,6 +2033,7 @@ app.use("/api/meta-ads-public", metaAdsPublicRoutes);
 app.use("/api/meta-ads", metaAdsRoutes);
 // TikTok Ads (Marketing API, advertiser OAuth). Its OAuth callback rides the TikTok Business one.
 app.use("/api/tiktok-ads", tiktokAdsRoutes);
+app.use("/api/google-ads", googleAdsRoutes);
 // Official WhatsApp (Cloud API) menu sections: accounts settings, connect, analytics, chatbot flows.
 app.use("/api/whatsapp-official-public", waOfficialPublicRoutes);
 app.use("/api/whatsapp-official", waOfficialRoutes);
@@ -2765,6 +2767,7 @@ const bootstrapStartup = async () => {
       .then(() => console.log("[server] meta ads schema ensured"))
       .catch((error) => console.error("[server] meta ads schema failed; Meta Ads disabled", { message: error?.message || String(error) }));
     // TikTok Ads tables are new and self-contained: a failure disables the TikTok Ads module only.
+    await ensureGoogleAdsSchema(db).catch(() => console.error("[server] Google Ads schema unavailable"));
     await ensureTikTokAdsSchema(db)
       .then(() => console.log("[server] tiktok ads schema ensured"))
       .catch((error) => console.error("[server] tiktok ads schema failed; TikTok Ads disabled", { message: error?.message || String(error) }));

@@ -1,0 +1,7 @@
+.google-ads-form { border: 0; padding: 0; margin: 0; display: grid; gap: 16px; grid-template-columns: repeat(auto-fit, minmax(240px, 1fr)); min-width: 0; }
+.google-ads-field { display: flex; flex-direction: column; gap: 6px; }
+.google-ads-form input, .google-ads-form select, .google-ads-form textarea { color: var(--text); background: var(--surface); border: 1px solid var(--border); border-radius: 8px; padding: 10px; max-width: 100%; }
+.google-ads-form p, .google-ads-form small, .google-ads-actions { grid-column: 1 / -1; }
+.google-ads-actions { display: flex; flex-wrap: wrap; gap: 8px; }
+.google-ads-manager details { border-block-end: 1px solid var(--border); padding: 14px 0; }
+.google-ads-manager summary { cursor: pointer; font-weight: 600; margin-block-end: 14px; }

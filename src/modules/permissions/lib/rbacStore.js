@@ -124,6 +124,7 @@ export const MODULES = [
   // Meta Ads (Marketing API). view = read every Meta Ads screen; manage = create/publish/pause/sync/connect.
   { key: "meta_ads", label: "Meta Ads" },
   // TikTok Ads (Marketing API). view = read the TikTok Ads screens; manage = connect/disconnect/sync.
+  { key: "google_ads", label: "Google Ads" },
   { key: "tiktok_ads", label: "TikTok Ads" },
 ];
 
@@ -131,6 +132,7 @@ export const MODULE_ACTIONS = Object.freeze({
   dashboard: ["view"],
   amazon: ["view", "manage"],
   meta_ads: ["view", "manage"],
+  google_ads: ["view", "manage"],
   tiktok_ads: ["view", "manage"],
   products: ["view", "create", "edit", "delete", "view_cost", "barcode_shop"],
   pos: ["view", "create", "sell", "edit", "edit_old", "override_seller", "scan_product_qr"],
@@ -544,6 +546,7 @@ const RAW_SIDEBAR_SECTIONS = [
       // ONE row: Ads Manager, campaigns, leads, audiences, attribution, competitors and settings
       // are reached through the section bar on the page itself (MetaAdsLayout).
       { label: "Meta Ads", to: "/meta-ads", permission: "meta_ads.view", icon: Target, keywords: "meta ads facebook instagram ads manager campaigns ad sets leads audiences pixel إعلانات ميتا فيسبوك حملات مدير الإعلانات" },
+      { label: "Google Ads", to: "/google-ads", permission: "google_ads.view", icon: Target, keywords: "google ads campaigns إعلانات جوجل حملات" },
       { label: "TikTok Ads", to: "/tiktok-ads", permission: "tiktok_ads.view", icon: Target, keywords: "tiktok ads campaigns ad groups spend إعلانات تيك توك حملات" },
       { label: "AI Marketing Center", to: "/marketing/ai-center", permission: "marketing.view", icon: Sparkles },
       { label: "Social Calendar", to: "/marketing/social-calendar", permission: "marketing.view", icon: CalendarDays },
