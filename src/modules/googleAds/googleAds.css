@@ -5,3 +5,20 @@
 .google-ads-actions { display: flex; flex-wrap: wrap; gap: 8px; }
 .google-ads-manager details { border-block-end: 1px solid var(--border); padding: 14px 0; }
 .google-ads-manager summary { cursor: pointer; font-weight: 600; margin-block-end: 14px; }
+
+.google-ads-page select {
+  color-scheme: light;
+  color: var(--text);
+  background-color: var(--card);
+  border-color: var(--border);
+}
+
+html[data-theme="dark"] .google-ads-page select {
+  color-scheme: dark;
+}
+
+.google-ads-page select option,
+.google-ads-page select optgroup {
+  color: var(--text);
+  background-color: var(--card);
+}

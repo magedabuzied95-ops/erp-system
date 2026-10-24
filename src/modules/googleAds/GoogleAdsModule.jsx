@@ -81,7 +81,7 @@ export default function GoogleAdsModule() {
   }, body !== null && body.validateOnly !== true);
   const selected = accounts.find(a => String(a.id) === account);
   const money = value => new Intl.NumberFormat(ar ? 'ar-EG' : 'en-US', { style: 'currency', currency: selected?.currencyCode || 'EGP' }).format(Number(value || 0));
-  return <div className="tiktok-ads-page">
+  return <div className="tiktok-ads-page google-ads-page">
     <PageHeader title={label('إعلانات جوجل', 'Google Ads')} description={label('أنشئ حملات البحث وإعلانات منتجات المتجر وتابع نتائجها من هنا', 'Create Search and retail campaigns and track their performance here')} actions={manage && <Button variant="primary" disabled={!account || busy} onClick={() => setSection('create')}>{label('إنشاء حملة', 'Create campaign')}</Button>} />
     {outcome === 'connected' && <p role="status">{label('تم ربط جوجل بنجاح', 'Google connected successfully')}</p>}
     {outcome === 'error' && <p role="alert">{label('تعذر إكمال الربط. حاول مرة أخرى.', 'Authorization failed. Please reconnect.')}</p>}
